@@ -1,0 +1,235 @@
+.dynamic-form-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.dynamic-form-container h1 {
+  margin-bottom: 0.5rem;
+  color: #213547;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+.dynamic-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-field label {
+  font-weight: 500;
+  color: #213547;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.required {
+  color: #d32f2f;
+}
+
+.info-icon {
+  cursor: help;
+  font-size: 0.9rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  position: relative;
+}
+
+.info-icon:hover {
+  opacity: 1;
+}
+
+.form-field select,
+.form-field textarea,
+.form-field input[type="text"] {
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  height: auto;
+  box-sizing: border-box;
+}
+
+.form-field select,
+.form-field input[type="text"] {
+  height: 2.75rem;
+}
+
+.form-field select:focus,
+.form-field textarea:focus,
+.form-field input[type="text"]:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.form-field select.error,
+.form-field textarea.error,
+.form-field input[type="text"].error {
+  border-color: #d32f2f;
+}
+
+.error-message {
+  color: #d32f2f;
+  font-size: 0.875rem;
+  margin-top: -0.25rem;
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-actions {
+  margin-top: 1rem;
+}
+
+.submit-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+}
+
+.error-container {
+  text-align: center;
+  padding: 2rem;
+}
+
+.error-container p {
+  color: #d32f2f;
+  margin-bottom: 1rem;
+}
+
+.error-container button {
+  padding: 0.5rem 1rem;
+  background-color: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.error-banner {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.submission-success {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.submission-success h2 {
+  color: #2e7d32;
+  margin-bottom: 1rem;
+}
+
+.submission-success p {
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.submission-summary {
+  background-color: #f5f5f5;
+  padding: 1.5rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.submission-summary h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #213547;
+}
+
+.submission-summary pre {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.submission-success button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submission-success button:hover {
+  background-color: #535bf2;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dynamic-form-container h1,
+  .form-field label,
+  .submission-summary h3 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .subtitle {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .form-field select,
+  .form-field textarea,
+  .form-field input[type="text"] {
+    background-color: #1a1a1a;
+    color: rgba(255, 255, 255, 0.87);
+    border-color: #444;
+  }
+
+  .submission-summary {
+    background-color: #1a1a1a;
+  }
+
+  .submission-summary pre {
+    background-color: #242424;
+    color: rgba(255, 255, 255, 0.87);
+  }
+}
+

@@ -1,0 +1,195 @@
+llm_models:
+  - "gemini-2.5-flash"
+  - "gemini-2.5-pro"
+  - "gemini-3-flash"
+  - "gemini-3-pro"
+
+fields:
+  - id: llm_model
+    label: "Modello LLM"
+    type: select
+    required: true
+    description: "Seleziona il modello di intelligenza artificiale Gemini da utilizzare per la generazione del romanzo"
+    options:
+      - value: "gemini-2.5-flash"
+        label: "Gemini 2.5 Flash"
+      - value: "gemini-2.5-pro"
+        label: "Gemini 2.5 Pro"
+      - value: "gemini-3-flash"
+        label: "Gemini 3 Flash"
+      - value: "gemini-3-pro"
+        label: "Gemini 3 Pro"
+
+  - id: plot
+    label: "Trama"
+    type: text
+    required: true
+    description: "Descrivi la trama principale del romanzo, gli eventi chiave e lo sviluppo narrativo"
+    placeholder: "Descrivi la trama del romanzo..."
+
+  - id: genre
+    label: "Genere"
+    type: select
+    required: false
+    description: "Cornice narrativa che definisce aspettative e tipo di conflitto"
+    options:
+      - value: "letterario"
+      - value: "storico"
+      - value: "fantascienza"
+      - value: "fantasy"
+      - value: "giallo"
+      - value: "thriller"
+      - value: "horror"
+      - value: "romantico"
+      - value: "formazione"
+
+  - id: subgenre
+    label: "Sottogenere"
+    type: select
+    required: false
+    description: "Specializzazione del genere e sue regole specifiche"
+    options:
+      - value: "hard sci-fi"
+      - value: "soft sci-fi"
+      - value: "noir"
+      - value: "cozy"
+      - value: "epico"
+      - value: "urbano"
+      - value: "distopico"
+
+  - id: theme
+    label: "Tema"
+    type: select
+    required: false
+    description: "Nucleo concettuale del romanzo"
+    options:
+      - value: "identità"
+      - value: "potere"
+      - value: "memoria"
+      - value: "colpa"
+      - value: "crescita"
+      - value: "alienazione"
+      - value: "amore"
+      - value: "morte"
+
+  - id: protagonist
+    label: "Protagonista"
+    type: select
+    required: false
+    description: "Tipo di figura centrale della narrazione"
+    options:
+      - value: "singolo"
+      - value: "corale"
+      - value: "anti-eroe"
+      - value: "ordinario"
+      - value: "eroico"
+
+  - id: character_arc
+    label: "Arco del personaggio"
+    type: select
+    required: false
+    description: "Modalità di cambiamento del protagonista"
+    options:
+      - value: "crescita"
+      - value: "caduta"
+      - value: "disillusione"
+      - value: "statico"
+      - value: "circolare"
+
+  - id: point_of_view
+    label: "Punto di vista"
+    type: select
+    required: false
+    description: "Accesso del lettore agli eventi e ai pensieri"
+    options:
+      - value: "prima persona"
+      - value: "terza limitata"
+      - value: "terza onnisciente"
+      - value: "multiplo"
+      - value: "inaffidabile"
+
+  - id: narrative_voice
+    label: "Voce narrante"
+    type: select
+    required: false
+    description: "Tono percettivo del narratore"
+    options:
+      - value: "neutra"
+      - value: "soggettiva"
+      - value: "ironica"
+      - value: "distaccata"
+      - value: "lirica"
+
+  - id: style
+    label: "Stile"
+    type: select
+    required: false
+    description: "Caratteristiche della lingua e della frase"
+    options:
+      - value: "asciutto"
+      - value: "lirico"
+      - value: "complesso"
+      - value: "minimale"
+      - value: "dialogico"
+
+  - id: temporal_structure
+    label: "Struttura temporale"
+    type: select
+    required: false
+    description: "Organizzazione del tempo narrativo"
+    options:
+      - value: "lineare"
+      - value: "flashback"
+      - value: "frammentata"
+      - value: "circolare"
+
+  - id: pace
+    label: "Ritmo"
+    type: select
+    required: false
+    description: "Velocità percepita della narrazione"
+    options:
+      - value: "rapido"
+      - value: "medio"
+      - value: "lento"
+      - value: "variabile"
+
+  - id: realism
+    label: "Realismo"
+    type: select
+    required: false
+    description: "Grado di aderenza al reale"
+    options:
+      - value: "realistico"
+      - value: "simbolico"
+      - value: "allegorico"
+      - value: "fantastico"
+
+  - id: ambiguity
+    label: "Ambiguità"
+    type: select
+    required: false
+    description: "Livello di interpretazione lasciato al lettore"
+    options:
+      - value: "chiuso"
+      - value: "aperto"
+      - value: "ellittico"
+
+  - id: intentionality
+    label: "Intenzionalità"
+    type: select
+    required: false
+    description: "Posizionamento dell'opera rispetto al pubblico"
+    options:
+      - value: "intrattenimento"
+      - value: "letterario"
+      - value: "sperimentale"
+      - value: "ibrido"
+
+  - id: author
+    label: "Autore"
+    type: text
+    required: false
+    description: "Nome dell'autore da cui copiare lo stile narrativo"
+    placeholder: "Indica un autore da cui copiare lo stile (es: Italo Calvino, Haruki Murakami...)"
+
