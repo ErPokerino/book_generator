@@ -128,3 +128,41 @@ class OutlineResponse(BaseModel):
     version: int
     message: Optional[str] = None
 
+
+# Modelli per la scrittura del romanzo
+class Chapter(BaseModel):
+    """Rappresenta un singolo capitolo/sezione del romanzo."""
+    title: str
+    content: str
+    section_index: int  # Indice nella struttura (0-based)
+
+
+class BookProgress(BaseModel):
+    """Stato di avanzamento della scrittura del romanzo."""
+    session_id: str
+    current_step: int  # Indice del capitolo corrente in scrittura (0-based)
+    total_steps: int  # Numero totale di sezioni da scrivere
+    current_section_name: Optional[str] = None  # Nome/titolo della sezione in corso
+    completed_chapters: list[Chapter] = []  # Capitoli già completati
+    is_complete: bool = False
+    error: Optional[str] = None
+
+
+class BookGenerationRequest(BaseModel):
+    """Richiesta per avviare la generazione del romanzo."""
+    session_id: str
+
+
+class BookGenerationResponse(BaseModel):
+    """Risposta all'avvio della generazione."""
+    success: bool
+    session_id: str
+    message: str
+
+
+class BookResponse(BaseModel):
+    """Risposta con il libro completo."""
+    title: str
+    author: str
+    chapters: list[Chapter]
+

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
+import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
+import WritingStep from './WritingStep';
 import './DynamicForm.css';
 
 export default function DynamicForm() {
@@ -20,9 +21,10 @@ export default function DynamicForm() {
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [answersSubmitted, setAnswersSubmitted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<QuestionAnswer[]>([]);
-  const [currentStep, setCurrentStep] = useState<'form' | 'questions' | 'draft' | 'summary'>('form');
+  const [currentStep, setCurrentStep] = useState<'form' | 'questions' | 'draft' | 'summary' | 'writing'>('form');
   const [validatedDraft, setValidatedDraft] = useState<{ title?: string; text: string } | null>(null);
   const [outline, setOutline] = useState<string | null>(null);
+  const [isStartingWriting, setIsStartingWriting] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -120,7 +122,7 @@ export default function DynamicForm() {
       const optionalFields = [
         'genre', 'subgenre', 'theme', 'protagonist', 'character_arc',
         'point_of_view', 'narrative_voice', 'style', 'temporal_structure',
-        'pace', 'realism', 'ambiguity', 'intentionality', 'author'
+        'pace', 'realism', 'ambiguity', 'intentionality', 'author', 'user_name'
       ];
 
       optionalFields.forEach(fieldId => {
@@ -128,6 +130,11 @@ export default function DynamicForm() {
           (payload as any)[fieldId] = formData[fieldId].trim();
         }
       });
+      
+      // Aggiungi sempre user_name anche se vuoto, per mostrarlo nel riepilogo
+      if (formData.user_name !== undefined) {
+        (payload as any).user_name = formData.user_name || '';
+      }
 
       // Valida il form
       const response = await submitForm(payload);
@@ -355,8 +362,11 @@ export default function DynamicForm() {
 
     return (
       <div className="submission-success">
-        <h2>✓ Configurazione completata con successo!</h2>
+        <h2>Configurazione completata con successo!</h2>
         <p>{submitted.message}</p>
+        
+        {error && <div className="error-banner">{error}</div>}
+        
         <div className="submission-summary">
           <h3>Riepilogo configurazione:</h3>
           
@@ -364,17 +374,27 @@ export default function DynamicForm() {
             <div className="summary-section">
               <h4>Dati del form iniziale:</h4>
               <dl className="summary-list">
-                {Object.entries(submitted.data).map(([key, value]) => {
-                  if (value === null || value === undefined || value === '') {
-                    return null;
-                  }
-                  return (
-                    <div key={key} className="summary-item">
-                      <dt>{getFieldLabel(key)}:</dt>
-                      <dd>{formatValue(value)}</dd>
-                    </div>
-                  );
-                })}
+                {/* Mostra sempre Nome Autore per primo, anche se vuoto o mancante */}
+                <div className="summary-item">
+                  <dt>Nome Autore:</dt>
+                  <dd>{formatValue(submitted.data.user_name || formData.user_name || '—')}</dd>
+                </div>
+                
+                {/* Poi mostra gli altri campi, escludendo user_name già mostrato */}
+                {Object.entries(submitted.data)
+                  .filter(([key]) => key !== 'user_name') // Escludi user_name già mostrato
+                  .map(([key, value]) => {
+                    // Per gli altri campi, salta se vuoti
+                    if (value === null || value === undefined || value === '') {
+                      return null;
+                    }
+                    return (
+                      <div key={key} className="summary-item">
+                        <dt>{getFieldLabel(key)}:</dt>
+                        <dd>{formatValue(value)}</dd>
+                      </div>
+                    );
+                  })}
               </dl>
             </div>
           )}
@@ -466,6 +486,41 @@ export default function DynamicForm() {
               📥 Scarica PDF
             </button>
           )}
+          <button 
+            onClick={async () => {
+              console.log('[DEBUG] Cliccato Inizia Scrittura Romanzo');
+              console.log('[DEBUG] sessionId:', sessionId);
+              console.log('[DEBUG] outline:', outline ? 'presente' : 'assente');
+              
+              if (!sessionId) {
+                alert('Errore: SessionId non disponibile.');
+                return;
+              }
+              
+              if (!outline) {
+                alert('Errore: La struttura del romanzo non è ancora disponibile.');
+                return;
+              }
+              
+              try {
+                setError(null);
+                setIsStartingWriting(true);
+                console.log('[DEBUG] Chiamata startBookGeneration...');
+                const response = await startBookGeneration({ session_id: sessionId });
+                console.log('[DEBUG] Risposta:', response);
+                setCurrentStep('writing');
+              } catch (err) {
+                console.error('[DEBUG] Errore:', err);
+                setError(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
+              } finally {
+                setIsStartingWriting(false);
+              }
+            }}
+            className="start-writing-button"
+            disabled={!sessionId || !outline || isStartingWriting}
+          >
+            {isStartingWriting ? '⏳ Avvio in corso...' : '✍️ Inizia Scrittura Romanzo'}
+          </button>
           <button onClick={() => {
             setSubmitted(null);
             setFormData({});
@@ -483,6 +538,19 @@ export default function DynamicForm() {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Mostra lo step di scrittura
+  if (currentStep === 'writing' && sessionId) {
+    return (
+      <WritingStep
+        sessionId={sessionId}
+        onComplete={(progress) => {
+          console.log('[DEBUG] Scrittura completata:', progress);
+          // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
+        }}
+      />
     );
   }
 

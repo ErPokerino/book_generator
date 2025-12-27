@@ -24,6 +24,8 @@ class SessionData:
         self.validated: bool = False
         self.current_outline: Optional[str] = None
         self.outline_version: int = 0
+        self.book_chapters: list[Dict[str, Any]] = []  # Lista di capitoli completati
+        self.writing_progress: Optional[Dict[str, Any]] = None  # Stato di avanzamento scrittura
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -38,6 +40,8 @@ class SessionData:
             "validated": self.validated,
             "current_outline": self.current_outline,
             "outline_version": self.outline_version,
+            "book_chapters": self.book_chapters,
+            "writing_progress": self.writing_progress,
         }
     
     @classmethod
@@ -55,6 +59,8 @@ class SessionData:
         session.validated = data.get("validated", False)
         session.current_outline = data.get("current_outline")
         session.outline_version = data.get("outline_version", 0)
+        session.book_chapters = data.get("book_chapters", [])
+        session.writing_progress = data.get("writing_progress")
         return session
 
 
@@ -139,6 +145,64 @@ class SessionStore:
             del self._sessions[session_id]
             return True
         return False
+    
+    def update_writing_progress(
+        self,
+        session_id: str,
+        current_step: int,
+        total_steps: int,
+        current_section_name: Optional[str] = None,
+        is_complete: bool = False,
+        error: Optional[str] = None,
+    ) -> SessionData:
+        """Aggiorna lo stato di avanzamento della scrittura del romanzo."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.writing_progress = {
+            "session_id": session_id,
+            "current_step": current_step,
+            "total_steps": total_steps,
+            "current_section_name": current_section_name,
+            "is_complete": is_complete,
+            "error": error,
+        }
+        
+        return session
+    
+    def update_book_chapter(
+        self,
+        session_id: str,
+        chapter_title: str,
+        chapter_content: str,
+        section_index: int,
+    ) -> SessionData:
+        """Aggiunge o aggiorna un capitolo completato."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        # Cerca se esiste già un capitolo con questo section_index
+        chapter_dict = {
+            "title": chapter_title,
+            "content": chapter_content,
+            "section_index": section_index,
+        }
+        
+        # Rimuovi eventuale capitolo esistente con lo stesso section_index
+        session.book_chapters = [
+            ch for ch in session.book_chapters 
+            if ch.get("section_index") != section_index
+        ]
+        
+        # Aggiungi il nuovo capitolo
+        session.book_chapters.append(chapter_dict)
+        
+        # Ordina per section_index
+        session.book_chapters.sort(key=lambda x: x.get("section_index", 0))
+        
+        return session
 
 
 class FileSessionStore(SessionStore):
@@ -165,7 +229,7 @@ class FileSessionStore(SessionStore):
             return
         
         try:
-            with open(self.file_path, "r", encoding="utf-8") as f:
+            with open(self.file_path, "r", encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
             
             for session_id, session_dict in data.items():
@@ -193,7 +257,8 @@ class FileSessionStore(SessionStore):
             
             # Atomic write: scrivi su file temporaneo, poi rinomina
             temp_path = self.file_path.with_suffix(".json.tmp")
-            with open(temp_path, "w", encoding="utf-8") as f:
+            # Usa encoding UTF-8 esplicitamente e gestisci errori di encoding
+            with open(temp_path, "w", encoding="utf-8", errors="replace") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
             # Rinomina atomico (su Windows potrebbe fallire se il file è aperto, ma è raro)
@@ -203,6 +268,12 @@ class FileSessionStore(SessionStore):
                 temp_path.rename(self.file_path)
             
             print(f"[FileSessionStore] Salvataggio completato con successo.", file=sys.stderr)
+        except UnicodeEncodeError as e:
+            print(f"[FileSessionStore] ERRORE di encoding nel salvataggio: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            # Non solleviamo l'eccezione per non interrompere il flusso
+            pass
         except Exception as e:
             print(f"[FileSessionStore] ERRORE CRITICO nel salvataggio: {e}", file=sys.stderr)
             import traceback
@@ -266,6 +337,36 @@ class FileSessionStore(SessionStore):
         if result:
             self._save_sessions()
         return result
+    
+    def update_writing_progress(
+        self,
+        session_id: str,
+        current_step: int,
+        total_steps: int,
+        current_section_name: Optional[str] = None,
+        is_complete: bool = False,
+        error: Optional[str] = None,
+    ) -> SessionData:
+        """Aggiorna lo stato di avanzamento della scrittura e salva su file."""
+        session = super().update_writing_progress(
+            session_id, current_step, total_steps, current_section_name, is_complete, error
+        )
+        self._save_sessions()
+        return session
+    
+    def update_book_chapter(
+        self,
+        session_id: str,
+        chapter_title: str,
+        chapter_content: str,
+        section_index: int,
+    ) -> SessionData:
+        """Aggiunge o aggiorna un capitolo completato e salva su file."""
+        session = super().update_book_chapter(
+            session_id, chapter_title, chapter_content, section_index
+        )
+        self._save_sessions()
+        return session
 
 
 # Istanza globale del session store (usa FileSessionStore per persistenza)

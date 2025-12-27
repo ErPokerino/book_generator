@@ -291,3 +291,92 @@ export async function downloadPdf(sessionId: string): Promise<Blob> {
   return response.blob();
 }
 
+// Modelli per la generazione del libro
+export interface Chapter {
+  title: string;
+  content: string;
+  section_index: number;
+}
+
+export interface BookProgress {
+  session_id: string;
+  current_step: number;
+  total_steps: number;
+  current_section_name?: string;
+  completed_chapters: Chapter[];
+  is_complete: boolean;
+  error?: string;
+}
+
+export interface BookGenerationRequest {
+  session_id: string;
+}
+
+export interface BookGenerationResponse {
+  success: boolean;
+  session_id: string;
+  message: string;
+}
+
+export async function startBookGeneration(request: BookGenerationRequest): Promise<BookGenerationResponse> {
+  const response = await fetch(`${API_BASE}/book/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'avvio della generazione: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getBookProgress(sessionId: string): Promise<BookProgress> {
+  const response = await fetch(`${API_BASE}/book/progress/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export interface BookResponse {
+  title: string;
+  author: string;
+  chapters: Chapter[];
+}
+
+export async function getCompleteBook(sessionId: string): Promise<BookResponse> {
+  const response = await fetch(`${API_BASE}/book/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del libro completo: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function downloadBookPdf(sessionId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/book/pdf/${sessionId}`);
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nel download del PDF del libro: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Ignora errori di parsing JSON
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return response.blob();
+}
+

@@ -1,0 +1,280 @@
+.book-viewer {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.book-viewer .back-button {
+  margin-bottom: 1.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.book-viewer .back-button:hover {
+  background-color: #e0e0e0;
+}
+
+.book-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.book-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #213547;
+  margin: 0 0 0.5rem 0;
+}
+
+.book-author {
+  font-size: 1.3rem;
+  color: #666;
+  margin: 0 0 1.5rem 0;
+  font-style: italic;
+}
+
+.book-actions {
+  margin-top: 1rem;
+}
+
+.download-pdf-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.download-pdf-button:hover:not(:disabled) {
+  background-color: #1b5e20;
+}
+
+.download-pdf-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.book-content-container {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.book-toc {
+  flex: 0 0 250px;
+  background-color: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 8px;
+  height: fit-content;
+  position: sticky;
+  top: 2rem;
+}
+
+.book-toc h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  color: #213547;
+  border-bottom: 2px solid #213547;
+  padding-bottom: 0.5rem;
+}
+
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-list li {
+  margin-bottom: 0.5rem;
+}
+
+.toc-item {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.toc-item:hover {
+  background-color: #e8e8e8;
+}
+
+.toc-list li.active .toc-item {
+  background-color: #213547;
+  color: white;
+  font-weight: 600;
+}
+
+.book-chapter-container {
+  flex: 1;
+  min-width: 0;
+}
+
+.chapter-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.chapter-title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #213547;
+  margin: 0 0 1rem 0;
+}
+
+.chapter-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.nav-button {
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.nav-button:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chapter-counter {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.chapter-content {
+  line-height: 1.8;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.chapter-content h1,
+.chapter-content h2,
+.chapter-content h3 {
+  color: #213547;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.chapter-content h1 {
+  font-size: 2rem;
+}
+
+.chapter-content h2 {
+  font-size: 1.5rem;
+}
+
+.chapter-content h3 {
+  font-size: 1.25rem;
+}
+
+.chapter-content p {
+  margin: 1rem 0;
+  text-align: justify;
+}
+
+.chapter-content ul,
+.chapter-content ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+}
+
+.chapter-content li {
+  margin: 0.5rem 0;
+}
+
+.chapter-content blockquote {
+  border-left: 4px solid #213547;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #666;
+}
+
+.chapter-content code {
+  background-color: #f4f4f4;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.chapter-content pre {
+  background-color: #f4f4f4;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.chapter-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.loading,
+.error-container {
+  text-align: center;
+  padding: 3rem;
+}
+
+.error-container h3 {
+  color: #d32f2f;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+  .book-content-container {
+    flex-direction: column;
+  }
+
+  .book-toc {
+    position: static;
+    flex: none;
+  }
+
+  .chapter-navigation {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .book-title {
+    font-size: 2rem;
+  }
+
+  .chapter-title {
+    font-size: 1.5rem;
+  }
+}
+
