@@ -39,6 +39,7 @@ class SubmissionRequest(BaseModel):
     ambiguity: Optional[str] = None
     intentionality: Optional[str] = None
     author: Optional[str] = None
+    user_name: Optional[str] = None
 
 
 class SubmissionResponse(BaseModel):
@@ -93,6 +94,7 @@ class DraftResponse(BaseModel):
     success: bool
     session_id: str
     draft_text: str
+    title: Optional[str] = None
     version: int
     message: Optional[str] = None
 
@@ -112,4 +114,17 @@ class DraftValidationResponse(BaseModel):
     success: bool
     session_id: str
     message: str
+
+
+# Modelli per la struttura/indice
+class OutlineGenerateRequest(BaseModel):
+    session_id: str
+
+
+class OutlineResponse(BaseModel):
+    success: bool
+    session_id: str
+    outline_text: str
+    version: int
+    message: Optional[str] = None
 

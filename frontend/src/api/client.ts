@@ -35,6 +35,7 @@ export interface SubmissionRequest {
   ambiguity?: string;
   intentionality?: string;
   author?: string;
+  user_name?: string;
 }
 
 export interface SubmissionResponse {
@@ -88,6 +89,7 @@ export interface DraftResponse {
   success: boolean;
   session_id: string;
   draft_text: string;
+  title?: string;
   version: number;
   message?: string;
 }
@@ -230,5 +232,62 @@ export async function getDraft(sessionId: string): Promise<DraftResponse> {
   }
   
   return response.json();
+}
+
+export interface OutlineResponse {
+  success: boolean;
+  session_id: string;
+  outline_text: string;
+  version: number;
+  message?: string;
+}
+
+export interface OutlineGenerateRequest {
+  session_id: string;
+}
+
+export async function generateOutline(request: OutlineGenerateRequest): Promise<OutlineResponse> {
+  const response = await fetch(`${API_BASE}/outline/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nella generazione della struttura: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getOutline(sessionId: string): Promise<OutlineResponse> {
+  const response = await fetch(`${API_BASE}/outline/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero della struttura: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function downloadPdf(sessionId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/pdf/${sessionId}`);
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nel download del PDF: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return response.blob();
 }
 

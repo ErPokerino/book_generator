@@ -1,3 +1,7 @@
+import json
+import os
+import sys
+from pathlib import Path
 from typing import Optional, Dict, Any
 from app.models import SubmissionRequest, QuestionAnswer
 
@@ -15,8 +19,43 @@ class SessionData:
         self.question_answers = question_answers
         self.draft_history: list[Dict[str, Any]] = []  # Lista di bozze con version e text
         self.current_draft: Optional[str] = None
+        self.current_title: Optional[str] = None
         self.current_version: int = 0
         self.validated: bool = False
+        self.current_outline: Optional[str] = None
+        self.outline_version: int = 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte SessionData in un dizionario per la serializzazione JSON."""
+        return {
+            "session_id": self.session_id,
+            "form_data": self.form_data.model_dump(),
+            "question_answers": [qa.model_dump() for qa in self.question_answers],
+            "draft_history": self.draft_history,
+            "current_draft": self.current_draft,
+            "current_title": self.current_title,
+            "current_version": self.current_version,
+            "validated": self.validated,
+            "current_outline": self.current_outline,
+            "outline_version": self.outline_version,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SessionData":
+        """Crea SessionData da un dizionario (deserializzazione JSON)."""
+        session = cls(
+            session_id=data["session_id"],
+            form_data=SubmissionRequest(**data["form_data"]),
+            question_answers=[QuestionAnswer(**qa) for qa in data["question_answers"]],
+        )
+        session.draft_history = data.get("draft_history", [])
+        session.current_draft = data.get("current_draft")
+        session.current_title = data.get("current_title")
+        session.current_version = data.get("current_version", 0)
+        session.validated = data.get("validated", False)
+        session.current_outline = data.get("current_outline")
+        session.outline_version = data.get("outline_version", 0)
+        return session
 
 
 class SessionStore:
@@ -45,6 +84,7 @@ class SessionStore:
         session_id: str,
         draft_text: str,
         version: Optional[int] = None,
+        title: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna la bozza corrente di una sessione."""
         session = self.get_session(session_id)
@@ -58,9 +98,12 @@ class SessionStore:
             session.current_version = version
         
         session.current_draft = draft_text
+        if title is not None:
+            session.current_title = title
         session.draft_history.append({
             "version": version,
             "text": draft_text,
+            "title": title,
             "timestamp": None,  # Potrebbe essere aggiunto datetime se necessario
         })
         
@@ -75,6 +118,21 @@ class SessionStore:
         session.validated = True
         return session
     
+    def update_outline(
+        self,
+        session_id: str,
+        outline_text: str,
+    ) -> SessionData:
+        """Aggiorna l'outline corrente di una sessione."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.current_outline = outline_text
+        session.outline_version += 1
+        
+        return session
+    
     def delete_session(self, session_id: str) -> bool:
         """Elimina una sessione."""
         if session_id in self._sessions:
@@ -83,11 +141,142 @@ class SessionStore:
         return False
 
 
-# Istanza globale del session store
-_session_store = SessionStore()
+class FileSessionStore(SessionStore):
+    """Store con persistenza su file JSON per le sessioni."""
+    
+    def __init__(self, file_path: Optional[Path] = None):
+        """Inizializza il file store e carica le sessioni esistenti."""
+        super().__init__()
+        if file_path is None:
+            # Default: .sessions.json nella directory backend (file nascosto per evitare reload di uvicorn)
+            # Usa Path.cwd() se stiamo eseguendo dal backend, altrimenti cerca di risolvere relativamente al file
+            current_file = Path(__file__).resolve()
+            backend_dir = current_file.parent.parent.parent
+            file_path = backend_dir / ".sessions.json"
+        
+        self.file_path = file_path
+        print(f"[FileSessionStore] Inizializzato. File path: {self.file_path}", file=sys.stderr)
+        self._load_sessions()
+    
+    def _load_sessions(self):
+        """Carica le sessioni dal file JSON."""
+        if not self.file_path.exists():
+            print(f"[FileSessionStore] File {self.file_path} non esiste, inizializzo store vuoto")
+            return
+        
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            for session_id, session_dict in data.items():
+                try:
+                    session = SessionData.from_dict(session_dict)
+                    self._sessions[session_id] = session
+                except Exception as e:
+                    print(f"[FileSessionStore] Errore nel caricamento sessione {session_id}: {e}")
+                    continue
+            
+            print(f"[FileSessionStore] Caricate {len(self._sessions)} sessioni da {self.file_path}")
+        except json.JSONDecodeError as e:
+            print(f"[FileSessionStore] Errore nel parsing JSON: {e}")
+        except Exception as e:
+            print(f"[FileSessionStore] Errore nel caricamento file: {e}")
+    
+    def _save_sessions(self):
+        """Salva tutte le sessioni su file JSON (atomic write)."""
+        try:
+            print(f"[FileSessionStore] Salvataggio di {len(self._sessions)} sessioni su {self.file_path}...", file=sys.stderr)
+            # Prepara i dati per la serializzazione
+            data = {}
+            for session_id, session in self._sessions.items():
+                data[session_id] = session.to_dict()
+            
+            # Atomic write: scrivi su file temporaneo, poi rinomina
+            temp_path = self.file_path.with_suffix(".json.tmp")
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            # Rinomina atomico (su Windows potrebbe fallire se il file è aperto, ma è raro)
+            if temp_path.exists():
+                if self.file_path.exists():
+                    self.file_path.unlink() # Rimuovi vecchio file per sicurezza su Windows
+                temp_path.rename(self.file_path)
+            
+            print(f"[FileSessionStore] Salvataggio completato con successo.", file=sys.stderr)
+        except Exception as e:
+            print(f"[FileSessionStore] ERRORE CRITICO nel salvataggio: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            # Non solleviamo l'eccezione per non interrompere il flusso
+            pass
+    
+    def create_session(
+        self,
+        session_id: str,
+        form_data: SubmissionRequest,
+        question_answers: list[QuestionAnswer],
+    ) -> SessionData:
+        """Crea una nuova sessione e salva su file."""
+        session = super().create_session(session_id, form_data, question_answers)
+        self._save_sessions()
+        return session
+    
+    def update_draft(
+        self,
+        session_id: str,
+        draft_text: str,
+        version: Optional[int] = None,
+        title: Optional[str] = None,
+    ) -> SessionData:
+        """Aggiorna la bozza e salva su file."""
+        session = super().update_draft(session_id, draft_text, version, title)
+        self._save_sessions()
+        return session
+    
+    def validate_session(self, session_id: str) -> SessionData:
+        """Marca una sessione come validata e salva su file."""
+        session = super().validate_session(session_id)
+        self._save_sessions()
+        return session
+    
+    def update_outline(
+        self,
+        session_id: str,
+        outline_text: str,
+        version: Optional[int] = None,
+    ) -> SessionData:
+        """Aggiorna l'outline e salva su file."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.current_outline = outline_text
+        if version is None:
+            session.outline_version += 1
+            version = session.outline_version
+        else:
+            session.outline_version = version
+        
+        self._save_sessions()
+        return session
+    
+    def delete_session(self, session_id: str) -> bool:
+        """Elimina una sessione e salva su file."""
+        result = super().delete_session(session_id)
+        if result:
+            self._save_sessions()
+        return result
+
+
+# Istanza globale del session store (usa FileSessionStore per persistenza)
+_session_store: Optional[SessionStore] = None
 
 
 def get_session_store() -> SessionStore:
-    """Restituisce l'istanza globale del session store."""
+    """Restituisce l'istanza globale del session store (con persistenza su file)."""
+    global _session_store
+    if _session_store is None:
+        _session_store = FileSessionStore()
     return _session_store
+
 

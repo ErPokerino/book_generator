@@ -50,9 +50,41 @@ def format_form_data(form_data: SubmissionRequest) -> str:
     return "\n".join(lines)
 
 
-def parse_questions_from_llm_response(response_text: str) -> list[Question]:
+def _coerce_llm_content_to_text(content: Any) -> str:
+    """
+    Normalizza `response.content` (Gemini/LangChain) a stringa.
+
+    In alcuni casi `content` può essere una lista di "parts" invece che una stringa.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                # Gemini può restituire parti tipo {"type": "...", "text": "..."}
+                txt = item.get("text")
+                if isinstance(txt, str):
+                    parts.append(txt)
+                else:
+                    parts.append(str(item))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    # fallback per dict / altri tipi
+    return str(content)
+
+
+def parse_questions_from_llm_response(response_text: Any) -> list[Question]:
     """Parsa le domande dal response del LLM."""
     questions = []
+    response_text = _coerce_llm_content_to_text(response_text)
     
     # Cerca un blocco JSON nel response
     try:
@@ -167,7 +199,7 @@ Genera domande pertinenti in formato JSON come specificato nel contesto. Rispond
     ]
     
     response = await llm.ainvoke(messages)
-    response_text = response.content
+    response_text = _coerce_llm_content_to_text(response.content)
     
     # Parsa le domande
     questions = parse_questions_from_llm_response(response_text)

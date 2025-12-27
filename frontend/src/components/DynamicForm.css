@@ -188,6 +188,50 @@
   line-height: 1.5;
 }
 
+.summary-section {
+  margin-bottom: 2rem;
+}
+
+.summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #213547;
+  font-size: 1.1rem;
+}
+
+.summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary-item {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.summary-item:last-child {
+  border-bottom: none;
+}
+
+.summary-item dt {
+  font-weight: 600;
+  color: #213547;
+}
+
+.summary-item dd {
+  margin: 0;
+  color: #666;
+  word-break: break-word;
+}
+
 .submission-success button {
   padding: 0.75rem 2rem;
   font-size: 1rem;
@@ -229,6 +273,112 @@
 
   .submission-summary pre {
     background-color: #242424;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .summary-section h4 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .summary-item {
+    border-bottom-color: #444;
+  }
+
+  .summary-item dt {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .summary-item dd {
+    color: rgba(255, 255, 255, 0.6);
+  }
+}
+
+.draft-title-summary {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #213547;
+  margin-bottom: 1rem;
+  margin-top: 0.5rem;
+}
+
+.draft-markdown-container {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  line-height: 1.8;
+}
+
+.draft-markdown-container h1 {
+  font-size: 2rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #213547;
+}
+
+.draft-markdown-container h2 {
+  font-size: 1.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: #213547;
+}
+
+.draft-markdown-container h3 {
+  font-size: 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #213547;
+}
+
+.draft-markdown-container p {
+  margin: 0.75rem 0;
+}
+
+.draft-markdown-container ul,
+.draft-markdown-container ol {
+  margin: 0.75rem 0;
+  padding-left: 2rem;
+}
+
+.draft-markdown-container li {
+  margin: 0.5rem 0;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.download-pdf-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.download-pdf-button:hover {
+  background-color: #1b5e20;
+}
+
+@media (prefers-color-scheme: dark) {
+  .draft-title-summary {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown-container {
+    background-color: #242424;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown-container h1,
+  .draft-markdown-container h2,
+  .draft-markdown-container h3 {
     color: rgba(255, 255, 255, 0.87);
   }
 }

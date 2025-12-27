@@ -186,8 +186,15 @@ fields:
       - value: "sperimentale"
       - value: "ibrido"
 
+  - id: user_name
+    label: "Nome Autore"
+    type: text
+    required: false
+    description: "Il tuo nome, che sarà quello dell'autore del libro"
+    placeholder: "Inserisci il tuo nome..."
+
   - id: author
-    label: "Autore"
+    label: "Autore di Riferimento (Stile)"
     type: text
     required: false
     description: "Nome dell'autore da cui copiare lo stile narrativo"

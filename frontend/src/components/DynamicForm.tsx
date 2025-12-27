@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { fetchConfig, submitForm, generateQuestions, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import './DynamicForm.css';
@@ -19,10 +21,34 @@ export default function DynamicForm() {
   const [answersSubmitted, setAnswersSubmitted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<QuestionAnswer[]>([]);
   const [currentStep, setCurrentStep] = useState<'form' | 'questions' | 'draft' | 'summary'>('form');
+  const [validatedDraft, setValidatedDraft] = useState<{ title?: string; text: string } | null>(null);
+  const [outline, setOutline] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
   }, []);
+
+  // Se siamo nel summary e non abbiamo l'outline, prova a recuperarlo.
+  // Deve stare qui (top-level) per rispettare le Rules of Hooks (niente hook dentro if/return).
+  useEffect(() => {
+    if (currentStep !== 'summary') return;
+    if (!sessionId) return;
+    if (outline) return;
+
+    const fetchOutline = async () => {
+      try {
+        const retrievedOutline = await getOutline(sessionId);
+        if (retrievedOutline?.outline_text) {
+          console.log('[DEBUG] Outline recuperato nel summary:', retrievedOutline.outline_text.length);
+          setOutline(retrievedOutline.outline_text);
+        }
+      } catch (err) {
+        console.error('[DEBUG] Impossibile recuperare outline:', err);
+      }
+    };
+
+    fetchOutline();
+  }, [currentStep, sessionId, outline]);
 
   const loadConfig = async () => {
     try {
@@ -135,7 +161,43 @@ export default function DynamicForm() {
     setCurrentStep('draft');
   };
 
-  const handleDraftValidated = () => {
+  const handleDraftValidated = async (draft: any, outlineData: any) => {
+    // Salva la bozza validata e l'outline
+    setValidatedDraft({
+      title: draft.title,
+      text: draft.draft_text,
+    });
+    
+    // Log per debug
+    console.log('[DEBUG DynamicForm] Draft validato:', draft);
+    console.log('[DEBUG DynamicForm] Outline data ricevuta:', outlineData);
+    console.log('[DEBUG DynamicForm] SessionId:', sessionId);
+    
+    if (outlineData && outlineData.outline_text) {
+      setOutline(outlineData.outline_text);
+      console.log('[DEBUG DynamicForm] Outline salvato nello state, length:', outlineData.outline_text.length);
+    } else {
+      console.warn('[DEBUG DynamicForm] Nessun outline ricevuto, provo a recuperarlo...');
+      // Prova a recuperare l'outline se non è stato passato
+      if (sessionId) {
+        try {
+          const { getOutline } = await import('../api/client');
+          const retrievedOutline = await getOutline(sessionId);
+          if (retrievedOutline && retrievedOutline.outline_text) {
+            setOutline(retrievedOutline.outline_text);
+            console.log('[DEBUG DynamicForm] Outline recuperato con successo');
+          } else {
+            setOutline(null);
+          }
+        } catch (err) {
+          console.error('[DEBUG DynamicForm] Errore nel recupero outline:', err);
+          setOutline(null);
+        }
+      } else {
+        setOutline(null);
+      }
+    }
+    
     // Dopo la validazione della bozza, mostra il riepilogo finale
     setSubmitted({
       success: true,
@@ -270,36 +332,156 @@ export default function DynamicForm() {
 
   // Mostra riepilogo finale dopo la validazione della bozza
   if (currentStep === 'summary' && submitted && answersSubmitted) {
+    // Crea una mappa per i label dei campi
+    const fieldLabelMap: Record<string, string> = {};
+    if (config) {
+      config.fields.forEach(field => {
+        fieldLabelMap[field.id] = field.label;
+      });
+    }
+
+    // Helper per ottenere il label di un campo
+    const getFieldLabel = (fieldId: string): string => {
+      return fieldLabelMap[fieldId] || fieldId;
+    };
+
+    // Helper per formattare il valore
+    const formatValue = (value: any): string => {
+      if (value === null || value === undefined || value === '') {
+        return '—';
+      }
+      return String(value);
+    };
+
     return (
       <div className="submission-success">
         <h2>✓ Configurazione completata con successo!</h2>
         <p>{submitted.message}</p>
         <div className="submission-summary">
           <h3>Riepilogo configurazione:</h3>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h4>Dati del form iniziale:</h4>
-            <pre>{JSON.stringify(submitted.data, null, 2)}</pre>
-          </div>
-          {questionAnswers.length > 0 && (
-            <div>
-              <h4>Risposte alle domande preliminari:</h4>
-              <pre>{JSON.stringify(questionAnswers, null, 2)}</pre>
+          
+          {submitted.data && (
+            <div className="summary-section">
+              <h4>Dati del form iniziale:</h4>
+              <dl className="summary-list">
+                {Object.entries(submitted.data).map(([key, value]) => {
+                  if (value === null || value === undefined || value === '') {
+                    return null;
+                  }
+                  return (
+                    <div key={key} className="summary-item">
+                      <dt>{getFieldLabel(key)}:</dt>
+                      <dd>{formatValue(value)}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
             </div>
           )}
+
+          {questionAnswers.length > 0 && (
+            <div className="summary-section">
+              <h4>Risposte alle domande preliminari:</h4>
+              <dl className="summary-list">
+                {questionAnswers.map((qa, index) => {
+                  if (!qa.answer) return null;
+                  // Cerca la domanda corrispondente per ottenere il testo
+                  const question = questions?.find(q => q.id === qa.question_id);
+                  const questionText = question?.text || qa.question_id;
+                  return (
+                    <div key={index} className="summary-item">
+                      <dt>{questionText}:</dt>
+                      <dd>{qa.answer}</dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            </div>
+          )}
+
+          {validatedDraft && (
+            <div className="summary-section">
+              <h4>Bozza Estesa della Trama:</h4>
+              {validatedDraft.title && (
+                <h5 className="draft-title-summary">{validatedDraft.title}</h5>
+              )}
+              <div className="draft-markdown-container">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {validatedDraft.text}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          <div className="summary-section">
+            <h4>Struttura del Romanzo:</h4>
+            {outline ? (
+              <div className="draft-markdown-container">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {outline}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p style={{ color: '#666', fontStyle: 'italic', padding: '1rem' }}>
+                La struttura non è ancora disponibile. Se hai appena validato la bozza, potrebbe essere in generazione.
+              </p>
+            )}
+          </div>
         </div>
-        <button onClick={() => {
-          setSubmitted(null);
-          setFormData({});
-          setValidationErrors({});
-          setQuestions(null);
-          setSessionId(null);
-          setAnswersSubmitted(false);
-          setFormPayload(null);
-          setQuestionAnswers([]);
-          setCurrentStep('form');
-        }}>
-          Nuova configurazione
-        </button>
+        <div className="summary-actions">
+          {sessionId && (
+            <button 
+              onClick={async () => {
+                try {
+                  console.log('Tentativo di download PDF per sessione:', sessionId);
+                  const blob = await downloadPdf(sessionId);
+                  console.log('PDF ricevuto, dimensione:', blob.size, 'bytes');
+                  
+                  if (blob.size === 0) {
+                    throw new Error('Il PDF ricevuto è vuoto');
+                  }
+                  
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = validatedDraft?.title 
+                    ? `${validatedDraft.title.replace(/[^a-z0-9]/gi, '_')}.pdf`
+                    : `Romanzo_${sessionId.substring(0, 8)}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  
+                  // Cleanup dopo un breve delay
+                  setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                  }, 100);
+                } catch (err) {
+                  console.error('Errore nel download del PDF:', err);
+                  const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto nel download del PDF';
+                  alert(`Errore: ${errorMessage}\n\nVerifica che:\n- La sessione sia ancora valida\n- Il backend sia in esecuzione\n- La bozza sia stata validata`);
+                }
+              }}
+              className="download-pdf-button"
+            >
+              📥 Scarica PDF
+            </button>
+          )}
+          <button onClick={() => {
+            setSubmitted(null);
+            setFormData({});
+            setValidationErrors({});
+            setQuestions(null);
+            setSessionId(null);
+            setAnswersSubmitted(false);
+            setFormPayload(null);
+            setQuestionAnswers([]);
+            setValidatedDraft(null);
+            setOutline(null);
+            setCurrentStep('form');
+          }}>
+            Nuova configurazione
+          </button>
+        </div>
       </div>
     );
   }

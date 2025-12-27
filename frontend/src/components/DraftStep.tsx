@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { generateDraft, modifyDraft, validateDraft, DraftResponse, DraftModificationRequest, DraftValidationRequest, SubmissionRequest, QuestionAnswer } from '../api/client';
+import { generateDraft, modifyDraft, validateDraft, generateOutline, DraftResponse, DraftModificationRequest, DraftValidationRequest, OutlineResponse, SubmissionRequest, QuestionAnswer } from '../api/client';
 import DraftViewer from './DraftViewer';
 import DraftChat from './DraftChat';
 import './DraftStep.css';
@@ -8,7 +8,7 @@ interface DraftStepProps {
   sessionId: string;
   formData: SubmissionRequest;
   questionAnswers: QuestionAnswer[];
-  onDraftValidated: () => void;
+  onDraftValidated: (draft: DraftResponse, outline: OutlineResponse | null) => void;
   onBack?: () => void;
 }
 
@@ -77,7 +77,24 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
         validated: true,
       };
       await validateDraft(request);
-      onDraftValidated();
+      
+      // Genera automaticamente l'outline dopo la validazione
+      let outline: OutlineResponse | null = null;
+      try {
+        console.log('[DEBUG] Inizio generazione outline per sessione:', sessionId);
+        outline = await generateOutline({ session_id: sessionId });
+        console.log('[DEBUG] Outline generato con successo:', outline);
+        console.log('[DEBUG] Outline text length:', outline?.outline_text?.length || 0);
+      } catch (outlineErr) {
+        console.error('[ERROR] Errore nella generazione della struttura:', outlineErr);
+        if (outlineErr instanceof Error) {
+          console.error('[ERROR] Messaggio:', outlineErr.message);
+          console.error('[ERROR] Stack:', outlineErr.stack);
+        }
+        // Non blocchiamo il flusso se l'outline fallisce
+      }
+      
+      onDraftValidated(draft, outline);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nella validazione della bozza');
     } finally {
@@ -119,7 +136,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       )}
       <div className="draft-step-content">
         <div className="draft-viewer-container">
-          <DraftViewer draftText={draft.draft_text} version={draft.version} />
+          <DraftViewer draftText={draft.draft_text} title={draft.title} version={draft.version} />
         </div>
         <div className="draft-chat-container">
           <DraftChat
@@ -133,4 +150,5 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
     </div>
   );
 }
+
 

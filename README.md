@@ -205,3 +205,4 @@ Questa è l'impalcatura iniziale. In futuro verrà implementata:
 - Gestione dello stato di avanzamento della scrittura
 - Salvataggio e gestione dei progetti
 
+

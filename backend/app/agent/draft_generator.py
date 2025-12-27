@@ -1,7 +1,6 @@
-import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
@@ -25,6 +24,7 @@ def format_form_data_for_draft(form_data: SubmissionRequest) -> str:
     
     # Aggiunge solo i campi compilati
     optional_fields = {
+        "Nome Autore": form_data.user_name,
         "Genere": form_data.genre,
         "Sottogenere": form_data.subgenre,
         "Tema": form_data.theme,
@@ -75,6 +75,92 @@ def map_model_name(model_name: str) -> str:
         return "gemini-2.5-flash"  # default
 
 
+def _coerce_llm_content_to_text(content: Any) -> str:
+    """
+    Normalizza `response.content` (Gemini/LangChain) a stringa.
+
+    In alcuni casi `content` può essere una lista di "parts" invece che una stringa.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                txt = item.get("text")
+                if isinstance(txt, str):
+                    parts.append(txt)
+                else:
+                    parts.append(str(item))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
+
+def parse_draft_output(llm_output: str) -> tuple[str, str]:
+    """
+    Estrae titolo e trama dall'output del LLM.
+    
+    Args:
+        llm_output: Output completo del LLM
+    
+    Returns:
+        Tupla (title, draft_text)
+    """
+    lines = llm_output.split('\n')
+    title = None
+    draft_text = ""
+    found_title = False
+    found_trama = False
+    
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        
+        # Cerca "TITOLO:"
+        if not found_title and line_stripped.upper().startswith("TITOLO:"):
+            title = line_stripped[7:].strip()  # Rimuove "TITOLO:"
+            found_title = True
+            continue
+        
+        # Cerca "TRAMA:" o "TRAMA"
+        if not found_trama and (line_stripped.upper().startswith("TRAMA:") or line_stripped.upper() == "TRAMA"):
+            found_trama = True
+            # Se c'è testo dopo "TRAMA:", includilo
+            if line_stripped.upper().startswith("TRAMA:"):
+                remaining = line_stripped[6:].strip()
+                if remaining:
+                    draft_text = remaining + "\n"
+            continue
+        
+        # Se abbiamo trovato "TRAMA:", aggiungi tutte le righe successive
+        if found_trama:
+            draft_text += line + "\n"
+    
+    # Se non abbiamo trovato il formato previsto, usa tutto come draft_text
+    if not found_title or not found_trama:
+        # Fallback: cerca il primo titolo markdown (# Titolo) o usa tutto come draft
+        if not found_title:
+            # Prova a estrarre un titolo markdown
+            for line in lines:
+                if line.strip().startswith("# "):
+                    title = line.strip()[2:].strip()
+                    break
+            if not title:
+                title = "Titolo non specificato"
+        
+        if not found_trama:
+            draft_text = llm_output
+    
+    return title or "Titolo non specificato", draft_text.strip()
+
+
 async def generate_draft(
     form_data: SubmissionRequest,
     question_answers: list[QuestionAnswer],
@@ -82,7 +168,7 @@ async def generate_draft(
     api_key: Optional[str] = None,
     previous_draft: Optional[str] = None,
     user_feedback: Optional[str] = None,
-) -> tuple[str, int]:
+) -> tuple[str, str, int]:
     """
     Genera o rigenera una bozza estesa della trama.
     
@@ -95,7 +181,7 @@ async def generate_draft(
         user_feedback: Feedback dell'utente per modifiche
     
     Returns:
-        Tupla (draft_text, version)
+        Tupla (draft_text, title, version)
     """
     # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
@@ -156,7 +242,10 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
     # Genera la bozza
     try:
         response = await llm.ainvoke([system_prompt, user_prompt])
-        draft_text = response.content.strip()
+        llm_output = _coerce_llm_content_to_text(response.content).strip()
+        
+        # Estrai titolo e trama dall'output
+        title, draft_text = parse_draft_output(llm_output)
         
         # Recupera la sessione per determinare la versione
         session_store = get_session_store()
@@ -167,8 +256,9 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         else:
             new_version = 1
         
-        return draft_text, new_version
+        return draft_text, title, new_version
         
     except Exception as e:
         raise Exception(f"Errore nella generazione della bozza: {str(e)}")
+
 

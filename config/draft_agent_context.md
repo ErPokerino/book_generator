@@ -85,29 +85,58 @@ Quando ricevi feedback per modifiche:
 
 ## Formato Output
 
-La bozza deve essere in **testo semplice**, ben strutturato con:
-- Titoli delle sezioni in MAIUSCOLO
-- Paragrafi separati da righe vuote
-- Struttura chiara e leggibile
-- Nessun markup o formattazione complessa
+**IMPORTANTE**: La bozza deve essere generata nel seguente formato:
 
-Esempio struttura:
 ```
-BOZZA ESTESA DELLA TRAMA
+TITOLO: [Titolo del libro]
 
-INTRODUZIONE
+TRAMA:
+
+[Trama estesa in formato Markdown]
+```
+
+### Requisiti del Titolo
+- Il titolo deve essere creativo, appropriato al genere e alla storia
+- Deve riflettere i temi principali del romanzo
+- Deve essere in italiano
+
+### Requisiti della Trama in Markdown
+La trama deve essere scritta in **formato Markdown** con:
+- Titoli delle sezioni usando `##` (h2) o `###` (h3)
+- Paragrafi separati da righe vuote
+- **Grassetto** per enfatizzare concetti chiave usando `**testo**`
+- *Corsivo* per momenti particolari usando `*testo*`
+- Elenchi puntati o numerati quando appropriato
+- Struttura chiara e leggibile
+
+Esempio struttura Markdown:
+```markdown
+TITOLO: Il Viaggio delle Ombre
+
+TRAMA:
+
+## Introduzione
+
 [Paragrafo descrittivo...]
 
-ATTO I - SVILUPPO
+## Atto I - Sviluppo
+
 [Paragrafi che descrivono...]
 
-ATTO II - CONFLITTO
+### Scena Chiave
+
+[Descrizione dettagliata...]
+
+## Atto II - Conflitto
+
 [Paragrafi che descrivono...]
 
-ATTO III - RISOLUZIONE
+## Atto III - Risoluzione
+
 [Paragrafi che descrivono...]
 
-CONCLUSIONE
+## Conclusione
+
 [Paragrafo finale...]
 ```
 
@@ -119,4 +148,5 @@ CONCLUSIONE
 - Non scrivere il romanzo completo, ma una guida dettagliata per la scrittura
 - Considera sempre il pubblico e l'intenzionalità indicata dall'utente
 - Se è indicato un autore di riferimento, ispirati al suo stile nella strutturazione
+
 

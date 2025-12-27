@@ -43,3 +43,7 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Session storage
+backend/sessions.json
+backend/sessions.json.tmp
+

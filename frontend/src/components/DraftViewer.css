@@ -36,6 +36,19 @@
   padding: 1.5rem;
 }
 
+.draft-title {
+  padding: 1.5rem;
+  border-bottom: 2px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.draft-title h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: #213547;
+  font-weight: 600;
+}
+
 .draft-text {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 0.95rem;
@@ -44,6 +57,81 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
+}
+
+.draft-markdown {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: #213547;
+}
+
+.draft-markdown h1 {
+  font-size: 2rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #213547;
+  font-weight: 600;
+}
+
+.draft-markdown h2 {
+  font-size: 1.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: #213547;
+  font-weight: 600;
+}
+
+.draft-markdown h3 {
+  font-size: 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #213547;
+  font-weight: 600;
+}
+
+.draft-markdown p {
+  margin: 0.75rem 0;
+}
+
+.draft-markdown ul,
+.draft-markdown ol {
+  margin: 0.75rem 0;
+  padding-left: 2rem;
+}
+
+.draft-markdown li {
+  margin: 0.5rem 0;
+}
+
+.draft-markdown strong {
+  font-weight: 600;
+  color: #213547;
+}
+
+.draft-markdown em {
+  font-style: italic;
+}
+
+.draft-markdown code {
+  background-color: #f5f5f5;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.draft-markdown pre {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.draft-markdown pre code {
+  background-color: transparent;
+  padding: 0;
 }
 
 /* Dark mode adjustments */
@@ -66,8 +154,41 @@
     background-color: #333;
   }
 
+  .draft-title {
+    background-color: #2a2a2a;
+    border-bottom-color: #444;
+  }
+
+  .draft-title h1 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
   .draft-text {
     color: rgba(255, 255, 255, 0.87);
   }
+
+  .draft-markdown {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown h1,
+  .draft-markdown h2,
+  .draft-markdown h3 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown strong {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown code {
+    background-color: #333;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-markdown pre {
+    background-color: #333;
+  }
 }
+
 
