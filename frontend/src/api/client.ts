@@ -174,20 +174,50 @@ export async function generateQuestions(data: SubmissionRequest): Promise<Questi
 }
 
 export async function submitAnswers(data: AnswersRequest): Promise<AnswersResponse> {
-  const response = await fetch(`${API_BASE}/questions/answers`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
+  console.log('[API] submitAnswers chiamato con:', data);
   
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || `Errore nell'invio delle risposte: ${response.statusText}`);
+  // Crea un AbortController per il timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 secondi di timeout
+  
+  try {
+    const response = await fetch(`${API_BASE}/questions/answers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    console.log('[API] submitAnswers response status:', response.status);
+    
+    if (!response.ok) {
+      let errorDetail = `Errore nell'invio delle risposte: ${response.statusText}`;
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // Se non è JSON, usa il messaggio di default
+      }
+      console.error('[API] submitAnswers errore:', errorDetail);
+      throw new Error(errorDetail);
+    }
+    
+    const result = await response.json();
+    console.log('[API] submitAnswers successo:', result);
+    return result;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('[API] submitAnswers timeout');
+      throw new Error('Timeout: la richiesta ha impiegato troppo tempo. Riprova.');
+    }
+    console.error('[API] submitAnswers eccezione:', err);
+    throw err;
   }
-  
-  return response.json();
 }
 
 export async function generateDraft(request: DraftGenerationRequest): Promise<DraftResponse> {

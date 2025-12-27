@@ -8,10 +8,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.units import inch, cm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image, PageTemplate, BaseDocTemplate
+from reportlab.platypus.frames import Frame
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+from reportlab.lib import colors
 from PIL import Image as PILImage
+import markdown
+import base64
+from xhtml2pdf import pisa
+from pathlib import Path as PathLib
 from app.config import get_config, reload_config
 from app.models import (
     ConfigResponse,
@@ -181,28 +188,40 @@ async def generate_questions_endpoint(request: QuestionGenerationRequest):
 @app.post("/api/questions/answers", response_model=AnswersResponse)
 async def submit_answers(data: AnswersRequest):
     """Riceve le risposte alle domande e continua il flusso."""
-    print(f"[DEBUG] Ricevute risposte per sessione {data.session_id}")
+    print(f"[SUBMIT ANSWERS] Ricevute risposte per sessione {data.session_id}")
+    print(f"[SUBMIT ANSWERS] Numero di risposte: {len(data.answers)}")
     try:
         # Aggiorna la sessione con le risposte alle domande
         session_store = get_session_store()
+        print(f"[SUBMIT ANSWERS] Session store ottenuto: {type(session_store).__name__}")
+        
         session = session_store.get_session(data.session_id)
         
         if not session:
-            print(f"[DEBUG] Sessione {data.session_id} NON trovata!")
+            print(f"[SUBMIT ANSWERS] ERRORE: Sessione {data.session_id} NON trovata!")
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {data.session_id} non trovata. Ricarica la pagina e riprova."
             )
         
+        print(f"[SUBMIT ANSWERS] Sessione trovata, aggiorno le risposte...")
         # Aggiorna le risposte nella sessione
         session.question_answers = data.answers
-        print(f"[DEBUG] Aggiornate {len(data.answers)} risposte")
+        print(f"[SUBMIT ANSWERS] Aggiornate {len(data.answers)} risposte nella sessione")
         
         # Salva la sessione aggiornata
         if isinstance(session_store, FileSessionStore):
-            print(f"[DEBUG] Salvataggio sessioni su file...")
-            session_store._save_sessions()
+            print(f"[SUBMIT ANSWERS] Salvataggio sessioni su file...")
+            try:
+                session_store._save_sessions()
+                print(f"[SUBMIT ANSWERS] Sessioni salvate con successo")
+            except Exception as save_error:
+                print(f"[SUBMIT ANSWERS] ERRORE nel salvataggio: {save_error}")
+                import traceback
+                traceback.print_exc()
+                # Non blocchiamo il flusso se il salvataggio fallisce, ma logghiamo l'errore
         
+        print(f"[SUBMIT ANSWERS] Invio risposta di successo...")
         return AnswersResponse(
             success=True,
             message="Risposte ricevute con successo. Pronto per la fase di scrittura.",
@@ -212,7 +231,7 @@ async def submit_answers(data: AnswersRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Errore critico in submit_answers: {e}")
+        print(f"[SUBMIT ANSWERS] ERRORE CRITICO: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -686,9 +705,59 @@ async def download_pdf_endpoint(session_id: str):
         )
 
 
+class NumberedCanvas:
+    """Classe per aggiungere header e footer con numerazione pagine."""
+    def __init__(self, canvas, doc, book_title, book_author):
+        self.canvas = canvas
+        self.doc = doc
+        self.book_title = book_title
+        self.book_author = book_author
+        
+    def draw_header_footer(self):
+        """Disegna header e footer su ogni pagina."""
+        canvas = self.canvas
+        page_num = canvas.getPageNumber()
+        
+        # Salva lo stato corrente
+        canvas.saveState()
+        
+        # Header - linea sottile in alto
+        canvas.setStrokeColor(colors.grey)
+        canvas.setLineWidth(0.5)
+        canvas.line(2*cm, A4[1] - 1.5*cm, A4[0] - 2*cm, A4[1] - 1.5*cm)
+        
+        # Footer - linea sottile in basso e numero pagina
+        canvas.line(2*cm, 1.5*cm, A4[0] - 2*cm, 1.5*cm)
+        
+        # Numero pagina centrato in basso
+        canvas.setFont("Helvetica", 9)
+        canvas.setFillColor(colors.grey)
+        canvas.drawCentredString(A4[0] / 2.0, 1*cm, str(page_num))
+        
+        # Ripristina lo stato
+        canvas.restoreState()
+
+def escape_html(text: str) -> str:
+    """Escapa caratteri speciali per HTML."""
+    if not text:
+        return ""
+    return (text.replace("&", "&amp;")
+              .replace("<", "&lt;")
+              .replace(">", "&gt;")
+              .replace('"', "&quot;")
+              .replace("'", "&#39;"))
+
+def markdown_to_html(text: str) -> str:
+    """Converte markdown base a HTML."""
+    if not text:
+        return ""
+    # Usa la libreria markdown per conversione completa
+    html = markdown.markdown(text, extensions=['nl2br', 'fenced_code'])
+    return html
+
 @app.get("/api/book/pdf/{session_id}")
 async def download_book_pdf_endpoint(session_id: str):
-    """Genera e scarica un PDF del libro completo con titolo, indice e capitoli."""
+    """Genera e scarica un PDF del libro completo con titolo, indice e capitoli usando WeasyPrint."""
     try:
         print(f"[BOOK PDF] Richiesta PDF libro completo per sessione: {session_id}")
         session_store = get_session_store()
@@ -712,164 +781,222 @@ async def download_book_pdf_endpoint(session_id: str):
                 detail="Nessun capitolo trovato nel libro."
             )
         
-        # Crea il PDF in memoria
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        story = []
-        styles = getSampleStyleSheet()
-        
-        # Stili personalizzati
-        title_style = ParagraphStyle(
-            'BookTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            textColor='#213547',
-            spaceAfter=20,
-            alignment=TA_CENTER,
-            fontName='Helvetica-Bold',
-        )
-        
-        author_style = ParagraphStyle(
-            'BookAuthor',
-            parent=styles['Normal'],
-            fontSize=16,
-            textColor='#666666',
-            spaceAfter=30,
-            alignment=TA_CENTER,
-        )
-        
-        chapter_title_style = ParagraphStyle(
-            'ChapterTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
-            textColor='#213547',
-            spaceAfter=15,
-            spaceBefore=20,
-            fontName='Helvetica-Bold',
-        )
-        
-        toc_style = ParagraphStyle(
-            'TOC',
-            parent=styles['Normal'],
-            fontSize=12,
-            textColor='#213547',
-            spaceAfter=8,
-            leftIndent=20,
-        )
-        
-        # COPERTINA
+        # Prepara dati libro
         book_title = session.current_title or "Romanzo"
         book_author = session.form_data.user_name or "Autore"
         
-        # Escape caratteri speciali nel titolo e autore per XML/HTML (ReportLab usa XML internamente)
-        def escape_xml(text: str) -> str:
-            """Escapa caratteri speciali per XML/HTML."""
-            if not text:
-                return ""
-            return (text.replace("&", "&amp;")
-                      .replace("<", "&lt;")
-                      .replace(">", "&gt;")
-                      .replace('"', "&quot;")
-                      .replace("'", "&apos;"))
+        print(f"[BOOK PDF] Generazione PDF con WeasyPrint per: {book_title}")
         
-        book_title_escaped = escape_xml(book_title)
-        book_author_escaped = escape_xml(book_author)
+        # Leggi il file CSS
+        css_path = Path(__file__).parent / "static" / "book_styles.css"
+        if not css_path.exists():
+            raise Exception(f"File CSS non trovato: {css_path}")
         
-        # Se c'è un'immagine copertina, mostrala
+        with open(css_path, 'r', encoding='utf-8') as f:
+            css_content = f.read()
+        
+        print(f"[BOOK PDF] CSS caricato da: {css_path}")
+        
+        # Prepara immagine copertina
+        cover_image_data = None
+        cover_image_mime = None
+        cover_image_path_for_html = None
+        cover_image_width = None
+        cover_image_height = None
+        cover_image_style = None
+        
+        print(f"[BOOK PDF] Verifica copertina - cover_image_path nella sessione: {session.cover_image_path}")
+        
         if session.cover_image_path and Path(session.cover_image_path).exists():
             try:
-                # Valida l'immagine con PIL prima di usarla con ReportLab
-                print(f"[BOOK PDF] Validazione immagine copertina: {session.cover_image_path}")
-                pil_img = PILImage.open(session.cover_image_path)
-                # Verifica che sia un'immagine valida
-                pil_img.verify()
-                # Riapri l'immagine dopo verify() (verify() chiude il file)
-                pil_img = PILImage.open(session.cover_image_path)
-                # Converti in RGB se necessario (per compatibilità con ReportLab)
-                if pil_img.mode != 'RGB':
-                    pil_img = pil_img.convert('RGB')
-                # Salva temporaneamente in un formato compatibile se necessario
-                temp_path = Path(session.cover_image_path)
-                if temp_path.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
-                    # Se non è un formato standard, convertilo
-                    temp_rgb_path = temp_path.parent / f"{temp_path.stem}_rgb.jpg"
-                    pil_img.save(temp_rgb_path, 'JPEG', quality=95)
-                    cover_path_to_use = str(temp_rgb_path)
-                else:
-                    cover_path_to_use = session.cover_image_path
+                cover_path = Path(session.cover_image_path)
+                print(f"[BOOK PDF] Caricamento immagine copertina: {cover_path.absolute()}")
+                print(f"[BOOK PDF] File esiste: {cover_path.exists()}")
+                print(f"[BOOK PDF] Dimensione file: {cover_path.stat().st_size} bytes")
                 
-                print(f"[BOOK PDF] Immagine validata, uso: {cover_path_to_use}")
-                # Carica l'immagine e ridimensiona per adattarla alla pagina
-                cover_img = Image(cover_path_to_use, width=A4[0] - 2*inch, height=A4[1] - 2*inch, kind='proportional')
-                story.append(cover_img)
-                story.append(Spacer(1, 0.3*inch))
-                # Aggiungi anche titolo e autore sopra o sotto l'immagine
-                story.append(Paragraph(book_title_escaped, title_style))
-                story.append(Spacer(1, 0.2*inch))
-                story.append(Paragraph(book_author_escaped, author_style))
+                # Leggi dimensioni originali dell'immagine con PIL
+                with PILImage.open(session.cover_image_path) as img:
+                    cover_image_width, cover_image_height = img.size
+                    print(f"[BOOK PDF] Dimensioni originali immagine: {cover_image_width} x {cover_image_height}")
+                    print(f"[BOOK PDF] Proporzioni: {cover_image_width / cover_image_height:.3f}")
+                
+                # Determina MIME type dal suffisso
+                suffix = cover_path.suffix.lower()
+                if suffix == '.png':
+                    cover_image_mime = 'image/png'
+                elif suffix in ['.jpg', '.jpeg']:
+                    cover_image_mime = 'image/jpeg'
+                else:
+                    cover_image_mime = 'image/png'  # Default
+                
+                # Calcola dimensioni per A4 (595.276pt x 841.890pt) mantenendo proporzioni
+                # A4 ratio: 841.890 / 595.276 = 1.414 (circa)
+                a4_width_pt = 595.276
+                a4_height_pt = 841.890
+                a4_ratio = a4_height_pt / a4_width_pt
+                image_ratio = cover_image_height / cover_image_width
+                
+                print(f"[BOOK PDF] Ratio A4: {a4_ratio:.3f}, Ratio immagine: {image_ratio:.3f}")
+                
+                # Se l'immagine è più larga che alta rispetto ad A4, usa width: 100%
+                # Se l'immagine è più alta che larga rispetto ad A4, usa height: 100%
+                if image_ratio > a4_ratio:
+                    # Immagine più alta: usa height: 100%, width: auto
+                    cover_image_style = "width: auto; height: 100%;"
+                    print(f"[BOOK PDF] Immagine più alta di A4, uso height: 100%, width: auto")
+                else:
+                    # Immagine più larga o simile: usa width: 100%, height: auto
+                    cover_image_style = "width: 100%; height: auto;"
+                    print(f"[BOOK PDF] Immagine più larga di A4, uso width: 100%, height: auto")
+                
+                # xhtml2pdf potrebbe non supportare base64, quindi usiamo il path del file
+                # Convertiamo il path in formato assoluto per xhtml2pdf
+                cover_image_path_for_html = str(cover_path.absolute())
+                print(f"[BOOK PDF] Path assoluto copertina per HTML: {cover_image_path_for_html}")
+                
+                # Anche proviamo base64 come fallback
+                with open(session.cover_image_path, 'rb') as f:
+                    image_bytes = f.read()
+                    cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
+                print(f"[BOOK PDF] Immagine copertina caricata, MIME: {cover_image_mime}")
+                print(f"[BOOK PDF] Base64 generato: {len(cover_image_data)} caratteri")
+                print(f"[BOOK PDF] Path file disponibile: {cover_image_path_for_html}")
             except Exception as e:
                 print(f"[BOOK PDF] Errore nel caricamento copertina: {e}")
                 import traceback
                 traceback.print_exc()
-                # Fallback: mostra solo titolo e autore
-                story.append(Spacer(1, 2*inch))
-                story.append(Paragraph(book_title_escaped, title_style))
-                story.append(Spacer(1, 0.5*inch))
-                story.append(Paragraph(book_author_escaped, author_style))
         else:
-            # Nessuna copertina: mostra solo titolo e autore
-            story.append(Spacer(1, 2*inch))
-            story.append(Paragraph(book_title_escaped, title_style))
-            story.append(Spacer(1, 0.5*inch))
-            story.append(Paragraph(book_author_escaped, author_style))
-        
-        story.append(PageBreak())
-        
-        # INDICE
-        story.append(Paragraph("Indice", chapter_title_style))
-        story.append(Spacer(1, 0.3*inch))
+            print(f"[BOOK PDF] Nessuna copertina disponibile (path: {session.cover_image_path})")
         
         # Ordina i capitoli per section_index
         sorted_chapters = sorted(session.book_chapters, key=lambda x: x.get('section_index', 0))
         
+        # Prepara HTML per indice - usa div invece di li per garantire andata a capo
+        toc_items = []
         for idx, chapter in enumerate(sorted_chapters, 1):
             chapter_title = chapter.get('title', f'Capitolo {idx}')
-            story.append(Paragraph(f"{idx}. {chapter_title}", toc_style))
+            toc_items.append(f'<div class="toc-item">{idx}. {escape_html(chapter_title)}</div>')
         
-        story.append(PageBreak())
+        toc_html = '\n            '.join(toc_items)
         
-        # CAPITOLI
+        # Prepara HTML per capitoli
+        chapters_html = []
         for idx, chapter in enumerate(sorted_chapters, 1):
             chapter_title = chapter.get('title', f'Capitolo {idx}')
             chapter_content = chapter.get('content', '')
             
-            # Titolo del capitolo
-            story.append(Paragraph(chapter_title, chapter_title_style))
-            story.append(Spacer(1, 0.2*inch))
+            # Converti markdown a HTML
+            content_html = markdown_to_html(chapter_content)
             
-            # Contenuto del capitolo
-            # Converti markdown base a testo semplice per il PDF
-            content_text = chapter_content
-            # Rimuovi markdown base
-            content_text = content_text.replace("## ", "").replace("### ", "")
-            content_text = content_text.replace("**", "").replace("*", "")
-            
-            # Dividi in paragrafi
-            paragraphs = content_text.split("\n\n")
-            for para in paragraphs:
-                para = para.strip()
-                if para:
-                    # Gestisci interruzioni di riga singole
-                    para = para.replace("\n", " ")
-                    story.append(Paragraph(para, styles['Normal']))
-                    story.append(Spacer(1, 0.15*inch))
-            
-            # Aggiungi interruzione di pagina tra capitoli (tranne l'ultimo)
-            if idx < len(sorted_chapters):
-                story.append(PageBreak())
+            chapters_html.append(f'''    <div class="chapter">
+        <h1 class="chapter-title">{escape_html(chapter_title)}</h1>
+        <div class="chapter-content">
+            {content_html}
+        </div>
+    </div>''')
         
-        # Costruisci il PDF
-        doc.build(story)
+        chapters_html_str = '\n\n'.join(chapters_html)
+        
+        # Genera HTML completo
+        cover_section = ''
+        # Usa lo stile calcolato per mantenere le proporzioni
+        image_style = cover_image_style or "width: 100%; height: auto;"
+        container_style = "width: 595.276pt; height: 841.890pt; margin: 0; padding: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;"
+        
+        # xhtml2pdf su Windows: prova prima con path relativo, poi file://, poi base64
+        if cover_image_path_for_html:
+            cover_path_obj = Path(cover_image_path_for_html)
+            # Prova con path relativo dalla directory di lavoro
+            try:
+                # Calcola path relativo dalla directory backend
+                backend_dir = Path(__file__).parent.parent
+                try:
+                    rel_path = cover_path_obj.relative_to(backend_dir)
+                    cover_src = str(rel_path).replace('\\', '/')
+                    print(f"[BOOK PDF] Usando path relativo per copertina: {cover_src}")
+                except ValueError:
+                    # Se non è possibile path relativo, usa path assoluto con file://
+                    # Su Windows, xhtml2pdf potrebbe richiedere formato file:///C:/path
+                    abs_path = str(cover_path_obj.absolute()).replace('\\', '/')
+                    cover_src = f"file:///{abs_path}"
+                    print(f"[BOOK PDF] Usando path assoluto per copertina: {cover_src}")
+                
+                cover_section = f'''    <!-- Copertina -->
+    <div class="cover-page" style="{container_style}">
+        <img src="{cover_src}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
+    </div>
+    <div style="page-break-after: always;"></div>'''
+                print(f"[BOOK PDF] Copertina aggiunta con path: {cover_src}, stile: {image_style}")
+            except Exception as e:
+                print(f"[BOOK PDF] Errore nel setup path copertina: {e}, uso base64")
+                if cover_image_data and cover_image_mime:
+                    cover_section = f'''    <!-- Copertina -->
+    <div class="cover-page" style="{container_style}">
+        <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
+    </div>
+    <div style="page-break-after: always;"></div>'''
+                    print(f"[BOOK PDF] Copertina aggiunta con base64 (fallback dopo errore path), stile: {image_style}")
+        elif cover_image_data and cover_image_mime:
+            # Fallback a base64 se il path non è disponibile
+            cover_section = f'''    <!-- Copertina -->
+    <div class="cover-page" style="{container_style}">
+        <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
+    </div>
+    <div style="page-break-after: always;"></div>'''
+            print(f"[BOOK PDF] Copertina aggiunta con base64 (solo base64 disponibile), stile: {image_style}")
+        
+        html_content = f'''<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{escape_html(book_title)}</title>
+    <style>
+        {css_content}
+    </style>
+</head>
+<body>
+    <div class="content-wrapper">
+{cover_section}
+        
+        <!-- Indice -->
+        <div class="table-of-contents">
+            <h1>Indice</h1>
+            <div class="toc-list">
+                {toc_html}
+            </div>
+        </div>
+        
+        <!-- Capitoli -->
+{chapters_html_str}
+    </div>
+</body>
+</html>'''
+        
+        print(f"[BOOK PDF] HTML generato, lunghezza: {len(html_content)} caratteri")
+        
+        # Genera PDF con xhtml2pdf
+        print(f"[BOOK PDF] Generazione PDF con xhtml2pdf...")
+        buffer = BytesIO()
+        
+        try:
+            # xhtml2pdf genera PDF direttamente da HTML+CSS
+            result = pisa.CreatePDF(
+                src=html_content,
+                dest=buffer,
+                encoding='utf-8'
+            )
+            
+            if result.err:
+                raise Exception(f"Errore nella generazione PDF: {result.err}")
+            
+            print(f"[BOOK PDF] PDF generato con successo")
+        except Exception as e:
+            print(f"[BOOK PDF] Errore nella generazione PDF con xhtml2pdf: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
         buffer.seek(0)
         
         # Nome file

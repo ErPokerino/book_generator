@@ -17,6 +17,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModifying, setIsModifying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
+  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,6 +79,10 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       };
       await validateDraft(request);
       
+      // Dopo la validazione, mostra loading per generazione outline
+      setIsValidating(false);
+      setIsGeneratingOutline(true);
+      
       // Genera automaticamente l'outline dopo la validazione
       let outline: OutlineResponse | null = null;
       try {
@@ -92,13 +97,15 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
           console.error('[ERROR] Stack:', outlineErr.stack);
         }
         // Non blocchiamo il flusso se l'outline fallisce
+      } finally {
+        setIsGeneratingOutline(false);
       }
       
       onDraftValidated(draft, outline);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nella validazione della bozza');
-    } finally {
       setIsValidating(false);
+      setIsGeneratingOutline(false);
     }
   };
 
@@ -107,6 +114,18 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       <div className="draft-step-loading">
         <h2>Generazione Bozza Estesa</h2>
         <p>Sto generando la bozza estesa della trama...</p>
+        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+          Questo potrebbe richiedere alcuni secondi
+        </p>
+      </div>
+    );
+  }
+
+  if (isGeneratingOutline) {
+    return (
+      <div className="draft-step-loading">
+        <h2>Generazione Struttura del Libro</h2>
+        <p>Sto generando la struttura del libro...</p>
         <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
           Questo potrebbe richiedere alcuni secondi
         </p>

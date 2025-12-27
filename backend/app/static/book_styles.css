@@ -1,0 +1,209 @@
+/* Stili per generazione PDF libro professionale con xhtml2pdf */
+
+@page {
+    size: A4;
+    margin: 4cm 3.5cm 4cm 3.5cm;
+}
+
+/* Pagina copertina - nessun margine */
+@page cover {
+    size: A4;
+    margin: 0;
+}
+
+/* Pagina indice - margini più ampi */
+@page toc {
+    size: A4;
+    margin: 4.5cm 4cm 4.5cm 4cm;
+}
+
+/* Pagina capitolo iniziale - margini speciali */
+@page chapter-start {
+    size: A4;
+    margin: 5cm 4cm 4cm 4cm;
+}
+
+/* Reset e base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #000000;
+    text-align: justify;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Header e footer per pagine normali */
+.page-header {
+    border-bottom: 0.5pt solid #cccccc;
+    margin-bottom: 0.5cm;
+    padding-bottom: 0.3cm;
+}
+
+.page-footer {
+    border-top: 0.5pt solid #cccccc;
+    margin-top: 0.5cm;
+    padding-top: 0.3cm;
+    text-align: center;
+    font-family: 'Helvetica', sans-serif;
+    font-size: 9pt;
+    color: #666666;
+}
+
+/* Contenitore principale per assicurare margini */
+.content-wrapper {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0;
+}
+
+/* Copertina */
+.cover-page {
+    page: cover;
+    margin: 0;
+    padding: 0;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.cover-image {
+    display: block;
+    margin: 0;
+    padding: 0;
+    /* Le dimensioni vengono impostate inline per mantenere le proporzioni */
+}
+
+/* Indice */
+.table-of-contents {
+    page: toc;
+    page-break-after: always;
+}
+
+.table-of-contents h1 {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 28pt;
+    font-weight: bold;
+    color: #213547;
+    text-align: center;
+    margin-bottom: 2cm;
+    margin-top: 1cm;
+    page-break-after: avoid;
+    letter-spacing: 0.05em;
+}
+
+.toc-list {
+    padding: 0;
+    margin: 0;
+    column-count: 1;
+    column-gap: 2cm;
+}
+
+.toc-item {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 12pt;
+    line-height: 2;
+    margin-bottom: 0.5cm;
+    padding-left: 0;
+    page-break-inside: avoid;
+    display: block;
+    clear: both;
+    width: 100%;
+}
+
+/* Capitoli */
+.chapter {
+    page: chapter-start;
+    page-break-before: always;
+    margin-bottom: 2cm;
+}
+
+.chapter:first-of-type {
+    page-break-before: auto;
+}
+
+.chapter-title {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 22pt;
+    font-weight: bold;
+    color: #213547;
+    text-align: left;
+    margin-top: 2cm;
+    margin-bottom: 0.8cm;
+    padding-bottom: 0.5cm;
+    border-bottom: 1pt solid #cccccc;
+    page-break-after: avoid;
+}
+
+.chapter-content {
+    margin-top: 1cm;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.chapter-content p {
+    margin-bottom: 0.6cm;
+    text-indent: 0.8cm;
+    text-align: justify;
+    orphans: 3;
+    widows: 3;
+    max-width: 100%;
+}
+
+.chapter-content p:first-of-type {
+    text-indent: 0;
+    font-size: 12pt;
+    line-height: 1.7;
+}
+
+.chapter-content p:first-of-type::first-letter {
+    font-size: 3.5em;
+    font-weight: bold;
+    float: left;
+    line-height: 0.8;
+    margin-right: 0.1em;
+    margin-top: 0.05em;
+    color: #213547;
+    font-family: 'Georgia', serif;
+}
+
+/* Evita interruzioni di pagina indesiderate */
+.chapter-content p {
+    page-break-inside: avoid;
+}
+
+.chapter-title + .chapter-content {
+    page-break-after: avoid;
+}
+
+/* Stili per testo formattato */
+strong, b {
+    font-weight: bold;
+}
+
+em, i {
+    font-style: italic;
+}
+
+/* Gestione interruzioni di pagina */
+.page-break {
+    page-break-before: always;
+}
+
+.no-break {
+    page-break-inside: avoid;
+}
+

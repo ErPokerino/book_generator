@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ book_title }}</title>
+    <style>
+        {{ css_content }}
+    </style>
+</head>
+<body>
+    {% if cover_image_data %}
+    <!-- Copertina -->
+    <div class="cover-page">
+        <img src="data:image/png;base64,{{ cover_image_data }}" class="cover-image" alt="Copertina">
+    </div>
+    {% endif %}
+    
+    <!-- Indice -->
+    <div class="table-of-contents">
+        <h1>Indice</h1>
+        <ol class="toc-list">
+            {% for chapter in chapters %}
+            <li>{{ chapter.title }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+    
+    <!-- Capitoli -->
+    {% for chapter in chapters %}
+    <div class="chapter">
+        <h1 class="chapter-title">{{ chapter.title }}</h1>
+        <div class="chapter-content">
+            {{ chapter.content_html|safe }}
+        </div>
+    </div>
+    {% endfor %}
+</body>
+</html>
+
