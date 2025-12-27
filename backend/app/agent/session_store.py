@@ -26,6 +26,7 @@ class SessionData:
         self.outline_version: int = 0
         self.book_chapters: list[Dict[str, Any]] = []  # Lista di capitoli completati
         self.writing_progress: Optional[Dict[str, Any]] = None  # Stato di avanzamento scrittura
+        self.cover_image_path: Optional[str] = None  # Path dell'immagine copertina
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -42,6 +43,7 @@ class SessionData:
             "outline_version": self.outline_version,
             "book_chapters": self.book_chapters,
             "writing_progress": self.writing_progress,
+            "cover_image_path": self.cover_image_path,
         }
     
     @classmethod
@@ -61,6 +63,7 @@ class SessionData:
         session.outline_version = data.get("outline_version", 0)
         session.book_chapters = data.get("book_chapters", [])
         session.writing_progress = data.get("writing_progress")
+        session.cover_image_path = data.get("cover_image_path")
         return session
 
 
@@ -202,6 +205,19 @@ class SessionStore:
         # Ordina per section_index
         session.book_chapters.sort(key=lambda x: x.get("section_index", 0))
         
+        return session
+    
+    def update_cover_image_path(
+        self,
+        session_id: str,
+        cover_image_path: str,
+    ) -> SessionData:
+        """Aggiorna il path dell'immagine copertina."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.cover_image_path = cover_image_path
         return session
 
 
@@ -365,6 +381,16 @@ class FileSessionStore(SessionStore):
         session = super().update_book_chapter(
             session_id, chapter_title, chapter_content, section_index
         )
+        self._save_sessions()
+        return session
+    
+    def update_cover_image_path(
+        self,
+        session_id: str,
+        cover_image_path: str,
+    ) -> SessionData:
+        """Aggiorna il path dell'immagine copertina e salva su file."""
+        session = super().update_cover_image_path(session_id, cover_image_path)
         self._save_sessions()
         return session
 

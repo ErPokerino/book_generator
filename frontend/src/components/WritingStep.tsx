@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { getBookProgress, BookProgress, downloadBookPdf } from '../api/client';
-import BookViewer from './BookViewer';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -12,7 +11,6 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
   const [progress, setProgress] = useState<BookProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
-  const [showBookViewer, setShowBookViewer] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -146,12 +144,6 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
           <p>Il romanzo è stato scritto completamente. Tutti i {progress.total_steps} capitoli sono stati generati.</p>
           <div className="completion-actions">
             <button
-              onClick={() => setShowBookViewer(true)}
-              className="view-book-button"
-            >
-              📖 Visualizza Libro Completo
-            </button>
-            <button
               onClick={async () => {
                 if (!sessionId) {
                   alert('Errore: SessionId non disponibile.');
@@ -199,15 +191,5 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
       )}
     </div>
   );
-
-  // Mostra il visualizzatore del libro se richiesto
-  if (showBookViewer && sessionId) {
-    return (
-      <BookViewer
-        sessionId={sessionId}
-        onBack={() => setShowBookViewer(false)}
-      />
-    );
-  }
 }
 

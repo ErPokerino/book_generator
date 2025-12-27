@@ -9,8 +9,9 @@ from fastapi.responses import Response
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image
 from reportlab.lib.enums import TA_CENTER
+from PIL import Image as PILImage
 from app.config import get_config, reload_config
 from app.models import (
     ConfigResponse,
@@ -38,6 +39,7 @@ from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
 from app.agent.outline_generator import generate_outline
 from app.agent.writer_generator import generate_full_book, parse_outline_sections
+from app.agent.cover_generator import generate_book_cover
 from app.agent.session_store import get_session_store, FileSessionStore
 
 # Carica variabili d'ambiente dal file .env
@@ -77,34 +79,59 @@ async def get_config_endpoint():
 @app.post("/api/submissions", response_model=SubmissionResponse)
 async def submit_form(data: SubmissionRequest):
     """Riceve e valida i dati del form."""
-    config = get_config()
-    
-    # Valida il modello LLM
-    if data.llm_model not in config.llm_models:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Modello LLM non valido: {data.llm_model}. Modelli disponibili: {', '.join(config.llm_models)}"
+    try:
+        print(f"[SUBMIT FORM] Ricevuta submission con llm_model={data.llm_model}, temperature={data.temperature}")
+        config = get_config()
+        
+        # Valida il modello LLM
+        if data.llm_model not in config.llm_models:
+            print(f"[SUBMIT FORM] ERRORE: Modello LLM non valido: {data.llm_model}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Modello LLM non valido: {data.llm_model}. Modelli disponibili: {', '.join(config.llm_models)}"
+            )
+        
+        # Valida la temperatura se presente
+        if data.temperature is not None:
+            if not (0.0 <= data.temperature <= 1.0):
+                print(f"[SUBMIT FORM] ERRORE: Temperatura non valida: {data.temperature}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Temperatura deve essere tra 0.0 e 1.0, ricevuto: {data.temperature}"
+                )
+        
+        # Valida i campi select opzionali contro le opzioni configurate
+        # Escludi temperature, llm_model e plot dalla validazione come select
+        field_map = {field.id: field for field in config.fields}
+        
+        for field_id, value in data.model_dump(exclude={"llm_model", "plot", "temperature"}).items():
+            if value is not None and field_id in field_map:
+                field = field_map[field_id]
+                if field.type == "select" and field.options:
+                    valid_values = [opt.value for opt in field.options]
+                    if value not in valid_values:
+                        print(f"[SUBMIT FORM] ERRORE: Valore non valido per '{field.label}': {value}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Valore non valido per '{field.label}': {value}"
+                        )
+        
+        print(f"[SUBMIT FORM] Submission validata con successo")
+        return SubmissionResponse(
+            success=True,
+            message="Submission ricevuta con successo",
+            data=data,
         )
-    
-    # Valida i campi select opzionali contro le opzioni configurate
-    field_map = {field.id: field for field in config.fields}
-    
-    for field_id, value in data.model_dump(exclude={"llm_model", "plot"}).items():
-        if value is not None and field_id in field_map:
-            field = field_map[field_id]
-            if field.type == "select" and field.options:
-                valid_values = [opt.value for opt in field.options]
-                if value not in valid_values:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Valore non valido per '{field.label}': {value}"
-                    )
-    
-    return SubmissionResponse(
-        success=True,
-        message="Submission ricevuta con successo",
-        data=data,
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[SUBMIT FORM] ERRORE CRITICO: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore interno nel processamento della submission: {str(e)}"
+        )
 
 
 @app.post("/api/questions/generate", response_model=QuestionsResponse)
@@ -734,10 +761,68 @@ async def download_book_pdf_endpoint(session_id: str):
         book_title = session.current_title or "Romanzo"
         book_author = session.form_data.user_name or "Autore"
         
-        story.append(Spacer(1, 2*inch))
-        story.append(Paragraph(book_title, title_style))
-        story.append(Spacer(1, 0.5*inch))
-        story.append(Paragraph(book_author, author_style))
+        # Escape caratteri speciali nel titolo e autore per XML/HTML (ReportLab usa XML internamente)
+        def escape_xml(text: str) -> str:
+            """Escapa caratteri speciali per XML/HTML."""
+            if not text:
+                return ""
+            return (text.replace("&", "&amp;")
+                      .replace("<", "&lt;")
+                      .replace(">", "&gt;")
+                      .replace('"', "&quot;")
+                      .replace("'", "&apos;"))
+        
+        book_title_escaped = escape_xml(book_title)
+        book_author_escaped = escape_xml(book_author)
+        
+        # Se c'è un'immagine copertina, mostrala
+        if session.cover_image_path and Path(session.cover_image_path).exists():
+            try:
+                # Valida l'immagine con PIL prima di usarla con ReportLab
+                print(f"[BOOK PDF] Validazione immagine copertina: {session.cover_image_path}")
+                pil_img = PILImage.open(session.cover_image_path)
+                # Verifica che sia un'immagine valida
+                pil_img.verify()
+                # Riapri l'immagine dopo verify() (verify() chiude il file)
+                pil_img = PILImage.open(session.cover_image_path)
+                # Converti in RGB se necessario (per compatibilità con ReportLab)
+                if pil_img.mode != 'RGB':
+                    pil_img = pil_img.convert('RGB')
+                # Salva temporaneamente in un formato compatibile se necessario
+                temp_path = Path(session.cover_image_path)
+                if temp_path.suffix.lower() not in ['.png', '.jpg', '.jpeg']:
+                    # Se non è un formato standard, convertilo
+                    temp_rgb_path = temp_path.parent / f"{temp_path.stem}_rgb.jpg"
+                    pil_img.save(temp_rgb_path, 'JPEG', quality=95)
+                    cover_path_to_use = str(temp_rgb_path)
+                else:
+                    cover_path_to_use = session.cover_image_path
+                
+                print(f"[BOOK PDF] Immagine validata, uso: {cover_path_to_use}")
+                # Carica l'immagine e ridimensiona per adattarla alla pagina
+                cover_img = Image(cover_path_to_use, width=A4[0] - 2*inch, height=A4[1] - 2*inch, kind='proportional')
+                story.append(cover_img)
+                story.append(Spacer(1, 0.3*inch))
+                # Aggiungi anche titolo e autore sopra o sotto l'immagine
+                story.append(Paragraph(book_title_escaped, title_style))
+                story.append(Spacer(1, 0.2*inch))
+                story.append(Paragraph(book_author_escaped, author_style))
+            except Exception as e:
+                print(f"[BOOK PDF] Errore nel caricamento copertina: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fallback: mostra solo titolo e autore
+                story.append(Spacer(1, 2*inch))
+                story.append(Paragraph(book_title_escaped, title_style))
+                story.append(Spacer(1, 0.5*inch))
+                story.append(Paragraph(book_author_escaped, author_style))
+        else:
+            # Nessuna copertina: mostra solo titolo e autore
+            story.append(Spacer(1, 2*inch))
+            story.append(Paragraph(book_title_escaped, title_style))
+            story.append(Spacer(1, 0.5*inch))
+            story.append(Paragraph(book_author_escaped, author_style))
+        
         story.append(PageBreak())
         
         # INDICE
@@ -868,6 +953,26 @@ async def background_book_generation(
             api_key=api_key,
         )
         print(f"[BOOK GENERATION] Generazione completata per sessione {session_id}")
+        
+        # Genera la copertina dopo che il libro è stato completato
+        try:
+            print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
+            session = session_store.get_session(session_id)
+            if session:
+                cover_path = await generate_book_cover(
+                    session_id=session_id,
+                    title=draft_title or "Romanzo",
+                    author=form_data.user_name or "Autore",
+                    plot=validated_draft,
+                    api_key=api_key,
+                )
+                session_store.update_cover_image_path(session_id, cover_path)
+                print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
+        except Exception as e:
+            print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
+            import traceback
+            traceback.print_exc()
+            # Non blocchiamo il processo se la copertina fallisce
     except ValueError as e:
         # Errore di validazione (es. outline non valido)
         error_msg = f"Errore di validazione: {str(e)}"

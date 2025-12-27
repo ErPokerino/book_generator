@@ -12,6 +12,7 @@ export default function DynamicForm() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [temperature, setTemperature] = useState<number>(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<SubmissionResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,9 +104,11 @@ export default function DynamicForm() {
     e.preventDefault();
     
     if (!config || !validateForm()) {
+      console.log('[DynamicForm] Validazione form fallita');
       return;
     }
 
+    console.log('[DynamicForm] Inizio submit form');
     setIsSubmitting(true);
     setError(null);
     setSubmitted(null);
@@ -116,7 +119,10 @@ export default function DynamicForm() {
       const payload: SubmissionRequest = {
         llm_model: formData.llm_model || '',
         plot: formData.plot || '',
+        temperature: temperature,
       };
+
+      console.log('[DynamicForm] Payload iniziale:', { llm_model: payload.llm_model, temperature: payload.temperature });
 
       // Aggiunge solo i campi opzionali che sono stati compilati
       const optionalFields = [
@@ -136,27 +142,47 @@ export default function DynamicForm() {
         (payload as any).user_name = formData.user_name || '';
       }
 
-      // Valida il form
-      const response = await submitForm(payload);
+      console.log('[DynamicForm] Invio submitForm con payload:', payload);
+
+      // Valida il form con timeout
+      const submitPromise = submitForm(payload);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: la richiesta ha impiegato troppo tempo')), 30000)
+      );
+      
+      const response = await Promise.race([submitPromise, timeoutPromise]) as SubmissionResponse;
+      console.log('[DynamicForm] submitForm completato:', response);
       setFormPayload(payload);
 
       // Genera le domande
       setIsGeneratingQuestions(true);
       try {
-        const questionsResponse = await generateQuestions(payload);
+        console.log('[DynamicForm] Inizio generazione domande');
+        const questionsPromise = generateQuestions(payload);
+        const questionsTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: la generazione delle domande ha impiegato troppo tempo')), 60000)
+        );
+        
+        const questionsResponse = await Promise.race([questionsPromise, questionsTimeoutPromise]) as QuestionsResponse;
+        console.log('[DynamicForm] Domande generate:', questionsResponse);
         setQuestions(questionsResponse.questions);
         setSessionId(questionsResponse.session_id);
         setIsGeneratingQuestions(false);
         setCurrentStep('questions'); // Passa allo step delle domande
       } catch (err) {
+        console.error('[DynamicForm] Errore nella generazione delle domande:', err);
         setIsGeneratingQuestions(false);
-        setError(err instanceof Error ? err.message : 'Errore nella generazione delle domande');
-        throw err; // Rilancia per evitare di procedere
+        const errorMessage = err instanceof Error ? err.message : 'Errore nella generazione delle domande';
+        setError(errorMessage);
+        // Non rilanciare l'errore qui, così l'utente vede il messaggio
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nell\'invio del form');
+      console.error('[DynamicForm] Errore nell\'invio del form:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Errore nell\'invio del form';
+      setError(errorMessage);
       setIsGeneratingQuestions(false);
     } finally {
+      console.log('[DynamicForm] Submit completato, reset isSubmitting');
       setIsSubmitting(false);
     }
   };
@@ -297,6 +323,52 @@ export default function DynamicForm() {
     }
 
     return null;
+  };
+
+  const renderTemperatureSlider = () => {
+    // Calcola il colore del gradiente basato sulla temperatura
+    // 0.0 = blu (stabile), 1.0 = rosso (creativo)
+    const hue = 240 - (temperature * 240); // Da 240 (blu) a 0 (rosso)
+    const saturation = 70;
+    const lightness = 50;
+    const gradientColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    
+    return (
+      <div className="form-field">
+        <label htmlFor="temperature">
+          Creatività del Modello
+          <span className="required"> *</span>
+          <span className="info-icon" title="Controlla la creatività del modello: valori bassi (blu) = più stabile e prevedibile, valori alti (rosso) = più creativo e variabile">
+            ℹ️
+          </span>
+        </label>
+        <div className="temperature-slider-container">
+          <div className="temperature-labels">
+            <span className="temperature-label-left">Stabilità</span>
+            <span className="temperature-label-right">Creatività</span>
+          </div>
+          <input
+            type="range"
+            id="temperature"
+            min="0"
+            max="1"
+            step="0.01"
+            value={temperature}
+            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+            className="temperature-slider"
+            style={{
+              background: `linear-gradient(to right, 
+                hsl(240, 70%, 50%) 0%, 
+                hsl(180, 70%, 50%) 50%, 
+                hsl(0, 70%, 50%) 100%)`
+            }}
+          />
+          <div className="temperature-value">
+            <span>Valore: {temperature.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -574,7 +646,19 @@ export default function DynamicForm() {
       {error && <div className="error-banner">{error}</div>}
       
       <form onSubmit={handleSubmit} className="dynamic-form">
-        {config?.fields.map(renderField)}
+        {config?.fields.map((field) => {
+          const fieldElement = renderField(field);
+          // Se questo è il campo llm_model e c'è un modello selezionato, mostra lo slider subito dopo
+          if (field.id === 'llm_model' && formData.llm_model) {
+            return (
+              <>
+                {fieldElement}
+                {renderTemperatureSlider()}
+              </>
+            );
+          }
+          return fieldElement;
+        })}
         
         <div className="form-actions">
           <button type="submit" disabled={isSubmitting} className="submit-button">

@@ -318,7 +318,7 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=0.8,  # Più creatività per la scrittura narrativa
+        temperature=form_data.temperature if form_data.temperature is not None else 0.0,  # Usa temperatura dall'utente o default
         max_output_tokens=8192,  # Aumenta il limite di output per permettere capitoli più lunghi
     )
     

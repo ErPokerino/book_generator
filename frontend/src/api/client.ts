@@ -21,6 +21,7 @@ export interface ConfigResponse {
 export interface SubmissionRequest {
   llm_model: string;
   plot: string;
+  temperature?: number;
   genre?: string;
   subgenre?: string;
   theme?: string;
@@ -122,20 +123,37 @@ export async function fetchConfig(): Promise<ConfigResponse> {
 }
 
 export async function submitForm(data: SubmissionRequest): Promise<SubmissionResponse> {
-  const response = await fetch(`${API_BASE}/submissions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || `Errore nell'invio: ${response.statusText}`);
+  console.log('[API] submitForm chiamato con:', data);
+  try {
+    const response = await fetch(`${API_BASE}/submissions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    console.log('[API] submitForm response status:', response.status);
+    
+    if (!response.ok) {
+      let errorDetail = `Errore nell'invio: ${response.statusText}`;
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // Se non è JSON, usa il messaggio di default
+      }
+      console.error('[API] submitForm errore:', errorDetail);
+      throw new Error(errorDetail);
+    }
+    
+    const result = await response.json();
+    console.log('[API] submitForm successo:', result);
+    return result;
+  } catch (err) {
+    console.error('[API] submitForm eccezione:', err);
+    throw err;
   }
-  
-  return response.json();
 }
 
 export async function generateQuestions(data: SubmissionRequest): Promise<QuestionsResponse> {

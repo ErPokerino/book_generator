@@ -236,7 +236,7 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=0.7,
+        temperature=form_data.temperature if form_data.temperature is not None else 0.7,
     )
     
     # Genera la bozza
