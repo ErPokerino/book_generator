@@ -46,3 +46,70 @@ class SubmissionResponse(BaseModel):
     message: str
     data: Optional[SubmissionRequest] = None
 
+
+# Modelli per le domande preliminari
+class Question(BaseModel):
+    id: str
+    text: str
+    type: Literal["text", "multiple_choice"]
+    options: Optional[list[str]] = None
+
+
+class QuestionsResponse(BaseModel):
+    success: bool
+    session_id: str
+    questions: list[Question]
+    message: Optional[str] = None
+
+
+class QuestionAnswer(BaseModel):
+    question_id: str
+    answer: Optional[str] = None  # None se la domanda è stata saltata
+
+
+class AnswersRequest(BaseModel):
+    session_id: str
+    answers: list[QuestionAnswer]
+
+
+class AnswersResponse(BaseModel):
+    success: bool
+    message: str
+    session_id: str
+
+
+class QuestionGenerationRequest(BaseModel):
+    form_data: SubmissionRequest
+
+
+# Modelli per la bozza estesa
+class DraftGenerationRequest(BaseModel):
+    form_data: SubmissionRequest
+    question_answers: list[QuestionAnswer]
+    session_id: str
+
+
+class DraftResponse(BaseModel):
+    success: bool
+    session_id: str
+    draft_text: str
+    version: int
+    message: Optional[str] = None
+
+
+class DraftModificationRequest(BaseModel):
+    session_id: str
+    user_feedback: str
+    current_version: int
+
+
+class DraftValidationRequest(BaseModel):
+    session_id: str
+    validated: bool
+
+
+class DraftValidationResponse(BaseModel):
+    success: bool
+    session_id: str
+    message: str
+

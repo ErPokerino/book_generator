@@ -1,0 +1,138 @@
+.draft-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.chat-header {
+  margin-bottom: 1rem;
+}
+
+.chat-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  color: #213547;
+}
+
+.chat-subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.error-banner {
+  background-color: #fee;
+  color: #c33;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.chat-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s;
+}
+
+.chat-input:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.chat-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.validate-button,
+.send-button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.validate-button {
+  background-color: #4caf50;
+  color: white;
+}
+
+.validate-button:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.send-button {
+  background-color: #646cff;
+  color: white;
+}
+
+.send-button:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.validate-button:disabled,
+.send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .draft-chat {
+    background: #1a1a1a;
+  }
+
+  .chat-header h3 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .chat-subtitle {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .error-banner {
+    background-color: #3a1a1a;
+    color: #ff6b6b;
+  }
+
+  .chat-input {
+    background-color: #2a2a2a;
+    color: rgba(255, 255, 255, 0.87);
+    border-color: #444;
+  }
+
+  .chat-input:focus {
+    border-color: #646cff;
+  }
+
+  .chat-input:disabled {
+    background-color: #1a1a1a;
+  }
+}
+

@@ -1,0 +1,136 @@
+import React, { useState, useEffect } from 'react';
+import { generateDraft, modifyDraft, validateDraft, DraftResponse, DraftModificationRequest, DraftValidationRequest, SubmissionRequest, QuestionAnswer } from '../api/client';
+import DraftViewer from './DraftViewer';
+import DraftChat from './DraftChat';
+import './DraftStep.css';
+
+interface DraftStepProps {
+  sessionId: string;
+  formData: SubmissionRequest;
+  questionAnswers: QuestionAnswer[];
+  onDraftValidated: () => void;
+  onBack?: () => void;
+}
+
+export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack }: DraftStepProps) {
+  const [draft, setDraft] = useState<DraftResponse | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isModifying, setIsModifying] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Genera la bozza iniziale quando il componente viene montato
+    if (!draft && !isGenerating) {
+      handleGenerateDraft();
+    }
+  }, []);
+
+  const handleGenerateDraft = async () => {
+    setIsGenerating(true);
+    setError(null);
+    
+    try {
+      const response = await generateDraft({
+        form_data: formData,
+        question_answers: questionAnswers,
+        session_id: sessionId,
+      });
+      setDraft(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nella generazione della bozza');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleModifyDraft = async (feedback: string) => {
+    if (!draft) return;
+
+    setIsModifying(true);
+    setError(null);
+
+    try {
+      const request: DraftModificationRequest = {
+        session_id: sessionId,
+        user_feedback: feedback,
+        current_version: draft.version,
+      };
+      const response = await modifyDraft(request);
+      setDraft(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nella modifica della bozza');
+    } finally {
+      setIsModifying(false);
+    }
+  };
+
+  const handleValidateDraft = async () => {
+    if (!draft) return;
+
+    setIsValidating(true);
+    setError(null);
+
+    try {
+      const request: DraftValidationRequest = {
+        session_id: sessionId,
+        validated: true,
+      };
+      await validateDraft(request);
+      onDraftValidated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nella validazione della bozza');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  if (isGenerating) {
+    return (
+      <div className="draft-step-loading">
+        <h2>Generazione Bozza Estesa</h2>
+        <p>Sto generando la bozza estesa della trama...</p>
+        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+          Questo potrebbe richiedere alcuni secondi
+        </p>
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return (
+      <div className="draft-step-error">
+        <h2>Errore</h2>
+        <p>Impossibile caricare la bozza.</p>
+        {error && <p className="error-text">{error}</p>}
+        <button onClick={handleGenerateDraft}>Riprova</button>
+      </div>
+    );
+  }
+
+  const isLoading = isModifying || isValidating;
+
+  return (
+    <div className="draft-step">
+      {onBack && (
+        <button onClick={onBack} className="back-button" disabled={isLoading}>
+          ← Indietro
+        </button>
+      )}
+      <div className="draft-step-content">
+        <div className="draft-viewer-container">
+          <DraftViewer draftText={draft.draft_text} version={draft.version} />
+        </div>
+        <div className="draft-chat-container">
+          <DraftChat
+            onSendFeedback={handleModifyDraft}
+            onValidate={handleValidateDraft}
+            isLoading={isLoading}
+            error={error}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -1,0 +1,116 @@
+.draft-step {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.back-button {
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background-color 0.2s;
+}
+
+.back-button:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.back-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.draft-step-content {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 1.5rem;
+  height: calc(100vh - 200px);
+  min-height: 600px;
+}
+
+.draft-viewer-container {
+  overflow: hidden;
+}
+
+.draft-chat-container {
+  overflow: hidden;
+}
+
+.draft-step-loading,
+.draft-step-error {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.draft-step-loading h2,
+.draft-step-error h2 {
+  margin-bottom: 1rem;
+  color: #213547;
+}
+
+.draft-step-error .error-text {
+  color: #c33;
+  margin: 1rem 0;
+}
+
+.draft-step-error button {
+  padding: 0.75rem 1.5rem;
+  background-color: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.draft-step-error button:hover {
+  background-color: #535bf2;
+}
+
+/* Responsive: stack vertically on smaller screens */
+@media (max-width: 1024px) {
+  .draft-step-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    height: auto;
+    min-height: auto;
+  }
+
+  .draft-viewer-container {
+    min-height: 400px;
+    max-height: 600px;
+  }
+
+  .draft-chat-container {
+    max-height: 300px;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .back-button {
+    background-color: #333;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .back-button:hover:not(:disabled) {
+    background-color: #444;
+  }
+
+  .draft-step-loading h2,
+  .draft-step-error h2 {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-step-error .error-text {
+    color: #ff6b6b;
+  }
+}
+

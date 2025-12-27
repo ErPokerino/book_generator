@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { fetchConfig, submitForm, FieldConfig, SubmissionRequest, SubmissionResponse } from '../api/client';
+import { fetchConfig, submitForm, generateQuestions, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
+import QuestionsStep from './QuestionsStep';
+import DraftStep from './DraftStep';
 import './DynamicForm.css';
 
 export default function DynamicForm() {
@@ -10,6 +12,13 @@ export default function DynamicForm() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<SubmissionResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [questions, setQuestions] = useState<Question[] | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [formPayload, setFormPayload] = useState<SubmissionRequest | null>(null);
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
+  const [answersSubmitted, setAnswersSubmitted] = useState(false);
+  const [questionAnswers, setQuestionAnswers] = useState<QuestionAnswer[]>([]);
+  const [currentStep, setCurrentStep] = useState<'form' | 'questions' | 'draft' | 'summary'>('form');
 
   useEffect(() => {
     loadConfig();
@@ -72,6 +81,7 @@ export default function DynamicForm() {
     setIsSubmitting(true);
     setError(null);
     setSubmitted(null);
+    setQuestions(null);
 
     try {
       // Costruisce il payload secondo lo schema SubmissionRequest
@@ -93,13 +103,53 @@ export default function DynamicForm() {
         }
       });
 
+      // Valida il form
       const response = await submitForm(payload);
-      setSubmitted(response);
+      setFormPayload(payload);
+
+      // Genera le domande
+      setIsGeneratingQuestions(true);
+      try {
+        const questionsResponse = await generateQuestions(payload);
+        setQuestions(questionsResponse.questions);
+        setSessionId(questionsResponse.session_id);
+        setIsGeneratingQuestions(false);
+        setCurrentStep('questions'); // Passa allo step delle domande
+      } catch (err) {
+        setIsGeneratingQuestions(false);
+        setError(err instanceof Error ? err.message : 'Errore nella generazione delle domande');
+        throw err; // Rilancia per evitare di procedere
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nell\'invio del form');
+      setIsGeneratingQuestions(false);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleQuestionsComplete = (answers: QuestionAnswer[]) => {
+    setQuestionAnswers(answers); // Salva le risposte
+    setAnswersSubmitted(true);
+    // Passa allo step della bozza
+    setCurrentStep('draft');
+  };
+
+  const handleDraftValidated = () => {
+    // Dopo la validazione della bozza, mostra il riepilogo finale
+    setSubmitted({
+      success: true,
+      message: 'Configurazione completata! Bozza validata. Pronto per la fase di scrittura.',
+      data: formPayload || undefined,
+    });
+    setCurrentStep('summary');
+  };
+
+  const handleBackToForm = () => {
+    setQuestions(null);
+    setSessionId(null);
+    setAnswersSubmitted(false);
+    setSubmitted(null);
   };
 
   const renderInfoIcon = (description?: string) => {
@@ -193,22 +243,75 @@ export default function DynamicForm() {
     );
   }
 
-  if (submitted) {
+  // Mostra le domande se generate
+  if (currentStep === 'questions' && questions && sessionId) {
+    return (
+      <QuestionsStep
+        questions={questions}
+        sessionId={sessionId}
+        onComplete={handleQuestionsComplete}
+        onBack={handleBackToForm}
+      />
+    );
+  }
+
+  // Mostra lo step della bozza
+  if (currentStep === 'draft' && sessionId && formPayload) {
+    return (
+      <DraftStep
+        sessionId={sessionId}
+        formData={formPayload}
+        questionAnswers={questionAnswers}
+        onDraftValidated={handleDraftValidated}
+        onBack={() => setCurrentStep('questions')}
+      />
+    );
+  }
+
+  // Mostra riepilogo finale dopo la validazione della bozza
+  if (currentStep === 'summary' && submitted && answersSubmitted) {
     return (
       <div className="submission-success">
-        <h2>✓ Submission completata con successo!</h2>
+        <h2>✓ Configurazione completata con successo!</h2>
         <p>{submitted.message}</p>
         <div className="submission-summary">
-          <h3>Riepilogo dati inviati:</h3>
-          <pre>{JSON.stringify(submitted.data, null, 2)}</pre>
+          <h3>Riepilogo configurazione:</h3>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h4>Dati del form iniziale:</h4>
+            <pre>{JSON.stringify(submitted.data, null, 2)}</pre>
+          </div>
+          {questionAnswers.length > 0 && (
+            <div>
+              <h4>Risposte alle domande preliminari:</h4>
+              <pre>{JSON.stringify(questionAnswers, null, 2)}</pre>
+            </div>
+          )}
         </div>
         <button onClick={() => {
           setSubmitted(null);
           setFormData({});
           setValidationErrors({});
+          setQuestions(null);
+          setSessionId(null);
+          setAnswersSubmitted(false);
+          setFormPayload(null);
+          setQuestionAnswers([]);
+          setCurrentStep('form');
         }}>
-          Nuova submission
+          Nuova configurazione
         </button>
+      </div>
+    );
+  }
+
+  // Mostra loading durante generazione domande
+  if (isGeneratingQuestions) {
+    return (
+      <div className="loading">
+        <p>Generazione domande preliminari in corso...</p>
+        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+          Questo potrebbe richiedere alcuni secondi
+        </p>
       </div>
     );
   }
