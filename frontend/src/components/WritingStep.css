@@ -202,6 +202,12 @@
   font-size: 1rem;
 }
 
+.writing-time-info {
+  margin: 0.5rem 0;
+  color: #1b5e20;
+  font-size: 1rem;
+}
+
 .critique-section {
   margin-top: 2rem;
   padding: 1.5rem;

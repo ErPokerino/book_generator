@@ -65,7 +65,9 @@
 
 .form-field select,
 .form-field input[type="text"] {
-  height: 2.75rem;
+  min-height: 2.75rem;
+  line-height: 1.5;
+  padding: 0.875rem 0.75rem;
 }
 
 .form-field select:focus,

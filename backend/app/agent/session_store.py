@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
+from datetime import datetime
 from app.models import SubmissionRequest, QuestionAnswer
 
 
@@ -30,6 +31,8 @@ class SessionData:
         self.literary_critique: Optional[Dict[str, Any]] = None  # Valutazione critica del libro
         self.critique_status: Optional[str] = None  # pending|running|completed|failed
         self.critique_error: Optional[str] = None  # Dettaglio errore se failed
+        self.writing_start_time: Optional[datetime] = None  # Timestamp inizio scrittura capitoli
+        self.writing_end_time: Optional[datetime] = None  # Timestamp fine scrittura capitoli
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -50,6 +53,8 @@ class SessionData:
             "literary_critique": self.literary_critique,
             "critique_status": self.critique_status,
             "critique_error": self.critique_error,
+            "writing_start_time": self.writing_start_time.isoformat() if self.writing_start_time else None,
+            "writing_end_time": self.writing_end_time.isoformat() if self.writing_end_time else None,
         }
     
     @classmethod
@@ -73,6 +78,11 @@ class SessionData:
         session.literary_critique = data.get("literary_critique")
         session.critique_status = data.get("critique_status")
         session.critique_error = data.get("critique_error")
+        # Parse datetime da ISO string se presente
+        start_time_str = data.get("writing_start_time")
+        end_time_str = data.get("writing_end_time")
+        session.writing_start_time = datetime.fromisoformat(start_time_str) if start_time_str else None
+        session.writing_end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
         return session
 
 
@@ -258,6 +268,23 @@ class SessionStore:
         session.critique_status = status
         session.critique_error = error
         # Se fallita, non cancelliamo automaticamente una critica già presente (utile per storico/debug)
+        return session
+
+    def update_writing_times(
+        self,
+        session_id: str,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+    ) -> SessionData:
+        """Aggiorna i timestamp di inizio e fine scrittura capitoli."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+
+        if start_time is not None:
+            session.writing_start_time = start_time
+        if end_time is not None:
+            session.writing_end_time = end_time
         return session
 
 

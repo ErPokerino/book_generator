@@ -29,8 +29,10 @@ def format_form_data(form_data: SubmissionRequest) -> str:
     optional_fields = {
         "Genere": form_data.genre,
         "Sottogenere": form_data.subgenre,
+        "Pubblico di Riferimento": form_data.target_audience,
         "Tema": form_data.theme,
         "Protagonista": form_data.protagonist,
+        "Archetipo Protagonista": form_data.protagonist_archetype,
         "Arco del personaggio": form_data.character_arc,
         "Punto di vista": form_data.point_of_view,
         "Voce narrante": form_data.narrative_voice,

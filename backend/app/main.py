@@ -1146,6 +1146,11 @@ async def background_book_generation(
                 is_complete=False,
             )
         
+        # Registra timestamp inizio scrittura capitoli
+        start_time = datetime.now()
+        session_store.update_writing_times(session_id, start_time=start_time)
+        print(f"[BOOK GENERATION] Timestamp inizio scrittura: {start_time.isoformat()}")
+        
         await generate_full_book(
             session_id=session_id,
             form_data=form_data,
@@ -1156,6 +1161,32 @@ async def background_book_generation(
             api_key=api_key,
         )
         print(f"[BOOK GENERATION] Generazione completata per sessione {session_id}")
+        
+        # Registra timestamp fine scrittura capitoli e calcola tempo
+        end_time = datetime.now()
+        session_store.update_writing_times(session_id, end_time=end_time)
+        writing_time_minutes = (end_time - start_time).total_seconds() / 60
+        print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
+        
+        # Aggiorna writing_progress con il tempo calcolato
+        session = session_store.get_session(session_id)
+        if session and session.writing_progress:
+            # Mantieni tutti i valori esistenti e aggiungi writing_time_minutes
+            existing_progress = session.writing_progress.copy()
+            existing_progress['writing_time_minutes'] = writing_time_minutes
+            session_store.update_writing_progress(
+                session_id=session_id,
+                current_step=existing_progress.get('current_step', 0),
+                total_steps=existing_progress.get('total_steps', 0),
+                current_section_name=existing_progress.get('current_section_name'),
+                is_complete=existing_progress.get('is_complete', True),
+                error=existing_progress.get('error'),
+            )
+            # Aggiorna manualmente writing_time_minutes nel dict (update_writing_progress non lo gestisce)
+            session.writing_progress['writing_time_minutes'] = writing_time_minutes
+            # FileSessionStore salverà automaticamente al prossimo update o possiamo forzare il salvataggio
+            if hasattr(session_store, '_save_sessions'):
+                session_store._save_sessions()
         
         # Genera la copertina dopo che il libro è stato completato
         try:
@@ -1399,6 +1430,14 @@ async def get_book_progress_endpoint(session_id: str):
             toc_pages = math.ceil(len(completed_chapters) / 30)
             total_pages = chapters_pages + cover_pages + toc_pages
         
+        # Calcola writing_time_minutes se disponibile o calcolabile
+        writing_time_minutes = progress.get('writing_time_minutes')
+        if writing_time_minutes is None and is_complete:
+            # Backward compatibility: calcola dai timestamp se disponibili
+            if session.writing_start_time and session.writing_end_time:
+                delta = session.writing_end_time - session.writing_start_time
+                writing_time_minutes = delta.total_seconds() / 60
+        
         # Recupera la valutazione critica se disponibile
         critique = None
         if session.literary_critique:
@@ -1425,6 +1464,7 @@ async def get_book_progress_endpoint(session_id: str):
             is_complete=is_complete,
             error=progress.get('error'),
             total_pages=total_pages,
+            writing_time_minutes=writing_time_minutes,
             critique=critique,
             critique_status=critique_status,
             critique_error=critique_error,
@@ -1503,6 +1543,16 @@ async def get_complete_book_endpoint(session_id: str):
         toc_pages = math.ceil(len(chapters) / 30)  # Pagine indice: 1 pagina base + 1 ogni 30 capitoli
         total_pages = chapters_pages + cover_pages + toc_pages
         
+        # Calcola writing_time_minutes se disponibile o calcolabile
+        writing_time_minutes = None
+        progress = session.writing_progress or {}
+        if progress.get('writing_time_minutes') is not None:
+            writing_time_minutes = progress.get('writing_time_minutes')
+        elif session.writing_start_time and session.writing_end_time:
+            # Backward compatibility: calcola dai timestamp se disponibili
+            delta = session.writing_end_time - session.writing_start_time
+            writing_time_minutes = delta.total_seconds() / 60
+        
         # Recupera la valutazione critica se disponibile
         critique = None
         if session.literary_critique:
@@ -1522,6 +1572,7 @@ async def get_complete_book_endpoint(session_id: str):
             author=session.form_data.user_name or "Autore",
             chapters=chapters,
             total_pages=total_pages,
+            writing_time_minutes=writing_time_minutes,
             critique=critique,
             critique_status=critique_status,
             critique_error=critique_error,

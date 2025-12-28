@@ -187,8 +187,10 @@ def format_writer_context(
         lines.append(f"**Autore del romanzo**: {form_data.user_name}")
     
     optional_fields = {
+        "Pubblico di Riferimento": form_data.target_audience,
         "Tema": form_data.theme,
         "Protagonista": form_data.protagonist,
+        "Archetipo Protagonista": form_data.protagonist_archetype,
         "Punto di vista": form_data.point_of_view,
         "Voce narrante": form_data.narrative_voice,
         "Ritmo": form_data.pace,

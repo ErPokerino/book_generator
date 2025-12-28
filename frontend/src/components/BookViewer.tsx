@@ -133,6 +133,9 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
         {book.total_pages && (
           <p className="book-pages">Totale: {book.total_pages} pagine</p>
         )}
+        {book.writing_time_minutes && (
+          <p className="book-time">Tempo scrittura: {Math.round(book.writing_time_minutes)} minuti</p>
+        )}
         <div className="book-actions">
           <button 
             onClick={handleDownloadPdf} 

@@ -46,6 +46,12 @@
   margin: 0 0 1.5rem 0;
 }
 
+.book-time {
+  font-size: 1rem;
+  color: #666;
+  margin: 0 0 1.5rem 0;
+}
+
 .book-actions {
   margin-top: 1rem;
 }

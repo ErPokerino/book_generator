@@ -28,8 +28,10 @@ class SubmissionRequest(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=1.0, description="Temperatura del modello (0.0=stabile, 1.0=creativo)")
     genre: Optional[str] = None
     subgenre: Optional[str] = None
+    target_audience: Optional[str] = None
     theme: Optional[str] = None
     protagonist: Optional[str] = None
+    protagonist_archetype: Optional[str] = None
     character_arc: Optional[str] = None
     point_of_view: Optional[str] = None
     narrative_voice: Optional[str] = None
@@ -190,6 +192,7 @@ class BookProgress(BaseModel):
     is_complete: bool = False
     error: Optional[str] = None
     total_pages: Optional[int] = None  # Numero totale di pagine (calcolato quando is_complete=True)
+    writing_time_minutes: Optional[float] = None  # Tempo di scrittura in minuti (solo generazione capitoli)
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
     critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
     critique_error: Optional[str] = None
@@ -213,6 +216,7 @@ class BookResponse(BaseModel):
     author: str
     chapters: list[Chapter]
     total_pages: Optional[int] = None  # Numero totale di pagine
+    writing_time_minutes: Optional[float] = None  # Tempo di scrittura in minuti (solo generazione capitoli)
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
     critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
     critique_error: Optional[str] = None

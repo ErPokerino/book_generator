@@ -24,8 +24,10 @@ export interface SubmissionRequest {
   temperature?: number;
   genre?: string;
   subgenre?: string;
+  target_audience?: string;
   theme?: string;
   protagonist?: string;
+  protagonist_archetype?: string;
   character_arc?: string;
   point_of_view?: string;
   narrative_voice?: string;
@@ -363,6 +365,7 @@ export interface BookProgress {
   is_complete: boolean;
   error?: string;
   total_pages?: number;
+  writing_time_minutes?: number;
   critique?: LiteraryCritique;
   critique_status?: 'pending' | 'running' | 'completed' | 'failed';
   critique_error?: string;
@@ -411,6 +414,7 @@ export interface BookResponse {
   author: string;
   chapters: Chapter[];
   total_pages?: number;
+  writing_time_minutes?: number;
   critique?: LiteraryCritique;
   critique_status?: 'pending' | 'running' | 'completed' | 'failed';
   critique_error?: string;

@@ -215,6 +215,11 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
               <strong>Totale pagine:</strong> {progress.total_pages} pagine
             </p>
           )}
+          {progress.writing_time_minutes && (
+            <p className="writing-time-info">
+              <strong>Totale tempo scrittura:</strong> {Math.round(progress.writing_time_minutes)} minuti
+            </p>
+          )}
           <div className="completion-actions">
             <button
               onClick={async () => {
