@@ -21,7 +21,7 @@ import base64
 import math
 from xhtml2pdf import pisa
 from pathlib import Path as PathLib
-from app.config import get_config, reload_config
+from app.config import get_config, reload_config, get_app_config
 from app.models import (
     ConfigResponse,
     SubmissionRequest,
@@ -85,6 +85,20 @@ async def get_config_endpoint():
         return reload_config()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore nel caricamento della configurazione: {str(e)}")
+
+
+@app.get("/api/config/app")
+async def get_app_config_endpoint():
+    """Restituisce la configurazione dell'applicazione (solo valori necessari al frontend)."""
+    try:
+        app_config = get_app_config()
+        # Restituisci solo i valori necessari al frontend
+        return {
+            "api_timeouts": app_config.get("api_timeouts", {}),
+            "frontend": app_config.get("frontend", {}),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore nel caricamento della configurazione app: {str(e)}")
 
 
 @app.post("/api/submissions", response_model=SubmissionResponse)
@@ -764,15 +778,200 @@ def calculate_page_count(content: str) -> int:
     if not content:
         return 0
     try:
+        app_config = get_app_config()
+        words_per_page = app_config.get("validation", {}).get("words_per_page", 250)
+        
         # Conta le parole dividendo per spazi
         words = content.split()
         word_count = len(words)
-        # Calcola pagine: parole/250 arrotondato per eccesso
-        page_count = math.ceil(word_count / 250)
+        # Calcola pagine: parole/words_per_page arrotondato per eccesso
+        page_count = math.ceil(word_count / words_per_page)
         return max(1, page_count)  # Almeno 1 pagina
     except Exception as e:
         print(f"[CALCULATE_PAGE_COUNT] Errore nel calcolo pagine: {e}")
         return 0
+
+
+def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
+    """
+    Calcola la stima del tempo rimanente per completare il libro.
+    Restituisce (estimated_minutes, confidence) dove confidence è "high", "medium", o "low".
+    """
+    try:
+        # FIX: Casting esplicito a int per evitare errori con stringhe
+        try:
+            current_step = int(current_step)
+        except (ValueError, TypeError):
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: current_step non è un numero valido ({current_step}), uso 0")
+            current_step = 0
+        
+        try:
+            total_steps = int(total_steps)
+        except (ValueError, TypeError):
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: total_steps non è un numero valido ({total_steps}), uso 0")
+            total_steps = 0
+        
+        print(f"[CALCULATE_ESTIMATED_TIME] Calcolo stima per session_id={session_id[:8]}..., current_step={current_step} (type: {type(current_step).__name__}), total_steps={total_steps} (type: {type(total_steps).__name__})")
+        
+        # Leggi il parametro di fallback dalla configurazione
+        app_config = get_app_config()
+        time_config = app_config.get("time_estimation", {})
+        fallback_seconds_per_chapter = time_config.get("fallback_seconds_per_chapter", 45)
+        
+        from app.agent.session_store import get_session_store
+        session_store = get_session_store()
+        session = session_store.get_session(session_id)
+        
+        remaining_chapters = total_steps - current_step
+        print(f"[CALCULATE_ESTIMATED_TIME] Capitoli rimanenti: {remaining_chapters}")
+        if remaining_chapters <= 0:
+            print(f"[CALCULATE_ESTIMATED_TIME] Nessun capitolo rimanente, restituisco None")
+            return None, None
+        
+        if not session:
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Sessione non trovata, uso stima conservativa")
+            # Anche se la sessione non esiste, restituiamo una stima conservativa
+            estimated_minutes = (remaining_chapters * fallback_seconds_per_chapter) / 60
+            return round(estimated_minutes, 1), "low"
+        
+        # Se non ci sono ancora capitoli completati, usa stima iniziale basata su dati storici o conservativa
+        if current_step == 0:
+            print(f"[CALCULATE_ESTIMATED_TIME] current_step == 0, uso stima iniziale")
+            # All'inizio, usa media globale o stima conservativa
+            all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
+            all_timings = []
+            
+            for s in all_sessions.values():
+                if s.chapter_timings and len(s.chapter_timings) > 0:
+                    all_timings.extend(s.chapter_timings)
+            
+            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici da {len(all_sessions)} sessioni")
+            if all_timings:
+                avg_time_seconds = sum(all_timings) / len(all_timings)
+                confidence = "medium"
+                print(f"[CALCULATE_ESTIMATED_TIME] Media storica: {avg_time_seconds:.1f} secondi per capitolo")
+            else:
+                avg_time_seconds = fallback_seconds_per_chapter
+                confidence = "low"
+                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico, uso stima conservativa: {avg_time_seconds} secondi")
+            
+            estimated_seconds = remaining_chapters * avg_time_seconds
+            estimated_minutes = estimated_seconds / 60
+            result = round(estimated_minutes, 1), confidence
+            print(f"[CALCULATE_ESTIMATED_TIME] Risultato: {result[0]} minuti, confidence: {result[1]}")
+            return result
+        
+        # Usa la configurazione già letta all'inizio della funzione
+        time_config = app_config.get("time_estimation", {})
+        min_chapters_for_avg = time_config.get("min_chapters_for_reliable_avg", 3)
+        use_session_avg = time_config.get("use_session_avg_if_available", True)
+        
+        avg_time_seconds = None
+        confidence = "low"
+        
+        # Se abbiamo capitoli completati in questa sessione, usa la loro media
+        # Anche con 1 capitolo possiamo fare una stima (anche se meno affidabile)
+        print(f"[CALCULATE_ESTIMATED_TIME] chapter_timings nella sessione corrente: {session.chapter_timings}")
+        print(f"[CALCULATE_ESTIMATED_TIME] current_step={current_step}, quindi abbiamo completato {current_step} capitoli")
+        
+        # Se abbiamo almeno 1 capitolo completato, proviamo a usare i tempi della sessione corrente
+        if use_session_avg and session.chapter_timings and len(session.chapter_timings) > 0:
+            # Abbiamo tempi nella sessione corrente
+            avg_time_seconds = sum(session.chapter_timings) / len(session.chapter_timings)
+            if len(session.chapter_timings) >= min_chapters_for_avg:
+                confidence = "high"
+                print(f"[CALCULATE_ESTIMATED_TIME] Usando media sessione corrente ({len(session.chapter_timings)} capitoli): {avg_time_seconds:.1f} sec, confidence: high")
+            else:
+                confidence = "medium"  # Abbiamo almeno 1 capitolo, stima media
+                print(f"[CALCULATE_ESTIMATED_TIME] Usando media sessione corrente ({len(session.chapter_timings)} capitoli): {avg_time_seconds:.1f} sec, confidence: medium")
+        elif current_step > 0:
+            # Abbiamo completato almeno 1 capitolo ma non abbiamo ancora chapter_timings
+            # Questo può succedere se il timing non è stato ancora salvato
+            # In questo caso, usiamo dati storici o stima conservativa
+            print(f"[CALCULATE_ESTIMATED_TIME] current_step > 0 ma chapter_timings vuoto, cerco dati storici")
+            all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
+            all_timings = []
+            
+            for s in all_sessions.values():
+                if s.chapter_timings and len(s.chapter_timings) > 0:
+                    all_timings.extend(s.chapter_timings)
+            
+            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici")
+            if all_timings:
+                avg_time_seconds = sum(all_timings) / len(all_timings)
+                confidence = "medium"
+                print(f"[CALCULATE_ESTIMATED_TIME] Usando media storica: {avg_time_seconds:.1f} sec, confidence: medium")
+            else:
+                avg_time_seconds = fallback_seconds_per_chapter
+                confidence = "low"
+                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico, uso stima conservativa: {avg_time_seconds} sec, confidence: low")
+        else:
+            # current_step == 0 ma siamo già passati per il caso speciale sopra
+            # Questo non dovrebbe mai succedere, ma per sicurezza usiamo stima conservativa
+            print(f"[CALCULATE_ESTIMATED_TIME] Caso non previsto, uso stima conservativa")
+            avg_time_seconds = fallback_seconds_per_chapter
+            confidence = "low"
+        
+        # Assicuriamoci di avere sempre un valore
+        if avg_time_seconds is None or avg_time_seconds <= 0:
+            avg_time_seconds = fallback_seconds_per_chapter
+            confidence = "low"
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: avg_time_seconds era None o <= 0, uso fallback: {avg_time_seconds}")
+        
+        estimated_seconds = remaining_chapters * avg_time_seconds
+        estimated_minutes = estimated_seconds / 60
+        result = round(estimated_minutes, 1), confidence
+        
+        # GARANZIA FINALE: se remaining_chapters > 0, restituiamo sempre un valore valido
+        if remaining_chapters > 0 and (result[0] is None or result[0] <= 0):
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Risultato non valido ({result[0]}), uso fallback finale")
+            estimated_minutes = (remaining_chapters * fallback_seconds_per_chapter) / 60
+            result = round(estimated_minutes, 1), "low"
+        
+        print(f"[CALCULATE_ESTIMATED_TIME] Risultato finale: {result[0]} minuti, confidence: {result[1]}")
+        return result
+        
+    except Exception as e:
+        print(f"[CALCULATE_ESTIMATED_TIME] ERRORE nel calcolo stima tempo: {e}")
+        import traceback
+        traceback.print_exc()
+        # In caso di errore, restituiamo comunque una stima conservativa invece di None
+        # Questo assicura che l'utente veda sempre una stima
+        try:
+            remaining_chapters = total_steps - current_step
+            if remaining_chapters > 0:
+                # Leggi il fallback dalla configurazione
+                app_config = get_app_config()
+                time_config = app_config.get("time_estimation", {})
+                fallback_seconds = time_config.get("fallback_seconds_per_chapter", 45)
+                # Stima conservativa
+                estimated_minutes = (remaining_chapters * fallback_seconds) / 60
+                print(f"[CALCULATE_ESTIMATED_TIME] Fallback: stima conservativa {estimated_minutes:.1f} minuti")
+                return round(estimated_minutes, 1), "low"
+        except Exception as fallback_error:
+            print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nel fallback: {fallback_error}")
+        
+        # Ultimo fallback: se siamo arrivati qui e remaining_chapters > 0, restituiamo comunque una stima
+        try:
+            # I valori dovrebbero già essere int grazie al casting all'inizio, ma per sicurezza...
+            current_step_int = int(current_step) if not isinstance(current_step, int) else current_step
+            total_steps_int = int(total_steps) if not isinstance(total_steps, int) else total_steps
+            remaining_chapters = total_steps_int - current_step_int
+            if remaining_chapters > 0:
+                # Leggi il fallback dalla configurazione
+                app_config = get_app_config()
+                time_config = app_config.get("time_estimation", {})
+                fallback_seconds = time_config.get("fallback_seconds_per_chapter", 45)
+                estimated_minutes = (remaining_chapters * fallback_seconds) / 60
+                print(f"[CALCULATE_ESTIMATED_TIME] Ultimo fallback: {estimated_minutes:.1f} minuti")
+                return round(estimated_minutes, 1), "low"
+        except Exception as fallback_err:
+            print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nell'ultimo fallback: {fallback_err}")
+            import traceback
+            traceback.print_exc()
+        
+        # Solo se remaining_chapters <= 0 restituiamo None
+        return None, None
 
 @app.get("/api/book/pdf/{session_id}")
 async def download_book_pdf_endpoint(session_id: str):
@@ -1426,8 +1625,10 @@ async def get_book_progress_endpoint(session_id: str):
             chapters_pages = sum(ch.page_count for ch in completed_chapters)
             # 1 pagina per copertina
             cover_pages = 1
-            # Pagine indice: 1 pagina base + 1 ogni 30 capitoli
-            toc_pages = math.ceil(len(completed_chapters) / 30)
+            # Pagine indice: 1 pagina base + 1 ogni N capitoli (da config)
+            app_config = get_app_config()
+            toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+            toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page)
             total_pages = chapters_pages + cover_pages + toc_pages
         
         # Calcola writing_time_minutes se disponibile o calcolabile
@@ -1455,10 +1656,101 @@ async def get_book_progress_endpoint(session_id: str):
             elif is_complete:
                 critique_status = "pending"
         
+        # Calcola stima tempo se il libro non è completato
+        estimated_time_minutes = None
+        estimated_time_confidence = None
+        calculated_total_steps = None  # Variabile per salvare total_steps calcolato
+        if not is_complete:
+            # FIX: Casting esplicito a int per evitare errori con stringhe dal dict
+            raw_current = progress.get('current_step', 0)
+            raw_total = progress.get('total_steps', 0)
+            
+            try:
+                current_step = int(raw_current)
+            except (ValueError, TypeError):
+                print(f"[GET BOOK PROGRESS] WARNING: current_step non è un numero valido ({raw_current}, type: {type(raw_current).__name__}), uso 0")
+                current_step = 0
+            
+            try:
+                total_steps = int(raw_total)
+            except (ValueError, TypeError):
+                print(f"[GET BOOK PROGRESS] WARNING: total_steps non è un numero valido ({raw_total}, type: {type(raw_total).__name__}), uso 0")
+                total_steps = 0
+            
+            # Validazione: assicuriamoci che i valori siano validi
+            if current_step < 0:
+                print(f"[GET BOOK PROGRESS] WARNING: current_step negativo ({current_step}), correggo a 0")
+                current_step = 0
+            
+            # FALLBACK: Se total_steps è 0 ma is_complete è False, prova a calcolarlo dall'outline
+            if total_steps == 0:
+                print(f"[GET BOOK PROGRESS] WARNING: total_steps è 0 nel progress dict, provo a calcolarlo dall'outline")
+                if session.current_outline:
+                    try:
+                        sections = parse_outline_sections(session.current_outline)
+                        total_steps = len(sections)
+                        calculated_total_steps = total_steps  # Salva per uso successivo
+                        print(f"[GET BOOK PROGRESS] Calcolato total_steps dall'outline: {total_steps}")
+                    except Exception as e:
+                        print(f"[GET BOOK PROGRESS] Errore nel parsing outline per calcolare total_steps: {e}")
+                        total_steps = 0
+                # Se ancora 0, usa default minimo per permettere il calcolo
+                if total_steps == 0:
+                    print(f"[GET BOOK PROGRESS] total_steps ancora 0, uso default 1 per permettere calcolo")
+                    total_steps = 1
+                    calculated_total_steps = 1  # IMPORTANTE: assegniamo anche qui per usarlo in final_total_steps
+            
+            print(f"[GET BOOK PROGRESS] Calcolo stima tempo: current_step={current_step}, total_steps={total_steps}")
+            print(f"[GET BOOK PROGRESS] chapter_timings: {session.chapter_timings}")
+            
+            # Calcola SEMPRE la stima quando not is_complete (total_steps dovrebbe essere sempre > 0 grazie al fallback sopra)
+            # Se total_steps è ancora 0 dopo i fallback, usiamo 1 come ultimo resort
+            if total_steps <= 0:
+                print(f"[GET BOOK PROGRESS] WARNING: total_steps è ancora <= 0 dopo fallback, uso 1 come ultimo resort")
+                total_steps = 1
+                calculated_total_steps = 1  # IMPORTANTE: assegniamo anche qui
+            
+            # Calcola sempre la stima
+            estimated_time_minutes, estimated_time_confidence = calculate_estimated_time(
+                session_id, current_step, total_steps
+            )
+            print(f"[GET BOOK PROGRESS] estimated_time_minutes: {estimated_time_minutes}, confidence: {estimated_time_confidence}")
+            
+            # Fallback finale: se calculate_estimated_time ha restituito None nonostante remaining_chapters > 0
+            if estimated_time_minutes is None:
+                remaining = total_steps - current_step
+                if remaining > 0:
+                    print(f"[GET BOOK PROGRESS] WARNING: calculate_estimated_time ha restituito None, uso fallback finale")
+                    # Leggi il fallback dalla configurazione
+                    app_config = get_app_config()
+                    time_config = app_config.get("time_estimation", {})
+                    fallback_seconds = time_config.get("fallback_seconds_per_chapter", 45)
+                    estimated_time_minutes = (remaining * fallback_seconds) / 60
+                    estimated_time_confidence = "low"
+                    print(f"[GET BOOK PROGRESS] Fallback finale applicato: {estimated_time_minutes:.1f} minuti")
+                else:
+                    print(f"[GET BOOK PROGRESS] remaining <= 0 ({remaining}), non posso calcolare stima")
+        
+        # Assicuriamoci che total_steps sia valido nel BookProgress
+        # SEMPLIFICATO: se abbiamo calcolato total_steps (dall'outline o fallback), usiamo quello
+        if not is_complete and calculated_total_steps is not None and calculated_total_steps > 0:
+            final_total_steps = calculated_total_steps
+            print(f"[GET BOOK PROGRESS] Usando total_steps calcolato: {final_total_steps}")
+        else:
+            final_total_steps = progress.get('total_steps', 0)
+        
+        # Ultima garanzia: se non è completo ma total_steps è ancora 0, usa 1
+        if not is_complete and final_total_steps <= 0:
+            print(f"[GET BOOK PROGRESS] SAFETY: final_total_steps è {final_total_steps}, uso 1 come minimo")
+            final_total_steps = 1
+        
+        # Log finale per debug
+        print(f"[GET BOOK PROGRESS] Valori finali: total_steps={final_total_steps}, estimated_time_minutes={estimated_time_minutes}, estimated_time_confidence={estimated_time_confidence}")
+        
         return BookProgress(
             session_id=session_id,
             current_step=progress.get('current_step', 0),
-            total_steps=progress.get('total_steps', 0),
+            total_steps=final_total_steps,
             current_section_name=progress.get('current_section_name'),
             completed_chapters=completed_chapters,
             is_complete=is_complete,
@@ -1468,6 +1760,8 @@ async def get_book_progress_endpoint(session_id: str):
             critique=critique,
             critique_status=critique_status,
             critique_error=critique_error,
+            estimated_time_minutes=estimated_time_minutes,
+            estimated_time_confidence=estimated_time_confidence,
         )
     
     except HTTPException:
@@ -1540,7 +1834,10 @@ async def get_complete_book_endpoint(session_id: str):
         # Calcola total_pages
         chapters_pages = sum(ch.page_count for ch in chapters)
         cover_pages = 1  # 1 pagina per copertina
-        toc_pages = math.ceil(len(chapters) / 30)  # Pagine indice: 1 pagina base + 1 ogni 30 capitoli
+        # Pagine indice: 1 pagina base + 1 ogni N capitoli (da config)
+        app_config = get_app_config()
+        toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+        toc_pages = math.ceil(len(chapters) / toc_chapters_per_page)
         total_pages = chapters_pages + cover_pages + toc_pages
         
         # Calcola writing_time_minutes se disponibile o calcolabile

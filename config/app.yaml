@@ -1,0 +1,32 @@
+# Timeout API (in millisecondi)
+api_timeouts:
+  submit_form: 30000
+  generate_questions: 60000
+  submit_answers: 30000
+  generate_draft: 120000
+  generate_outline: 120000
+  download_pdf: 300000
+
+# Retry logic
+retry:
+  chapter_generation:
+    max_retries: 2
+    min_chapter_length: 50  # caratteri
+
+# Validazione
+validation:
+  min_chapter_length: 50  # caratteri
+  words_per_page: 250
+  toc_chapters_per_page: 30
+
+# Polling frontend (in millisecondi)
+frontend:
+  polling_interval: 2000
+  polling_interval_critique: 5000  # più lento quando in attesa critica
+
+# Metriche e stima tempo
+time_estimation:
+  min_chapters_for_reliable_avg: 3
+  use_session_avg_if_available: true
+  fallback_seconds_per_chapter: 45  # Tempo medio per capitolo quando non ci sono dati storici
+
