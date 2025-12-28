@@ -190,12 +190,15 @@ class BookProgress(BaseModel):
     current_section_name: Optional[str] = None  # Nome/titolo della sezione in corso
     completed_chapters: list[Chapter] = []  # Capitoli già completati
     is_complete: bool = False
+    is_paused: bool = False  # Indica se la generazione è in pausa (dopo errori)
     error: Optional[str] = None
     total_pages: Optional[int] = None  # Numero totale di pagine (calcolato quando is_complete=True)
     writing_time_minutes: Optional[float] = None  # Tempo di scrittura in minuti (solo generazione capitoli)
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
     critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
     critique_error: Optional[str] = None
+    estimated_time_minutes: Optional[float] = None  # Stima tempo rimanente in minuti
+    estimated_time_confidence: Optional[Literal["high", "medium", "low"]] = None  # Affidabilità della stima
 
 
 class BookGenerationRequest(BaseModel):

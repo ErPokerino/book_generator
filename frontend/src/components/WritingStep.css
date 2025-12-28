@@ -46,6 +46,26 @@
   color: #666;
 }
 
+.estimated-time {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.estimated-time .time-icon {
+  font-size: 1.1rem;
+}
+
+.estimated-time .time-text {
+  flex: 1;
+}
+
 .progress-bar-container {
   width: 100%;
   height: 30px;
@@ -125,6 +145,44 @@
   border-radius: 4px;
   margin-bottom: 1rem;
   border-left: 4px solid #c62828;
+}
+
+.paused-message {
+  background-color: #fff3e0;
+  color: #e65100;
+  border-left-color: #ff9800;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.paused-message p {
+  margin: 0.5rem 0 0 0;
+  color: #e65100;
+}
+
+.resume-button {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.resume-button:hover:not(:disabled) {
+  background-color: #f57c00;
+}
+
+.resume-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .completed-chapters {
@@ -333,6 +391,22 @@
 .download-pdf-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.new-book-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #646cff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.new-book-button:hover {
+  background-color: #535bf2;
 }
 
 .loading {

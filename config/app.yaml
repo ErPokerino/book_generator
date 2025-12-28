@@ -30,3 +30,13 @@ time_estimation:
   use_session_avg_if_available: true
   fallback_seconds_per_chapter: 45  # Tempo medio per capitolo quando non ci sono dati storici
 
+# Configurazione modelli LLM
+llm_models:
+  max_output_tokens:
+    gemini_2_5_flash: 8192
+    default: 65536  # Per tutti gli altri modelli (Pro 2.5, Flash 3, Pro 3)
+
+# Generazione copertina
+cover_generation:
+  aspect_ratio: "2:3"  # Ratio per immagini copertina (adatto a PDF A4)
+

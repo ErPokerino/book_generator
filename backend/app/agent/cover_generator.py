@@ -7,6 +7,7 @@ import asyncio
 from google import genai
 from google.genai import types
 from PIL import Image as PILImage
+from app.config import get_app_config
 
 
 async def generate_book_cover(
@@ -33,8 +34,14 @@ async def generate_book_cover(
     # Inizializza il client con la nuova API
     client = genai.Client(api_key=api_key)
     
+    # Leggi la configurazione per l'aspect ratio
+    app_config = get_app_config()
+    cover_config = app_config.get("cover_generation", {})
+    aspect_ratio = cover_config.get("aspect_ratio", "2:3")
+    
     # Prepara il prompt completo per la generazione della copertina
-    plot_summary = plot[:2000] if len(plot) > 2000 else plot  # Limita la lunghezza per evitare token eccessivi
+    # Usa il plot completo senza limiti
+    plot_summary = plot
     
     image_prompt = f"""Crea una copertina professionale per un libro con le seguenti informazioni:
 
@@ -63,7 +70,7 @@ La copertina deve essere:
             'type': 'primario',
             'config': {
                 'image_config': {
-                    'aspect_ratio': '4:3',  # Formato libro (orizzontale)
+                    'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
                     'image_size': '2K'  # Alta risoluzione per copertina professionale
                 }
             }
@@ -73,7 +80,7 @@ La copertina deve essere:
             'type': 'fallback',
             'config': {
                 'image_config': {
-                    'aspect_ratio': '4:3'  # Formato libro (orizzontale)
+                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
                 }
             }
         },

@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { getBookProgress, BookProgress, downloadBookPdf, regenerateBookCritique } from '../api/client';
+import { getBookProgress, BookProgress, downloadBookPdf, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import './WritingStep.css';
 
 interface WritingStepProps {
   sessionId: string;
   onComplete?: (progress: BookProgress) => void;
+  onNewBook?: () => void;
 }
 
-export default function WritingStep({ sessionId, onComplete }: WritingStepProps) {
+export default function WritingStep({ sessionId, onComplete, onNewBook }: WritingStepProps) {
   const [progress, setProgress] = useState<BookProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRetryingCritique, setIsRetryingCritique] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+
+  // Carica la config app all'avvio
+  useEffect(() => {
+    getAppConfig().then(setAppConfig).catch(err => {
+      console.warn('[WritingStep] Errore nel caricamento config app:', err);
+      // Continua con valori di default
+    });
+  }, []);
 
   useEffect(() => {
     if (!sessionId || !isPolling) return;
@@ -20,6 +31,14 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
     const pollProgress = async () => {
       try {
         const currentProgress = await getBookProgress(sessionId);
+        // DEBUG: Log per verificare i valori ricevuti
+        console.log('[WritingStep] Progress ricevuto:', {
+          current_step: currentProgress.current_step,
+          total_steps: currentProgress.total_steps,
+          estimated_time_minutes: currentProgress.estimated_time_minutes,
+          estimated_time_confidence: currentProgress.estimated_time_confidence,
+          is_complete: currentProgress.is_complete
+        });
         setProgress(currentProgress);
 
         const critiqueStatus = currentProgress.critique_status;
@@ -27,10 +46,17 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
         const isCritiqueFailed = critiqueStatus === 'failed';
 
         // Ferma il polling se:
-        // - errore generale processo
+        // - errore generale processo (ma NON se è paused - in quel caso mostriamo bottone ripresa)
         // - critica fallita (mostriamo errore + retry)
         // - critica completata
-        if (currentProgress.error || isCritiqueFailed || isCritiqueDone) {
+        const isPaused = currentProgress.is_paused === true;
+        if (isPaused) {
+          // Se è in pausa, ferma il polling ma non mostrare come errore fatale
+          setIsPolling(false);
+        } else if (currentProgress.error && !isPaused) {
+          // Errore non gestito (non paused)
+          setIsPolling(false);
+        } else if (isCritiqueFailed || isCritiqueDone) {
           setIsPolling(false);
           if (onComplete && isCritiqueDone) {
             onComplete(currentProgress);
@@ -42,14 +68,28 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
       }
     };
 
-    // Polling ogni 2 secondi
-    const intervalId = setInterval(pollProgress, 2000);
+    // Polling adattivo basato sulla config e sullo stato
+    const getPollingInterval = (): number => {
+      if (!appConfig) {
+        return 2000; // Default
+      }
+      
+      // Se in attesa critica, polling più lento
+      if (progress?.is_complete && progress?.critique_status === 'pending') {
+        return appConfig.frontend.polling_interval_critique || 5000;
+      }
+      
+      return appConfig.frontend.polling_interval || 2000;
+    };
+
+    const pollingInterval = getPollingInterval();
+    const intervalId = setInterval(pollProgress, pollingInterval);
     
     // Prima chiamata immediata
     pollProgress();
 
     return () => clearInterval(intervalId);
-  }, [sessionId, isPolling, onComplete]);
+  }, [sessionId, isPolling, onComplete, appConfig, progress]);
 
   if (error) {
     return (
@@ -144,6 +184,26 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
           </div>
         )}
 
+        {/* Stima tempo rimanente - mostra sempre se disponibile e libro non completato */}
+        {!progress.is_complete && progress.total_steps > 0 && (
+          progress.estimated_time_minutes !== undefined && progress.estimated_time_minutes !== null ? (
+            <div className="estimated-time">
+              <span className="time-icon">⏱️</span>
+              <span className="time-text">
+                Tempo stimato: ~{Math.max(1, Math.round(progress.estimated_time_minutes))} minuti
+                {progress.estimated_time_confidence === 'high' && ' (stima affidabile)'}
+                {progress.estimated_time_confidence === 'medium' && ' (stima approssimativa)'}
+                {progress.estimated_time_confidence === 'low' && ' (stima indicativa)'}
+              </span>
+            </div>
+          ) : (
+            <div className="estimated-time">
+              <span className="time-icon">⏱️</span>
+              <span className="time-text">Calcolo stima tempo in corso...</span>
+            </div>
+          )
+        )}
+
         {critiqueFailed && (
           <div className="critique-error-indicator">
             <div>
@@ -170,7 +230,41 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
         )}
       </div>
 
-      {progress.error && (
+      {progress.is_paused && progress.error && (
+        <div className="error-message paused-message">
+          <div>
+            <strong>⚠️ Generazione in pausa</strong>
+            <p>{progress.error}</p>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+              La generazione si è fermata dopo diversi tentativi. 
+              Puoi riprendere la generazione dal capitolo fallito.
+            </p>
+          </div>
+          <button
+            className="resume-button"
+            disabled={isResuming}
+            onClick={async () => {
+              try {
+                setIsResuming(true);
+                setError(null);
+                await resumeBookGeneration(sessionId);
+                // Riavvia il polling
+                setIsPolling(true);
+              } catch (e) {
+                const errorMsg = e instanceof Error ? e.message : 'Errore sconosciuto';
+                setError(`Errore nella ripresa: ${errorMsg}`);
+                alert(`Errore nella ripresa della generazione: ${errorMsg}`);
+              } finally {
+                setIsResuming(false);
+              }
+            }}
+          >
+            {isResuming ? 'Riprendo...' : '▶️ Riprendi Generazione'}
+          </button>
+        </div>
+      )}
+
+      {progress.error && !progress.is_paused && (
         <div className="error-message">
           <strong>Errore:</strong> {progress.error}
         </div>
@@ -262,6 +356,14 @@ export default function WritingStep({ sessionId, onComplete }: WritingStepProps)
             >
               {isDownloading ? '⏳ Download in corso...' : '📥 Scarica PDF'}
             </button>
+            {onNewBook && (
+              <button
+                onClick={onNewBook}
+                className="new-book-button"
+              >
+                ✨ Genera Nuovo Romanzo
+              </button>
+            )}
           </div>
           {progress.critique && (
             <div className="critique-section">

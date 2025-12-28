@@ -48,7 +48,7 @@ from app.models import (
 from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
 from app.agent.outline_generator import generate_outline
-from app.agent.writer_generator import generate_full_book, parse_outline_sections
+from app.agent.writer_generator import generate_full_book, parse_outline_sections, resume_book_generation
 from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
@@ -1343,6 +1343,7 @@ async def background_book_generation(
                 total_steps=len(sections),
                 current_section_name=sections[0]['title'] if sections else None,
                 is_complete=False,
+                is_paused=False,
             )
         
         # Registra timestamp inizio scrittura capitoli
@@ -1359,6 +1360,14 @@ async def background_book_generation(
             outline_text=outline_text,
             api_key=api_key,
         )
+        
+        # Verifica se la generazione è stata messa in pausa
+        session = session_store.get_session(session_id)
+        if session and session.writing_progress and session.writing_progress.get('is_paused', False):
+            print(f"[BOOK GENERATION] Generazione messa in pausa per sessione {session_id}")
+            # Non continuare con copertina e critica se è in pausa
+            return
+        
         print(f"[BOOK GENERATION] Generazione completata per sessione {session_id}")
         
         # Registra timestamp fine scrittura capitoli e calcola tempo
@@ -1379,6 +1388,7 @@ async def background_book_generation(
                 total_steps=existing_progress.get('total_steps', 0),
                 current_section_name=existing_progress.get('current_section_name'),
                 is_complete=existing_progress.get('is_complete', True),
+                is_paused=False,
                 error=existing_progress.get('error'),
             )
             # Aggiorna manualmente writing_time_minutes nel dict (update_writing_progress non lo gestisce)
@@ -1461,6 +1471,7 @@ async def background_book_generation(
             total_steps=existing_total if existing_total > 0 else 1,
             current_section_name=None,
             is_complete=False,
+            is_paused=False,
             error=error_msg,
         )
     except Exception as e:
@@ -1480,6 +1491,7 @@ async def background_book_generation(
             total_steps=existing_total if existing_total > 0 else 1,
             current_section_name=None,
             is_complete=False,
+            is_paused=False,
             error=error_msg,
         )
 
@@ -1540,6 +1552,7 @@ async def generate_book_endpoint(
                 total_steps=total_sections,
                 current_section_name=sections[0]['title'] if sections else None,
                 is_complete=False,
+                is_paused=False,
             )
             print(f"[BOOK GENERATION] Progresso inizializzato: {total_sections} sezioni da scrivere")
             
@@ -1585,6 +1598,211 @@ async def generate_book_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nell'avvio della generazione del libro: {str(e)}"
+        )
+
+
+async def background_resume_book_generation(
+    session_id: str,
+    api_key: str,
+):
+    """Funzione eseguita in background per riprendere la generazione del libro."""
+    session_store = get_session_store()
+    try:
+        print(f"[BOOK GENERATION] Ripresa generazione libro per sessione {session_id}")
+        
+        # Recupera la sessione per verificare lo stato
+        session = session_store.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        if not session.writing_progress:
+            raise ValueError(f"Sessione {session_id} non ha uno stato di scrittura")
+        
+        progress = session.writing_progress
+        if not progress.get("is_paused", False):
+            raise ValueError(f"Sessione {session_id} non è in stato di pausa")
+        
+        # Recupera il timestamp di inizio se esiste, altrimenti usa quello corrente
+        start_time = session.writing_start_time or datetime.now()
+        if not session.writing_start_time:
+            session_store.update_writing_times(session_id, start_time=start_time)
+        
+        await resume_book_generation(
+            session_id=session_id,
+            api_key=api_key,
+        )
+        
+        # Verifica se la generazione è stata completata o rimessa in pausa
+        session = session_store.get_session(session_id)
+        if session and session.writing_progress and session.writing_progress.get('is_paused', False):
+            print(f"[BOOK GENERATION] Generazione rimessa in pausa per sessione {session_id}")
+            return
+        
+        print(f"[BOOK GENERATION] Ripresa generazione completata per sessione {session_id}")
+        
+        # Registra timestamp fine scrittura capitoli e calcola tempo
+        end_time = datetime.now()
+        session_store.update_writing_times(session_id, end_time=end_time)
+        writing_time_minutes = (end_time - start_time).total_seconds() / 60
+        print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
+        
+        # Aggiorna writing_progress con il tempo calcolato
+        session = session_store.get_session(session_id)
+        if session and session.writing_progress:
+            existing_progress = session.writing_progress.copy()
+            existing_progress['writing_time_minutes'] = writing_time_minutes
+            session_store.update_writing_progress(
+                session_id=session_id,
+                current_step=existing_progress.get('current_step', 0),
+                total_steps=existing_progress.get('total_steps', 0),
+                current_section_name=existing_progress.get('current_section_name'),
+                is_complete=existing_progress.get('is_complete', True),
+                is_paused=False,
+                error=None,
+            )
+            session.writing_progress['writing_time_minutes'] = writing_time_minutes
+            if hasattr(session_store, '_save_sessions'):
+                session_store._save_sessions()
+        
+        # Genera la copertina dopo che il libro è stato completato
+        try:
+            print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
+            session = session_store.get_session(session_id)
+            if session:
+                cover_path = await generate_book_cover(
+                    session_id=session_id,
+                    title=session.current_title or "Romanzo",
+                    author=session.form_data.user_name or "Autore",
+                    plot=session.current_draft or "",
+                    api_key=api_key,
+                )
+                if cover_path:
+                    session_store.update_cover_image_path(session_id, cover_path)
+                    print(f"[BOOK GENERATION] Copertina generata: {cover_path}")
+        except Exception as e:
+            print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Genera la valutazione critica dopo che il libro è stato completato
+        try:
+            print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
+            session = session_store.get_session(session_id)
+            if session and session.book_chapters:
+                session_store.update_critique_status(session_id, "running")
+                critique = await generate_literary_critique_from_pdf(session_id, api_key)
+                if critique:
+                    session_store.update_critique(session_id, critique)
+                    print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
+        except Exception as e:
+            print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                session_store.update_critique_status(session_id, "failed", error=str(e))
+            except Exception as _e:
+                print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
+    except ValueError as e:
+        error_msg = f"Errore di validazione: {str(e)}"
+        print(f"[BOOK GENERATION] ERRORE (ValueError): {error_msg}")
+        import traceback
+        traceback.print_exc()
+        session = session_store.get_session(session_id)
+        existing_total = 0
+        if session and session.writing_progress:
+            existing_total = session.writing_progress.get('total_steps', 0)
+        
+        session_store.update_writing_progress(
+            session_id=session_id,
+            current_step=0,
+            total_steps=existing_total if existing_total > 0 else 1,
+            current_section_name=None,
+            is_complete=False,
+            is_paused=False,
+            error=error_msg,
+        )
+    except Exception as e:
+        error_msg = f"Errore nella ripresa generazione: {str(e)}"
+        print(f"[BOOK GENERATION] ERRORE (Exception): {error_msg}")
+        import traceback
+        traceback.print_exc()
+        session = session_store.get_session(session_id)
+        existing_total = 0
+        if session and session.writing_progress:
+            existing_total = session.writing_progress.get('total_steps', 0)
+        
+        session_store.update_writing_progress(
+            session_id=session_id,
+            current_step=0,
+            total_steps=existing_total if existing_total > 0 else 1,
+            current_section_name=None,
+            is_complete=False,
+            is_paused=False,
+            error=error_msg,
+        )
+
+
+@app.post("/api/book/resume/{session_id}", response_model=BookGenerationResponse)
+async def resume_book_generation_endpoint(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """Riprende la generazione del libro dal capitolo fallito."""
+    try:
+        # Verifica che l'API key sia configurata
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
+            )
+        
+        # Recupera la sessione
+        session_store = get_session_store()
+        session = session_store.get_session(session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if not session.writing_progress:
+            raise HTTPException(
+                status_code=400,
+                detail="La sessione non ha uno stato di scrittura. Avvia prima la generazione."
+            )
+        
+        if not session.writing_progress.get('is_paused', False):
+            raise HTTPException(
+                status_code=400,
+                detail="La sessione non è in stato di pausa. Non è possibile riprendere."
+            )
+        
+        # Avvia la ripresa in background
+        background_tasks.add_task(
+            background_resume_book_generation,
+            session_id=session_id,
+            api_key=api_key,
+        )
+        
+        print(f"[BOOK GENERATION] Task di ripresa generazione avviato per sessione {session_id}")
+        
+        return BookGenerationResponse(
+            success=True,
+            session_id=session_id,
+            message="Ripresa della generazione avviata. Usa /api/book/progress per monitorare lo stato.",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nell'avvio ripresa generazione libro: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della ripresa generazione: {str(e)}"
         )
 
 
@@ -1754,6 +1972,7 @@ async def get_book_progress_endpoint(session_id: str):
             current_section_name=progress.get('current_section_name'),
             completed_chapters=completed_chapters,
             is_complete=is_complete,
+            is_paused=progress.get('is_paused', False),
             error=progress.get('error'),
             total_pages=total_pages,
             writing_time_minutes=writing_time_minutes,

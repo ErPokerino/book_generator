@@ -363,12 +363,15 @@ export interface BookProgress {
   current_section_name?: string;
   completed_chapters: Chapter[];
   is_complete: boolean;
+  is_paused?: boolean;
   error?: string;
   total_pages?: number;
   writing_time_minutes?: number;
   critique?: LiteraryCritique;
   critique_status?: 'pending' | 'running' | 'completed' | 'failed';
   critique_error?: string;
+  estimated_time_minutes?: number;
+  estimated_time_confidence?: 'high' | 'medium' | 'low';
 }
 
 export interface BookGenerationRequest {
@@ -398,6 +401,22 @@ export async function startBookGeneration(request: BookGenerationRequest): Promi
   return response.json();
 }
 
+export async function resumeBookGeneration(sessionId: string): Promise<BookGenerationResponse> {
+  const response = await fetch(`${API_BASE}/book/resume/${sessionId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nella ripresa della generazione: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 export async function getBookProgress(sessionId: string): Promise<BookProgress> {
   const response = await fetch(`${API_BASE}/book/progress/${sessionId}`);
   
@@ -406,7 +425,15 @@ export async function getBookProgress(sessionId: string): Promise<BookProgress> 
     throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
   }
   
-  return response.json();
+  const data = await response.json();
+  // DEBUG: Log per verificare la risposta raw del backend
+  console.log('[API] getBookProgress response:', {
+    estimated_time_minutes: data.estimated_time_minutes,
+    estimated_time_confidence: data.estimated_time_confidence,
+    current_step: data.current_step,
+    total_steps: data.total_steps
+  });
+  return data;
 }
 
 export interface BookResponse {
@@ -473,5 +500,51 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
   
   const blob = await response.blob();
   return { blob, filename };
+}
+
+export interface AppConfig {
+  api_timeouts: {
+    submit_form?: number;
+    generate_questions?: number;
+    submit_answers?: number;
+    generate_draft?: number;
+    generate_outline?: number;
+    download_pdf?: number;
+  };
+  frontend: {
+    polling_interval?: number;
+    polling_interval_critique?: number;
+  };
+}
+
+let cachedAppConfig: AppConfig | null = null;
+
+export async function getAppConfig(): Promise<AppConfig> {
+  if (cachedAppConfig) {
+    return cachedAppConfig;
+  }
+  
+  const response = await fetch(`${API_BASE}/config/app`);
+  if (!response.ok) {
+    // Fallback a valori di default se l'endpoint fallisce
+    console.warn('[API] Errore nel caricamento config app, uso valori di default');
+    return {
+      api_timeouts: {
+        submit_form: 30000,
+        generate_questions: 60000,
+        submit_answers: 30000,
+        generate_draft: 120000,
+        generate_outline: 120000,
+        download_pdf: 300000,
+      },
+      frontend: {
+        polling_interval: 2000,
+        polling_interval_critique: 5000,
+      },
+    };
+  }
+  
+  cachedAppConfig = await response.json();
+  return cachedAppConfig;
 }
 

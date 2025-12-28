@@ -110,3 +110,82 @@ def reload_literary_critic_config() -> LiteraryCriticConfig:
     _critic_config = load_literary_critic_config()
     return _critic_config
 
+
+# --- App config ---
+class AppConfig(TypedDict, total=False):
+    api_timeouts: dict[str, int]
+    retry: dict[str, Any]
+    validation: dict[str, Any]
+    frontend: dict[str, int]
+    time_estimation: dict[str, Any]
+    cover_generation: dict[str, Any]
+
+
+_app_config: Optional[AppConfig] = None
+
+
+def load_app_config() -> AppConfig:
+    """Carica la configurazione dell'applicazione dal file YAML."""
+    config_path = Path(__file__).parent.parent.parent / "config" / "app.yaml"
+    
+    if not config_path.exists():
+        # Valori di default se il file non esiste
+        print(f"[CONFIG] File app.yaml non trovato, uso valori di default")
+        return {
+            "api_timeouts": {
+                "submit_form": 30000,
+                "generate_questions": 60000,
+                "submit_answers": 30000,
+                "generate_draft": 120000,
+                "generate_outline": 120000,
+                "download_pdf": 300000,
+            },
+            "retry": {
+                "chapter_generation": {
+                    "max_retries": 2,
+                    "min_chapter_length": 50,
+                }
+            },
+            "validation": {
+                "min_chapter_length": 50,
+                "words_per_page": 250,
+                "toc_chapters_per_page": 30,
+            },
+            "frontend": {
+                "polling_interval": 2000,
+                "polling_interval_critique": 5000,
+            },
+            "time_estimation": {
+                "min_chapters_for_reliable_avg": 3,
+                "use_session_avg_if_available": True,
+            },
+        }
+    
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    
+    # Normalizza e valida i valori
+    return {
+        "api_timeouts": data.get("api_timeouts", {}),
+        "retry": data.get("retry", {}),
+        "validation": data.get("validation", {}),
+        "frontend": data.get("frontend", {}),
+        "time_estimation": data.get("time_estimation", {}),
+        "cover_generation": data.get("cover_generation", {}),
+    }
+
+
+def get_app_config() -> AppConfig:
+    """Restituisce la configurazione dell'applicazione (cached)."""
+    global _app_config
+    if _app_config is None:
+        _app_config = load_app_config()
+    return _app_config
+
+
+def reload_app_config() -> AppConfig:
+    """Ricarica la configurazione dell'applicazione (utile per sviluppo)."""
+    global _app_config
+    _app_config = load_app_config()
+    return _app_config
+

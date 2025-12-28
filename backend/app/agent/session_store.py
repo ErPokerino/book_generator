@@ -33,6 +33,8 @@ class SessionData:
         self.critique_error: Optional[str] = None  # Dettaglio errore se failed
         self.writing_start_time: Optional[datetime] = None  # Timestamp inizio scrittura capitoli
         self.writing_end_time: Optional[datetime] = None  # Timestamp fine scrittura capitoli
+        self.chapter_timings: list[float] = []  # Tempo in secondi per ogni capitolo completato
+        self.chapter_start_time: Optional[datetime] = None  # Timestamp inizio capitolo corrente
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -55,6 +57,8 @@ class SessionData:
             "critique_error": self.critique_error,
             "writing_start_time": self.writing_start_time.isoformat() if self.writing_start_time else None,
             "writing_end_time": self.writing_end_time.isoformat() if self.writing_end_time else None,
+            "chapter_timings": self.chapter_timings,
+            "chapter_start_time": self.chapter_start_time.isoformat() if self.chapter_start_time else None,
         }
     
     @classmethod
@@ -83,6 +87,9 @@ class SessionData:
         end_time_str = data.get("writing_end_time")
         session.writing_start_time = datetime.fromisoformat(start_time_str) if start_time_str else None
         session.writing_end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
+        session.chapter_timings = data.get("chapter_timings", [])
+        chapter_start_str = data.get("chapter_start_time")
+        session.chapter_start_time = datetime.fromisoformat(chapter_start_str) if chapter_start_str else None
         return session
 
 
@@ -175,6 +182,7 @@ class SessionStore:
         total_steps: int,
         current_section_name: Optional[str] = None,
         is_complete: bool = False,
+        is_paused: bool = False,
         error: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna lo stato di avanzamento della scrittura del romanzo."""
@@ -188,10 +196,51 @@ class SessionStore:
             "total_steps": total_steps,
             "current_section_name": current_section_name,
             "is_complete": is_complete,
+            "is_paused": is_paused,
             "error": error,
         }
         
         return session
+    
+    def pause_writing(
+        self,
+        session_id: str,
+        current_step: int,
+        total_steps: int,
+        current_section_name: Optional[str],
+        error_msg: str,
+    ) -> SessionData:
+        """Mette in pausa la generazione del libro dopo un errore."""
+        return self.update_writing_progress(
+            session_id=session_id,
+            current_step=current_step,
+            total_steps=total_steps,
+            current_section_name=current_section_name,
+            is_complete=False,
+            is_paused=True,
+            error=error_msg,
+        )
+    
+    def resume_writing(self, session_id: str) -> SessionData:
+        """Riprende la generazione del libro rimuovendo lo stato di pausa."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        if not session.writing_progress:
+            raise ValueError(f"Sessione {session_id} non ha uno stato di scrittura")
+        
+        # Mantieni tutti i valori tranne is_paused e error
+        progress = session.writing_progress
+        return self.update_writing_progress(
+            session_id=session_id,
+            current_step=progress.get("current_step", 0),
+            total_steps=progress.get("total_steps", 0),
+            current_section_name=progress.get("current_section_name"),
+            is_complete=False,
+            is_paused=False,
+            error=None,
+        )
     
     def update_book_chapter(
         self,
@@ -285,7 +334,37 @@ class SessionStore:
             session.writing_start_time = start_time
         if end_time is not None:
             session.writing_end_time = end_time
+        self._save_sessions()
         return session
+
+    def start_chapter_timing(self, session_id: str, start_time: Optional[datetime] = None) -> SessionData:
+        """Inizia il tracciamento del tempo per un capitolo."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.chapter_start_time = start_time or datetime.now()
+        self._save_sessions()
+        return session
+
+    def end_chapter_timing(self, session_id: str, end_time: Optional[datetime] = None) -> SessionData:
+        """Termina il tracciamento del tempo per un capitolo e salva il risultato."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        if session.chapter_start_time:
+            end = end_time or datetime.now()
+            duration_seconds = (end - session.chapter_start_time).total_seconds()
+            session.chapter_timings.append(duration_seconds)
+            session.chapter_start_time = None  # Reset per il prossimo capitolo
+            self._save_sessions()
+        
+        return session
+
+    def _save_sessions(self):
+        """Metodo vuoto per compatibilità. Sovrascritto in FileSessionStore per salvare su file."""
+        pass
 
 
 class FileSessionStore(SessionStore):
@@ -428,12 +507,32 @@ class FileSessionStore(SessionStore):
         total_steps: int,
         current_section_name: Optional[str] = None,
         is_complete: bool = False,
+        is_paused: bool = False,
         error: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna lo stato di avanzamento della scrittura e salva su file."""
         session = super().update_writing_progress(
-            session_id, current_step, total_steps, current_section_name, is_complete, error
+            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error
         )
+        self._save_sessions()
+        return session
+    
+    def pause_writing(
+        self,
+        session_id: str,
+        current_step: int,
+        total_steps: int,
+        current_section_name: Optional[str],
+        error_msg: str,
+    ) -> SessionData:
+        """Mette in pausa la generazione del libro dopo un errore e salva su file."""
+        session = super().pause_writing(session_id, current_step, total_steps, current_section_name, error_msg)
+        self._save_sessions()
+        return session
+    
+    def resume_writing(self, session_id: str) -> SessionData:
+        """Riprende la generazione del libro rimuovendo lo stato di pausa e salva su file."""
+        session = super().resume_writing(session_id)
         self._save_sessions()
         return session
     
