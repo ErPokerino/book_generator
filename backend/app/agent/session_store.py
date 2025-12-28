@@ -27,6 +27,9 @@ class SessionData:
         self.book_chapters: list[Dict[str, Any]] = []  # Lista di capitoli completati
         self.writing_progress: Optional[Dict[str, Any]] = None  # Stato di avanzamento scrittura
         self.cover_image_path: Optional[str] = None  # Path dell'immagine copertina
+        self.literary_critique: Optional[Dict[str, Any]] = None  # Valutazione critica del libro
+        self.critique_status: Optional[str] = None  # pending|running|completed|failed
+        self.critique_error: Optional[str] = None  # Dettaglio errore se failed
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -44,6 +47,9 @@ class SessionData:
             "book_chapters": self.book_chapters,
             "writing_progress": self.writing_progress,
             "cover_image_path": self.cover_image_path,
+            "literary_critique": self.literary_critique,
+            "critique_status": self.critique_status,
+            "critique_error": self.critique_error,
         }
     
     @classmethod
@@ -64,6 +70,9 @@ class SessionData:
         session.book_chapters = data.get("book_chapters", [])
         session.writing_progress = data.get("writing_progress")
         session.cover_image_path = data.get("cover_image_path")
+        session.literary_critique = data.get("literary_critique")
+        session.critique_status = data.get("critique_status")
+        session.critique_error = data.get("critique_error")
         return session
 
 
@@ -218,6 +227,37 @@ class SessionStore:
             raise ValueError(f"Sessione {session_id} non trovata")
         
         session.cover_image_path = cover_image_path
+        return session
+    
+    def update_critique(
+        self,
+        session_id: str,
+        critique: Dict[str, Any],
+    ) -> SessionData:
+        """Aggiorna la valutazione critica del libro."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.literary_critique = critique
+        session.critique_status = "completed"
+        session.critique_error = None
+        return session
+
+    def update_critique_status(
+        self,
+        session_id: str,
+        status: str,
+        error: Optional[str] = None,
+    ) -> SessionData:
+        """Aggiorna lo stato della critica (pending|running|completed|failed) e opzionale errore."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+
+        session.critique_status = status
+        session.critique_error = error
+        # Se fallita, non cancelliamo automaticamente una critica già presente (utile per storico/debug)
         return session
 
 
@@ -391,6 +431,16 @@ class FileSessionStore(SessionStore):
     ) -> SessionData:
         """Aggiorna il path dell'immagine copertina e salva su file."""
         session = super().update_cover_image_path(session_id, cover_image_path)
+        self._save_sessions()
+        return session
+    
+    def update_critique(
+        self,
+        session_id: str,
+        critique: Dict[str, Any],
+    ) -> SessionData:
+        """Aggiorna la valutazione critica del libro e salva su file."""
+        session = super().update_critique(session_id, critique)
         self._save_sessions()
         return session
 

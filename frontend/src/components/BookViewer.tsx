@@ -47,7 +47,7 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
       setIsDownloading(true);
       console.log('[BookViewer] Avvio download PDF per sessione:', sessionId);
       
-      const blob = await downloadBookPdf(sessionId);
+      const { blob, filename } = await downloadBookPdf(sessionId);
       console.log('[BookViewer] PDF ricevuto, dimensione:', blob.size, 'bytes');
       
       if (blob.size === 0) {
@@ -57,9 +57,6 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const filename = book?.title 
-        ? `${book.title.replace(/[^a-z0-9]/gi, '_')}.pdf`
-        : `Libro_${sessionId.substring(0, 8)}.pdf`;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
@@ -133,6 +130,9 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
       <div className="book-header">
         <h1 className="book-title">{book.title}</h1>
         <p className="book-author">di {book.author}</p>
+        {book.total_pages && (
+          <p className="book-pages">Totale: {book.total_pages} pagine</p>
+        )}
         <div className="book-actions">
           <button 
             onClick={handleDownloadPdf} 
@@ -157,7 +157,10 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
                   onClick={() => setSelectedChapterIndex(index)}
                   className="toc-item"
                 >
-                  {index + 1}. {chapter.title}
+                  <span className="toc-item-title">{index + 1}. {chapter.title}</span>
+                  {chapter.page_count > 0 && (
+                    <span className="toc-item-pages">{chapter.page_count} pag.</span>
+                  )}
                 </button>
               </li>
             ))}
@@ -166,9 +169,14 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
 
         <div className="book-chapter-container">
           <div className="chapter-header">
-            <h2 className="chapter-title">
-              {selectedChapterIndex + 1}. {currentChapter.title}
-            </h2>
+            <div className="chapter-title-container">
+              <h2 className="chapter-title">
+                {selectedChapterIndex + 1}. {currentChapter.title}
+              </h2>
+              {currentChapter.page_count > 0 && (
+                <span className="chapter-page-count">{currentChapter.page_count} pagine</span>
+              )}
+            </div>
             <div className="chapter-navigation">
               <button
                 onClick={() => setSelectedChapterIndex(Math.max(0, selectedChapterIndex - 1))}
@@ -197,6 +205,42 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
           </div>
         </div>
       </div>
+
+      {book.critique && (
+        <div className="book-critique">
+          <h3>📚 Valutazione Critica</h3>
+          <div className="critique-score">
+            <span className="score-label">Valutazione:</span>
+            <span className="score-value">{book.critique.score.toFixed(1)}/10</span>
+          </div>
+          {book.critique.summary && (
+            <div className="critique-summary">
+              <strong>Sintesi:</strong>
+              <p>{book.critique.summary}</p>
+            </div>
+          )}
+          {book.critique.pros && book.critique.pros.length > 0 && (
+            <div className="critique-pros">
+              <strong>Punti di forza:</strong>
+              <ul>
+                {book.critique.pros.map((p, idx) => (
+                  <li key={idx}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {book.critique.cons && book.critique.cons.length > 0 && (
+            <div className="critique-cons">
+              <strong>Punti di debolezza:</strong>
+              <ul>
+                {book.critique.cons.map((c, idx) => (
+                  <li key={idx}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -327,6 +327,20 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
         response = await llm.ainvoke([system_prompt, user_prompt])
         chapter_text = _coerce_llm_content_to_text(response.content).strip()
         
+        # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
+        import re
+        alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
+        # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
+        is_effectively_empty = (alnum_count < 20)
+
+        if not chapter_text or len(chapter_text.strip()) < 50 or is_effectively_empty:
+            raise ValueError(
+                f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
+                f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
+                f"(minimo richiesto: 50 caratteri e contenuto significativo)"
+            )
+        
+        print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
         return chapter_text
         
     except Exception as e:
@@ -405,22 +419,89 @@ async def generate_full_book(
         )
         print(f"[WRITER] Progresso aggiornato: {index}/{total_sections}")
         
-        try:
-            # Genera il capitolo con contesto autoregressivo
-            print(f"[WRITER] Chiamata a generate_chapter per '{section['title']}'...")
-            chapter_content = await generate_chapter(
-                form_data=form_data,
-                question_answers=question_answers,
-                validated_draft=validated_draft,
-                draft_title=draft_title,
-                outline_text=outline_text,
-                previous_chapters=completed_chapters,  # Passa i capitoli già scritti
-                current_section=section,
-                api_key=api_key,
-            )
-            
-            print(f"[WRITER] Capitolo generato: {len(chapter_content)} caratteri")
-            
+        # Retry logic per capitoli vuoti
+        max_retries = 2
+        chapter_content = None
+        
+        for retry in range(max_retries):
+            try:
+                # Genera il capitolo con contesto autoregressivo
+                if retry > 0:
+                    print(f"[WRITER] Retry {retry}/{max_retries - 1} per capitolo '{section['title']}'...")
+                else:
+                    print(f"[WRITER] Chiamata a generate_chapter per '{section['title']}'...")
+                
+                chapter_content = await generate_chapter(
+                    form_data=form_data,
+                    question_answers=question_answers,
+                    validated_draft=validated_draft,
+                    draft_title=draft_title,
+                    outline_text=outline_text,
+                    previous_chapters=completed_chapters,  # Passa i capitoli già scritti
+                    current_section=section,
+                    api_key=api_key,
+                )
+                
+                # Verifica che il contenuto sia valido
+                if chapter_content and len(chapter_content.strip()) >= 50:
+                    print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
+                    break
+                else:
+                    # Contenuto ancora vuoto o troppo corto
+                    if retry < max_retries - 1:
+                        print(f"[WRITER] WARNING: Capitolo vuoto o troppo corto ({len(chapter_content) if chapter_content else 0} caratteri), retry...")
+                        continue
+                    else:
+                        # Ultimo tentativo fallito, usa placeholder
+                        print(f"[WRITER] ERRORE: Impossibile generare contenuto valido dopo {max_retries} tentativi")
+                        chapter_content = (
+                            f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
+                            f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
+                            f"Si prega di rigenerare il libro o contattare il supporto.]"
+                        )
+                        break
+                        
+            except ValueError as ve:
+                # Errore di validazione (capitolo vuoto)
+                if retry < max_retries - 1:
+                    print(f"[WRITER] WARNING: {str(ve)}, retry {retry + 1}/{max_retries - 1}...")
+                    continue
+                else:
+                    # Ultimo tentativo fallito
+                    print(f"[WRITER] ERRORE: {str(ve)} dopo {max_retries} tentativi")
+                    chapter_content = (
+                        f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
+                        f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
+                        f"Si prega di rigenerare il libro o contattare il supporto.]"
+                    )
+                    break
+                    
+            except Exception as e:
+                # Altri errori: se non è l'ultimo tentativo, riprova
+                if retry < max_retries - 1:
+                    print(f"[WRITER] WARNING: Errore nella generazione: {str(e)}, retry {retry + 1}/{max_retries - 1}...")
+                    continue
+                else:
+                    # Ultimo tentativo, rilanciare l'eccezione
+                    error_msg = f"Errore nella generazione della sezione '{section['title']}': {str(e)}"
+                    print(f"[WRITER] ERRORE: {error_msg}")
+                    import traceback
+                    traceback.print_exc()
+                    
+                    # Salva l'errore nel progresso
+                    session_store.update_writing_progress(
+                        session_id=session_id,
+                        current_step=index,
+                        total_steps=total_sections,
+                        current_section_name=section['title'],
+                        is_complete=False,
+                        error=error_msg,
+                    )
+                    # Rilancia l'eccezione per interrompere il processo
+                    raise
+        
+        # Se siamo arrivati qui, abbiamo un contenuto (valido o placeholder)
+        if chapter_content:
             # Salva il capitolo completato
             chapter_dict = {
                 'title': section['title'],
@@ -438,24 +519,6 @@ async def generate_full_book(
             
             completed_chapters.append(chapter_dict)
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
-            
-        except Exception as e:
-            error_msg = f"Errore nella generazione della sezione '{section['title']}': {str(e)}"
-            print(f"[WRITER] ERRORE: {error_msg}")
-            import traceback
-            traceback.print_exc()
-            
-            # Salva l'errore nel progresso
-            session_store.update_writing_progress(
-                session_id=session_id,
-                current_step=index,
-                total_steps=total_sections,
-                current_section_name=section['title'],
-                is_complete=False,
-                error=error_msg,
-            )
-            # Rilancia l'eccezione per interrompere il processo
-            raise
     
     # Marca come completato
     session_store.update_writing_progress(

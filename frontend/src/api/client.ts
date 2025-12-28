@@ -344,6 +344,14 @@ export interface Chapter {
   title: string;
   content: string;
   section_index: number;
+  page_count: number;
+}
+
+export interface LiteraryCritique {
+  score: number;
+  pros: string[];
+  cons: string[];
+  summary: string;
 }
 
 export interface BookProgress {
@@ -354,6 +362,10 @@ export interface BookProgress {
   completed_chapters: Chapter[];
   is_complete: boolean;
   error?: string;
+  total_pages?: number;
+  critique?: LiteraryCritique;
+  critique_status?: 'pending' | 'running' | 'completed' | 'failed';
+  critique_error?: string;
 }
 
 export interface BookGenerationRequest {
@@ -398,6 +410,25 @@ export interface BookResponse {
   title: string;
   author: string;
   chapters: Chapter[];
+  total_pages?: number;
+  critique?: LiteraryCritique;
+  critique_status?: 'pending' | 'running' | 'completed' | 'failed';
+  critique_error?: string;
+}
+
+export async function regenerateBookCritique(sessionId: string): Promise<LiteraryCritique> {
+  const response = await fetch(`${API_BASE}/book/critique/${sessionId}`, { method: 'POST' });
+  if (!response.ok) {
+    let errorMessage = `Errore nella rigenerazione della critica: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMessage);
+  }
+  return response.json();
 }
 
 export async function getCompleteBook(sessionId: string): Promise<BookResponse> {
@@ -411,7 +442,7 @@ export async function getCompleteBook(sessionId: string): Promise<BookResponse> 
   return response.json();
 }
 
-export async function downloadBookPdf(sessionId: string): Promise<Blob> {
+export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`${API_BASE}/book/pdf/${sessionId}`);
   
   if (!response.ok) {
@@ -425,6 +456,18 @@ export async function downloadBookPdf(sessionId: string): Promise<Blob> {
     throw new Error(errorMessage);
   }
   
-  return response.blob();
+  // Estrai il nome file dall'header Content-Disposition
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = `Libro_${sessionId.substring(0, 8)}.pdf`;
+  
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, '');
+    }
+  }
+  
+  const blob = await response.blob();
+  return { blob, filename };
 }
 

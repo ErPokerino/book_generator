@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from io import BytesIO
+from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,7 @@ from reportlab.lib import colors
 from PIL import Image as PILImage
 import markdown
 import base64
+import math
 from xhtml2pdf import pisa
 from pathlib import Path as PathLib
 from app.config import get_config, reload_config
@@ -41,12 +43,14 @@ from app.models import (
     BookProgress,
     BookResponse,
     Chapter,
+    LiteraryCritique,
 )
 from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
 from app.agent.outline_generator import generate_outline
 from app.agent.writer_generator import generate_full_book, parse_outline_sections
 from app.agent.cover_generator import generate_book_cover
+from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
 
 # Carica variabili d'ambiente dal file .env
@@ -755,6 +759,21 @@ def markdown_to_html(text: str) -> str:
     html = markdown.markdown(text, extensions=['nl2br', 'fenced_code'])
     return html
 
+def calculate_page_count(content: str) -> int:
+    """Calcola il numero di pagine basato sul contenuto (parole/250 arrotondato per eccesso)."""
+    if not content:
+        return 0
+    try:
+        # Conta le parole dividendo per spazi
+        words = content.split()
+        word_count = len(words)
+        # Calcola pagine: parole/250 arrotondato per eccesso
+        page_count = math.ceil(word_count / 250)
+        return max(1, page_count)  # Almeno 1 pagina
+    except Exception as e:
+        print(f"[CALCULATE_PAGE_COUNT] Errore nel calcolo pagine: {e}")
+        return 0
+
 @app.get("/api/book/pdf/{session_id}")
 async def download_book_pdf_endpoint(session_id: str):
     """Genera e scarica un PDF del libro completo con titolo, indice e capitoli usando WeasyPrint."""
@@ -998,16 +1017,32 @@ async def download_book_pdf_endpoint(session_id: str):
             raise
         
         buffer.seek(0)
+        pdf_content = buffer.getvalue()
         
-        # Nome file
-        filename = "".join(c for c in book_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = filename.replace(" ", "_")
-        if not filename:
-            filename = f"Libro_{session_id[:8]}"
-        filename = f"{filename}.pdf"
+        # Nome file con data come prefisso (formato: YYYY-MM-DD_TitoloLibro.pdf)
+        date_prefix = datetime.now().strftime("%Y-%m-%d")
+        title_sanitized = "".join(c for c in book_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        title_sanitized = title_sanitized.replace(" ", "_")
+        if not title_sanitized:
+            title_sanitized = f"Libro_{session_id[:8]}"
+        filename = f"{date_prefix}_{title_sanitized}.pdf"
+        
+        # Salva PDF su disco nella cartella backend/books/
+        try:
+            books_dir = Path(__file__).parent.parent / "books"
+            books_dir.mkdir(exist_ok=True)
+            pdf_path = books_dir / filename
+            with open(pdf_path, 'wb') as f:
+                f.write(pdf_content)
+            print(f"[BOOK PDF] PDF salvato su disco: {pdf_path}")
+        except Exception as e:
+            print(f"[BOOK PDF] Errore nel salvataggio PDF su disco: {e}")
+            import traceback
+            traceback.print_exc()
+            # Non blocchiamo il download HTTP se il salvataggio fallisce
         
         return Response(
-            content=buffer.getvalue(),
+            content=pdf_content,
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"'
@@ -1024,6 +1059,47 @@ async def download_book_pdf_endpoint(session_id: str):
             status_code=500,
             detail=f"Errore nella generazione del PDF del libro: {str(e)}"
         )
+
+
+@app.post("/api/book/critique/{session_id}")
+async def regenerate_book_critique_endpoint(session_id: str):
+    """
+    Rigenera la valutazione critica usando come input il PDF finale del libro.
+    Utile per test e per rigenerare in caso di errore.
+    """
+    session_store = get_session_store()
+    session = session_store.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
+
+    if not session.writing_progress or not session.writing_progress.get("is_complete"):
+        raise HTTPException(status_code=400, detail="Il libro non è ancora completo.")
+
+    # Genera/recupera PDF (salvato anche su disco da download_book_pdf_endpoint)
+    try:
+        session_store.update_critique_status(session_id, "running", error=None)
+        pdf_response = await download_book_pdf_endpoint(session_id)
+        pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
+        if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
+            raise ValueError("PDF bytes non disponibili.")
+    except Exception as e:
+        session_store.update_critique_status(session_id, "failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Errore nel generare il PDF per la critica: {e}")
+
+    api_key = os.getenv("GOOGLE_API_KEY")
+    try:
+        critique = await generate_literary_critique_from_pdf(
+            title=session.current_title or "Romanzo",
+            author=session.form_data.user_name or "Autore",
+            pdf_bytes=bytes(pdf_bytes),
+            api_key=api_key,
+        )
+    except Exception as e:
+        session_store.update_critique_status(session_id, "failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Errore nella generazione della critica: {e}")
+
+    session_store.update_critique(session_id, critique)
+    return critique
 
 
 @app.get("/health")
@@ -1100,6 +1176,43 @@ async def background_book_generation(
             import traceback
             traceback.print_exc()
             # Non blocchiamo il processo se la copertina fallisce
+        
+        # Genera la valutazione critica dopo che il libro è stato completato
+        try:
+            print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
+            session = session_store.get_session(session_id)
+            if session and session.book_chapters and len(session.book_chapters) > 0:
+                # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
+                session_store.update_critique_status(session_id, "running", error=None)
+                try:
+                    pdf_response = await download_book_pdf_endpoint(session_id)
+                    pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
+                    if pdf_bytes is None:
+                        # Fallback: rigenera via endpoint e prendi il body
+                        pdf_bytes = pdf_response.body
+                    if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
+                        raise ValueError("PDF bytes non disponibili per la critica.")
+                except Exception as e:
+                    raise RuntimeError(f"Impossibile generare/recuperare PDF per critica: {e}")
+
+                critique = await generate_literary_critique_from_pdf(
+                    title=draft_title or "Romanzo",
+                    author=form_data.user_name or "Autore",
+                    pdf_bytes=bytes(pdf_bytes),
+                    api_key=api_key,
+                )
+
+                session_store.update_critique(session_id, critique)
+                print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
+        except Exception as e:
+            print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
+            import traceback
+            traceback.print_exc()
+            # Niente placeholder: settiamo status failed e salviamo errore per UI (stop polling + retry).
+            try:
+                session_store.update_critique_status(session_id, "failed", error=str(e))
+            except Exception as _e:
+                print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
     except ValueError as e:
         # Errore di validazione (es. outline non valido)
         error_msg = f"Errore di validazione: {str(e)}"
@@ -1265,11 +1378,43 @@ async def get_book_progress_endpoint(session_id: str):
         # Converti i capitoli in oggetti Chapter
         completed_chapters = []
         for ch_dict in chapters:
+            content = ch_dict.get('content', '')
+            page_count = calculate_page_count(content)
             completed_chapters.append(Chapter(
                 title=ch_dict.get('title', ''),
-                content=ch_dict.get('content', ''),
+                content=content,
                 section_index=ch_dict.get('section_index', 0),
+                page_count=page_count,
             ))
+        
+        # Calcola total_pages se il libro è completato
+        total_pages = None
+        is_complete = progress.get('is_complete', False)
+        if is_complete and len(completed_chapters) > 0:
+            # Somma pagine capitoli
+            chapters_pages = sum(ch.page_count for ch in completed_chapters)
+            # 1 pagina per copertina
+            cover_pages = 1
+            # Pagine indice: 1 pagina base + 1 ogni 30 capitoli
+            toc_pages = math.ceil(len(completed_chapters) / 30)
+            total_pages = chapters_pages + cover_pages + toc_pages
+        
+        # Recupera la valutazione critica se disponibile
+        critique = None
+        if session.literary_critique:
+            try:
+                critique = LiteraryCritique(**session.literary_critique)
+            except Exception as e:
+                print(f"[GET BOOK PROGRESS] Errore nel parsing critique: {e}")
+
+        # Backward-compat: sessioni vecchie potrebbero avere critique senza critique_status
+        critique_status = session.critique_status
+        critique_error = session.critique_error
+        if critique_status is None:
+            if critique is not None:
+                critique_status = "completed"
+            elif is_complete:
+                critique_status = "pending"
         
         return BookProgress(
             session_id=session_id,
@@ -1277,8 +1422,12 @@ async def get_book_progress_endpoint(session_id: str):
             total_steps=progress.get('total_steps', 0),
             current_section_name=progress.get('current_section_name'),
             completed_chapters=completed_chapters,
-            is_complete=progress.get('is_complete', False),
+            is_complete=is_complete,
             error=progress.get('error'),
+            total_pages=total_pages,
+            critique=critique,
+            critique_status=critique_status,
+            critique_error=critique_error,
         )
     
     except HTTPException:
@@ -1325,13 +1474,16 @@ async def get_complete_book_endpoint(session_id: str):
         chapters = []
         for idx, ch_dict in enumerate(session.book_chapters):
             try:
+                content = ch_dict.get('content', '')
+                page_count = calculate_page_count(content)
                 chapter = Chapter(
                     title=ch_dict.get('title', f'Capitolo {idx + 1}'),
-                    content=ch_dict.get('content', ''),
+                    content=content,
                     section_index=ch_dict.get('section_index', idx),
+                    page_count=page_count,
                 )
                 chapters.append(chapter)
-                print(f"[GET BOOK] Capitolo {idx + 1}: '{chapter.title}' - {len(chapter.content)} caratteri")
+                print(f"[GET BOOK] Capitolo {idx + 1}: '{chapter.title}' - {len(chapter.content)} caratteri - {page_count} pagine")
             except Exception as e:
                 print(f"[GET BOOK] Errore nel processare capitolo {idx}: {e}")
                 continue
@@ -1345,13 +1497,37 @@ async def get_complete_book_endpoint(session_id: str):
         # Ordina per section_index
         chapters.sort(key=lambda x: x.section_index)
         
+        # Calcola total_pages
+        chapters_pages = sum(ch.page_count for ch in chapters)
+        cover_pages = 1  # 1 pagina per copertina
+        toc_pages = math.ceil(len(chapters) / 30)  # Pagine indice: 1 pagina base + 1 ogni 30 capitoli
+        total_pages = chapters_pages + cover_pages + toc_pages
+        
+        # Recupera la valutazione critica se disponibile
+        critique = None
+        if session.literary_critique:
+            try:
+                critique = LiteraryCritique(**session.literary_critique)
+            except Exception as e:
+                print(f"[GET BOOK] Errore nel parsing critique: {e}")
+
+        # Backward-compat: sessioni vecchie potrebbero avere critique senza critique_status
+        critique_status = session.critique_status
+        critique_error = session.critique_error
+        if critique_status is None and critique is not None:
+            critique_status = "completed"
+        
         book_response = BookResponse(
             title=session.current_title or "Romanzo",
             author=session.form_data.user_name or "Autore",
             chapters=chapters,
+            total_pages=total_pages,
+            critique=critique,
+            critique_status=critique_status,
+            critique_error=critique_error,
         )
         
-        print(f"[GET BOOK] Libro restituito: {book_response.title} di {book_response.author}, {len(chapters)} capitoli")
+        print(f"[GET BOOK] Libro restituito: {book_response.title} di {book_response.author}, {len(chapters)} capitoli, {total_pages} pagine totali")
         return book_response
     
     except HTTPException:

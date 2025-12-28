@@ -1,5 +1,5 @@
-from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal, Optional, Any
+from pydantic import BaseModel, Field, field_validator
 
 
 class FieldOption(BaseModel):
@@ -136,6 +136,48 @@ class Chapter(BaseModel):
     title: str
     content: str
     section_index: int  # Indice nella struttura (0-based)
+    page_count: int = 0  # Numero di pagine calcolato (parole/250 arrotondato per eccesso)
+
+
+class LiteraryCritique(BaseModel):
+    """Valutazione critica del libro."""
+    score: float = Field(ge=0.0, le=10.0, description="Valutazione da 0 a 10")
+    pros: list[str] = Field(default_factory=list, description="Punti di forza del libro")
+    cons: list[str] = Field(default_factory=list, description="Punti di debolezza del libro")
+    summary: str = Field(description="Sintesi della valutazione (max 500 caratteri)")
+
+    @field_validator("pros", "cons", mode="before")
+    @classmethod
+    def _coerce_points(cls, v: Any) -> list[str]:
+        """
+        Accetta sia lista che stringa (retro-compatibilità) e normalizza a list[str].
+        """
+        if v is None:
+            return []
+        if isinstance(v, list):
+            out: list[str] = []
+            for item in v:
+                if item is None:
+                    continue
+                s = str(item).strip()
+                if s:
+                    out.append(s)
+            return out
+        if isinstance(v, str):
+            # Split su newline e rimuovi bullet comuni
+            lines = [ln.strip() for ln in v.splitlines()]
+            cleaned: list[str] = []
+            for ln in lines:
+                ln = ln.lstrip("-•* ").strip()
+                if ln:
+                    cleaned.append(ln)
+            # Se è una stringa singola senza newline
+            if not cleaned and v.strip():
+                cleaned = [v.strip()]
+            return cleaned
+        # Fallback: coercizione a stringa
+        s = str(v).strip()
+        return [s] if s else []
 
 
 class BookProgress(BaseModel):
@@ -147,6 +189,10 @@ class BookProgress(BaseModel):
     completed_chapters: list[Chapter] = []  # Capitoli già completati
     is_complete: bool = False
     error: Optional[str] = None
+    total_pages: Optional[int] = None  # Numero totale di pagine (calcolato quando is_complete=True)
+    critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
+    critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
+    critique_error: Optional[str] = None
 
 
 class BookGenerationRequest(BaseModel):
@@ -166,4 +212,8 @@ class BookResponse(BaseModel):
     title: str
     author: str
     chapters: list[Chapter]
+    total_pages: Optional[int] = None  # Numero totale di pagine
+    critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
+    critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
+    critique_error: Optional[str] = None
 
