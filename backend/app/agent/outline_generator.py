@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
+from app.config import get_temperature_for_agent
 
 
 def load_outline_agent_context() -> str:
@@ -170,15 +171,35 @@ async def generate_outline(
 
 {formatted_input}
 
-Genera una struttura dettagliata in formato Markdown che organizzi tutta la narrazione in capitoli e sezioni, con descrizioni di alto livello per ciascun elemento. La struttura deve essere ampia e includere non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere e sviluppi narrativi."""
+IMPORTANTE - Stratificazione Narrativa:
+Un romanzo di qualità non è solo una sequenza di eventi principali, ma un tessuto narrativo ricco e stratificato. 
+Ogni elemento della bozza deve essere sviluppato con profondità narrativa sufficiente per creare un'esperienza immersiva e coinvolgente.
+
+Per ogni sezione della bozza (Introduzione, Atto I, Atto II, Atto III, Conclusione), genera capitoli che:
+- Sviluppano gli eventi principali con il tempo narrativo necessario
+- Includono scene intermedie che approfondiscono personaggi, atmosfere e temi
+- Integrano sottotrame e personaggi secondari con i loro archi narrativi
+- Aggiungono momenti di riflessione, caratterizzazione e sviluppo emotivo
+- Creano transizioni naturali tra eventi significativi
+- Arricchiscono il mondo narrativo con dettagli, ambientazioni e contesti
+
+Non limitarti a un capitolo per evento: ogni momento narrativo significativo merita il suo spazio. 
+Eventi complessi, sviluppi caratteriali, rivelazioni importanti, conflitti interiori ed esteriori 
+devono essere sviluppati con la profondità che richiedono, non compressi in riassunti.
+
+Genera una struttura dettagliata in formato Markdown che organizzi tutta la narrazione in capitoli e sezioni, 
+con descrizioni di alto livello per ciascun elemento. La struttura deve essere ampia e stratificata, 
+includendo non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere, 
+sottotrame e sviluppi narrativi che creano un romanzo ricco e coinvolgente."""
     
     user_prompt = HumanMessage(content=user_prompt_content)
     
     # Inizializza il modello Gemini
+    temperature = get_temperature_for_agent("outline_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=0.7,
+        temperature=temperature,
     )
     
     # Genera l'outline

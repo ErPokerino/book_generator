@@ -21,7 +21,6 @@ export interface ConfigResponse {
 export interface SubmissionRequest {
   llm_model: string;
   plot: string;
-  temperature?: number;
   genre?: string;
   subgenre?: string;
   target_audience?: string;

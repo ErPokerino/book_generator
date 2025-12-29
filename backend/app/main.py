@@ -53,6 +53,31 @@ from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
 
+
+def get_model_abbreviation(model_name: str) -> str:
+    """
+    Converte il nome completo del modello in una versione abbreviata per il nome del PDF.
+    
+    Args:
+        model_name: Nome completo del modello (es: "gemini-2.5-flash", "gemini-3-pro-preview")
+    
+    Returns:
+        Abbreviazione del modello (es: "g25f", "g3p")
+    """
+    model_lower = model_name.lower()
+    if "gemini-2.5-flash" in model_lower:
+        return "g25f"
+    elif "gemini-2.5-pro" in model_lower:
+        return "g25p"
+    elif "gemini-3-flash" in model_lower:
+        return "g3f"
+    elif "gemini-3-pro" in model_lower:
+        return "g3p"
+    else:
+        # Fallback: usa le prime lettere del modello
+        return model_name.replace("gemini-", "g").replace("-", "").replace("_", "")[:6]
+
+
 # Carica variabili d'ambiente dal file .env
 # Il file .env è nella root del progetto (un livello sopra backend)
 # Path(__file__) = backend/app/main.py
@@ -105,8 +130,16 @@ async def get_app_config_endpoint():
 async def submit_form(data: SubmissionRequest):
     """Riceve e valida i dati del form."""
     try:
-        print(f"[SUBMIT FORM] Ricevuta submission con llm_model={data.llm_model}, temperature={data.temperature}")
+        print(f"[SUBMIT FORM] Ricevuta submission con llm_model={data.llm_model}")
         config = get_config()
+        
+        # Valida che llm_model non sia None o vuoto
+        if not data.llm_model or not data.llm_model.strip():
+            print(f"[SUBMIT FORM] ERRORE: Modello LLM mancante o vuoto")
+            raise HTTPException(
+                status_code=400,
+                detail="Il modello LLM è obbligatorio. Seleziona un modello dalla lista."
+            )
         
         # Valida il modello LLM
         if data.llm_model not in config.llm_models:
@@ -116,20 +149,11 @@ async def submit_form(data: SubmissionRequest):
                 detail=f"Modello LLM non valido: {data.llm_model}. Modelli disponibili: {', '.join(config.llm_models)}"
             )
         
-        # Valida la temperatura se presente
-        if data.temperature is not None:
-            if not (0.0 <= data.temperature <= 1.0):
-                print(f"[SUBMIT FORM] ERRORE: Temperatura non valida: {data.temperature}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Temperatura deve essere tra 0.0 e 1.0, ricevuto: {data.temperature}"
-                )
-        
         # Valida i campi select opzionali contro le opzioni configurate
-        # Escludi temperature, llm_model e plot dalla validazione come select
+        # Escludi llm_model e plot dalla validazione come select
         field_map = {field.id: field for field in config.fields}
         
-        for field_id, value in data.model_dump(exclude={"llm_model", "plot", "temperature"}).items():
+        for field_id, value in data.model_dump(exclude={"llm_model", "plot"}).items():
             if value is not None and field_id in field_map:
                 field = field_map[field_id]
                 if field.type == "select" and field.options:
@@ -1218,13 +1242,14 @@ async def download_book_pdf_endpoint(session_id: str):
         buffer.seek(0)
         pdf_content = buffer.getvalue()
         
-        # Nome file con data come prefisso (formato: YYYY-MM-DD_TitoloLibro.pdf)
+        # Nome file con data, modello e titolo (formato: YYYY-MM-DD_g3p_TitoloLibro.pdf)
         date_prefix = datetime.now().strftime("%Y-%m-%d")
+        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
         title_sanitized = "".join(c for c in book_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
         title_sanitized = title_sanitized.replace(" ", "_")
         if not title_sanitized:
             title_sanitized = f"Libro_{session_id[:8]}"
-        filename = f"{date_prefix}_{title_sanitized}.pdf"
+        filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
         
         # Salva PDF su disco nella cartella backend/books/
         try:

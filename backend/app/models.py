@@ -25,7 +25,6 @@ class ConfigResponse(BaseModel):
 class SubmissionRequest(BaseModel):
     llm_model: str
     plot: str = Field(..., min_length=1, description="Trama del romanzo (obbligatoria)")
-    temperature: float = Field(default=0.0, ge=0.0, le=1.0, description="Temperatura del modello (0.0=stabile, 1.0=creativo)")
     genre: Optional[str] = None
     subgenre: Optional[str] = None
     target_audience: Optional[str] = None

@@ -12,7 +12,6 @@ export default function DynamicForm() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const [temperature, setTemperature] = useState<number>(0);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<SubmissionResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +72,34 @@ export default function DynamicForm() {
     }
   };
 
+  const handleResetToForm = () => {
+    // Reset di tutti gli stati per tornare al form iniziale
+    setFormData({});
+    setValidationErrors({});
+    setSubmitted(null);
+    setIsSubmitting(false);
+    setQuestions(null);
+    setSessionId(null);
+    setFormPayload(null);
+    setIsGeneratingQuestions(false);
+    setAnswersSubmitted(false);
+    setQuestionAnswers([]);
+    setCurrentStep('form');
+    setValidatedDraft(null);
+    setOutline(null);
+    setIsStartingWriting(false);
+    setError(null);
+    
+    // Reinizializza formData con valori vuoti se config è disponibile
+    if (config) {
+      const initialData: Record<string, string> = {};
+      config.fields.forEach(field => {
+        initialData[field.id] = '';
+      });
+      setFormData(initialData);
+    }
+  };
+
   const handleChange = (fieldId: string, value: string) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
     // Rimuovi errore di validazione quando l'utente modifica il campo
@@ -119,10 +146,9 @@ export default function DynamicForm() {
       const payload: SubmissionRequest = {
         llm_model: formData.llm_model || '',
         plot: formData.plot || '',
-        temperature: temperature,
       };
 
-      console.log('[DynamicForm] Payload iniziale:', { llm_model: payload.llm_model, temperature: payload.temperature });
+      console.log('[DynamicForm] Payload iniziale:', { llm_model: payload.llm_model });
 
       // Aggiunge solo i campi opzionali che sono stati compilati
       const optionalFields = [
@@ -325,51 +351,6 @@ export default function DynamicForm() {
     return null;
   };
 
-  const renderTemperatureSlider = () => {
-    // Calcola il colore del gradiente basato sulla temperatura
-    // 0.0 = blu (stabile), 1.0 = rosso (creativo)
-    const hue = 240 - (temperature * 240); // Da 240 (blu) a 0 (rosso)
-    const saturation = 70;
-    const lightness = 50;
-    const gradientColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-    
-    return (
-      <div className="form-field">
-        <label htmlFor="temperature">
-          Creatività del Modello
-          <span className="required"> *</span>
-          <span className="info-icon" title="Controlla la creatività del modello: valori bassi (blu) = più stabile e prevedibile, valori alti (rosso) = più creativo e variabile">
-            ℹ️
-          </span>
-        </label>
-        <div className="temperature-slider-container">
-          <div className="temperature-labels">
-            <span className="temperature-label-left">Stabilità</span>
-            <span className="temperature-label-right">Creatività</span>
-          </div>
-          <input
-            type="range"
-            id="temperature"
-            min="0"
-            max="1"
-            step="0.01"
-            value={temperature}
-            onChange={(e) => setTemperature(parseFloat(e.target.value))}
-            className="temperature-slider"
-            style={{
-              background: `linear-gradient(to right, 
-                hsl(240, 70%, 50%) 0%, 
-                hsl(180, 70%, 50%) 50%, 
-                hsl(0, 70%, 50%) 100%)`
-            }}
-          />
-          <div className="temperature-value">
-            <span>Valore: {temperature.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   if (loading) {
     return <div className="loading">Caricamento configurazione...</div>;
@@ -622,6 +603,7 @@ export default function DynamicForm() {
           console.log('[DEBUG] Scrittura completata:', progress);
           // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
         }}
+        onNewBook={handleResetToForm}
       />
     );
   }
@@ -646,19 +628,7 @@ export default function DynamicForm() {
       {error && <div className="error-banner">{error}</div>}
       
       <form onSubmit={handleSubmit} className="dynamic-form">
-        {config?.fields.map((field) => {
-          const fieldElement = renderField(field);
-          // Se questo è il campo llm_model e c'è un modello selezionato, mostra lo slider subito dopo
-          if (field.id === 'llm_model' && formData.llm_model) {
-            return (
-              <>
-                {fieldElement}
-                {renderTemperatureSlider()}
-              </>
-            );
-          }
-          return fieldElement;
-        })}
+        {config?.fields.map((field) => renderField(field))}
         
         <div className="form-actions">
           <button type="submit" disabled={isSubmitting} className="submit-button">

@@ -7,6 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, Question, QuestionsResponse
 from app.agent.state import AgentState
+from app.config import get_temperature_for_agent
 
 
 def load_agent_context() -> str:
@@ -176,22 +177,23 @@ Genera domande pertinenti in formato JSON come specificato nel contesto. Rispond
     # Inizializza il modello Gemini
     # Mappa i nomi dei modelli al formato corretto per Gemini API
     # Nomi corretti dalla documentazione ufficiale: https://ai.google.dev/gemini-api/docs/models
-    model_name = form_data.llm_model
-    if "gemini-2.5-flash" in model_name:
+    model_name = form_data.llm_model or ""  # Default a stringa vuota se None
+    if model_name and "gemini-2.5-flash" in model_name:
         gemini_model = "gemini-2.5-flash"  # Modello stabile
-    elif "gemini-2.5-pro" in model_name:
+    elif model_name and "gemini-2.5-pro" in model_name:
         gemini_model = "gemini-2.5-pro"  # Modello stabile
-    elif "gemini-3-flash" in model_name:
+    elif model_name and "gemini-3-flash" in model_name:
         gemini_model = "gemini-3-flash-preview"  # Modello in preview
-    elif "gemini-3-pro" in model_name:
+    elif model_name and "gemini-3-pro" in model_name:
         gemini_model = "gemini-3-pro-preview"  # Modello in preview
     else:
         gemini_model = "gemini-2.5-flash"  # default: modello stabile
     
+    temperature = get_temperature_for_agent("question_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=0.7,
+        temperature=temperature,
     )
     
     # Genera le domande

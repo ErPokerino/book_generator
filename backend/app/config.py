@@ -159,6 +159,7 @@ def load_app_config() -> AppConfig:
                 "min_chapters_for_reliable_avg": 3,
                 "use_session_avg_if_available": True,
             },
+            "temperature": {},
         }
     
     with open(config_path, "r", encoding="utf-8") as f:
@@ -172,6 +173,7 @@ def load_app_config() -> AppConfig:
         "frontend": data.get("frontend", {}),
         "time_estimation": data.get("time_estimation", {}),
         "cover_generation": data.get("cover_generation", {}),
+        "temperature": data.get("temperature", {}),
     }
 
 
@@ -188,4 +190,46 @@ def reload_app_config() -> AppConfig:
     global _app_config
     _app_config = load_app_config()
     return _app_config
+
+
+def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
+    """
+    Determina la temperatura per un agente basandosi su:
+    1. Configurazione esplicita in app.yaml per l'agente
+    2. Regola basata su versione modello (2.5 → 0.0, 3.0 → 1.0)
+    
+    Args:
+        agent_name: Nome dell'agente (es: "writer_generator", "draft_generator", etc.)
+        model_name: Nome del modello Gemini (es: "gemini-2.5-flash", "gemini-3-pro-preview")
+    
+    Returns:
+        Temperatura da utilizzare (float tra 0.0 e 1.0)
+    """
+    app_config = get_app_config()
+    # Gestisce il caso in cui temperature sia None o non esista
+    temperature_config = app_config.get("temperature")
+    if temperature_config is None or not isinstance(temperature_config, dict):
+        temperature_config = {}
+    agent_temps = temperature_config.get("agents", {})
+    
+    # Se agent_temps non è un dict, usa un dict vuoto
+    if not isinstance(agent_temps, dict):
+        agent_temps = {}
+    
+    # Se c'è configurazione esplicita per l'agente, usala
+    if agent_name in agent_temps:
+        return float(agent_temps[agent_name])
+    
+    # Altrimenti, determina dalla versione modello
+    # Gestisce il caso in cui model_name sia None
+    if model_name is None:
+        model_name = ""
+    model_lower = model_name.lower()
+    if "2.5" in model_lower:
+        return 0.0
+    elif "3" in model_lower:
+        return 1.0
+    else:
+        # Default conservativo se non si riesce a determinare la versione
+        return 0.0
 

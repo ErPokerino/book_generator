@@ -7,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
-from app.config import get_app_config
+from app.config import get_app_config, get_temperature_for_agent
 
 
 def load_writer_agent_context() -> str:
@@ -352,10 +352,11 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
     user_prompt = HumanMessage(content=user_prompt_content)
     
     # Inizializza il modello Gemini
+    temperature = get_temperature_for_agent("writer_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=form_data.temperature if form_data.temperature is not None else 0.0,  # Usa temperatura dall'utente o default
+        temperature=temperature,
         max_output_tokens=max_tokens,
     )
     

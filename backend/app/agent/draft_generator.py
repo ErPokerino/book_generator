@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
+from app.config import get_temperature_for_agent
 
 
 def load_draft_agent_context() -> str:
@@ -235,10 +236,11 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
     user_prompt = HumanMessage(content=user_prompt_content)
     
     # Inizializza il modello Gemini
+    temperature = get_temperature_for_agent("draft_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
-        temperature=form_data.temperature if form_data.temperature is not None else 0.7,
+        temperature=temperature,
     )
     
     # Genera la bozza

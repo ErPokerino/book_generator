@@ -40,3 +40,15 @@ llm_models:
 cover_generation:
   aspect_ratio: "2:3"  # Ratio per immagini copertina (adatto a PDF A4)
 
+# Configurazione temperature per agenti
+# Se non specificata, viene applicata la regola basata sulla versione del modello:
+# - Gemini 2.5 (flash o pro): temperatura 0.0
+# - Gemini 3.0 (flash o pro): temperatura 1.0
+temperature:
+  agents:
+    # draft_generator: 0.7  # Esempio: scommentare per override
+    # outline_generator: 0.7  # Esempio: scommentare per override
+    # writer_generator: 0.0  # Esempio: scommentare per override
+    # question_generator: 0.7  # Esempio: scommentare per override
+    # literary_critic è configurato in literary_critic.yaml
+
