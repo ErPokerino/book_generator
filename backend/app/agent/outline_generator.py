@@ -171,9 +171,18 @@ async def generate_outline(
 
 {formatted_input}
 
-IMPORTANTE - Stratificazione Narrativa:
-Un romanzo di qualità non è solo una sequenza di eventi principali, ma un tessuto narrativo ricco e stratificato. 
-Ogni elemento della bozza deve essere sviluppato con profondità narrativa sufficiente per creare un'esperienza immersiva e coinvolgente.
+IMPORTANTE - Granularità e Stratificazione Narrativa:
+
+La bozza estesa che hai ricevuto contiene eventi, sviluppi e momenti narrativi che devono essere trasformati in una struttura dettagliata di capitoli.
+
+Principio fondamentale:
+- Non condensare eventi complessi in un solo capitolo. Quando un evento include fasi distinte (preparazione → svolgimento → conseguenze) oppure comporta cambiamenti emotivi/relazionali importanti, trasformalo in più capitoli, ciascuno con un obiettivo narrativo chiaro.
+- Non creare capitoli “di riempimento”: aggiungi capitoli solo quando c’è progressione reale (scelta, ostacolo, rivelazione, conseguenza, cambiamento di relazione, svolta tematica).
+
+Domande guida (per decidere se dividere):
+- Questo evento ha conseguenze che cambiano la direzione della storia o dei personaggi? Se sì, dedica capitoli distinti a conseguenze immediate e a conseguenze che maturano nel tempo.
+- C’è escalation (tentativi, fallimenti, complicazioni) prima della risoluzione? Se sì, non comprimere escalation e risoluzione nello stesso capitolo.
+- C’è un passaggio emotivo/psicologico significativo (shock, negazione, rabbia, accettazione, decisione)? Se sì, rendilo visibile con capitoli dedicati.
 
 Per ogni sezione della bozza (Introduzione, Atto I, Atto II, Atto III, Conclusione), genera capitoli che:
 - Sviluppano gli eventi principali con il tempo narrativo necessario
@@ -183,6 +192,14 @@ Per ogni sezione della bozza (Introduzione, Atto I, Atto II, Atto III, Conclusio
 - Creano transizioni naturali tra eventi significativi
 - Arricchiscono il mondo narrativo con dettagli, ambientazioni e contesti
 
+Dettaglio per capitolo (obbligatorio):
+Per ogni capitolo che proponi, includi sempre:
+1) Titolo evocativo
+2) Eventi chiave (in elenco puntato) con un livello di dettaglio sufficiente a guidare la scrittura
+3) Focus personaggi (chi cambia, cosa decide, che attrito emerge)
+4) Atmosfera e temi (tono, sottotesto, idee in gioco)
+5) Collegamenti narrativi (cosa riprende dal capitolo precedente e cosa prepara per il successivo)
+
 Non limitarti a un capitolo per evento: ogni momento narrativo significativo merita il suo spazio. 
 Eventi complessi, sviluppi caratteriali, rivelazioni importanti, conflitti interiori ed esteriori 
 devono essere sviluppati con la profondità che richiedono, non compressi in riassunti.
@@ -190,7 +207,7 @@ devono essere sviluppati con la profondità che richiedono, non compressi in ria
 Genera una struttura dettagliata in formato Markdown che organizzi tutta la narrazione in capitoli e sezioni, 
 con descrizioni di alto livello per ciascun elemento. La struttura deve essere ampia e stratificata, 
 includendo non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere, 
-sottotrame e sviluppi narrativi che creano un romanzo ricco e coinvolgente."""
+sottotrame e sviluppi narrativi che creano un romanzo ricco e coinvolgente (orientato a un romanzo “pieno”, non a una novella)."""
     
     user_prompt = HumanMessage(content=user_prompt_content)
     

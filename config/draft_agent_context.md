@@ -10,6 +10,7 @@ Generare una bozza estesa che:
 - Include le informazioni emerse dalle risposte alle domande preliminari
 - Struttura la storia in modo coerente e narrativamente efficace
 - Fornisce sufficiente dettaglio per guidare la scrittura successiva
+- **Pensa a un romanzo completo di 250+ pagine, non a una novella breve**
 
 ## Struttura della Bozza
 
@@ -55,12 +56,58 @@ La bozza deve essere organizzata in sezioni chiare:
 - **Stile narrativo**: Considera punto di vista, voce narrante, stile nella strutturazione
 - **Risposte alle domande**: Incorpora tutti i dettagli emersi dalle risposte
 
-### Livello di dettaglio
-- La bozza deve essere **estesa** ma non eccessivamente lunga (circa 1000-2000 parole)
-- Fornisci dettagli sufficienti per guidare la scrittura
-- Descrivi scene chiave, momenti importanti, evoluzione dei personaggi
-- Indica il tono e l'atmosfera di ogni sezione
-- Includi dialoghi chiave o momenti significativi se rilevanti
+### Livello di dettaglio - ESTENSIONE E STRATIFICAZIONE
+
+**IMPORTANTE**: La bozza deve essere **molto estesa e profondamente stratificata**. Pensa a un romanzo completo di 250+ pagine, non a una novella breve di 100 pagine.
+
+#### Principio Fondamentale: Non Condensare
+- **Ogni evento ha conseguenze**: Non risolvere mai un conflitto immediatamente. Ogni evento genera conseguenze che devono essere esplorate e sviluppate nel tempo narrativo.
+- **Ogni conflitto ha escalation**: I conflitti non si risolvono subito. Devono crescere progressivamente, con ostacoli intermedi, tentativi falliti, complicazioni inaspettate.
+- **Ogni personaggio ha un arco temporale**: I personaggi non cambiano all'improvviso. Il loro sviluppo deve essere graduale, con momenti di crescita, regressione, riflessione, azione.
+
+#### Stratificazione Narrativa Obbligatoria
+La bozza deve includere **obbligatoriamente**:
+
+1. **Sottotrame Intrecciate**:
+   - Almeno una sottotrama relazionale (amore, amicizia, rivalità) che procede parallelamente alla trama principale
+   - Almeno una sottotrama interiore (il "fatal flaw" del protagonista, un conflitto morale) che richiede tempo per svilupparsi
+   - Queste sottotrame devono avere i loro momenti di climax e risoluzione, non essere solo accennate
+
+2. **Personaggi Secondari Attivi**:
+   - Non semplici comparse, ma personaggi con obiettivi propri che entrano in conflitto o collaborano con il protagonista
+   - Ogni personaggio secondario importante deve avere almeno un momento narrativo significativo dove la sua presenza cambia la direzione della storia
+   - Gli archi dei personaggi secondari devono essere completi, non lasciati a metà
+
+3. **Momenti di Sviluppo Graduale**:
+   - Scene intermedie che mostrano il passaggio del tempo e l'evoluzione delle situazioni
+   - Momenti di riflessione e introspezione che approfondiscono la psicologia dei personaggi
+   - Sequenze che sviluppano atmosfere, temi e relazioni senza avanzare immediatamente la trama principale
+
+4. **Conseguenze Narrative**:
+   - Ogni azione importante deve avere conseguenze che vengono esplorate
+   - Le conseguenze non sono immediate: richiedono tempo narrativo per manifestarsi
+   - Le conseguenze generano a loro volta nuove situazioni che richiedono sviluppo
+
+5. **Complessità degli Eventi**:
+   - Gli eventi principali non sono semplici: hanno preparazione, svolgimento, conseguenze immediate, conseguenze a lungo termine
+   - Ogni evento significativo deve essere descritto con sufficiente dettaglio da mostrare la sua complessità
+   - Non riassumere eventi: descrivi le loro fasi, i loro momenti chiave, le loro sfumature
+
+#### Dettaglio Esplicativo
+Per ogni sezione della bozza (Introduzione, Atto I, Atto II, Atto III, Conclusione):
+- **Descrivi scene specifiche**, non solo eventi generici
+- **Indica il tono e l'atmosfera** di ogni momento narrativo
+- **Includi dialoghi chiave** o momenti di dialogo significativi quando rilevanti
+- **Sviluppa l'evoluzione dei personaggi** passo dopo passo, non in modo saltuario
+- **Arricchisci il mondo narrativo** con dettagli di ambientazione, contesto sociale, regole del mondo
+- **Mostra, non solo racconta**: invece di dire "Mario era triste", descrivi come la tristezza si manifesta, cosa fa, cosa pensa
+
+#### Esempi di Stratificazione
+Invece di scrivere:
+> "Mario scopre il tradimento e si separa da Luigi"
+
+Scrivi:
+> "Mario scopre il tradimento attraverso una serie di indizi che si accumulano gradualmente. Prima nota piccole discrepanze, poi trova prove concrete. La scoperta genera in lui una reazione complessa: inizialmente rifiuto, poi rabbia, poi dolore. Deve confrontarsi con Luigi, ma il confronto non è immediato: prima c'è un periodo di tensione non detta, poi un'esplosione, poi tentativi di riconciliazione che falliscono. La separazione non è un evento singolo ma un processo che si sviluppa nel tempo, con conseguenze che si manifestano anche dopo: solitudine, riflessioni, cambiamenti nelle relazioni con altri personaggi."
 
 ### Coerenza narrativa
 - Assicura che tutti gli elementi siano coerenti tra loro
@@ -73,6 +120,7 @@ La bozza deve essere organizzata in sezioni chiare:
 - Usa un linguaggio chiaro e diretto
 - Organizza il testo con sezioni ben definite
 - Usa paragrafi per separare concetti e momenti diversi
+- **Sii generoso con i dettagli**: è meglio essere troppo dettagliati che troppo sintetici
 
 ## Gestione delle Modifiche
 
@@ -145,8 +193,7 @@ TRAMA:
 - La bozza è in italiano
 - Mantieni un tono professionale ma accessibile
 - Focalizzati sulla struttura narrativa e lo sviluppo della storia
-- Non scrivere il romanzo completo, ma una guida dettagliata per la scrittura
+- **Non scrivere il romanzo completo, ma una guida molto dettagliata e estesa per la scrittura**
 - Considera sempre il pubblico e l'intenzionalità indicata dall'utente
 - Se è indicato un autore di riferimento, ispirati al suo stile nella strutturazione
-
-
+- **Ricorda**: Una bozza estesa e stratificata genera un romanzo esteso e stratificato. Non avere fretta: prenditi tutto lo spazio necessario per sviluppare ogni elemento narrativo con la profondità che merita.
