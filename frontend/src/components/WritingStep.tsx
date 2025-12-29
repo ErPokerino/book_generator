@@ -314,6 +314,11 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
               <strong>Totale tempo scrittura:</strong> {Math.round(progress.writing_time_minutes)} minuti
             </p>
           )}
+          {progress.total_pages && (
+            <p className="reading-time-info">
+              <strong>Totale tempo lettura:</strong> {Math.ceil(progress.total_pages * 90 / 60)} minuti
+            </p>
+          )}
           <div className="completion-actions">
             <button
               onClick={async () => {

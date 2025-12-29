@@ -42,6 +42,8 @@ fields:
       - value: "horror"
       - value: "romantico"
       - value: "formazione"
+      - value: "avventura"
+      - value: "romantico"
 
   - id: subgenre
     label: "Sottogenere"
@@ -53,9 +55,24 @@ fields:
       - value: "soft sci-fi"
       - value: "noir"
       - value: "cozy"
+      - value: "psicologico"
       - value: "epico"
+      - value: "epistolare"
       - value: "urbano"
       - value: "distopico"
+      - value: "satira"
+
+  - id: target_audience
+    label: "Pubblico di Riferimento"
+    type: select
+    required: false
+    description: "Definisce la complessità del linguaggio e i temi trattati"
+    options:
+      - value: "ragazzi (8-12 anni)"
+      - value: "adolescenti"
+      - value: "giovani adulti"
+      - value: "adulti"
+
 
   - id: theme
     label: "Tema"
@@ -80,9 +97,21 @@ fields:
     options:
       - value: "singolo"
       - value: "corale"
-      - value: "anti-eroe"
       - value: "ordinario"
       - value: "eroico"
+
+  - id: protagonist_archetype
+    label: "Archetipo Protagonista"
+    type: select
+    required: false
+    description: "Il modello base del personaggio principale"
+    options:
+      - value: "eroe classico"
+      - value: "anti eroe"
+      - value: "uomo comune"
+      - value: "prescelto riluttante"
+      - value: "narratore inaffidabile"
+      - value: "genio incompreso"
 
   - id: character_arc
     label: "Arco del personaggio"
@@ -185,6 +214,23 @@ fields:
       - value: "letterario"
       - value: "sperimentale"
       - value: "ibrido"
+
+  - id: cover_style
+    label: "Stile Copertina"
+    type: select
+    required: false
+    description: "Stile visivo per la copertina del libro"
+    options:
+      - value: "illustrato"
+        label: "Illustrato – Disegni artistici o pittorici, orientato all'atmosfera"
+      - value: "fotografico"
+        label: "Fotografico – Uso di foto reali o rielaborate, effetto realistico"
+      - value: "tipografico"
+        label: "Tipografico / Minimal – Centralità del testo e della composizione grafica"
+      - value: "simbolico"
+        label: "Simbolico – Un'immagine o segno metaforico che rappresenta il tema"
+      - value: "cartoon"
+        label: "Cartoon – Illustrazione stilizzata"
 
   - id: user_name
     label: "Nome Autore"

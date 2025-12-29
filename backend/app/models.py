@@ -42,6 +42,7 @@ class SubmissionRequest(BaseModel):
     intentionality: Optional[str] = None
     author: Optional[str] = None
     user_name: Optional[str] = None
+    cover_style: Optional[str] = None
 
 
 class SubmissionResponse(BaseModel):

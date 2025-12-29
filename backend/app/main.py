@@ -1433,6 +1433,7 @@ async def background_book_generation(
                     author=form_data.user_name or "Autore",
                     plot=validated_draft,
                     api_key=api_key,
+                    cover_style=form_data.cover_style,
                 )
                 session_store.update_cover_image_path(session_id, cover_path)
                 print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
@@ -1700,6 +1701,7 @@ async def background_resume_book_generation(
                     author=session.form_data.user_name or "Autore",
                     plot=session.current_draft or "",
                     api_key=api_key,
+                    cover_style=session.form_data.cover_style,
                 )
                 if cover_path:
                     session_store.update_cover_image_path(session_id, cover_path)

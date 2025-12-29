@@ -154,7 +154,7 @@ export default function DynamicForm() {
       const optionalFields = [
         'genre', 'subgenre', 'theme', 'protagonist', 'character_arc',
         'point_of_view', 'narrative_voice', 'style', 'temporal_structure',
-        'pace', 'realism', 'ambiguity', 'intentionality', 'author', 'user_name'
+        'pace', 'realism', 'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style'
       ];
 
       optionalFields.forEach(fieldId => {

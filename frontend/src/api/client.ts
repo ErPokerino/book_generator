@@ -38,6 +38,7 @@ export interface SubmissionRequest {
   intentionality?: string;
   author?: string;
   user_name?: string;
+  cover_style?: string;
 }
 
 export interface SubmissionResponse {

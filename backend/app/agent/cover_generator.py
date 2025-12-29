@@ -16,6 +16,7 @@ async def generate_book_cover(
     author: str,
     plot: str,
     api_key: str,
+    cover_style: Optional[str] = None,
 ) -> str:
     """
     Genera la copertina completa del libro (con titolo, autore e immagine) usando gemini-3-pro-image-preview.
@@ -43,11 +44,24 @@ async def generate_book_cover(
     # Usa il plot completo senza limiti
     plot_summary = plot
     
+    # Mappa degli stili per il prompt
+    style_descriptions = {
+        "illustrato": "Stile illustrato: usa disegni artistici o pittorici, orientato all'atmosfera. L'immagine deve essere pittorica, evocativa e artistica.",
+        "fotografico": "Stile fotografico: usa foto reali o rielaborate per un effetto realistico. L'immagine deve sembrare una fotografia professionale.",
+        "tipografico": "Stile tipografico / Minimal: centralità del testo e della composizione grafica. L'immagine deve essere minimale, con focus sulla tipografia e composizione grafica elegante.",
+        "simbolico": "Stile simbolico: usa un'immagine o segno metaforico che rappresenta il tema. L'immagine deve essere metaforica e concettuale.",
+        "cartoon": "Stile cartoon: illustrazione stilizzata, tono leggero o ironico. L'immagine deve essere un'illustrazione stilizzata, vivace e moderna."
+    }
+    
+    style_instruction = ""
+    if cover_style and cover_style in style_descriptions:
+        style_instruction = f"\n\n**Stile richiesto:** {style_descriptions[cover_style]}"
+    
     image_prompt = f"""Crea una copertina professionale per un libro con le seguenti informazioni:
 
 **Titolo del libro:** {title}
 **Autore:** {author}
-**Trama:** {plot_summary}
+**Trama:** {plot_summary}{style_instruction}
 
 La copertina deve includere:
 1. Il titolo del libro in modo prominente e leggibile, ben visibile e con un font professionale
