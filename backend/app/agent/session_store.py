@@ -35,6 +35,29 @@ class SessionData:
         self.writing_end_time: Optional[datetime] = None  # Timestamp fine scrittura capitoli
         self.chapter_timings: list[float] = []  # Tempo in secondi per ogni capitolo completato
         self.chapter_start_time: Optional[datetime] = None  # Timestamp inizio capitolo corrente
+        self.created_at: datetime = datetime.now()  # Timestamp creazione sessione
+        self.updated_at: datetime = datetime.now()  # Timestamp ultima modifica
+    
+    def get_status(self) -> str:
+        """
+        Calcola lo stato corrente della sessione basandosi sui dati disponibili.
+        Restituisce: "draft", "outline", "writing", "paused", "complete"
+        """
+        if self.writing_progress:
+            if self.writing_progress.get("is_complete", False):
+                return "complete"
+            elif self.writing_progress.get("is_paused", False):
+                return "paused"
+            else:
+                return "writing"
+        elif self.current_outline:
+            return "outline"
+        else:
+            return "draft"
+    
+    def update_timestamp(self):
+        """Aggiorna il timestamp updated_at."""
+        self.updated_at = datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
@@ -59,6 +82,8 @@ class SessionData:
             "writing_end_time": self.writing_end_time.isoformat() if self.writing_end_time else None,
             "chapter_timings": self.chapter_timings,
             "chapter_start_time": self.chapter_start_time.isoformat() if self.chapter_start_time else None,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
         }
     
     @classmethod
@@ -90,6 +115,11 @@ class SessionData:
         session.chapter_timings = data.get("chapter_timings", [])
         chapter_start_str = data.get("chapter_start_time")
         session.chapter_start_time = datetime.fromisoformat(chapter_start_str) if chapter_start_str else None
+        # Parse created_at e updated_at con fallback a datetime.now() se non presente (retrocompatibilità)
+        created_at_str = data.get("created_at")
+        session.created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.now()
+        updated_at_str = data.get("updated_at")
+        session.updated_at = datetime.fromisoformat(updated_at_str) if updated_at_str else datetime.now()
         return session
 
 
@@ -141,6 +171,7 @@ class SessionStore:
             "title": title,
             "timestamp": None,  # Potrebbe essere aggiunto datetime se necessario
         })
+        session.update_timestamp()
         
         return session
     
@@ -151,6 +182,7 @@ class SessionStore:
             raise ValueError(f"Sessione {session_id} non trovata")
         
         session.validated = True
+        session.update_timestamp()
         return session
     
     def update_outline(
@@ -165,6 +197,7 @@ class SessionStore:
         
         session.current_outline = outline_text
         session.outline_version += 1
+        session.update_timestamp()
         
         return session
     
@@ -199,6 +232,7 @@ class SessionStore:
             "is_paused": is_paused,
             "error": error,
         }
+        session.update_timestamp()
         
         return session
     
@@ -272,6 +306,7 @@ class SessionStore:
         
         # Ordina per section_index
         session.book_chapters.sort(key=lambda x: x.get("section_index", 0))
+        session.update_timestamp()
         
         return session
     
@@ -286,6 +321,7 @@ class SessionStore:
             raise ValueError(f"Sessione {session_id} non trovata")
         
         session.cover_image_path = cover_image_path
+        session.update_timestamp()
         return session
     
     def update_critique(
@@ -301,6 +337,7 @@ class SessionStore:
         session.literary_critique = critique
         session.critique_status = "completed"
         session.critique_error = None
+        session.update_timestamp()
         return session
 
     def update_critique_status(
@@ -316,6 +353,7 @@ class SessionStore:
 
         session.critique_status = status
         session.critique_error = error
+        session.update_timestamp()
         # Se fallita, non cancelliamo automaticamente una critica già presente (utile per storico/debug)
         return session
 
@@ -489,6 +527,7 @@ class FileSessionStore(SessionStore):
             version = session.outline_version
         else:
             session.outline_version = version
+        session.update_timestamp()
         
         self._save_sessions()
         return session

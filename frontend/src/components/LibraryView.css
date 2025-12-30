@@ -1,94 +1,139 @@
+/* ============================================
+   LibraryView - Book Library Grid
+   ============================================ */
+
 .library-view {
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background: var(--surface);
 }
 
-.loading-message,
-.error-message {
-  padding: 3rem;
+/* Loading & Error States */
+.loading-message {
+  padding: 4rem 2rem;
   text-align: center;
   font-size: 1.1rem;
-  color: #666;
-}
-
-.refreshing-indicator {
-  padding: 0.5rem 2rem;
-  text-align: center;
-  font-size: 0.9rem;
-  color: #666;
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #ddd;
+  color: var(--text-secondary);
 }
 
 .error-message {
-  color: #c62828;
+  padding: 3rem 2rem;
+  text-align: center;
+  font-size: 1.05rem;
+  color: #dc2626;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  margin: 2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid #fecaca;
 }
 
 .error-message button {
-  margin-top: 1rem;
-  padding: 0.5rem 1.5rem;
-  background-color: #213547;
+  margin-top: 1.25rem;
+  padding: 0.75rem 1.75rem;
+  background: var(--accent);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
+  font-family: 'Outfit', sans-serif;
   font-size: 1rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
 }
 
 .error-message button:hover {
-  background-color: #1a2938;
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px var(--accent-glow);
 }
 
+/* Refreshing Indicator */
+.refreshing-indicator {
+  padding: 0.75rem 2rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  background: linear-gradient(90deg, var(--surface-elevated) 0%, var(--surface-hover) 50%, var(--surface-elevated) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-bottom: 1px solid var(--border-light);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Library Header */
 .library-header {
-  padding: 2rem 2rem 1rem 2rem;
+  padding: 2rem 2.5rem 1.25rem 2.5rem;
 }
 
 .library-header h2 {
   margin: 0;
-  font-size: 1.5rem;
-  color: #213547;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.6rem;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
+/* Empty State */
 .empty-library {
-  padding: 3rem;
+  padding: 4rem 2rem;
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   font-size: 1.1rem;
 }
 
+/* Books Grid */
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
-  gap: 1.5rem;
-  padding: 1rem 2rem 2rem 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 1.75rem;
+  padding: 1.25rem 2.5rem 3rem 2.5rem;
 }
 
+/* Back Button */
 .back-to-library-btn {
-  margin: 1rem 2rem;
-  padding: 0.5rem 1rem;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  color: #213547;
-  font-size: 0.9rem;
+  margin: 1.5rem 2.5rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .back-to-library-btn:hover {
-  background-color: #f0f0f0;
-  border-color: #999;
+  background: var(--surface-hover);
+  border-color: var(--text-muted);
+  transform: translateX(-3px);
 }
 
+/* Responsive */
 @media (max-width: 768px) {
   .books-grid {
     grid-template-columns: 1fr;
-    padding: 1rem;
+    padding: 1.25rem;
+    gap: 1.25rem;
   }
 
   .library-header {
-    padding: 1rem;
+    padding: 1.5rem 1.25rem 1rem 1.25rem;
+  }
+
+  .back-to-library-btn {
+    margin: 1rem 1.25rem;
   }
 }
 
@@ -96,6 +141,6 @@
   .books-grid {
     grid-template-columns: 1fr;
     gap: 1rem;
+    padding: 1rem;
   }
 }
-

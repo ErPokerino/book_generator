@@ -14,7 +14,11 @@ import BookCard from './BookCard';
 import WritingStep from './WritingStep';
 import './LibraryView.css';
 
-export default function LibraryView() {
+interface LibraryViewProps {
+  onReadBook?: (sessionId: string) => void;
+}
+
+export default function LibraryView({ onReadBook }: LibraryViewProps) {
   const [books, setBooks] = useState<LibraryEntry[]>([]);
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,9 +31,13 @@ export default function LibraryView() {
 
   // Carica configurazione per avere modelli e generi disponibili
   useEffect(() => {
-    fetchConfig().then(setConfig).catch(err => {
-      console.error('Errore nel caricamento config:', err);
-    });
+    fetchConfig()
+      .then(setConfig)
+      .catch(err => {
+        console.error('Errore nel caricamento config:', err);
+        // Non blocchiamo il caricamento della libreria se la config fallisce
+        // La config è solo per i filtri
+      });
   }, []);
 
   const loadLibrary = async (currentFilters?: LibraryFilters, isRefresh = false) => {
@@ -41,16 +49,35 @@ export default function LibraryView() {
       }
       setError(null);
       const filtersToUse = currentFilters ?? filtersRef.current;
-      const [libraryResponse, statsData] = await Promise.all([
+      
+      // Timeout di 30 secondi per le chiamate API
+      const apiPromise = Promise.all([
         getLibrary(filtersToUse),
         getLibraryStats(),
       ]);
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: le richieste API stanno impiegando troppo tempo')), 30000)
+      );
+      
+      const [libraryResponse, statsData] = await Promise.race([
+        apiPromise,
+        timeoutPromise,
+      ]);
+      
       setBooks(libraryResponse.books);
       setStats(statsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel caricamento della libreria');
+      const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
+      setError(errorMessage);
       console.error('Errore nel caricamento libreria:', err);
+      // Assicuriamoci di avere valori default anche in caso di errore
+      setBooks([]);
+      if (!stats) {
+        // Mantieni stats null se non riusciamo a caricarli
+      }
     } finally {
+      // Sempre disabilita il loading, anche in caso di errore
       if (isRefresh) {
         setRefreshing(false);
       } else {
@@ -160,6 +187,7 @@ export default function LibraryView() {
               book={book}
               onDelete={handleDelete}
               onContinue={handleContinue}
+              onRead={book.status === 'complete' ? onReadBook : undefined}
             />
           ))}
         </div>

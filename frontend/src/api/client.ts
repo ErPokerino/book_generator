@@ -674,3 +674,53 @@ export async function downloadPdfByFilename(filename: string): Promise<Blob> {
   return response.blob();
 }
 
+export async function analyzeExternalPdf(
+  file: File,
+  title?: string,
+  author?: string
+): Promise<LiteraryCritique> {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  if (title) {
+    formData.append('title', title);
+  }
+  
+  if (author) {
+    formData.append('author', author);
+  }
+  
+  // Timeout molto lungo (10 minuti) perché l'analisi PDF può richiedere tempo
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10 minuti
+  
+  try {
+    const response = await fetch(`${API_BASE}/critique/analyze-pdf`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      let errorMessage = `Errore nell'analisi del PDF: ${response.statusText}`;
+      try {
+        const error = await response.json();
+        errorMessage = error.detail || errorMessage;
+      } catch {
+        // Se non riesce a parsare l'errore come JSON, usa il messaggio di default
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Timeout: l\'analisi sta impiegando troppo tempo. Il PDF potrebbe essere troppo grande o complesso.');
+    }
+    throw error;
+  }
+}
+

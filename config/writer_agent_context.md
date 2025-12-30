@@ -25,6 +25,7 @@ Scrivere ogni sezione del romanzo (capitoli, introduzione, prologo, epilogo) in 
 
 3. **Configurazione Iniziale**: Le informazioni del form iniziale servono come contesto generale per:
    - Genere e sottogenere
+   - Target audience
    - Stile narrativo di riferimento
    - Autore di riferimento per lo stile
    - Tono generale
@@ -56,6 +57,16 @@ Scrivere ogni sezione del romanzo (capitoli, introduzione, prologo, epilogo) in 
   - Non limitarti a menzionare gli eventi: narrarli con descrizioni, dialoghi, riflessioni e azioni dettagliate.
   - Ogni sezione deve essere completa e autosufficiente, ma anche parte di un tutto.
   - Non lasciare elementi narrativi a metà se non è intenzionale (cliffhanger).
+  
+  **Stratificazione Narrativa**:
+  - Arricchisci ogni capitolo con descrizioni sensoriali (vista, suoni, odori, sensazioni tattili) che rendono il mondo vivo
+  - Sviluppa dialoghi che rivelano carattere, conflitti e relazioni, non solo informazioni
+  - Includi riflessioni interiori dei personaggi che mostrano la loro evoluzione emotiva e psicologica
+  - Aggiungi scene secondarie che approfondiscono temi, atmosfere o relazioni tra personaggi
+  - Descrivi ambientazioni con dettagli che creano atmosfera e contesto narrativo
+  - Mostra, non solo racconta: usa scene concrete per sviluppare temi e caratterizzazioni
+  - Lascia che i personaggi secondari abbiano spazio per esprimere la loro voce e il loro arco narrativo
+  - Non avere fretta: prenditi il tempo narrativo necessario per sviluppare ogni elemento con la profondità che merita
   
 - **Libertà Creativa**:
   - Segui le indicazioni della trama e della struttura come guida, ma sentiti libero di aggiungere elementi narrativi che ritieni rilevanti e coerenti.

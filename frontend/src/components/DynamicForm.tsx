@@ -56,7 +56,17 @@ export default function DynamicForm() {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchConfig();
+      
+      // Timeout di 30 secondi per la chiamata API
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: impossibile caricare la configurazione. Verifica che il backend sia in esecuzione.')), 30000)
+      );
+      
+      const data = await Promise.race([
+        fetchConfig(),
+        timeoutPromise,
+      ]);
+      
       setConfig(data);
       
       // Inizializza formData con valori vuoti
@@ -66,8 +76,11 @@ export default function DynamicForm() {
       });
       setFormData(initialData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel caricamento della configurazione');
+      const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della configurazione';
+      setError(errorMessage);
+      console.error('Errore nel caricamento config:', err);
     } finally {
+      // Sempre disabilita il loading, anche in caso di errore
       setLoading(false);
     }
   };

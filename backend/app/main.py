@@ -5,7 +5,7 @@ from io import BytesIO
 from datetime import datetime
 from collections import defaultdict
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -101,7 +101,14 @@ app = FastAPI(title="Scrittura Libro API", version="0.1.0")
 # CORS per sviluppo locale
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000",
+    ],  # Vite common ports
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -2515,15 +2522,56 @@ async def delete_library_entry_endpoint(session_id: str):
     try:
         session_store = get_session_store()
         
-        if not session_store.get_session(session_id):
+        session = session_store.get_session(session_id)
+        if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Progetto {session_id} non trovato"
             )
         
+        # Elimina file associati (PDF e copertina)
+        deleted_files = []
+        try:
+            # Elimina PDF se esiste (calcola il nome file come in session_to_library_entry)
+            books_dir = Path(__file__).parent.parent / "books"
+            status = session.get_status()
+            if status == "complete" and books_dir.exists():
+                date_prefix = session.created_at.strftime("%Y-%m-%d")
+                model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                title_sanitized = title_sanitized.replace(" ", "_")
+                if not title_sanitized:
+                    title_sanitized = f"Libro_{session.session_id[:8]}"
+                expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                expected_path = books_dir / expected_filename
+                
+                if expected_path.exists():
+                    expected_path.unlink()
+                    deleted_files.append(f"PDF: {expected_filename}")
+                else:
+                    # Cerca qualsiasi PDF che potrebbe corrispondere
+                    for pdf_file in books_dir.glob("*.pdf"):
+                        if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
+                            deleted_files.append(f"PDF: {pdf_file.name}")
+                            pdf_file.unlink()
+                            break
+            
+            # Elimina copertina se esiste
+            if session.cover_image_path:
+                cover_path = Path(session.cover_image_path)
+                if cover_path.exists():
+                    cover_path.unlink()
+                    deleted_files.append(f"Copertina: {cover_path.name}")
+        except Exception as file_error:
+            print(f"[LIBRARY DELETE] Errore nell'eliminazione file per {session_id}: {file_error}")
+            # Continua comunque con l'eliminazione della sessione
+        
         deleted = session_store.delete_session(session_id)
         if deleted:
-            return {"success": True, "message": f"Progetto {session_id} eliminato con successo"}
+            response = {"success": True, "message": f"Progetto {session_id} eliminato con successo"}
+            if deleted_files:
+                response["deleted_files"] = deleted_files
+            return response
         else:
             raise HTTPException(
                 status_code=500,
@@ -2606,6 +2654,181 @@ async def get_cover_image_endpoint(session_id: str):
         )
 
 
+@app.get("/api/library/cleanup/preview")
+async def preview_obsolete_books_endpoint():
+    """
+    Restituisce la lista dei libri obsoleti che verrebbero eliminati dalla pulizia.
+    I libri obsoleti sono quelli che:
+    - Non hanno voto (critique_score è None) - qualsiasi stato
+    - Sono completati ma senza copertina
+    """
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        # Identifica libri obsoleti
+        obsolete_books = []
+        
+        for session_id, session in all_sessions.items():
+            # Converti in LibraryEntry per ottenere status e critique_score
+            try:
+                entry = session_to_library_entry(session)
+                # Libro obsoleto se:
+                # 1. Senza voto (qualsiasi stato)
+                # 2. Completato ma senza copertina
+                is_obsolete = (
+                    entry.critique_score is None  # Senza voto (qualsiasi stato)
+                    or 
+                    (entry.status == "complete" and not session.cover_image_path)  # Completato ma senza copertina
+                )
+                if is_obsolete:
+                    obsolete_books.append({
+                        "session_id": session_id,
+                        "title": entry.title,
+                        "author": entry.author,
+                        "status": entry.status,
+                        "created_at": entry.created_at.isoformat(),
+                        "updated_at": entry.updated_at.isoformat(),
+                        "has_pdf": entry.pdf_filename is not None,
+                        "has_cover": session.cover_image_path is not None,
+                        "has_score": entry.critique_score is not None,
+                    })
+            except Exception as e:
+                print(f"[CLEANUP PREVIEW] Errore nel processare sessione {session_id}: {e}")
+                continue
+        
+        return {
+            "obsolete_books": obsolete_books,
+            "count": len(obsolete_books)
+        }
+    
+    except Exception as e:
+        print(f"[CLEANUP PREVIEW] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nella preview dei libri obsoleti: {str(e)}"
+        )
+
+
+@app.post("/api/library/cleanup")
+async def cleanup_obsolete_books_endpoint():
+    """
+    Elimina automaticamente tutti i libri obsoleti dalla libreria.
+    I libri obsoleti sono quelli che:
+    - Non hanno voto (critique_score è None) - qualsiasi stato
+    - Sono completati ma senza copertina
+    """
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        # Identifica libri obsoleti
+        obsolete_session_ids = []
+        books_dir = Path(__file__).parent.parent / "books"
+        
+        for session_id, session in all_sessions.items():
+            # Converti in LibraryEntry per ottenere status e critique_score
+            try:
+                entry = session_to_library_entry(session)
+                # Libro obsoleto se:
+                # 1. Senza voto (qualsiasi stato)
+                # 2. Completato ma senza copertina
+                is_obsolete = (
+                    entry.critique_score is None  # Senza voto (qualsiasi stato)
+                    or 
+                    (entry.status == "complete" and not session.cover_image_path)  # Completato ma senza copertina
+                )
+                if is_obsolete:
+                    obsolete_session_ids.append({
+                        "session_id": session_id,
+                        "title": entry.title,
+                        "status": entry.status,
+                        "has_pdf": entry.pdf_filename is not None,
+                        "has_cover": session.cover_image_path is not None,
+                    })
+            except Exception as e:
+                print(f"[CLEANUP] Errore nel processare sessione {session_id}: {e}")
+                continue
+        
+        # Elimina i libri obsoleti
+        deleted_count = 0
+        deleted_files_count = 0
+        errors = []
+        
+        for book_info in obsolete_session_ids:
+            session_id = book_info["session_id"]
+            try:
+                session = session_store.get_session(session_id)
+                if not session:
+                    continue
+                
+                # Elimina file associati
+                files_deleted = 0
+                session_status = session.get_status()
+                try:
+                    # Elimina PDF se esiste (calcola il nome file come in session_to_library_entry)
+                    if session_status == "complete" and books_dir.exists():
+                        date_prefix = session.created_at.strftime("%Y-%m-%d")
+                        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                        title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                        title_sanitized = title_sanitized.replace(" ", "_")
+                        if not title_sanitized:
+                            title_sanitized = f"Libro_{session.session_id[:8]}"
+                        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                        expected_path = books_dir / expected_filename
+                        
+                        if expected_path.exists():
+                            expected_path.unlink()
+                            files_deleted += 1
+                        else:
+                            # Cerca qualsiasi PDF che potrebbe corrispondere
+                            for pdf_file in books_dir.glob("*.pdf"):
+                                if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
+                                    pdf_file.unlink()
+                                    files_deleted += 1
+                                    break
+                    
+                    # Elimina copertina se esiste
+                    if session.cover_image_path:
+                        cover_path = Path(session.cover_image_path)
+                        if cover_path.exists():
+                            cover_path.unlink()
+                            files_deleted += 1
+                except Exception as file_error:
+                    errors.append(f"Errore eliminazione file per {book_info['title']}: {file_error}")
+                
+                # Elimina sessione
+                if session_store.delete_session(session_id):
+                    deleted_count += 1
+                    deleted_files_count += files_deleted
+                else:
+                    errors.append(f"Errore eliminazione sessione {session_id}")
+                    
+            except Exception as e:
+                errors.append(f"Errore durante eliminazione {book_info['title']}: {e}")
+                print(f"[CLEANUP] Errore eliminando {session_id}: {e}")
+        
+        return {
+            "success": True,
+            "obsolete_books_found": len(obsolete_session_ids),
+            "deleted_sessions": deleted_count,
+            "deleted_files": deleted_files_count,
+            "errors": errors if errors else None,
+            "message": f"Eliminati {deleted_count} libri obsoleti e {deleted_files_count} file associati"
+        }
+    
+    except Exception as e:
+        print(f"[CLEANUP] Errore nella pulizia: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nella pulizia dei libri obsoleti: {str(e)}"
+        )
+
+
 @app.get("/api/library/pdf/{filename:path}")
 async def download_pdf_by_filename_endpoint(filename: str):
     """Scarica un PDF specifico per nome file."""
@@ -2648,5 +2871,109 @@ async def download_pdf_by_filename_endpoint(filename: str):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel download del PDF: {str(e)}"
+        )
+
+
+@app.post("/api/critique/analyze-pdf", response_model=LiteraryCritique)
+async def analyze_external_pdf(
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    author: Optional[str] = Form(None),
+):
+    """
+    Analizza un PDF esterno con l'agente critico letterario.
+    I risultati non vengono salvati e servono come benchmark.
+    """
+    try:
+        # Validazione file
+        if file.content_type not in ["application/pdf"]:
+            # Controlla anche l'estensione come fallback
+            if not file.filename or not file.filename.lower().endswith(".pdf"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Il file deve essere un PDF (application/pdf)"
+                )
+        
+        # Limite dimensione: 50MB
+        MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB in bytes
+        
+        # Leggi il contenuto del file
+        pdf_bytes = await file.read()
+        
+        # Controlla dimensione
+        if len(pdf_bytes) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File troppo grande. Dimensione massima: {MAX_FILE_SIZE / (1024 * 1024):.0f}MB"
+            )
+        
+        if len(pdf_bytes) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Il file PDF è vuoto"
+            )
+        
+        # Verifica che l'API key sia configurata
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
+            )
+        
+        # Usa titolo e autore forniti, altrimenti usa valori di default
+        book_title = title or (file.filename and file.filename.replace(".pdf", "") or "Libro")
+        book_author = author or "Autore Sconosciuto"
+        
+        print(f"[EXTERNAL PDF CRITIQUE] Analisi PDF: {file.filename}, Titolo: {book_title}, Autore: {book_author}")
+        print(f"[EXTERNAL PDF CRITIQUE] Dimensione PDF: {len(pdf_bytes) / (1024 * 1024):.2f} MB")
+        
+        # Genera la critica usando la funzione esistente
+        # Questa operazione può richiedere diversi minuti per PDF grandi
+        try:
+            print(f"[EXTERNAL PDF CRITIQUE] Avvio analisi con modello critico...")
+            critique_dict = await generate_literary_critique_from_pdf(
+                title=book_title,
+                author=book_author,
+                pdf_bytes=pdf_bytes,
+                api_key=api_key,
+            )
+            print(f"[EXTERNAL PDF CRITIQUE] Analisi modello completata")
+        except Exception as critique_error:
+            print(f"[EXTERNAL PDF CRITIQUE] ERRORE durante analisi modello: {critique_error}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore durante l'analisi del PDF da parte del modello: {str(critique_error)}"
+            )
+        
+        # Converti il dizionario in LiteraryCritique
+        try:
+            critique = LiteraryCritique(
+                score=critique_dict.get("score", 0.0),
+                pros=critique_dict.get("pros", []),
+                cons=critique_dict.get("cons", []),
+                summary=critique_dict.get("summary", ""),
+            )
+            print(f"[EXTERNAL PDF CRITIQUE] Analisi completata: score={critique.score}")
+        except Exception as validation_error:
+            print(f"[EXTERNAL PDF CRITIQUE] ERRORE nella validazione risposta: {validation_error}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella validazione della risposta del critico: {str(validation_error)}"
+            )
+        
+        return critique
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[EXTERNAL PDF CRITIQUE] Errore nell'analisi: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'analisi del PDF: {str(e)}"
         )
 

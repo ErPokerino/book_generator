@@ -35,3 +35,4 @@ user_prompt: |
   Valuta il libro in modo oggettivo e professionale basandoti sul PDF allegato.
   Restituisci SOLO un JSON valido con i campi: score, pros, cons, summary.
 
+

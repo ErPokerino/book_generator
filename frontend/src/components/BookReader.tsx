@@ -1,0 +1,261 @@
+import { useState, useEffect, useCallback } from 'react';
+import { getCompleteBook, BookResponse, Chapter } from '../api/client';
+import './BookReader.css';
+
+interface BookReaderProps {
+  sessionId: string;
+  onClose: () => void;
+}
+
+export default function BookReader({ sessionId, onClose }: BookReaderProps) {
+  const [book, setBook] = useState<BookResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showToc, setShowToc] = useState(false);
+  const [fontSize, setFontSize] = useState(18);
+
+  useEffect(() => {
+    const loadBook = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const bookData = await getCompleteBook(sessionId);
+        setBook(bookData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Errore nel caricamento del libro');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBook();
+  }, [sessionId]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!book) return;
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+          goToPreviousChapter();
+          break;
+        case 'ArrowRight':
+          goToNextChapter();
+          break;
+        case 'Escape':
+          if (isFullscreen) {
+            toggleFullscreen();
+          } else {
+            onClose();
+          }
+          break;
+        case 'f':
+        case 'F':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            toggleFullscreen();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [book, currentChapterIndex, isFullscreen, onClose]);
+
+  const goToPreviousChapter = useCallback(() => {
+    if (currentChapterIndex > 0) {
+      setCurrentChapterIndex(prev => prev - 1);
+      scrollToTop();
+    }
+  }, [currentChapterIndex]);
+
+  const goToNextChapter = useCallback(() => {
+    if (book && currentChapterIndex < book.chapters.length - 1) {
+      setCurrentChapterIndex(prev => prev + 1);
+      scrollToTop();
+    }
+  }, [book, currentChapterIndex]);
+
+  const scrollToTop = () => {
+    const readerContent = document.querySelector('.reader-content');
+    if (readerContent) {
+      readerContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const goToChapter = (index: number) => {
+    setCurrentChapterIndex(index);
+    setShowToc(false);
+    scrollToTop();
+  };
+
+  const increaseFontSize = () => {
+    setFontSize(prev => Math.min(prev + 2, 28));
+  };
+
+  const decreaseFontSize = () => {
+    setFontSize(prev => Math.max(prev - 2, 12));
+  };
+
+  const formatContent = (content: string): string => {
+    // Converte i newline in paragrafi HTML
+    return content
+      .split('\n\n')
+      .filter(p => p.trim())
+      .map(p => `<p>${p.trim().replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  };
+
+  if (loading) {
+    return (
+      <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
+        <div className="reader-loading">
+          <div className="loading-spinner"></div>
+          <p>Caricamento libro...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
+        <div className="reader-error">
+          <span className="error-icon">⚠️</span>
+          <p>{error || 'Libro non trovato'}</p>
+          <button onClick={onClose} className="back-btn">
+            ← Torna alla Libreria
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentChapter = book.chapters[currentChapterIndex];
+  const progress = ((currentChapterIndex + 1) / book.chapters.length) * 100;
+
+  return (
+    <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
+      {/* Header */}
+      <header className="reader-header">
+        <div className="header-left">
+          <button onClick={onClose} className="close-btn" title="Chiudi (Esc)">
+            ← Chiudi
+          </button>
+          <div className="book-info">
+            <h1 className="book-title">{book.title}</h1>
+            <span className="book-author">di {book.author}</span>
+          </div>
+        </div>
+        
+        <div className="header-controls">
+          <button 
+            onClick={() => setShowToc(!showToc)} 
+            className={`toc-btn ${showToc ? 'active' : ''}`}
+            title="Indice"
+          >
+            📑 Indice
+          </button>
+          
+          <div className="font-controls">
+            <button onClick={decreaseFontSize} title="Riduci testo" disabled={fontSize <= 12}>
+              A-
+            </button>
+            <span className="font-size">{fontSize}px</span>
+            <button onClick={increaseFontSize} title="Ingrandisci testo" disabled={fontSize >= 28}>
+              A+
+            </button>
+          </div>
+          
+          <button onClick={toggleFullscreen} className="fullscreen-btn" title="Schermo intero (Ctrl+F)">
+            {isFullscreen ? '⛶' : '⛶'}
+          </button>
+        </div>
+      </header>
+
+      {/* Progress bar */}
+      <div className="reading-progress">
+        <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+      </div>
+
+      {/* Table of Contents Sidebar */}
+      {showToc && (
+        <aside className="toc-sidebar">
+          <div className="toc-header">
+            <h2>Indice</h2>
+            <button onClick={() => setShowToc(false)} className="close-toc">×</button>
+          </div>
+          <nav className="toc-list">
+            {book.chapters.map((chapter, index) => (
+              <button
+                key={index}
+                onClick={() => goToChapter(index)}
+                className={`toc-item ${index === currentChapterIndex ? 'active' : ''}`}
+              >
+                <span className="chapter-number">{index + 1}</span>
+                <span className="chapter-title">{chapter.title}</span>
+                {chapter.page_count > 0 && (
+                  <span className="chapter-pages">{chapter.page_count} pg</span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </aside>
+      )}
+
+      {/* Main Content */}
+      <main className={`reader-content ${showToc ? 'with-toc' : ''}`}>
+        <article className="chapter" style={{ fontSize: `${fontSize}px` }}>
+          <header className="chapter-header">
+            <span className="chapter-label">Capitolo {currentChapterIndex + 1} di {book.chapters.length}</span>
+            <h2 className="chapter-title">{currentChapter.title}</h2>
+          </header>
+          
+          <div 
+            className="chapter-text"
+            dangerouslySetInnerHTML={{ __html: formatContent(currentChapter.content) }}
+          />
+        </article>
+      </main>
+
+      {/* Navigation Footer */}
+      <footer className="reader-footer">
+        <button 
+          onClick={goToPreviousChapter}
+          disabled={currentChapterIndex === 0}
+          className="nav-btn prev-btn"
+        >
+          ← Capitolo precedente
+        </button>
+        
+        <div className="chapter-indicator">
+          <span>{currentChapterIndex + 1} / {book.chapters.length}</span>
+        </div>
+        
+        <button 
+          onClick={goToNextChapter}
+          disabled={currentChapterIndex === book.chapters.length - 1}
+          className="nav-btn next-btn"
+        >
+          Capitolo successivo →
+        </button>
+      </footer>
+
+    </div>
+  );
+}
+

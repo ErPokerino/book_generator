@@ -1,0 +1,107 @@
+/* ============================================
+   FilterBar - Search & Filters
+   ============================================ */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 1.5rem 2.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-group label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 0.65rem 0.9rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--surface);
+  min-width: 160px;
+  transition: 
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.filter-group select:hover,
+.filter-group input:hover {
+  border-color: var(--text-muted);
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.search-group {
+  flex: 1;
+  min-width: 220px;
+}
+
+.search-group input {
+  width: 100%;
+}
+
+.clear-filters-btn {
+  padding: 0.65rem 1.25rem;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  align-self: flex-end;
+}
+
+.clear-filters-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    min-width: 100%;
+  }
+
+  .clear-filters-btn {
+    align-self: stretch;
+    text-align: center;
+  }
+}
