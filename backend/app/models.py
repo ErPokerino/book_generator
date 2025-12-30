@@ -1,4 +1,5 @@
-from typing import Literal, Optional, Any
+from typing import Literal, Optional, Any, Dict
+from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -223,4 +224,57 @@ class BookResponse(BaseModel):
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
     critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
     critique_error: Optional[str] = None
+
+
+# Modelli per la libreria personale
+class LibraryEntry(BaseModel):
+    """Entry singola nella libreria."""
+    session_id: str
+    title: str
+    author: str
+    llm_model: str
+    genre: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    status: Literal["draft", "outline", "writing", "paused", "complete"]
+    total_chapters: int
+    completed_chapters: int
+    total_pages: Optional[int] = None
+    critique_score: Optional[float] = None
+    critique_status: Optional[str] = None
+    pdf_path: Optional[str] = None
+    pdf_filename: Optional[str] = None
+    cover_image_path: Optional[str] = None
+    writing_time_minutes: Optional[float] = None
+
+
+class LibraryStats(BaseModel):
+    """Statistiche aggregate della libreria."""
+    total_books: int
+    completed_books: int
+    in_progress_books: int
+    average_score: Optional[float] = None
+    average_pages: float
+    average_writing_time_minutes: float
+    books_by_model: Dict[str, int] = Field(default_factory=dict)
+    books_by_genre: Dict[str, int] = Field(default_factory=dict)
+    score_distribution: Dict[str, int] = Field(default_factory=dict)  # es: {"0-2": 1, "2-4": 3, "4-6": 5, "6-8": 2, "8-10": 1}
+    average_score_by_model: Dict[str, float] = Field(default_factory=dict)
+
+
+class LibraryResponse(BaseModel):
+    """Risposta con lista libri della libreria."""
+    books: list[LibraryEntry]
+    total: int
+    stats: Optional[LibraryStats] = None
+
+
+class PdfEntry(BaseModel):
+    """Entry per un PDF disponibile."""
+    filename: str
+    session_id: Optional[str] = None  # Session ID se collegato a una sessione
+    title: Optional[str] = None
+    author: Optional[str] = None
+    created_date: Optional[datetime] = None
+    size_bytes: Optional[int] = None
 

@@ -1,0 +1,137 @@
+.dashboard {
+  padding: 2rem;
+  background-color: #f9f9f9;
+  border-bottom: 2px solid #ddd;
+}
+
+.dashboard-title {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  color: #213547;
+  font-weight: 600;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #213547;
+}
+
+.stats-section {
+  margin-top: 2rem;
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.stats-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: #213547;
+  font-weight: 600;
+}
+
+.stats-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stat-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-bar-label {
+  min-width: 80px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.stat-bar-container {
+  flex: 1;
+  height: 28px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  background-color: #213547;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-width: 40px;
+  transition: width 0.3s ease;
+}
+
+.genre-bar {
+  background-color: #7b1fa2;
+}
+
+.score-bar {
+  background-color: #2e7d32;
+}
+
+.score-model-bar {
+  background-color: #1976d2;
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-bar-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .stat-bar-label {
+    min-width: auto;
+  }
+
+  .stat-bar-container {
+    width: 100%;
+  }
+}
+

@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import Optional
 from io import BytesIO
 from datetime import datetime
+from collections import defaultdict
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
@@ -44,6 +46,10 @@ from app.models import (
     BookResponse,
     Chapter,
     LiteraryCritique,
+    LibraryEntry,
+    LibraryStats,
+    LibraryResponse,
+    PdfEntry,
 )
 from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
@@ -996,6 +1002,260 @@ def calculate_estimated_time(session_id: str, current_step: int, total_steps: in
         
         # Solo se remaining_chapters <= 0 restituiamo None
         return None, None
+
+
+def session_to_library_entry(session) -> "LibraryEntry":
+    """Converte una SessionData in una LibraryEntry."""
+    from app.models import LibraryEntry
+    from app.agent.session_store import get_session_store
+    
+    status = session.get_status()
+    
+    # Calcola total_chapters e completed_chapters
+    total_chapters = 0
+    completed_chapters = len(session.book_chapters) if session.book_chapters else 0
+    
+    if session.writing_progress:
+        total_chapters = session.writing_progress.get('total_steps', 0)
+    elif session.current_outline:
+        # Prova a parsare l'outline per contare le sezioni
+        try:
+            from app.agent.writer_generator import parse_outline_sections
+            sections = parse_outline_sections(session.current_outline)
+            total_chapters = len(sections)
+        except:
+            pass
+    
+    # Calcola total_pages se il libro è completo
+    total_pages = None
+    if status == "complete" and session.book_chapters:
+        chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in session.book_chapters)
+        cover_pages = 1
+        app_config = get_app_config()
+        toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+        toc_pages = math.ceil(len(session.book_chapters) / toc_chapters_per_page)
+        total_pages = chapters_pages + cover_pages + toc_pages
+    
+    # Estrai critique_score
+    critique_score = None
+    if session.literary_critique and isinstance(session.literary_critique, dict):
+        critique_score = session.literary_critique.get('score')
+    elif session.literary_critique:
+        # Potrebbe essere un oggetto LiteraryCritique
+        critique_score = getattr(session.literary_critique, 'score', None)
+    
+    # Cerca PDF collegato
+    pdf_path = None
+    pdf_filename = None
+    if status == "complete":
+        books_dir = Path(__file__).parent.parent / "books"
+        if books_dir.exists():
+            # Genera il nome file atteso
+            date_prefix = session.created_at.strftime("%Y-%m-%d")
+            model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+            title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            title_sanitized = title_sanitized.replace(" ", "_")
+            if not title_sanitized:
+                title_sanitized = f"Libro_{session.session_id[:8]}"
+            expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+            expected_path = books_dir / expected_filename
+            
+            if expected_path.exists():
+                pdf_path = str(expected_path)
+                pdf_filename = expected_filename
+            else:
+                # Cerca qualsiasi PDF che potrebbe corrispondere (cerca per session_id nel nome o per titolo)
+                for pdf_file in books_dir.glob("*.pdf"):
+                    # Prova a matchare per session_id o per pattern simile
+                    if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
+                        pdf_path = str(pdf_file)
+                        pdf_filename = pdf_file.name
+                        break
+    
+    # Calcola writing_time_minutes
+    writing_time_minutes = None
+    if session.writing_progress:
+        writing_time_minutes = session.writing_progress.get('writing_time_minutes')
+    if writing_time_minutes is None and session.writing_start_time and session.writing_end_time:
+        delta = session.writing_end_time - session.writing_start_time
+        writing_time_minutes = delta.total_seconds() / 60
+    
+    return LibraryEntry(
+        session_id=session.session_id,
+        title=session.current_title or "Romanzo",
+        author=session.form_data.user_name or "Autore",
+        llm_model=session.form_data.llm_model,
+        genre=session.form_data.genre,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        status=status,
+        total_chapters=total_chapters,
+        completed_chapters=completed_chapters,
+        total_pages=total_pages,
+        critique_score=critique_score,
+        critique_status=session.critique_status,
+        pdf_path=pdf_path,
+        pdf_filename=pdf_filename,
+        cover_image_path=session.cover_image_path,
+        writing_time_minutes=writing_time_minutes,
+    )
+
+
+def scan_pdf_directory() -> list["PdfEntry"]:
+    """Scansiona la directory books/ e restituisce lista di PDF disponibili."""
+    from app.models import PdfEntry
+    from datetime import datetime
+    
+    books_dir = Path(__file__).parent.parent / "books"
+    pdf_entries = []
+    
+    if not books_dir.exists():
+        return pdf_entries
+    
+    session_store = get_session_store()
+    
+    for pdf_file in sorted(books_dir.glob("*.pdf"), key=lambda x: x.stat().st_mtime, reverse=True):
+        try:
+            # Prova a parsare il nome file: YYYY-MM-DD_g3p_TitoloLibro.pdf
+            filename = pdf_file.name
+            stem = pdf_file.stem
+            
+            # Estrai data (prima parte prima di _)
+            parts = stem.split('_', 2)
+            created_date = None
+            if len(parts) >= 1:
+                try:
+                    created_date = datetime.strptime(parts[0], "%Y-%m-%d")
+                except:
+                    pass
+            
+            # Cerca session_id corrispondente (potrebbe essere nel nome o cercando per titolo)
+            session_id = None
+            title = None
+            author = None
+            
+            # Prova a cercare nelle sessioni per matchare il PDF
+            for sid, session in session_store._sessions.items():
+                # Genera il nome file atteso per questa sessione
+                if session.current_title:
+                    date_prefix = session.created_at.strftime("%Y-%m-%d")
+                    model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                    title_sanitized = "".join(c for c in session.current_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    title_sanitized = title_sanitized.replace(" ", "_")
+                    expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                    
+                    if filename == expected_filename:
+                        session_id = sid
+                        title = session.current_title
+                        author = session.form_data.user_name
+                        break
+            
+            # Se non trovato, prova a estrarre titolo dal nome file
+            if not title and len(parts) >= 3:
+                title = parts[2].replace('_', ' ')
+            
+            size_bytes = pdf_file.stat().st_size
+            
+            pdf_entries.append(PdfEntry(
+                filename=filename,
+                session_id=session_id,
+                title=title,
+                author=author,
+                created_date=created_date,
+                size_bytes=size_bytes,
+            ))
+        except Exception as e:
+            print(f"[SCAN PDF] Errore nel processare {pdf_file.name}: {e}")
+            continue
+    
+    return pdf_entries
+
+
+def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
+    """Calcola statistiche aggregate dalla lista di LibraryEntry."""
+    from app.models import LibraryStats
+    from collections import defaultdict
+    
+    if not entries:
+        return LibraryStats(
+            total_books=0,
+            completed_books=0,
+            in_progress_books=0,
+            average_score=None,
+            average_pages=0.0,
+            average_writing_time_minutes=0.0,
+            books_by_model={},
+            books_by_genre={},
+            score_distribution={},
+            average_score_by_model={},
+        )
+    
+    completed = [e for e in entries if e.status == "complete"]
+    in_progress = [e for e in entries if e.status in ["draft", "outline", "writing", "paused"]]
+    
+    # Calcola voto medio solo sui libri completati con voto
+    scores = [e.critique_score for e in completed if e.critique_score is not None]
+    average_score = sum(scores) / len(scores) if scores else None
+    
+    # Calcola pagine medie (solo libri completati con pagine)
+    pages_list = [e.total_pages for e in completed if e.total_pages is not None and e.total_pages > 0]
+    average_pages = sum(pages_list) / len(pages_list) if pages_list else 0.0
+    
+    # Calcola tempo medio scrittura
+    time_list = [e.writing_time_minutes for e in entries if e.writing_time_minutes is not None and e.writing_time_minutes > 0]
+    average_writing_time_minutes = sum(time_list) / len(time_list) if time_list else 0.0
+    
+    # Distribuzione per modello
+    books_by_model = defaultdict(int)
+    for e in entries:
+        books_by_model[e.llm_model] += 1
+    
+    # Distribuzione per genere
+    books_by_genre = defaultdict(int)
+    for e in entries:
+        if e.genre:
+            books_by_genre[e.genre] += 1
+    
+    # Distribuzione voti (0-2, 2-4, 4-6, 6-8, 8-10)
+    score_distribution = defaultdict(int)
+    for e in completed:
+        if e.critique_score is not None:
+            score = e.critique_score
+            if score < 2:
+                score_distribution["0-2"] += 1
+            elif score < 4:
+                score_distribution["2-4"] += 1
+            elif score < 6:
+                score_distribution["4-6"] += 1
+            elif score < 8:
+                score_distribution["6-8"] += 1
+            else:
+                score_distribution["8-10"] += 1
+    
+    # Calcola voto medio per modello
+    model_scores = defaultdict(list)
+    for e in completed:
+        if e.critique_score is not None:
+            model_scores[e.llm_model].append(e.critique_score)
+    
+    average_score_by_model = {}
+    for model, scores_list in model_scores.items():
+        if scores_list:
+            average_score_by_model[model] = round(sum(scores_list) / len(scores_list), 2)
+    
+    return LibraryStats(
+        total_books=len(entries),
+        completed_books=len(completed),
+        in_progress_books=len(in_progress),
+        average_score=round(average_score, 2) if average_score else None,
+        average_pages=round(average_pages, 1),
+        average_writing_time_minutes=round(average_writing_time_minutes, 1),
+        books_by_model=dict(books_by_model),
+        books_by_genre=dict(books_by_genre),
+        score_distribution=dict(score_distribution),
+        average_score_by_model=average_score_by_model,
+    )
+
 
 @app.get("/api/book/pdf/{session_id}")
 async def download_book_pdf_endpoint(session_id: str):
@@ -2133,5 +2393,260 @@ async def get_complete_book_endpoint(session_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero del libro completo: {str(e)}"
+        )
+
+
+@app.get("/api/library", response_model=LibraryResponse)
+async def get_library_endpoint(
+    status: Optional[str] = None,
+    llm_model: Optional[str] = None,
+    genre: Optional[str] = None,
+    search: Optional[str] = None,
+    sort_by: Optional[str] = "created_at",
+    sort_order: Optional[str] = "desc",
+):
+    """
+    Restituisce la lista dei libri nella libreria con filtri opzionali.
+    
+    Query parameters:
+    - status: filtro per stato (draft, outline, writing, paused, complete, all)
+    - llm_model: filtro per modello LLM
+    - genre: filtro per genere
+    - search: ricerca in titolo/autore
+    - sort_by: ordinamento (created_at, title, score, updated_at)
+    - sort_order: ordine (asc, desc)
+    """
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        # Converti tutte le sessioni in LibraryEntry
+        entries = []
+        for session in all_sessions.values():
+            try:
+                entry = session_to_library_entry(session)
+                entries.append(entry)
+            except Exception as e:
+                print(f"[LIBRARY] Errore nel convertire sessione {session.session_id}: {e}")
+                continue
+        
+        # Applica filtri
+        filtered_entries = entries
+        
+        if status and status != "all":
+            filtered_entries = [e for e in filtered_entries if e.status == status]
+        
+        if llm_model:
+            filtered_entries = [e for e in filtered_entries if e.llm_model == llm_model]
+        
+        if genre:
+            filtered_entries = [e for e in filtered_entries if e.genre == genre]
+        
+        if search:
+            search_lower = search.lower()
+            filtered_entries = [
+                e for e in filtered_entries
+                if search_lower in e.title.lower() or search_lower in (e.author or "").lower()
+            ]
+        
+        # Ordina
+        reverse_order = sort_order == "desc"
+        if sort_by == "title":
+            filtered_entries.sort(key=lambda e: e.title.lower(), reverse=reverse_order)
+        elif sort_by == "score":
+            filtered_entries.sort(key=lambda e: e.critique_score or 0, reverse=reverse_order)
+        elif sort_by == "updated_at":
+            filtered_entries.sort(key=lambda e: e.updated_at, reverse=reverse_order)
+        else:  # created_at default
+            filtered_entries.sort(key=lambda e: e.created_at, reverse=reverse_order)
+        
+        # Calcola statistiche su tutte le entry (non solo filtrate)
+        stats = calculate_library_stats(entries)
+        
+        return LibraryResponse(
+            books=filtered_entries,
+            total=len(filtered_entries),
+            stats=stats,
+        )
+    
+    except Exception as e:
+        print(f"[LIBRARY] Errore nel recupero libreria: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero della libreria: {str(e)}"
+        )
+
+
+@app.get("/api/library/stats", response_model=LibraryStats)
+async def get_library_stats_endpoint():
+    """Restituisce statistiche aggregate della libreria."""
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        # Converti tutte le sessioni in LibraryEntry
+        entries = []
+        for session in all_sessions.values():
+            try:
+                entry = session_to_library_entry(session)
+                entries.append(entry)
+            except Exception as e:
+                print(f"[LIBRARY STATS] Errore nel convertire sessione {session.session_id}: {e}")
+                continue
+        
+        stats = calculate_library_stats(entries)
+        return stats
+    
+    except Exception as e:
+        print(f"[LIBRARY STATS] Errore nel calcolo statistiche: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel calcolo delle statistiche: {str(e)}"
+        )
+
+
+@app.delete("/api/library/{session_id}")
+async def delete_library_entry_endpoint(session_id: str):
+    """Elimina un progetto dalla libreria."""
+    try:
+        session_store = get_session_store()
+        
+        if not session_store.get_session(session_id):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Progetto {session_id} non trovato"
+            )
+        
+        deleted = session_store.delete_session(session_id)
+        if deleted:
+            return {"success": True, "message": f"Progetto {session_id} eliminato con successo"}
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Errore nell'eliminazione del progetto"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[LIBRARY DELETE] Errore nell'eliminazione: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'eliminazione del progetto: {str(e)}"
+        )
+
+
+@app.get("/api/library/pdfs", response_model=list[PdfEntry])
+async def get_available_pdfs_endpoint():
+    """Restituisce la lista di tutti i PDF disponibili."""
+    try:
+        pdf_entries = scan_pdf_directory()
+        return pdf_entries
+    
+    except Exception as e:
+        print(f"[LIBRARY PDFS] Errore nello scan PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero dei PDF: {str(e)}"
+        )
+
+
+@app.get("/api/library/cover/{session_id}")
+async def get_cover_image_endpoint(session_id: str):
+    """Restituisce l'immagine della copertina per una sessione."""
+    try:
+        session_store = get_session_store()
+        session = session_store.get_session(session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if not session.cover_image_path:
+            raise HTTPException(
+                status_code=404,
+                detail="Copertina non disponibile per questa sessione"
+            )
+        
+        cover_path = Path(session.cover_image_path)
+        if not cover_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="File copertina non trovato"
+            )
+        
+        # Determina il media type
+        suffix = cover_path.suffix.lower()
+        media_type = 'image/png' if suffix == '.png' else 'image/jpeg'
+        
+        return FileResponse(
+            path=str(cover_path),
+            media_type=media_type,
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[COVER IMAGE] Errore nel recupero copertina: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero della copertina: {str(e)}"
+        )
+
+
+@app.get("/api/library/pdf/{filename:path}")
+async def download_pdf_by_filename_endpoint(filename: str):
+    """Scarica un PDF specifico per nome file."""
+    try:
+        books_dir = Path(__file__).parent.parent / "books"
+        pdf_path = books_dir / filename
+        
+        # Validazione sicurezza: assicurati che il file sia dentro la directory books
+        try:
+            pdf_path.resolve().relative_to(books_dir.resolve())
+        except ValueError:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso non consentito a questo file"
+            )
+        
+        if not pdf_path.exists() or not pdf_path.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=f"PDF {filename} non trovato"
+            )
+        
+        with open(pdf_path, 'rb') as f:
+            pdf_content = f.read()
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[LIBRARY PDF DOWNLOAD] Errore nel download: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel download del PDF: {str(e)}"
         )
 

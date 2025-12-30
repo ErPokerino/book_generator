@@ -548,3 +548,129 @@ export async function getAppConfig(): Promise<AppConfig> {
   return cachedAppConfig;
 }
 
+// Library interfaces and API functions
+export interface LibraryEntry {
+  session_id: string;
+  title: string;
+  author: string;
+  llm_model: string;
+  genre?: string;
+  created_at: string;
+  updated_at: string;
+  status: 'draft' | 'outline' | 'writing' | 'paused' | 'complete';
+  total_chapters: number;
+  completed_chapters: number;
+  total_pages?: number;
+  critique_score?: number;
+  critique_status?: string;
+  pdf_path?: string;
+  pdf_filename?: string;
+  cover_image_path?: string;
+  writing_time_minutes?: number;
+}
+
+export interface LibraryStats {
+  total_books: number;
+  completed_books: number;
+  in_progress_books: number;
+  average_score?: number;
+  average_pages: number;
+  average_writing_time_minutes: number;
+  books_by_model: Record<string, number>;
+  books_by_genre: Record<string, number>;
+  score_distribution: Record<string, number>;
+  average_score_by_model: Record<string, number>;
+}
+
+export interface LibraryResponse {
+  books: LibraryEntry[];
+  total: number;
+  stats?: LibraryStats;
+}
+
+export interface LibraryFilters {
+  status?: string;
+  llm_model?: string;
+  genre?: string;
+  search?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}
+
+export interface PdfEntry {
+  filename: string;
+  session_id?: string;
+  title?: string;
+  author?: string;
+  created_date?: string;
+  size_bytes?: number;
+}
+
+export async function getLibrary(filters?: LibraryFilters): Promise<LibraryResponse> {
+  const params = new URLSearchParams();
+  
+  if (filters) {
+    if (filters.status) params.append('status', filters.status);
+    if (filters.llm_model) params.append('llm_model', filters.llm_model);
+    if (filters.genre) params.append('genre', filters.genre);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.sort_by) params.append('sort_by', filters.sort_by);
+    if (filters.sort_order) params.append('sort_order', filters.sort_order);
+  }
+  
+  const url = `${API_BASE}/library${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero della libreria: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getLibraryStats(): Promise<LibraryStats> {
+  const response = await fetch(`${API_BASE}/library/stats`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero delle statistiche: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function deleteBook(sessionId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/library/${sessionId}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'eliminazione del libro: ${response.statusText}`);
+  }
+}
+
+export async function getAvailablePdfs(): Promise<PdfEntry[]> {
+  const response = await fetch(`${API_BASE}/library/pdfs`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero dei PDF: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function downloadPdfByFilename(filename: string): Promise<Blob> {
+  const encodedFilename = encodeURIComponent(filename);
+  const response = await fetch(`${API_BASE}/library/pdf/${encodedFilename}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel download del PDF: ${response.statusText}`);
+  }
+  
+  return response.blob();
+}
+
