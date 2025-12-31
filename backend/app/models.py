@@ -133,6 +133,20 @@ class OutlineResponse(BaseModel):
     message: Optional[str] = None
 
 
+class OutlineSection(BaseModel):
+    """Sezione dell'outline (capitolo)."""
+    title: str
+    description: str
+    level: int
+    section_index: int
+
+
+class OutlineUpdateRequest(BaseModel):
+    """Richiesta per aggiornare l'outline con sezioni modificate."""
+    session_id: str
+    sections: list[OutlineSection]
+
+
 # Modelli per la scrittura del romanzo
 class Chapter(BaseModel):
     """Rappresenta un singolo capitolo/sezione del romanzo."""

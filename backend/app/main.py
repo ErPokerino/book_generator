@@ -28,6 +28,7 @@ from app.models import (
     ConfigResponse,
     SubmissionRequest,
     SubmissionResponse,
+    OutlineUpdateRequest,
     QuestionGenerationRequest,
     QuestionsResponse,
     QuestionAnswer,
@@ -40,6 +41,7 @@ from app.models import (
     DraftValidationResponse,
     OutlineGenerateRequest,
     OutlineResponse,
+    OutlineUpdateRequest,
     BookGenerationRequest,
     BookGenerationResponse,
     BookProgress,
@@ -54,7 +56,7 @@ from app.models import (
 from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
 from app.agent.outline_generator import generate_outline
-from app.agent.writer_generator import generate_full_book, parse_outline_sections, resume_book_generation
+from app.agent.writer_generator import generate_full_book, parse_outline_sections, resume_book_generation, regenerate_outline_markdown
 from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
@@ -601,6 +603,89 @@ async def get_outline_endpoint(session_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero della struttura: {str(e)}"
+        )
+
+
+@app.post("/api/outline/update", response_model=OutlineResponse)
+async def update_outline_endpoint(request: OutlineUpdateRequest):
+    """Aggiorna l'outline con sezioni modificate dall'utente."""
+    try:
+        session_store = get_session_store()
+        session = session_store.get_session(request.session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if not session.current_outline:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessun outline esistente da modificare. Genera prima la struttura."
+            )
+        
+        # Valida le sezioni
+        if not request.sections or len(request.sections) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="La lista di sezioni non può essere vuota"
+            )
+        
+        # Valida che ogni sezione abbia un titolo
+        for i, section in enumerate(request.sections):
+            if not section.title or not section.title.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La sezione {i+1} non può avere un titolo vuoto"
+                )
+        
+        # Converti le sezioni in dizionari per regenerate_outline_markdown
+        sections_dict = [
+            {
+                "title": s.title,
+                "description": s.description,
+                "level": s.level,
+                "section_index": s.section_index,
+            }
+            for s in request.sections
+        ]
+        
+        # Rigenera il markdown dall'array di sezioni
+        try:
+            updated_outline_text = regenerate_outline_markdown(sections_dict)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Errore nella generazione del markdown: {str(e)}"
+            )
+        
+        # Salva l'outline modificato (non permettere se writing già iniziato)
+        try:
+            session_store.update_outline(request.session_id, updated_outline_text, allow_if_writing=False)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e)
+            )
+        
+        # Recupera la sessione aggiornata per avere la versione corretta
+        session = session_store.get_session(request.session_id)
+        
+        return OutlineResponse(
+            success=True,
+            session_id=request.session_id,
+            outline_text=updated_outline_text,
+            version=session.outline_version,
+            message="Struttura aggiornata con successo",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'aggiornamento della struttura: {str(e)}"
         )
 
 

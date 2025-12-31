@@ -17,6 +17,27 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const [isResuming, setIsResuming] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
 
+  const getScoreColor = (score: number): string => {
+    // Score da 0 a 10
+    const normalizedScore = Math.max(0, Math.min(10, score));
+    
+    if (normalizedScore <= 5) {
+      // Rosso → Giallo (0-5)
+      const ratio = normalizedScore / 5;
+      const r = 220;
+      const g = Math.round(53 + (180 - 53) * ratio);
+      const b = Math.round(38 + (35 - 38) * ratio);
+      return `rgb(${r}, ${g}, ${b})`;
+    } else {
+      // Giallo → Verde (5-10)
+      const ratio = (normalizedScore - 5) / 5;
+      const r = Math.round(220 - (220 - 16) * ratio);
+      const g = Math.round(180 - (180 - 185) * ratio);
+      const b = Math.round(35 + (129 - 35) * ratio);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  };
+
   // Carica la config app all'avvio
   useEffect(() => {
     getAppConfig().then(setAppConfig).catch(err => {
@@ -375,7 +396,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
               <h4>📚 Valutazione Critica</h4>
               <div className="critique-score">
                 <span className="score-label">Valutazione:</span>
-                <span className="score-value">{progress.critique.score.toFixed(1)}/10</span>
+                <span 
+                  className="score-value"
+                  style={{ color: getScoreColor(progress.critique.score) }}
+                >
+                  {progress.critique.score.toFixed(1)}/10
+                </span>
               </div>
               {progress.critique.summary && (
                 <div className="critique-summary">

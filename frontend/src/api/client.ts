@@ -297,20 +297,34 @@ export interface OutlineGenerateRequest {
 }
 
 export async function generateOutline(request: OutlineGenerateRequest): Promise<OutlineResponse> {
-  const response = await fetch(`${API_BASE}/outline/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minuti
   
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || `Errore nella generazione della struttura: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE}/outline/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || `Errore nella generazione della struttura: ${response.statusText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Timeout: la generazione della struttura sta impiegando troppo tempo. Il backend potrebbe essere sovraccarico o la chiamata API esterna potrebbe essere lenta.');
+    }
+    throw error;
   }
-  
-  return response.json();
 }
 
 export async function getOutline(sessionId: string): Promise<OutlineResponse> {
@@ -319,6 +333,36 @@ export async function getOutline(sessionId: string): Promise<OutlineResponse> {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || `Errore nel recupero della struttura: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export interface OutlineSection {
+  title: string;
+  description: string;
+  level: number;
+  section_index: number;
+}
+
+export async function updateOutline(
+  sessionId: string,
+  sections: OutlineSection[]
+): Promise<OutlineResponse> {
+  const response = await fetch(`${API_BASE}/outline/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      sections: sections,
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'aggiornamento della struttura: ${response.statusText}`);
   }
   
   return response.json();
@@ -500,6 +544,25 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
   
   const blob = await response.blob();
   return { blob, filename };
+}
+
+export async function getCoverImage(sessionId: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE}/library/cover/${sessionId}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // Nessuna copertina disponibile
+      }
+      throw new Error(`Errore nel recupero della copertina: ${response.statusText}`);
+    }
+    
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.warn('[getCoverImage] Errore:', err);
+    return null;
+  }
 }
 
 export interface AppConfig {

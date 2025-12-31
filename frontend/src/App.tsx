@@ -4,6 +4,7 @@ import Navigation from './components/Navigation'
 import LibraryView from './components/LibraryView'
 import BenchmarkView from './components/BenchmarkView'
 import BookReader from './components/BookReader'
+import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
 
 function App() {
@@ -20,25 +21,31 @@ function App() {
 
   // Se c'è un libro in lettura, mostra il reader
   if (readingBookId) {
-    return <BookReader sessionId={readingBookId} onClose={handleCloseReader} />
+    return (
+      <ErrorBoundary>
+        <BookReader sessionId={readingBookId} onClose={handleCloseReader} />
+      </ErrorBoundary>
+    )
   }
 
   return (
-    <div className="App">
-      <Navigation 
-        currentView={currentView} 
-        onNavigate={(view) => setCurrentView(view)} 
-      />
-      <main className="app-main">
-        {currentView === 'library' ? (
-          <LibraryView onReadBook={handleReadBook} />
-        ) : currentView === 'benchmark' ? (
-          <BenchmarkView />
-        ) : (
-          <DynamicForm />
-        )}
-      </main>
-    </div>
+    <ErrorBoundary>
+      <div className="App">
+        <Navigation 
+          currentView={currentView} 
+          onNavigate={(view) => setCurrentView(view)} 
+        />
+        <main className="app-main">
+          {currentView === 'library' ? (
+            <LibraryView onReadBook={handleReadBook} />
+          ) : currentView === 'benchmark' ? (
+            <BenchmarkView />
+          ) : (
+            <DynamicForm />
+          )}
+        </main>
+      </div>
+    </ErrorBoundary>
   )
 }
 

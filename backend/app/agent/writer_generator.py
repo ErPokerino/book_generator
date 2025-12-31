@@ -159,6 +159,46 @@ def parse_outline_sections(outline_text: str) -> List[Dict[str, str]]:
     return filtered_sections
 
 
+def regenerate_outline_markdown(sections: List[Dict[str, Any]]) -> str:
+    """
+    Rigenera il markdown dell'outline da un array di sezioni modificate.
+    
+    Args:
+        sections: Lista di dizionari con 'title', 'description', 'level', 'section_index'
+    
+    Returns:
+        Stringa markdown formattata
+    """
+    if not sections:
+        raise ValueError("La lista di sezioni non può essere vuota")
+    
+    # Ordina per section_index per mantenere l'ordine
+    sorted_sections = sorted(sections, key=lambda s: s.get('section_index', 0))
+    
+    lines = []
+    
+    for section in sorted_sections:
+        title = section.get('title', '').strip()
+        description = section.get('description', '').strip()
+        level = section.get('level', 2)  # Default a livello 2 (capitolo)
+        
+        if not title:
+            continue  # Salta sezioni senza titolo
+        
+        # Genera l'header markdown con il livello appropriato
+        header_prefix = '#' * level
+        lines.append(f"{header_prefix} {title}")
+        lines.append("")  # Linea vuota dopo l'header
+        
+        # Aggiungi la descrizione se presente
+        if description:
+            # Mantieni la formattazione della descrizione (può contenere markdown)
+            lines.append(description)
+            lines.append("")  # Linea vuota dopo la descrizione
+    
+    return "\n".join(lines)
+
+
 def format_writer_context(
     form_data: SubmissionRequest,
     question_answers: List[QuestionAnswer],

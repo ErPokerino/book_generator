@@ -258,6 +258,34 @@
 }
 
 /* Summary Sections */
+.summary-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.summary-section-header h4 {
+  margin: 0;
+}
+
+.btn-edit-outline {
+  padding: 0.5rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-edit-outline:hover {
+  background: var(--surface-elevated);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
 .summary-section {
   margin-bottom: 2.5rem;
 }
@@ -340,7 +368,7 @@
 .download-pdf-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-}
+  }
 
 .start-writing-button {
   padding: 0.9rem 2rem;
@@ -353,13 +381,13 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
-}
+  }
 
 .start-writing-button:hover:not(:disabled) {
   background-color: var(--accent-hover);
   transform: translateY(-2px);
   box-shadow: 0 4px 15px var(--accent-glow);
-}
+  }
 
 .start-writing-button:disabled {
   opacity: 0.5;
@@ -435,7 +463,7 @@
 
   .dynamic-form-container h1 {
     font-size: 1.6rem;
-  }
+}
 
   .summary-item {
     grid-template-columns: 1fr;
@@ -444,7 +472,7 @@
 
   .summary-actions {
     flex-direction: column;
-  }
+}
 
   .download-pdf-button,
   .start-writing-button {

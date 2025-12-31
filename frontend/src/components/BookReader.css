@@ -389,6 +389,24 @@
   color: var(--accent-color);
 }
 
+/* Cover Page */
+.cover-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  width: 100%;
+  padding: 2rem;
+}
+
+.cover-image {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  object-fit: contain;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
 /* Footer Navigation */
 .reader-footer {
   display: flex;

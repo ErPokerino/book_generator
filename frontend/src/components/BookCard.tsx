@@ -64,6 +64,19 @@ export default function BookCard({ book, onDelete, onContinue, onRead }: BookCar
     return `status-badge status-${status}`;
   };
 
+  // Rimuove la formattazione Markdown dal testo (asterischi, underscore, backtick)
+  const stripMarkdownFormatting = (text: string): string => {
+    if (!text) return text;
+    return text
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1') // ***bold italic*** → bold italic
+      .replace(/\*\*(.+?)\*\*/g, '$1')     // **bold** → bold
+      .replace(/\*(.+?)\*/g, '$1')         // *italic* → italic
+      .replace(/___(.+?)___/g, '$1')       // ___bold italic___ → bold italic
+      .replace(/__(.+?)__/g, '$1')         // __bold__ → bold
+      .replace(/_(.+?)_/g, '$1')           // _italic_ → italic
+      .replace(/`(.+?)`/g, '$1');          // `code` → code
+  };
+
   // Calcola colore del voto su scala graduata: rosso (basso) → giallo (medio) → verde (alto)
   const getScoreColor = (score: number): string => {
     // Score da 0 a 10
@@ -102,7 +115,7 @@ export default function BookCard({ book, onDelete, onContinue, onRead }: BookCar
       
       <div className="book-card-content">
         <div className="book-card-header">
-          <h3 className="book-title">{book.title}</h3>
+          <h3 className="book-title">{stripMarkdownFormatting(book.title)}</h3>
           <span className={getStatusClass(book.status)}>
             {getStatusLabel(book.status)}
           </span>

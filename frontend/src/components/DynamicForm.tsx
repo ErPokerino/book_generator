@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
+import ErrorBoundary from './ErrorBoundary';
 import './DynamicForm.css';
+
+// Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
+const OutlineEditor = lazy(() => import('./OutlineEditor'));
 
 export default function DynamicForm() {
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
@@ -25,6 +29,7 @@ export default function DynamicForm() {
   const [validatedDraft, setValidatedDraft] = useState<{ title?: string; text: string } | null>(null);
   const [outline, setOutline] = useState<string | null>(null);
   const [isStartingWriting, setIsStartingWriting] = useState(false);
+  const [isEditingOutline, setIsEditingOutline] = useState(false);
 
   useEffect(() => {
     loadConfig();
@@ -37,15 +42,32 @@ export default function DynamicForm() {
     if (!sessionId) return;
     if (outline) return;
 
+    console.log('[DEBUG DynamicForm] useEffect summary: tentativo recupero outline');
+    console.log('[DEBUG DynamicForm] sessionId:', sessionId);
+    console.log('[DEBUG DynamicForm] outline attuale:', outline);
+
     const fetchOutline = async () => {
       try {
+        console.log('[DEBUG DynamicForm] Chiamata getOutline...');
         const retrievedOutline = await getOutline(sessionId);
+        console.log('[DEBUG DynamicForm] Outline recuperato:', {
+          success: retrievedOutline?.success,
+          hasText: !!retrievedOutline?.outline_text,
+          textLength: retrievedOutline?.outline_text?.length || 0,
+        });
+        
         if (retrievedOutline?.outline_text) {
-          console.log('[DEBUG] Outline recuperato nel summary:', retrievedOutline.outline_text.length);
+          console.log('[DEBUG DynamicForm] Outline recuperato nel summary, length:', retrievedOutline.outline_text.length);
           setOutline(retrievedOutline.outline_text);
+        } else {
+          console.warn('[DEBUG DynamicForm] Outline recuperato ma senza outline_text');
         }
       } catch (err) {
-        console.error('[DEBUG] Impossibile recuperare outline:', err);
+        console.error('[DEBUG DynamicForm] Errore nel recupero outline:', err);
+        if (err instanceof Error) {
+          console.error('[DEBUG DynamicForm] Messaggio errore:', err.message);
+          console.error('[DEBUG DynamicForm] Stack errore:', err.stack);
+        }
       }
     };
 
@@ -405,6 +427,22 @@ export default function DynamicForm() {
 
   // Mostra riepilogo finale dopo la validazione della bozza
   if (currentStep === 'summary' && submitted && answersSubmitted) {
+    // Logging dettagliato per diagnostica
+    console.log('[DEBUG DynamicForm] Rendering summary step');
+    console.log('[DEBUG DynamicForm] States:', {
+      currentStep,
+      hasSubmitted: !!submitted,
+      hasAnswersSubmitted: answersSubmitted,
+      hasValidatedDraft: !!validatedDraft,
+      validatedDraftTitle: validatedDraft?.title,
+      validatedDraftTextLength: validatedDraft?.text?.length || 0,
+      hasOutline: !!outline,
+      outlineLength: outline?.length || 0,
+      outlineType: typeof outline,
+      hasSessionId: !!sessionId,
+      isEditingOutline,
+    });
+
     // Crea una mappa per i label dei campi
     const fieldLabelMap: Record<string, string> = {};
     if (config) {
@@ -434,84 +472,60 @@ export default function DynamicForm() {
         {error && <div className="error-banner">{error}</div>}
         
         <div className="submission-summary">
-          <h3>Riepilogo configurazione:</h3>
-          
-          {submitted.data && (
-            <div className="summary-section">
-              <h4>Dati del form iniziale:</h4>
-              <dl className="summary-list">
-                {/* Mostra sempre Nome Autore per primo, anche se vuoto o mancante */}
-                <div className="summary-item">
-                  <dt>Nome Autore:</dt>
-                  <dd>{formatValue(submitted.data.user_name || formData.user_name || '—')}</dd>
-                </div>
-                
-                {/* Poi mostra gli altri campi, escludendo user_name già mostrato */}
-                {Object.entries(submitted.data)
-                  .filter(([key]) => key !== 'user_name') // Escludi user_name già mostrato
-                  .map(([key, value]) => {
-                    // Per gli altri campi, salta se vuoti
-                    if (value === null || value === undefined || value === '') {
-                      return null;
-                    }
-                    return (
-                      <div key={key} className="summary-item">
-                        <dt>{getFieldLabel(key)}:</dt>
-                        <dd>{formatValue(value)}</dd>
-                      </div>
-                    );
-                  })}
-              </dl>
-            </div>
-          )}
-
-          {questionAnswers.length > 0 && (
-            <div className="summary-section">
-              <h4>Risposte alle domande preliminari:</h4>
-              <dl className="summary-list">
-                {questionAnswers.map((qa, index) => {
-                  if (!qa.answer) return null;
-                  // Cerca la domanda corrispondente per ottenere il testo
-                  const question = questions?.find(q => q.id === qa.question_id);
-                  const questionText = question?.text || qa.question_id;
-                  return (
-                    <div key={index} className="summary-item">
-                      <dt>{questionText}:</dt>
-                      <dd>{qa.answer}</dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </div>
-          )}
-
-          {validatedDraft && (
-            <div className="summary-section">
-              <h4>Bozza Estesa della Trama:</h4>
-              {validatedDraft.title && (
-                <h5 className="draft-title-summary">{validatedDraft.title}</h5>
-              )}
-              <div className="draft-markdown-container">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {validatedDraft.text}
-                </ReactMarkdown>
-              </div>
-            </div>
-          )}
-
           <div className="summary-section">
-            <h4>Struttura del Romanzo:</h4>
-            {outline ? (
-              <div className="draft-markdown-container">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {outline}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <p style={{ color: '#666', fontStyle: 'italic', padding: '1rem' }}>
-                La struttura non è ancora disponibile. Se hai appena validato la bozza, potrebbe essere in generazione.
-              </p>
-            )}
+            <div className="summary-section-header">
+              <h4>Struttura del Romanzo:</h4>
+              {outline && !isEditingOutline && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingOutline(true)}
+                  className="btn-edit-outline"
+                >
+                  ✏️ Modifica struttura
+                </button>
+              )}
+            </div>
+            <ErrorBoundary>
+              {outline ? (
+                (typeof outline === 'string' && outline.trim()) ? (
+                  isEditingOutline ? (
+                    <Suspense fallback={
+                      <div style={{ padding: '2rem', textAlign: 'center' }}>
+                        <p>Caricamento editor struttura...</p>
+                      </div>
+                    }>
+                      <OutlineEditor
+                        sessionId={sessionId!}
+                        outlineText={outline}
+                        onOutlineUpdated={(updatedOutline) => {
+                          console.log('[DEBUG DynamicForm] Outline aggiornato dall\'editor');
+                          setOutline(updatedOutline);
+                          setIsEditingOutline(false);
+                        }}
+                        onCancel={() => {
+                          console.log('[DEBUG DynamicForm] Modifica outline annullata');
+                          setIsEditingOutline(false);
+                        }}
+                      />
+                    </Suspense>
+                  ) : (
+                    <div className="draft-markdown-container">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {outline}
+                      </ReactMarkdown>
+                    </div>
+                  )
+                ) : (
+                  <p style={{ color: '#dc2626', fontStyle: 'italic', padding: '1rem' }}>
+                    Errore: la struttura non è in un formato valido (tipo: {typeof outline}, valore: {String(outline).substring(0, 50)}...).
+                  </p>
+                )
+              ) : (
+                <p style={{ color: '#666', fontStyle: 'italic', padding: '1rem' }}>
+                  La struttura non è ancora disponibile. Se hai appena validato la bozza, potrebbe essere in generazione.
+                </p>
+              )}
+            </ErrorBoundary>
           </div>
         </div>
         <div className="summary-actions">

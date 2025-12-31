@@ -189,11 +189,31 @@ class SessionStore:
         self,
         session_id: str,
         outline_text: str,
+        allow_if_writing: bool = False,
     ) -> SessionData:
-        """Aggiorna l'outline corrente di una sessione."""
+        """
+        Aggiorna l'outline corrente di una sessione.
+        
+        Args:
+            session_id: ID della sessione
+            outline_text: Nuovo testo dell'outline in formato markdown
+            allow_if_writing: Se True, permette modifiche anche se la scrittura è già iniziata
+        
+        Raises:
+            ValueError: Se la sessione non esiste o se la scrittura è già iniziata (e allow_if_writing=False)
+        """
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
+        
+        # Valida che non si stia già scrivendo (a meno che non sia esplicitamente permesso)
+        if not allow_if_writing and session.writing_progress:
+            writing_status = session.writing_progress
+            if not writing_status.get("is_complete", False):
+                raise ValueError(
+                    f"Non è possibile modificare l'outline: la scrittura del libro è già iniziata "
+                    f"(capitolo {writing_status.get('current_step', 0)}/{writing_status.get('total_steps', 0)})."
+                )
         
         session.current_outline = outline_text
         session.outline_version += 1
@@ -514,20 +534,16 @@ class FileSessionStore(SessionStore):
         self,
         session_id: str,
         outline_text: str,
+        allow_if_writing: bool = False,
         version: Optional[int] = None,
     ) -> SessionData:
         """Aggiorna l'outline e salva su file."""
-        session = self.get_session(session_id)
-        if not session:
-            raise ValueError(f"Sessione {session_id} non trovata")
+        # Chiama il metodo della classe base che include la validazione
+        session = super().update_outline(session_id, outline_text, allow_if_writing)
         
-        session.current_outline = outline_text
-        if version is None:
-            session.outline_version += 1
-            version = session.outline_version
-        else:
+        # Se è specificata una versione, usa quella invece di incrementare
+        if version is not None:
             session.outline_version = version
-        session.update_timestamp()
         
         self._save_sessions()
         return session

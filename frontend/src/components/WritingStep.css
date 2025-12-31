@@ -298,9 +298,9 @@
 }
 
 .score-value {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: bold;
-  color: #2e7d32;
+  /* Color applied dynamically via inline style */
 }
 
 .critique-summary,

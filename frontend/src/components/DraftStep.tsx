@@ -95,8 +95,10 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
         if (outlineErr instanceof Error) {
           console.error('[ERROR] Messaggio:', outlineErr.message);
           console.error('[ERROR] Stack:', outlineErr.stack);
+          // Mostra il messaggio di errore all'utente, specialmente per timeout
+          setError(outlineErr.message);
         }
-        // Non blocchiamo il flusso se l'outline fallisce
+        // Non blocchiamo il flusso se l'outline fallisce, ma mostriamo l'errore
       } finally {
         setIsGeneratingOutline(false);
       }
