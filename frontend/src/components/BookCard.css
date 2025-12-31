@@ -184,6 +184,13 @@
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
+.critique-btn:hover {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-color: #f59e0b;
+  color: #d97706;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
 .continue-btn:hover {
   background: linear-gradient(135deg, #fefce8 0%, #fef08a 100%);
   border-color: #eab308;

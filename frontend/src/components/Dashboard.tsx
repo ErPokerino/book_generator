@@ -1,4 +1,15 @@
+import { useState } from 'react';
 import { LibraryStats } from '../api/client';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -6,12 +17,29 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ stats }: DashboardProps) {
+  const [chartView, setChartView] = useState<'book' | 'page'>('book');
+
   const formatTime = (minutes: number) => {
     if (minutes < 60) {
       return `${minutes.toFixed(0)} min`;
     }
     const hours = Math.floor(minutes / 60);
     const mins = Math.floor(minutes % 60);
+    return `${hours}h ${mins}min`;
+  };
+
+  const formatTimeShort = (minutes: number) => {
+    if (minutes < 1) {
+      return `${(minutes * 60).toFixed(0)} sec`;
+    }
+    if (minutes < 60) {
+      return `${minutes.toFixed(1)} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.floor(minutes % 60);
+    if (mins === 0) {
+      return `${hours}h`;
+    }
     return `${hours}h ${mins}min`;
   };
 
@@ -105,27 +133,126 @@ export default function Dashboard({ stats }: DashboardProps) {
         </div>
       )}
 
-      {Object.keys(stats.books_by_genre).length > 0 && (
+      {/* Grafico Tempo di Generazione per Modello */}
+      {((stats.average_writing_time_by_model && Object.keys(stats.average_writing_time_by_model).length > 0) ||
+        (stats.average_time_per_page_by_model && Object.keys(stats.average_time_per_page_by_model).length > 0)) && (
         <div className="stats-section">
-          <h3>Distribuzione per Genere</h3>
-          <div className="stats-bars">
-            {Object.entries(stats.books_by_genre)
-              .sort(([, a], [, b]) => b - a)
-              .map(([genre, count]) => (
-                <div key={genre} className="stat-bar-item">
-                  <div className="stat-bar-label">{genre}</div>
-                  <div className="stat-bar-container">
-                    <div 
-                      className="stat-bar-fill genre-bar"
-                      style={{ 
-                        width: `${(count / stats.total_books) * 100}%` 
-                      }}
-                    >
-                      {count}
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="chart-header">
+            <h3>Tempo di Generazione per Modello</h3>
+            <div className="chart-toggle">
+              <button
+                className={`toggle-btn ${chartView === 'book' ? 'active' : ''}`}
+                onClick={() => setChartView('book')}
+              >
+                Tempo Libro
+              </button>
+              <button
+                className={`toggle-btn ${chartView === 'page' ? 'active' : ''}`}
+                onClick={() => setChartView('page')}
+              >
+                Tempo per Pagina
+              </button>
+            </div>
+          </div>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={
+                  chartView === 'book'
+                    ? Object.entries(stats.average_writing_time_by_model || {})
+                        .map(([model, time]) => ({ model, time }))
+                        .sort((a, b) => b.time - a.time)
+                    : Object.entries(stats.average_time_per_page_by_model || {})
+                        .map(([model, time]) => ({ model, time }))
+                        .sort((a, b) => b.time - a.time)
+                }
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                <XAxis
+                  dataKey="model"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                  tickFormatter={(value) => formatTimeShort(value)}
+                />
+                <Tooltip
+                  formatter={(value: number) => [
+                    formatTimeShort(value),
+                    chartView === 'book' ? 'Tempo medio libro' : 'Tempo medio per pagina'
+                  ]}
+                  contentStyle={{
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="time"
+                  fill="url(#colorGradient)"
+                  radius={[8, 8, 0, 0]}
+                  name={chartView === 'book' ? 'Tempo medio (min)' : 'Tempo medio per pagina (min)'}
+                />
+                <defs>
+                  <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#e94560" />
+                    <stop offset="100%" stopColor="#e94560" stopOpacity={0.7} />
+                  </linearGradient>
+                </defs>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Grafico Pagine Medie per Modello */}
+      {stats.average_pages_by_model && Object.keys(stats.average_pages_by_model).length > 0 && (
+        <div className="stats-section">
+          <h3>Pagine Medie per Modello</h3>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={Object.entries(stats.average_pages_by_model || {})
+                  .map(([model, pages]) => ({ model, pages: parseFloat(String(pages)) || 0 }))
+                  .sort((a, b) => b.pages - a.pages)}
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                <XAxis
+                  dataKey="model"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                  domain={[0, 'dataMax + 10']}
+                />
+                <Tooltip
+                  formatter={(value: number) => [`${value.toFixed(1)} pagine`, 'Pagine medie']}
+                  contentStyle={{
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="pages"
+                  fill="#2563eb"
+                  radius={[8, 8, 0, 0]}
+                  name="Pagine medie"
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}

@@ -12,6 +12,7 @@ import Dashboard from './Dashboard';
 import FilterBar from './FilterBar';
 import BookCard from './BookCard';
 import WritingStep from './WritingStep';
+import CritiqueModal from './CritiqueModal';
 import './LibraryView.css';
 
 interface LibraryViewProps {
@@ -26,6 +27,7 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
   const filtersRef = useRef<LibraryFilters>({});
   const isFirstLoad = useRef(true);
 
@@ -114,6 +116,14 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
     loadLibrary(filtersRef.current, true);
   };
 
+  const handleShowCritique = (sessionId: string) => {
+    setCritiqueModalSessionId(sessionId);
+  };
+
+  const handleCloseCritiqueModal = () => {
+    setCritiqueModalSessionId(null);
+  };
+
   // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
   if (selectedSessionId) {
     return (
@@ -188,9 +198,19 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
               onDelete={handleDelete}
               onContinue={handleContinue}
               onRead={book.status === 'complete' ? onReadBook : undefined}
+              onShowCritique={handleShowCritique}
             />
           ))}
         </div>
+      )}
+
+      {critiqueModalSessionId && (
+        <CritiqueModal
+          sessionId={critiqueModalSessionId}
+          bookTitle={books.find(b => b.session_id === critiqueModalSessionId)?.title || 'Libro'}
+          isOpen={true}
+          onClose={handleCloseCritiqueModal}
+        />
       )}
     </div>
   );

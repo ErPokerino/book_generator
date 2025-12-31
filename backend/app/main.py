@@ -1280,6 +1280,9 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
             books_by_genre={},
             score_distribution={},
             average_score_by_model={},
+            average_writing_time_by_model={},
+            average_time_per_page_by_model={},
+            average_pages_by_model={},
         )
     
     completed = [e for e in entries if e.status == "complete"]
@@ -1335,6 +1338,41 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         if scores_list:
             average_score_by_model[model] = round(sum(scores_list) / len(scores_list), 2)
     
+    # Calcola tempo medio di generazione per modello (solo libri completati con tempo valido)
+    model_times = defaultdict(list)
+    for e in completed:
+        if e.writing_time_minutes is not None and e.writing_time_minutes > 0:
+            model_times[e.llm_model].append(e.writing_time_minutes)
+    
+    average_writing_time_by_model = {}
+    for model, times_list in model_times.items():
+        if times_list:
+            average_writing_time_by_model[model] = round(sum(times_list) / len(times_list), 1)
+    
+    # Calcola tempo medio per pagina per modello (solo libri completati con tempo e pagine valide)
+    model_times_per_page = defaultdict(list)
+    for e in completed:
+        if (e.writing_time_minutes is not None and e.writing_time_minutes > 0 and 
+            e.total_pages is not None and e.total_pages > 0):
+            time_per_page = e.writing_time_minutes / e.total_pages
+            model_times_per_page[e.llm_model].append(time_per_page)
+    
+    average_time_per_page_by_model = {}
+    for model, times_per_page_list in model_times_per_page.items():
+        if times_per_page_list:
+            average_time_per_page_by_model[model] = round(sum(times_per_page_list) / len(times_per_page_list), 2)
+    
+    # Calcola pagine medie per modello (solo libri completati con pagine valide)
+    model_pages = defaultdict(list)
+    for e in completed:
+        if e.total_pages is not None and e.total_pages > 0:
+            model_pages[e.llm_model].append(e.total_pages)
+    
+    average_pages_by_model = {}
+    for model, pages_list in model_pages.items():
+        if pages_list:
+            average_pages_by_model[model] = round(sum(pages_list) / len(pages_list), 1)
+    
     return LibraryStats(
         total_books=len(entries),
         completed_books=len(completed),
@@ -1346,6 +1384,9 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         books_by_genre=dict(books_by_genre),
         score_distribution=dict(score_distribution),
         average_score_by_model=average_score_by_model,
+        average_writing_time_by_model=average_writing_time_by_model,
+        average_time_per_page_by_model=average_time_per_page_by_model,
+        average_pages_by_model=average_pages_by_model,
     )
 
 

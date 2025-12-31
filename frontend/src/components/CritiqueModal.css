@@ -1,0 +1,215 @@
+/* Overlay scuro semi-trasparente */
+.critique-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Contenuto del modal */
+.critique-modal-content {
+  background-color: var(--surface, #fff);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  max-width: 700px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Header del modal */
+.critique-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-light, #e0e0e0);
+}
+
+.critique-modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary, #213547);
+}
+
+.critique-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  border-radius: var(--radius-sm, 4px);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.critique-modal-close:hover {
+  background-color: var(--bg-secondary, #f5f5f5);
+  color: var(--text-primary, #213547);
+}
+
+/* Body del modal */
+.critique-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.critique-modal-subtitle {
+  margin: 0 0 1.5rem 0;
+  font-size: 1rem;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+}
+
+/* Stati di loading, error, empty */
+.critique-modal-loading,
+.critique-modal-error,
+.critique-modal-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary, #666);
+}
+
+.critique-modal-error {
+  color: var(--error, #f44336);
+}
+
+/* Sezione critica (riutilizza stili da WritingStep) */
+.critique-section {
+  margin-top: 0;
+  padding: 1.5rem;
+  background-color: var(--bg-secondary, #f5f5f5);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-light, #ddd);
+  text-align: left;
+}
+
+.critique-section h4 {
+  margin: 0 0 1rem 0;
+  color: var(--text-primary, #213547);
+  font-size: 1.2rem;
+}
+
+.critique-score {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: var(--surface, #fff);
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border-light, #ddd);
+}
+
+.score-label {
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.score-value {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.critique-summary,
+.critique-pros,
+.critique-cons {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--surface, #fff);
+  border-radius: var(--radius-sm, 4px);
+  border-left: 3px solid var(--primary, #646cff);
+}
+
+.critique-pros {
+  border-left-color: #4caf50;
+}
+
+.critique-cons {
+  border-left-color: #f44336;
+}
+
+.critique-summary strong,
+.critique-pros strong,
+.critique-cons strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary, #213547);
+}
+
+.critique-summary p,
+.critique-pros p,
+.critique-cons p,
+.critique-pros ul,
+.critique-cons ul {
+  margin: 0;
+  color: var(--text-secondary, #666);
+  line-height: 1.6;
+}
+
+.critique-pros ul,
+.critique-cons ul {
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.critique-pros li,
+.critique-cons li {
+  margin: 0.5rem 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .critique-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .critique-modal-header {
+    padding: 1rem;
+  }
+
+  .critique-modal-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .critique-modal-body {
+    padding: 1rem;
+  }
+
+  .critique-section {
+    padding: 1rem;
+  }
+}

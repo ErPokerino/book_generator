@@ -165,6 +165,73 @@
   background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
 }
 
+/* Chart Header with Toggle */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.chart-toggle {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--surface-hover);
+  padding: 0.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.toggle-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+.toggle-btn.active {
+  background: var(--primary-gradient);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Chart Container */
+.chart-container {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.chart-container .recharts-wrapper {
+  font-family: 'Outfit', sans-serif;
+}
+
+.chart-container .recharts-cartesian-axis-tick-value {
+  fill: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.chart-container .recharts-legend-wrapper {
+  padding-top: 1rem;
+}
+
+.chart-container .recharts-legend-item-text {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .dashboard {
@@ -201,5 +268,23 @@
 
   .stat-bar-container {
     width: 100%;
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-toggle {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .toggle-btn {
+    flex: 1;
+  }
+
+  .chart-container {
+    overflow-x: auto;
   }
 }

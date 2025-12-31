@@ -8,9 +8,10 @@ interface BookCardProps {
   onDelete: (sessionId: string) => void;
   onContinue?: (sessionId: string) => void;
   onRead?: (sessionId: string) => void;
+  onShowCritique?: (sessionId: string) => void;
 }
 
-export default function BookCard({ book, onDelete, onContinue, onRead }: BookCardProps) {
+export default function BookCard({ book, onDelete, onContinue, onRead, onShowCritique }: BookCardProps) {
   const handleDownloadPdf = async () => {
     try {
       let blob: Blob;
@@ -145,12 +146,30 @@ export default function BookCard({ book, onDelete, onContinue, onRead }: BookCar
           )}
           {book.writing_time_minutes && (
             <p className="book-time">
-              Tempo scrittura: {book.writing_time_minutes.toFixed(1)} min
+              Tempo scrittura: {Math.round(book.writing_time_minutes)} min
+            </p>
+          )}
+          {book.total_pages && book.total_pages > 0 && (
+            <p className="book-reading-time">
+              Tempo lettura: {(() => {
+                const readingMinutes = Math.ceil(book.total_pages * 90 / 60); // 90 secondi per pagina
+                if (readingMinutes < 60) {
+                  return `${readingMinutes} min`;
+                }
+                const hours = Math.floor(readingMinutes / 60);
+                const mins = readingMinutes % 60;
+                return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+              })()}
             </p>
           )}
         </div>
 
         <div className="book-card-actions">
+          {book.status === 'complete' && book.critique_score != null && onShowCritique && (
+            <button className="action-btn critique-btn" onClick={() => onShowCritique(book.session_id)}>
+              📝 Critica
+            </button>
+          )}
           {book.status === 'complete' && onRead && (
             <button className="action-btn read-btn" onClick={() => onRead(book.session_id)}>
               📖 Leggi

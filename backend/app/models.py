@@ -274,6 +274,9 @@ class LibraryStats(BaseModel):
     books_by_genre: Dict[str, int] = Field(default_factory=dict)
     score_distribution: Dict[str, int] = Field(default_factory=dict)  # es: {"0-2": 1, "2-4": 3, "4-6": 5, "6-8": 2, "8-10": 1}
     average_score_by_model: Dict[str, float] = Field(default_factory=dict)
+    average_writing_time_by_model: Dict[str, float] = Field(default_factory=dict)  # Tempo medio libro per modello (minuti)
+    average_time_per_page_by_model: Dict[str, float] = Field(default_factory=dict)  # Tempo medio per pagina per modello (minuti)
+    average_pages_by_model: Dict[str, float] = Field(default_factory=dict)  # Pagine medie per modello
 
 
 class LibraryResponse(BaseModel):

@@ -517,6 +517,15 @@ export async function getCompleteBook(sessionId: string): Promise<BookResponse> 
   return response.json();
 }
 
+export async function getBookCritique(sessionId: string): Promise<LiteraryCritique | null> {
+  try {
+    const book = await getCompleteBook(sessionId);
+    return book.critique || null;
+  } catch (error) {
+    throw new Error(`Errore nel recupero della critica: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+  }
+}
+
 export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`${API_BASE}/book/pdf/${sessionId}`);
   
@@ -643,6 +652,9 @@ export interface LibraryStats {
   books_by_genre: Record<string, number>;
   score_distribution: Record<string, number>;
   average_score_by_model: Record<string, number>;
+  average_writing_time_by_model?: Record<string, number>;
+  average_time_per_page_by_model?: Record<string, number>;
+  average_pages_by_model?: Record<string, number>;
 }
 
 export interface LibraryResponse {
