@@ -146,9 +146,42 @@ La copertina deve essere:
                 )
             print(f"[COVER GENERATOR] Risposta ricevuta da {model_name}")
             
+            # DEBUG: Log completo della risposta
+            print(f"[COVER GENERATOR] DEBUG - Tipo risposta: {type(response)}")
+            print(f"[COVER GENERATOR] DEBUG - Attributi risposta: {[a for a in dir(response) if not a.startswith('_')]}")
+            
+            # Verifica candidates per blocchi di sicurezza
+            if hasattr(response, 'candidates') and response.candidates:
+                for idx, candidate in enumerate(response.candidates):
+                    print(f"[COVER GENERATOR] DEBUG - Candidate {idx}:")
+                    if hasattr(candidate, 'finish_reason'):
+                        print(f"  finish_reason: {candidate.finish_reason}")
+                    if hasattr(candidate, 'safety_ratings'):
+                        print(f"  safety_ratings: {candidate.safety_ratings}")
+            elif hasattr(response, 'candidates'):
+                print(f"[COVER GENERATOR] DEBUG - candidates è vuoto o None")
+            
+            # Verifica prompt_feedback per blocchi
+            if hasattr(response, 'prompt_feedback'):
+                print(f"[COVER GENERATOR] DEBUG - prompt_feedback: {response.prompt_feedback}")
+                if hasattr(response.prompt_feedback, 'block_reason'):
+                    print(f"[COVER GENERATOR] ATTENZIONE - Blocco: {response.prompt_feedback.block_reason}")
+            
+            # Verifica parts
+            if hasattr(response, 'parts'):
+                print(f"[COVER GENERATOR] DEBUG - parts presente: {response.parts}")
+            else:
+                print(f"[COVER GENERATOR] DEBUG - response non ha attributo 'parts'")
+            
             # Estrai l'immagine dalla risposta
             # La nuova API restituisce response.parts direttamente
-            if not response.parts:
+            if not hasattr(response, 'parts') or not response.parts:
+                # Log dettagliato prima di sollevare l'eccezione
+                print(f"[COVER GENERATOR] ERRORE - Nessuna part nella risposta da {model_name}")
+                if hasattr(response, 'candidates') and response.candidates:
+                    for idx, candidate in enumerate(response.candidates):
+                        print(f"[COVER GENERATOR] ERRORE - Candidate {idx} details:")
+                        print(f"  {candidate}")
                 raise Exception(f"Nessuna part nella risposta da {model_name}")
             
             print(f"[COVER GENERATOR] Numero di parts nella risposta: {len(response.parts)}")

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { LibraryEntry, downloadPdfByFilename, downloadBookPdf, deleteBook, regenerateCover } from '../api/client';
+import ConfirmModal from './ConfirmModal';
+import AlertModal from './AlertModal';
 import './BookCard.css';
 
 const API_BASE = '/api';
@@ -8,25 +10,40 @@ interface BookCardProps {
   book: LibraryEntry;
   onDelete: (sessionId: string) => void;
   onContinue?: (sessionId: string) => void;
+  onResume?: (sessionId: string) => void;
   onRead?: (sessionId: string) => void;
   onShowCritique?: (sessionId: string) => void;
 }
 
-export default function BookCard({ book, onDelete, onContinue, onRead, onShowCritique }: BookCardProps) {
+export default function BookCard({ book, onDelete, onContinue, onResume, onRead, onShowCritique }: BookCardProps) {
   const [regenerating, setRegenerating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'error',
+  });
 
   const handleRegenerateCover = async () => {
-    if (!confirm(`Vuoi rigenerare la copertina per "${book.title}"?`)) {
-      return;
-    }
+    setShowRegenerateConfirm(true);
+  };
 
+  const confirmRegenerateCover = async () => {
+    setShowRegenerateConfirm(false);
     try {
       setRegenerating(true);
       await regenerateCover(book.session_id);
       // Ricarica la pagina per vedere la nuova copertina
       window.location.reload();
     } catch (error) {
-      alert(`Errore nella rigenerazione della copertina: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Errore',
+        message: `Errore nella rigenerazione della copertina: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
+        variant: 'error',
+      });
     } finally {
       setRegenerating(false);
     }
@@ -55,18 +72,31 @@ export default function BookCard({ book, onDelete, onContinue, onRead, onShowCri
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      alert(`Errore nel download del PDF: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Errore',
+        message: `Errore nel download del PDF: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
+        variant: 'error',
+      });
     }
   };
 
-  const handleDelete = async () => {
-    if (confirm(`Sei sicuro di voler eliminare "${book.title}"?`)) {
-      try {
-        await deleteBook(book.session_id);
-        onDelete(book.session_id);
-      } catch (error) {
-        alert(`Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
-      }
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteConfirm(false);
+    try {
+      await deleteBook(book.session_id);
+      onDelete(book.session_id);
+    } catch (error) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Errore',
+        message: `Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
+        variant: 'error',
+      });
     }
   };
 
@@ -219,6 +249,11 @@ export default function BookCard({ book, onDelete, onContinue, onRead, onShowCri
               ▶️ Continua
             </button>
           )}
+          {(book.status === 'draft' || book.status === 'outline') && onResume && (
+            <button className="action-btn resume-btn" onClick={() => onResume(book.session_id)}>
+              ▶️ Riprendi
+            </button>
+          )}
           <button className="action-btn delete-btn" onClick={handleDelete}>
             🗑️ Elimina
           </button>
@@ -230,6 +265,36 @@ export default function BookCard({ book, onDelete, onContinue, onRead, onShowCri
           </span>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Conferma eliminazione"
+        message={`Sei sicuro di voler eliminare "${stripMarkdownFormatting(book.title)}"?`}
+        confirmText="Elimina"
+        cancelText="Annulla"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showRegenerateConfirm}
+        title="Rigenera copertina"
+        message={`Vuoi rigenerare la copertina per "${stripMarkdownFormatting(book.title)}"?`}
+        confirmText="Rigenera"
+        cancelText="Annulla"
+        variant="info"
+        onConfirm={confirmRegenerateCover}
+        onCancel={() => setShowRegenerateConfirm(false)}
+      />
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        title={alertModal.title}
+        message={alertModal.message}
+        variant={alertModal.variant}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
+      />
     </div>
   );
 }

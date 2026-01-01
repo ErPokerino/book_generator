@@ -14,9 +14,10 @@ import './LibraryView.css';
 
 interface LibraryViewProps {
   onReadBook?: (sessionId: string) => void;
+  onNavigateToNewBook?: () => void;
 }
 
-export default function LibraryView({ onReadBook }: LibraryViewProps) {
+export default function LibraryView({ onReadBook, onNavigateToNewBook }: LibraryViewProps) {
   const [books, setBooks] = useState<LibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,6 +112,15 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
     setCritiqueModalSessionId(null);
   };
 
+  const handleResume = (sessionId: string) => {
+    // Salva sessionId in localStorage per permettere il ripristino
+    localStorage.setItem('current_book_session_id', sessionId);
+    // Naviga a "Nuovo Libro"
+    if (onNavigateToNewBook) {
+      onNavigateToNewBook();
+    }
+  };
+
   // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
   if (selectedSessionId) {
     return (
@@ -182,6 +192,7 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
               book={book}
               onDelete={handleDelete}
               onContinue={handleContinue}
+              onResume={handleResume}
               onRead={book.status === 'complete' ? onReadBook : undefined}
               onShowCritique={handleShowCritique}
             />

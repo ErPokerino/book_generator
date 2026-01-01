@@ -1,16 +1,19 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
+import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, SessionRestoreResponse } from '../api/client';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
 import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
+import AlertModal from './AlertModal';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
 const OutlineEditor = lazy(() => import('./OutlineEditor'));
+
+const SESSION_STORAGE_KEY = 'current_book_session_id';
 
 export default function DynamicForm() {
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
@@ -27,14 +30,109 @@ export default function DynamicForm() {
   const [answersSubmitted, setAnswersSubmitted] = useState(false);
   const [questionAnswers, setQuestionAnswers] = useState<QuestionAnswer[]>([]);
   const [currentStep, setCurrentStep] = useState<'form' | 'questions' | 'draft' | 'summary' | 'writing'>('form');
-  const [validatedDraft, setValidatedDraft] = useState<{ title?: string; text: string } | null>(null);
+  const [validatedDraft, setValidatedDraft] = useState<{ title?: string; text: string; version?: number } | null>(null);
   const [outline, setOutline] = useState<string | null>(null);
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
+  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'error',
+  });
 
   useEffect(() => {
     loadConfig();
   }, []);
+
+  // Hook per ripristinare lo stato della sessione al mount
+  useEffect(() => {
+    const restoreSessionState = async () => {
+      const savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!savedSessionId) {
+        return; // Nessuna sessione salvata
+      }
+
+      try {
+        console.log('[DynamicForm] Tentativo di ripristinare sessione:', savedSessionId);
+        const restoreData = await restoreSession(savedSessionId);
+        
+        // Ripristina gli stati
+        setSessionId(restoreData.session_id);
+        setFormPayload(restoreData.form_data);
+        
+        // Ricostruisci formData da form_data
+        const formDataObj: Record<string, string> = {};
+        const formDataKeys: (keyof SubmissionRequest)[] = [
+          'llm_model', 'plot', 'genre', 'subgenre', 'target_audience', 'theme',
+          'protagonist', 'protagonist_archetype', 'character_arc', 'point_of_view',
+          'narrative_voice', 'style', 'temporal_structure', 'pace', 'realism',
+          'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style'
+        ];
+        formDataKeys.forEach(key => {
+          const value = restoreData.form_data[key];
+          if (value !== undefined && value !== null) {
+            formDataObj[key] = String(value);
+          }
+        });
+        setFormData(formDataObj);
+        
+        // Ripristina questions se presenti
+        if (restoreData.questions) {
+          setQuestions(restoreData.questions);
+        }
+        
+        // Ripristina question_answers se presenti
+        if (restoreData.question_answers && restoreData.question_answers.length > 0) {
+          setQuestionAnswers(restoreData.question_answers);
+          setAnswersSubmitted(true);
+        }
+        
+        // Ripristina draft se presente
+        if (restoreData.draft) {
+          setValidatedDraft({
+            title: restoreData.draft.title,
+            text: restoreData.draft.draft_text,
+            version: restoreData.draft.version,
+          });
+        }
+        
+        // Ripristina outline se presente
+        if (restoreData.outline) {
+          setOutline(restoreData.outline);
+        }
+        
+        // Se siamo in summary, imposta submitted PRIMA di cambiare step
+        // Questo previene la rigenerazione dell'outline
+        if (restoreData.current_step === 'summary') {
+          setSubmitted({
+            success: true,
+            message: 'Struttura del libro generata! Rivedi e modifica la struttura prima di procedere con la scrittura.',
+            data: restoreData.form_data,
+          });
+          // Assicurati che validatedDraft sia impostato se c'è il draft
+          if (restoreData.draft && !restoreData.outline) {
+            // Se siamo in summary ma non c'è outline, potrebbe essere ancora in generazione
+            // Ma se c'è outline, siamo sicuramente in summary
+            console.log('[DynamicForm] Ripristino in summary: outline presente, draft presente');
+          }
+        }
+        
+        // Ripristina lo step corrente DOPO aver impostato tutti gli stati
+        setCurrentStep(restoreData.current_step);
+        
+        console.log('[DynamicForm] Sessione ripristinata con successo, step:', restoreData.current_step);
+      } catch (err) {
+        console.error('[DynamicForm] Errore nel ripristino sessione:', err);
+        // Se la sessione non esiste o c'è un errore, rimuovi da localStorage
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        // Mostra form vuoto
+      }
+    };
+
+    restoreSessionState();
+  }, []); // Esegui solo al mount
 
   // Se siamo nel summary e non abbiamo l'outline, prova a recuperarlo.
   // Deve stare qui (top-level) per rispettare le Rules of Hooks (niente hook dentro if/return).
@@ -132,6 +230,9 @@ export default function DynamicForm() {
     setOutline(null);
     setIsStartingWriting(false);
     setError(null);
+    
+    // Rimuovi sessionId da localStorage
+    localStorage.removeItem(SESSION_STORAGE_KEY);
     
     // Reinizializza formData con valori vuoti se config è disponibile
     if (config) {
@@ -236,6 +337,8 @@ export default function DynamicForm() {
         console.log('[DynamicForm] Domande generate:', questionsResponse);
         setQuestions(questionsResponse.questions);
         setSessionId(questionsResponse.session_id);
+        // Salva sessionId in localStorage per permettere il ripristino
+        localStorage.setItem(SESSION_STORAGE_KEY, questionsResponse.session_id);
         setIsGeneratingQuestions(false);
         setCurrentStep('questions'); // Passa allo step delle domande
       } catch (err) {
@@ -268,7 +371,11 @@ export default function DynamicForm() {
     setValidatedDraft({
       title: draft.title,
       text: draft.draft_text,
+      version: draft.version,
     });
+    
+    // Reset isGeneratingOutline quando l'outline è completato
+    setIsGeneratingOutline(false);
     
     // Log per debug
     console.log('[DEBUG DynamicForm] Draft validato:', draft);
@@ -408,6 +515,26 @@ export default function DynamicForm() {
     );
   }
 
+  // Mostra loading durante generazione outline (prima delle domande per priorità)
+  if (isGeneratingOutline) {
+    return (
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep="summary" />
+        </div>
+        <div className="dynamic-form-main-content">
+          <div className="loading">
+            <h2>Generazione Struttura del Libro</h2>
+            <p>Sto generando la struttura del libro...</p>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+              Questo potrebbe richiedere alcuni secondi
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Mostra le domande se generate
   if (currentStep === 'questions' && questions && sessionId) {
     return (
@@ -441,7 +568,17 @@ export default function DynamicForm() {
             questionAnswers={questionAnswers}
             onDraftValidated={handleDraftValidated}
             onBack={() => setCurrentStep('questions')}
-            onOutlineGenerationStart={() => setCurrentStep('summary')}
+            onOutlineGenerationStart={() => {
+              setCurrentStep('summary');
+              setIsGeneratingOutline(true);
+            }}
+            initialDraft={validatedDraft ? {
+              success: true,
+              session_id: sessionId || '',
+              draft_text: validatedDraft.text,
+              title: validatedDraft.title,
+              version: validatedDraft.version || 1,
+            } : null}
           />
         </div>
       </div>
@@ -586,7 +723,12 @@ export default function DynamicForm() {
                 } catch (err) {
                   console.error('Errore nel download del PDF:', err);
                   const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto nel download del PDF';
-                  alert(`Errore: ${errorMessage}\n\nVerifica che:\n- La sessione sia ancora valida\n- Il backend sia in esecuzione\n- La bozza sia stata validata`);
+                  setAlertModal({
+                    isOpen: true,
+                    title: 'Errore',
+                    message: `Errore: ${errorMessage}\n\nVerifica che:\n- La sessione sia ancora valida\n- Il backend sia in esecuzione\n- La bozza sia stata validata`,
+                    variant: 'error',
+                  });
                 }
               }}
               className="download-pdf-button"
@@ -601,12 +743,22 @@ export default function DynamicForm() {
               console.log('[DEBUG] outline:', outline ? 'presente' : 'assente');
               
               if (!sessionId) {
-                alert('Errore: SessionId non disponibile.');
+                setAlertModal({
+                  isOpen: true,
+                  title: 'Errore',
+                  message: 'Errore: SessionId non disponibile.',
+                  variant: 'error',
+                });
                 return;
               }
               
               if (!outline) {
-                alert('Errore: La struttura del romanzo non è ancora disponibile.');
+                setAlertModal({
+                  isOpen: true,
+                  title: 'Errore',
+                  message: 'Errore: La struttura del romanzo non è ancora disponibile.',
+                  variant: 'error',
+                });
                 return;
               }
               
@@ -641,6 +793,8 @@ export default function DynamicForm() {
             setValidatedDraft(null);
             setOutline(null);
             setCurrentStep('form');
+            // Rimuovi sessionId da localStorage
+            localStorage.removeItem(SESSION_STORAGE_KEY);
           }}>
             Nuova configurazione
           </button>
@@ -663,6 +817,8 @@ export default function DynamicForm() {
             sessionId={sessionId}
             onComplete={(progress) => {
               console.log('[DEBUG] Scrittura completata:', progress);
+              // Rimuovi sessionId da localStorage quando il libro è completato
+              localStorage.removeItem(SESSION_STORAGE_KEY);
               // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
             }}
             onNewBook={handleResetToForm}
@@ -714,6 +870,14 @@ export default function DynamicForm() {
           </form>
         </div>
       </div>
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        title={alertModal.title}
+        message={alertModal.message}
+        variant={alertModal.variant}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
+      />
     </div>
   );
 }

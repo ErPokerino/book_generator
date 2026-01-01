@@ -35,6 +35,7 @@ class SessionData:
         self.writing_end_time: Optional[datetime] = None  # Timestamp fine scrittura capitoli
         self.chapter_timings: list[float] = []  # Tempo in secondi per ogni capitolo completato
         self.chapter_start_time: Optional[datetime] = None  # Timestamp inizio capitolo corrente
+        self.generated_questions: Optional[list[Dict[str, Any]]] = None  # Domande generate per questa sessione
         self.created_at: datetime = datetime.now()  # Timestamp creazione sessione
         self.updated_at: datetime = datetime.now()  # Timestamp ultima modifica
     
@@ -82,6 +83,7 @@ class SessionData:
             "writing_end_time": self.writing_end_time.isoformat() if self.writing_end_time else None,
             "chapter_timings": self.chapter_timings,
             "chapter_start_time": self.chapter_start_time.isoformat() if self.chapter_start_time else None,
+            "generated_questions": self.generated_questions,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -115,6 +117,7 @@ class SessionData:
         session.chapter_timings = data.get("chapter_timings", [])
         chapter_start_str = data.get("chapter_start_time")
         session.chapter_start_time = datetime.fromisoformat(chapter_start_str) if chapter_start_str else None
+        session.generated_questions = data.get("generated_questions")
         # Parse created_at e updated_at con fallback a datetime.now() se non presente (retrocompatibilità)
         created_at_str = data.get("created_at")
         session.created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.now()
@@ -182,6 +185,20 @@ class SessionStore:
             raise ValueError(f"Sessione {session_id} non trovata")
         
         session.validated = True
+        session.update_timestamp()
+        return session
+    
+    def save_generated_questions(
+        self,
+        session_id: str,
+        questions: list[Dict[str, Any]],
+    ) -> SessionData:
+        """Salva le domande generate per una sessione."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.generated_questions = questions
         session.update_timestamp()
         return session
     
@@ -527,6 +544,16 @@ class FileSessionStore(SessionStore):
     def validate_session(self, session_id: str) -> SessionData:
         """Marca una sessione come validata e salva su file."""
         session = super().validate_session(session_id)
+        self._save_sessions()
+        return session
+    
+    def save_generated_questions(
+        self,
+        session_id: str,
+        questions: list[Dict[str, Any]],
+    ) -> SessionData:
+        """Salva le domande generate per una sessione e salva su file."""
+        session = super().save_generated_questions(session_id, questions)
         self._save_sessions()
         return session
     

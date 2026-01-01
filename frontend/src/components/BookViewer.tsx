@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getCompleteBook, downloadBookPdf, BookResponse } from '../api/client';
+import AlertModal from './AlertModal';
 import './BookViewer.css';
 
 interface BookViewerProps {
@@ -15,6 +16,12 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState<number>(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'error',
+  });
 
   useEffect(() => {
     loadBook();
@@ -69,7 +76,12 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
     } catch (err) {
       console.error('[BookViewer] Errore nel download del PDF:', err);
       const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto';
-      alert(`Errore nel download del PDF: ${errorMessage}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Errore',
+        message: `Errore nel download del PDF: ${errorMessage}`,
+        variant: 'error',
+      });
     } finally {
       setIsDownloading(false);
     }
@@ -244,6 +256,14 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
           )}
         </div>
       )}
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        title={alertModal.title}
+        message={alertModal.message}
+        variant={alertModal.variant}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
+      />
     </div>
   );
 }

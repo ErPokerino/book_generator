@@ -11,10 +11,11 @@ interface DraftStepProps {
   onDraftValidated: (draft: DraftResponse, outline: OutlineResponse | null) => void;
   onBack?: () => void;
   onOutlineGenerationStart?: () => void;
+  initialDraft?: DraftResponse | null; // Bozza esistente da ripristinare
 }
 
-export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack, onOutlineGenerationStart }: DraftStepProps) {
-  const [draft, setDraft] = useState<DraftResponse | null>(null);
+export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack, onOutlineGenerationStart, initialDraft }: DraftStepProps) {
+  const [draft, setDraft] = useState<DraftResponse | null>(initialDraft || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModifying, setIsModifying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -22,11 +23,14 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Genera la bozza iniziale quando il componente viene montato
-    if (!draft && !isGenerating) {
+    // Se c'è un initialDraft, usa quello (ripristino sessione)
+    // Altrimenti genera la bozza iniziale quando il componente viene montato
+    if (initialDraft && !draft) {
+      setDraft(initialDraft);
+    } else if (!draft && !isGenerating) {
       handleGenerateDraft();
     }
-  }, []);
+  }, [initialDraft]);
 
   const handleGenerateDraft = async () => {
     setIsGenerating(true);

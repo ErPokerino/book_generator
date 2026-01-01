@@ -222,6 +222,18 @@ class BookGenerationRequest(BaseModel):
     session_id: str
 
 
+class SessionRestoreResponse(BaseModel):
+    """Risposta per ripristinare lo stato di una sessione."""
+    session_id: str
+    form_data: SubmissionRequest
+    questions: Optional[list[Question]] = None
+    question_answers: list[QuestionAnswer] = Field(default_factory=list)
+    draft: Optional[DraftResponse] = None
+    outline: Optional[str] = None
+    writing_progress: Optional["BookProgress"] = None
+    current_step: Literal["questions", "draft", "summary", "writing"]
+
+
 class BookGenerationResponse(BaseModel):
     """Risposta all'avvio della generazione."""
     success: bool

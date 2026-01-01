@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getBookProgress, BookProgress, downloadBookPdf, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
+import AlertModal from './AlertModal';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -16,6 +17,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const [isRetryingCritique, setIsRetryingCritique] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'error',
+  });
 
   const getScoreColor = (score: number): string => {
     // Score da 0 a 10
@@ -239,7 +246,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
                   await regenerateBookCritique(sessionId);
                   setIsPolling(true);
                 } catch (e) {
-                  alert(`Errore nel retry della critica: ${e instanceof Error ? e.message : 'Errore sconosciuto'}`);
+                  setAlertModal({
+                    isOpen: true,
+                    title: 'Errore',
+                    message: `Errore nel retry della critica: ${e instanceof Error ? e.message : 'Errore sconosciuto'}`,
+                    variant: 'error',
+                  });
                 } finally {
                   setIsRetryingCritique(false);
                 }
@@ -274,7 +286,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
               } catch (e) {
                 const errorMsg = e instanceof Error ? e.message : 'Errore sconosciuto';
                 setError(`Errore nella ripresa: ${errorMsg}`);
-                alert(`Errore nella ripresa della generazione: ${errorMsg}`);
+                setAlertModal({
+                  isOpen: true,
+                  title: 'Errore',
+                  message: `Errore nella ripresa della generazione: ${errorMsg}`,
+                  variant: 'error',
+                });
               } finally {
                 setIsResuming(false);
               }
@@ -344,7 +361,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
             <button
               onClick={async () => {
                 if (!sessionId) {
-                  alert('Errore: SessionId non disponibile.');
+                  setAlertModal({
+                    isOpen: true,
+                    title: 'Errore',
+                    message: 'Errore: SessionId non disponibile.',
+                    variant: 'error',
+                  });
                   return;
                 }
                 
@@ -372,7 +394,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
                   }, 100);
                 } catch (err) {
                   console.error('[WritingStep] Errore nel download del PDF:', err);
-                  alert(`Errore nel download del PDF: ${err instanceof Error ? err.message : 'Errore sconosciuto'}`);
+                  setAlertModal({
+                    isOpen: true,
+                    title: 'Errore',
+                    message: `Errore nel download del PDF: ${err instanceof Error ? err.message : 'Errore sconosciuto'}`,
+                    variant: 'error',
+                  });
                 } finally {
                   setIsDownloading(false);
                 }
@@ -433,6 +460,14 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           )}
         </div>
       )}
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        title={alertModal.title}
+        message={alertModal.message}
+        variant={alertModal.variant}
+        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
+      />
     </div>
   );
 }

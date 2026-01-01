@@ -39,7 +39,10 @@ function App() {
         />
         <main className="app-main">
           {currentView === 'library' ? (
-            <LibraryView onReadBook={handleReadBook} />
+            <LibraryView 
+              onReadBook={handleReadBook}
+              onNavigateToNewBook={() => setCurrentView('newBook')}
+            />
           ) : currentView === 'benchmark' ? (
             <BenchmarkView />
           ) : currentView === 'analytics' ? (

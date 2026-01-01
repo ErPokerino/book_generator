@@ -28,7 +28,7 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
           className={`nav-link ${currentView === 'benchmark' ? 'active' : ''}`}
           onClick={() => onNavigate('benchmark')}
         >
-          Benchmark
+          Valuta
         </button>
         <button
           className={`nav-link ${currentView === 'analytics' ? 'active' : ''}`}

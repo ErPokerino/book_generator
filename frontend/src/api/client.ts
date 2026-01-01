@@ -327,6 +327,33 @@ export async function generateOutline(request: OutlineGenerateRequest): Promise<
   }
 }
 
+export interface SessionRestoreResponse {
+  session_id: string;
+  form_data: SubmissionRequest;
+  questions: Question[] | null;
+  question_answers: QuestionAnswer[];
+  draft: DraftResponse | null;
+  outline: string | null;
+  writing_progress: BookProgress | null;
+  current_step: 'questions' | 'draft' | 'summary' | 'writing';
+}
+
+export async function restoreSession(sessionId: string): Promise<SessionRestoreResponse> {
+  const response = await fetch(`${API_BASE}/session/${sessionId}/restore`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel ripristino sessione: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 export async function getOutline(sessionId: string): Promise<OutlineResponse> {
   const response = await fetch(`${API_BASE}/outline/${sessionId}`);
   

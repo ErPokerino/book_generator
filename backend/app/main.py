@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 from io import BytesIO
 from datetime import datetime
 from collections import defaultdict
@@ -49,6 +49,7 @@ from app.models import (
     BookGenerationRequest,
     BookGenerationResponse,
     BookProgress,
+    SessionRestoreResponse,
     BookResponse,
     Chapter,
     LiteraryCritique,
@@ -228,6 +229,12 @@ async def generate_questions_endpoint(request: QuestionGenerationRequest):
                 session_id=response.session_id,
                 form_data=request.form_data,
                 question_answers=[],  # Vuote per ora, verranno aggiunte quando l'utente risponde
+            )
+            # Salva le questions generate nella sessione per poterle recuperare dopo
+            questions_dict = [q.model_dump() for q in response.questions]
+            session_store.save_generated_questions(
+                session_id=response.session_id,
+                questions=questions_dict,
             )
             print(f"[DEBUG] Sessione {response.session_id} creata nel session store dopo generazione domande")
         except Exception as session_error:
@@ -2502,6 +2509,165 @@ async def resume_book_generation_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nell'avvio della ripresa generazione: {str(e)}"
+        )
+
+
+@app.get("/api/session/{session_id}/restore", response_model=SessionRestoreResponse)
+async def restore_session_endpoint(session_id: str):
+    """Ripristina lo stato completo di una sessione per permettere il recupero del processo interrotto."""
+    try:
+        session_store = get_session_store()
+        session = session_store.get_session(session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        # Determina lo step corrente
+        current_step: Literal["questions", "draft", "summary", "writing"]
+        
+        # Se c'è writing_progress, siamo in writing
+        if session.writing_progress:
+            current_step = "writing"
+        # Se c'è outline, siamo in summary
+        elif session.current_outline:
+            current_step = "summary"
+        # Se c'è draft validato o question_answers, siamo in draft
+        elif session.current_draft or (session.question_answers and len(session.question_answers) > 0):
+            current_step = "draft"
+        # Altrimenti siamo in questions
+        else:
+            current_step = "questions"
+        
+        # Prepara le questions (se disponibili)
+        questions = None
+        if session.generated_questions:
+            from app.models import Question
+            questions = [Question(**q) for q in session.generated_questions]
+        
+        # Prepara draft (se disponibile)
+        draft = None
+        if session.current_draft:
+            draft = DraftResponse(
+                success=True,
+                session_id=session_id,
+                draft_text=session.current_draft,
+                title=session.current_title,
+                version=session.current_version,
+            )
+        
+        # Prepara writing_progress (se disponibile)
+        writing_progress = None
+        if session.writing_progress:
+            # Usa la stessa logica di get_book_progress_endpoint per costruire BookProgress
+            progress = session.writing_progress
+            chapters = session.book_chapters or []
+            
+            # Converti i capitoli in oggetti Chapter
+            completed_chapters = []
+            for ch_dict in chapters:
+                content = ch_dict.get('content', '')
+                page_count = calculate_page_count(content)
+                completed_chapters.append(Chapter(
+                    title=ch_dict.get('title', ''),
+                    content=content,
+                    section_index=ch_dict.get('section_index', 0),
+                    page_count=page_count,
+                ))
+            
+            # Calcola total_pages se il libro è completato
+            total_pages = None
+            is_complete = progress.get('is_complete', False)
+            if is_complete and len(completed_chapters) > 0:
+                chapters_pages = sum(ch.page_count for ch in completed_chapters)
+                cover_pages = 1
+                app_config = get_app_config()
+                toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+                toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page)
+                total_pages = chapters_pages + cover_pages + toc_pages
+            
+            # Calcola writing_time_minutes
+            writing_time_minutes = progress.get('writing_time_minutes')
+            if writing_time_minutes is None and is_complete:
+                if session.writing_start_time and session.writing_end_time:
+                    delta = session.writing_end_time - session.writing_start_time
+                    writing_time_minutes = delta.total_seconds() / 60.0
+            
+            # Calcola estimated_cost
+            estimated_cost = calculate_generation_cost(session, total_pages)
+            
+            # Estrai critique
+            critique = None
+            critique_status = session.critique_status
+            critique_error = session.critique_error
+            if session.literary_critique:
+                if isinstance(session.literary_critique, dict):
+                    critique = LiteraryCritique(**session.literary_critique)
+                else:
+                    critique = session.literary_critique
+            
+            # Calcola stima tempo rimanente (stessa logica di get_book_progress_endpoint)
+            estimated_time_minutes = None
+            estimated_time_confidence = None
+            if not is_complete:
+                current_step_idx = progress.get('current_step', 0)
+                total_steps = progress.get('total_steps', 0)
+                
+                if total_steps > 0 and current_step_idx < total_steps:
+                    remaining = total_steps - current_step_idx
+                    if session.chapter_timings and len(session.chapter_timings) > 0:
+                        avg_time = sum(session.chapter_timings) / len(session.chapter_timings)
+                        estimated_time_minutes = (remaining * avg_time) / 60.0
+                        estimated_time_confidence = "high" if len(session.chapter_timings) >= 3 else "medium"
+                    else:
+                        # Fallback: stima basata su tempo medio atteso
+                        estimated_time_minutes = remaining * 2.0  # 2 minuti per capitolo
+                        estimated_time_confidence = "low"
+            
+            writing_progress = BookProgress(
+                session_id=session_id,
+                current_step=progress.get('current_step', 0),
+                total_steps=progress.get('total_steps', 0),
+                current_section_name=progress.get('current_section_name'),
+                completed_chapters=completed_chapters,
+                is_complete=is_complete,
+                is_paused=progress.get('is_paused', False),
+                error=progress.get('error'),
+                total_pages=total_pages,
+                writing_time_minutes=writing_time_minutes,
+                estimated_cost=estimated_cost,
+                critique=critique,
+                critique_status=critique_status,
+                critique_error=critique_error,
+                estimated_time_minutes=estimated_time_minutes,
+                estimated_time_confidence=estimated_time_confidence,
+            )
+        
+        # Assicurati che outline sia sempre restituito se presente (importante per il ripristino)
+        outline_text = session.current_outline if session.current_outline else None
+        
+        return SessionRestoreResponse(
+            session_id=session_id,
+            form_data=session.form_data,
+            questions=questions,
+            question_answers=session.question_answers or [],
+            draft=draft,
+            outline=outline_text,
+            writing_progress=writing_progress,
+            current_step=current_step,
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nel ripristino sessione: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel ripristino sessione: {str(e)}"
         )
 
 

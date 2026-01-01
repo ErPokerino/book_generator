@@ -103,11 +103,10 @@ export default function BenchmarkView() {
   return (
     <div className="benchmark-view">
       <div className="benchmark-container">
-        <h2 className="benchmark-title">Valuta PDF Esterno</h2>
+        <h2 className="benchmark-title">Valuta un Libro</h2>
         <p className="benchmark-description">
-          Carica un PDF esterno per farlo valutare dall'agente critico letterario.
-          I risultati non vengono salvati e possono essere usati come benchmark per testare
-          la qualità del critico su libri noti di successo.
+          Carica un PDF per farlo valutare dall'agente critico letterario.
+          Ottieni una valutazione completa con punteggio, punti di forza e aree di miglioramento.
         </p>
 
         <form onSubmit={handleSubmit} className="benchmark-form">
