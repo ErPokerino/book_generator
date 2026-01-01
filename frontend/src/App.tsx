@@ -7,8 +7,10 @@ import BookReader from './components/BookReader'
 import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
 
+import AnalyticsView from './components/AnalyticsView'
+
 function App() {
-  const [currentView, setCurrentView] = useState<'library' | 'newBook' | 'benchmark'>('newBook')
+  const [currentView, setCurrentView] = useState<'library' | 'newBook' | 'benchmark' | 'analytics'>('newBook')
   const [readingBookId, setReadingBookId] = useState<string | null>(null)
 
   const handleReadBook = (sessionId: string) => {
@@ -40,6 +42,8 @@ function App() {
             <LibraryView onReadBook={handleReadBook} />
           ) : currentView === 'benchmark' ? (
             <BenchmarkView />
+          ) : currentView === 'analytics' ? (
+            <AnalyticsView />
           ) : (
             <DynamicForm />
           )}

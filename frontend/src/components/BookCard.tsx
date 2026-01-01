@@ -1,4 +1,5 @@
-import { LibraryEntry, downloadPdfByFilename, downloadBookPdf, deleteBook } from '../api/client';
+import { useState } from 'react';
+import { LibraryEntry, downloadPdfByFilename, downloadBookPdf, deleteBook, regenerateCover } from '../api/client';
 import './BookCard.css';
 
 const API_BASE = '/api';
@@ -12,6 +13,25 @@ interface BookCardProps {
 }
 
 export default function BookCard({ book, onDelete, onContinue, onRead, onShowCritique }: BookCardProps) {
+  const [regenerating, setRegenerating] = useState(false);
+
+  const handleRegenerateCover = async () => {
+    if (!confirm(`Vuoi rigenerare la copertina per "${book.title}"?`)) {
+      return;
+    }
+
+    try {
+      setRegenerating(true);
+      await regenerateCover(book.session_id);
+      // Ricarica la pagina per vedere la nuova copertina
+      window.location.reload();
+    } catch (error) {
+      alert(`Errore nella rigenerazione della copertina: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   const handleDownloadPdf = async () => {
     try {
       let blob: Blob;
@@ -162,12 +182,26 @@ export default function BookCard({ book, onDelete, onContinue, onRead, onShowCri
               })()}
             </p>
           )}
+          {book.estimated_cost != null && (
+            <p className="book-cost">
+              Costo stimato: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
+            </p>
+          )}
         </div>
 
         <div className="book-card-actions">
           {book.status === 'complete' && book.critique_score != null && onShowCritique && (
             <button className="action-btn critique-btn" onClick={() => onShowCritique(book.session_id)}>
               📝 Critica
+            </button>
+          )}
+          {book.status === 'complete' && !book.cover_image_path && (
+            <button 
+              className="action-btn regenerate-cover-btn" 
+              onClick={handleRegenerateCover}
+              disabled={regenerating}
+            >
+              {regenerating ? '⏳ Rigenerazione...' : '🖼️ Rigenera Copertina'}
             </button>
           )}
           {book.status === 'complete' && onRead && (

@@ -5,8 +5,50 @@
 .dynamic-form-container {
   max-width: 850px;
   margin: 0 auto;
+  padding: 0;
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Layout con Step Indicator */
+.dynamic-form-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 2.5rem 2rem;
   animation: fadeIn 0.4s ease-out forwards;
+}
+
+.dynamic-form-layout .step-indicator-wrapper {
+  flex-shrink: 0;
+  position: sticky;
+  top: 2rem;
+}
+
+.dynamic-form-layout .dynamic-form-main-content {
+  flex: 1;
+  min-width: 0; /* Permette al contenuto di restringersi */
+}
+
+.dynamic-form-layout .dynamic-form-main-content > .dynamic-form-container {
+  padding: 0;
+}
+
+@media (max-width: 968px) {
+  .dynamic-form-layout {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .dynamic-form-layout .step-indicator-wrapper {
+    position: static;
+    width: 100%;
+  }
+  
+  .dynamic-form-layout .step-indicator {
+    min-width: auto;
+  }
 }
 
 .dynamic-form-container h1 {

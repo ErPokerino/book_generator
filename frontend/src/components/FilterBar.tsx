@@ -114,6 +114,7 @@ export default function FilterBar({ onFiltersChange, availableModels, availableG
           <option value="updated_at">Ultima modifica</option>
           <option value="title">Titolo</option>
           <option value="score">Voto</option>
+          <option value="cost">Costo</option>
         </select>
       </div>
 

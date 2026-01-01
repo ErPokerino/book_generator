@@ -52,3 +52,46 @@ temperature:
     # question_generator: 0.7  # Esempio: scommentare per override
     # literary_critic è configurato in literary_critic.yaml
 
+# Stima costi generazione libro
+# NOTA: Aggiornare i costi con i valori reali da Google Gemini API pricing
+cost_estimation:
+  tokens_per_page: 350  # Numero di token stimati per pagina
+  currency: "EUR"  # Valuta di visualizzazione
+  exchange_rate_usd_to_eur: 0.92  # Tasso di cambio USD->EUR (aggiornare se necessario)
+  
+  # Costi per modello (per 1 milione di token)
+  # NOTA: Questi sono valori di esempio - AGGIORNARE con i costi reali da Google
+  model_costs:
+    gemini-2.5-flash:
+      input_cost_per_million: 0.30   # USD per 1M token input
+      output_cost_per_million: 2.50   # USD per 1M token output
+    gemini-2.5-pro:
+      input_cost_per_million: 1.25    # USD per 1M token input
+      output_cost_per_million: 10.00   # USD per 1M token output
+    gemini-3-flash-preview:
+      input_cost_per_million: 0.50    # USD per 1M token input
+      output_cost_per_million: 3.00   # USD per 1M token output
+    gemini-3-pro-preview:
+      input_cost_per_million: 2.00   # USD per 1M token input
+      output_cost_per_million: 12.00   # USD per 1M token output
+    default:
+      input_cost_per_million: 1.00    # USD per 1M token input (fallback)
+      output_cost_per_million: 3.00   # USD per 1M token output (fallback)
+  
+  # Costo per generazione immagine copertina
+  # NOTA: Le immagini hanno pricing diverso - AGGIORNARE con costo reale
+  image_generation_cost: 0.02  # USD per immagine copertina
+  
+  # Stime token per le varie fasi (usati per calcolo)
+  token_estimates:
+    draft:
+      input_base: 800   # Token base per input bozza (trama + form_data)
+      output_per_page: 12  # Token output per pagina di bozza generata (bozza è più breve)
+    outline:
+      input_base: 3000  # Token input per outline (bozza validata)
+      output_base: 2000  # Token output outline (Markdown)
+    chapter:
+      context_base: 8000  # Token base contesto per capitolo (draft + outline + form_data + system_prompt)
+    critique:
+      input_multiplier: 1.2  # Multiplicatore pagine per input PDF (considera formato)
+      output_base: 1200  # Token output critica JSON

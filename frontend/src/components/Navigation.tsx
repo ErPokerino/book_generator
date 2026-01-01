@@ -1,8 +1,8 @@
 import './Navigation.css';
 
 interface NavigationProps {
-  currentView: 'library' | 'newBook' | 'benchmark';
-  onNavigate: (view: 'library' | 'newBook' | 'benchmark') => void;
+  currentView: 'library' | 'newBook' | 'benchmark' | 'analytics';
+  onNavigate: (view: 'library' | 'newBook' | 'benchmark' | 'analytics') => void;
 }
 
 export default function Navigation({ currentView, onNavigate }: NavigationProps) {
@@ -29,6 +29,12 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
           onClick={() => onNavigate('benchmark')}
         >
           Benchmark
+        </button>
+        <button
+          className={`nav-link ${currentView === 'analytics' ? 'active' : ''}`}
+          onClick={() => onNavigate('analytics')}
+        >
+          Analisi
         </button>
       </div>
     </nav>

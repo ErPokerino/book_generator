@@ -18,6 +18,7 @@ interface DashboardProps {
 
 export default function Dashboard({ stats }: DashboardProps) {
   const [chartView, setChartView] = useState<'book' | 'page'>('book');
+  const [costChartView, setCostChartView] = useState<'total' | 'per_page'>('total');
 
   const formatTime = (minutes: number) => {
     if (minutes < 60) {
@@ -205,6 +206,78 @@ export default function Dashboard({ stats }: DashboardProps) {
                     <stop offset="100%" stopColor="#e94560" stopOpacity={0.7} />
                   </linearGradient>
                 </defs>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Grafico Costo Medio per Modello */}
+      {((stats.average_cost_by_model && Object.keys(stats.average_cost_by_model).length > 0) ||
+        (stats.average_cost_per_page_by_model && Object.keys(stats.average_cost_per_page_by_model).length > 0)) && (
+        <div className="stats-section">
+          <div className="chart-header">
+            <h3>Costo Medio per Modello</h3>
+            <div className="chart-toggle">
+              <button
+                className={`toggle-btn ${costChartView === 'total' ? 'active' : ''}`}
+                onClick={() => setCostChartView('total')}
+              >
+                Costo Totale
+              </button>
+              <button
+                className={`toggle-btn ${costChartView === 'per_page' ? 'active' : ''}`}
+                onClick={() => setCostChartView('per_page')}
+              >
+                Costo per Pagina
+              </button>
+            </div>
+          </div>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={
+                  costChartView === 'total'
+                    ? Object.entries(stats.average_cost_by_model || {})
+                        .map(([model, cost]) => ({ model, cost }))
+                        .sort((a, b) => b.cost - a.cost)
+                    : Object.entries(stats.average_cost_per_page_by_model || {})
+                        .map(([model, cost]) => ({ model, cost }))
+                        .sort((a, b) => b.cost - a.cost)
+                }
+                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
+                <XAxis
+                  dataKey="model"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                />
+                <YAxis
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                  tickFormatter={(value) => `€${value.toFixed(2)}`}
+                />
+                <Tooltip
+                  formatter={(value: number) => [
+                    `€${value.toFixed(4)}`,
+                    costChartView === 'total' ? 'Costo medio libro' : 'Costo medio per pagina'
+                  ]}
+                  contentStyle={{
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="cost"
+                  fill="#10b981"
+                  radius={[8, 8, 0, 0]}
+                  name={costChartView === 'total' ? 'Costo medio (EUR)' : 'Costo medio per pagina (EUR)'}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>

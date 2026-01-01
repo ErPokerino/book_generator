@@ -10,9 +10,10 @@ interface DraftStepProps {
   questionAnswers: QuestionAnswer[];
   onDraftValidated: (draft: DraftResponse, outline: OutlineResponse | null) => void;
   onBack?: () => void;
+  onOutlineGenerationStart?: () => void;
 }
 
-export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack }: DraftStepProps) {
+export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack, onOutlineGenerationStart }: DraftStepProps) {
   const [draft, setDraft] = useState<DraftResponse | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModifying, setIsModifying] = useState(false);
@@ -78,6 +79,9 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
         validated: true,
       };
       await validateDraft(request);
+      
+      // Notifica che inizia la generazione dell'outline (per aggiornare lo step indicator)
+      onOutlineGenerationStart?.();
       
       // Dopo la validazione, mostra loading per generazione outline
       setIsValidating(false);

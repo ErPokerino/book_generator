@@ -1,0 +1,169 @@
+/* ============================================
+   StepIndicator - Stepper Verticale
+   ============================================ */
+
+.step-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 1.5rem;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  min-width: 200px;
+}
+
+.step-indicator-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  position: relative;
+}
+
+.step-indicator-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.75rem 0;
+  transition: all var(--transition-fast);
+}
+
+.step-indicator-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--background);
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  transition: all var(--transition-fast);
+}
+
+.step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-checkmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #10b981;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.step-indicator-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.step-label {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.step-progress-detail {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Stato: Completato */
+.step-indicator-content.completed .step-indicator-icon {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.step-indicator-content.completed .step-label {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Stato: Corrente */
+.step-indicator-content.current .step-indicator-icon {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(233, 69, 96, 0.1);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.step-indicator-content.current .step-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(233, 69, 96, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(233, 69, 96, 0.05);
+  }
+}
+
+/* Stato: Pending */
+.step-indicator-content.pending .step-indicator-icon {
+  background: var(--background);
+  border-color: var(--border);
+  opacity: 0.5;
+}
+
+.step-indicator-content.pending .step-label {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Linea di connessione */
+.step-indicator-line {
+  width: 2px;
+  height: 2rem;
+  background: var(--border);
+  margin-left: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  transition: background-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.step-indicator-line.completed {
+  background: #10b981;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .step-indicator {
+    min-width: auto;
+    padding: 1rem;
+  }
+  
+  .step-indicator-icon {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1rem;
+  }
+  
+  .step-label {
+    font-size: 0.85rem;
+  }
+  
+  .step-indicator-line {
+    margin-left: 1rem;
+    height: 1.5rem;
+  }
+}

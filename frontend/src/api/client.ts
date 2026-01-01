@@ -411,6 +411,7 @@ export interface BookProgress {
   error?: string;
   total_pages?: number;
   writing_time_minutes?: number;
+  estimated_cost?: number;
   critique?: LiteraryCritique;
   critique_status?: 'pending' | 'running' | 'completed' | 'failed';
   critique_error?: string;
@@ -574,6 +575,42 @@ export async function getCoverImage(sessionId: string): Promise<string | null> {
   }
 }
 
+export interface MissingCoverBook {
+  session_id: string;
+  title: string;
+  author: string;
+  created_at: string;
+}
+
+export interface MissingCoversResponse {
+  missing_covers: MissingCoverBook[];
+  count: number;
+}
+
+export async function regenerateCover(sessionId: string): Promise<{ success: boolean; cover_path: string }> {
+  const response = await fetch(`${API_BASE}/library/cover/regenerate/${sessionId}`, {
+    method: 'POST',
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nella rigenerazione della copertina: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getBooksWithMissingCovers(): Promise<MissingCoversResponse> {
+  const response = await fetch(`${API_BASE}/library/missing-covers`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero dei libri senza copertina: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 export interface AppConfig {
   api_timeouts: {
     submit_form?: number;
@@ -639,6 +676,7 @@ export interface LibraryEntry {
   pdf_filename?: string;
   cover_image_path?: string;
   writing_time_minutes?: number;
+  estimated_cost?: number;
 }
 
 export interface LibraryStats {
@@ -655,6 +693,26 @@ export interface LibraryStats {
   average_writing_time_by_model?: Record<string, number>;
   average_time_per_page_by_model?: Record<string, number>;
   average_pages_by_model?: Record<string, number>;
+  average_cost_by_model?: Record<string, number>;
+  average_cost_per_page_by_model?: Record<string, number>;
+}
+
+export interface ModelComparisonEntry {
+  model: string;
+  total_books: number;
+  completed_books: number;
+  average_score?: number;
+  average_pages: number;
+  average_cost?: number;
+  average_writing_time: number;
+  average_time_per_page: number;
+  score_range: Record<string, number>;
+}
+
+export interface AdvancedStats {
+  books_over_time: Record<string, number>;
+  score_trend_over_time: Record<string, number>;
+  model_comparison: ModelComparisonEntry[];
 }
 
 export interface LibraryResponse {
@@ -710,6 +768,17 @@ export async function getLibraryStats(): Promise<LibraryStats> {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || `Errore nel recupero delle statistiche: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getAdvancedStats(): Promise<AdvancedStats> {
+  const response = await fetch(`${API_BASE}/library/stats/advanced`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero delle statistiche avanzate: ${response.statusText}`);
   }
   
   return response.json();

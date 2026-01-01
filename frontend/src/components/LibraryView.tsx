@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   getLibrary, 
-  getLibraryStats, 
   LibraryEntry, 
-  LibraryFilters, 
-  LibraryStats,
+  LibraryFilters,
   fetchConfig,
   ConfigResponse
 } from '../api/client';
-import Dashboard from './Dashboard';
 import FilterBar from './FilterBar';
 import BookCard from './BookCard';
 import WritingStep from './WritingStep';
@@ -21,7 +18,6 @@ interface LibraryViewProps {
 
 export default function LibraryView({ onReadBook }: LibraryViewProps) {
   const [books, setBooks] = useState<LibraryEntry[]>([]);
-  const [stats, setStats] = useState<LibraryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,31 +49,24 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
       const filtersToUse = currentFilters ?? filtersRef.current;
       
       // Timeout di 30 secondi per le chiamate API
-      const apiPromise = Promise.all([
-        getLibrary(filtersToUse),
-        getLibraryStats(),
-      ]);
+      const apiPromise = getLibrary(filtersToUse);
       
       const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Timeout: le richieste API stanno impiegando troppo tempo')), 30000)
       );
       
-      const [libraryResponse, statsData] = await Promise.race([
+      const libraryResponse = await Promise.race([
         apiPromise,
         timeoutPromise,
       ]);
       
       setBooks(libraryResponse.books);
-      setStats(statsData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
       setError(errorMessage);
       console.error('Errore nel caricamento libreria:', err);
       // Assicuriamoci di avere valori default anche in caso di errore
       setBooks([]);
-      if (!stats) {
-        // Mantieni stats null se non riusciamo a caricarli
-      }
     } finally {
       // Sempre disabilita il loading, anche in caso di errore
       if (isRefresh) {
@@ -103,8 +92,6 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
 
   const handleDelete = (sessionId: string) => {
     setBooks(prev => prev.filter(book => book.session_id !== sessionId));
-    // Ricarica stats dopo eliminazione
-    getLibraryStats().then(setStats).catch(console.error);
   };
 
   const handleContinue = (sessionId: string) => {
@@ -167,8 +154,6 @@ export default function LibraryView({ onReadBook }: LibraryViewProps) {
 
   return (
     <div className="library-view">
-      {stats && <Dashboard stats={stats} />}
-      
       <FilterBar
         onFiltersChange={handleFiltersChange}
         availableModels={availableModels}

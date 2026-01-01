@@ -6,6 +6,7 @@ import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
 import ErrorBoundary from './ErrorBoundary';
+import StepIndicator from './StepIndicator';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -96,6 +97,13 @@ export default function DynamicForm() {
       data.fields.forEach(field => {
         initialData[field.id] = '';
       });
+      
+      // Imposta default per llm_model se esiste
+      const llmModelField = data.fields.find(f => f.id === 'llm_model');
+      if (llmModelField && llmModelField.type === 'select') {
+        initialData['llm_model'] = 'gemini-3-flash';
+      }
+      
       setFormData(initialData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della configurazione';
@@ -198,7 +206,7 @@ export default function DynamicForm() {
         }
       });
       
-      // Aggiungi sempre user_name anche se vuoto, per mostrarlo nel riepilogo
+      // Aggiungi sempre user_name anche se vuoto, per mostrarlo nella struttura
       if (formData.user_name !== undefined) {
         (payload as any).user_name = formData.user_name || '';
       }
@@ -292,10 +300,10 @@ export default function DynamicForm() {
       }
     }
     
-    // Dopo la validazione della bozza, mostra il riepilogo finale
+    // Dopo la validazione della bozza, mostra la struttura
     setSubmitted({
       success: true,
-      message: 'Configurazione completata! Bozza validata. Pronto per la fase di scrittura.',
+      message: 'Struttura del libro generata! Rivedi e modifica la struttura prima di procedere con la scrittura.',
       data: formPayload || undefined,
     });
     setCurrentStep('summary');
@@ -403,29 +411,44 @@ export default function DynamicForm() {
   // Mostra le domande se generate
   if (currentStep === 'questions' && questions && sessionId) {
     return (
-      <QuestionsStep
-        questions={questions}
-        sessionId={sessionId}
-        onComplete={handleQuestionsComplete}
-        onBack={handleBackToForm}
-      />
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+        <div className="dynamic-form-main-content">
+          <QuestionsStep
+            questions={questions}
+            sessionId={sessionId}
+            onComplete={handleQuestionsComplete}
+            onBack={handleBackToForm}
+          />
+        </div>
+      </div>
     );
   }
 
   // Mostra lo step della bozza
   if (currentStep === 'draft' && sessionId && formPayload) {
     return (
-      <DraftStep
-        sessionId={sessionId}
-        formData={formPayload}
-        questionAnswers={questionAnswers}
-        onDraftValidated={handleDraftValidated}
-        onBack={() => setCurrentStep('questions')}
-      />
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+        <div className="dynamic-form-main-content">
+          <DraftStep
+            sessionId={sessionId}
+            formData={formPayload}
+            questionAnswers={questionAnswers}
+            onDraftValidated={handleDraftValidated}
+            onBack={() => setCurrentStep('questions')}
+            onOutlineGenerationStart={() => setCurrentStep('summary')}
+          />
+        </div>
+      </div>
     );
   }
 
-  // Mostra riepilogo finale dopo la validazione della bozza
+  // Mostra struttura dopo la validazione della bozza
   if (currentStep === 'summary' && submitted && answersSubmitted) {
     // Logging dettagliato per diagnostica
     console.log('[DEBUG DynamicForm] Rendering summary step');
@@ -465,13 +488,18 @@ export default function DynamicForm() {
     };
 
     return (
-      <div className="submission-success">
-        <h2>Configurazione completata con successo!</h2>
-        <p>{submitted.message}</p>
-        
-        {error && <div className="error-banner">{error}</div>}
-        
-        <div className="submission-summary">
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+        <div className="dynamic-form-main-content">
+          <div className="submission-success">
+            <h2>Struttura del libro pronta!</h2>
+            <p>{submitted.message}</p>
+            
+            {error && <div className="error-banner">{error}</div>}
+            
+            <div className="submission-summary">
           <div className="summary-section">
             <div className="summary-section-header">
               <h4>Struttura del Romanzo:</h4>
@@ -618,51 +646,74 @@ export default function DynamicForm() {
           </button>
         </div>
       </div>
+        </div>
+      </div>
     );
   }
 
   // Mostra lo step di scrittura
   if (currentStep === 'writing' && sessionId) {
     return (
-      <WritingStep
-        sessionId={sessionId}
-        onComplete={(progress) => {
-          console.log('[DEBUG] Scrittura completata:', progress);
-          // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
-        }}
-        onNewBook={handleResetToForm}
-      />
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+        <div className="dynamic-form-main-content">
+          <WritingStep
+            sessionId={sessionId}
+            onComplete={(progress) => {
+              console.log('[DEBUG] Scrittura completata:', progress);
+              // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
+            }}
+            onNewBook={handleResetToForm}
+          />
+        </div>
+      </div>
     );
   }
 
   // Mostra loading durante generazione domande
   if (isGeneratingQuestions) {
     return (
-      <div className="loading">
-        <p>Generazione domande preliminari in corso...</p>
-        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Questo potrebbe richiedere alcuni secondi
-        </p>
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep="questions" />
+        </div>
+        <div className="dynamic-form-main-content">
+          <div className="loading">
+            <p>Generazione domande preliminari in corso...</p>
+            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
+              Questo potrebbe richiedere alcuni secondi
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="dynamic-form-container">
-      <h1>Agente di Scrittura Romanzi</h1>
-      <p className="subtitle">Compila il form per configurare il tuo romanzo</p>
-      
-      {error && <div className="error-banner">{error}</div>}
-      
-      <form onSubmit={handleSubmit} className="dynamic-form">
-        {config?.fields.map((field) => renderField(field))}
-        
-        <div className="form-actions">
-          <button type="submit" disabled={isSubmitting} className="submit-button">
-            {isSubmitting ? 'Invio in corso...' : 'Invia'}
-          </button>
+    <div className="dynamic-form-layout">
+      <div className="step-indicator-wrapper">
+        <StepIndicator currentStep={currentStep} />
+      </div>
+      <div className="dynamic-form-main-content">
+        <div className="dynamic-form-container">
+          <h1>Agente di Scrittura Romanzi</h1>
+          <p className="subtitle">Compila il form per configurare il tuo romanzo</p>
+          
+          {error && <div className="error-banner">{error}</div>}
+          
+          <form onSubmit={handleSubmit} className="dynamic-form">
+            {config?.fields.map((field) => renderField(field))}
+            
+            <div className="form-actions">
+              <button type="submit" disabled={isSubmitting} className="submit-button">
+                {isSubmitting ? 'Invio in corso...' : 'Invia'}
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -119,6 +119,7 @@ class AppConfig(TypedDict, total=False):
     frontend: dict[str, int]
     time_estimation: dict[str, Any]
     cover_generation: dict[str, Any]
+    cost_estimation: dict[str, Any]
 
 
 _app_config: Optional[AppConfig] = None
@@ -160,6 +161,7 @@ def load_app_config() -> AppConfig:
                 "use_session_avg_if_available": True,
             },
             "temperature": {},
+            "cost_estimation": {},
         }
     
     with open(config_path, "r", encoding="utf-8") as f:
@@ -174,6 +176,7 @@ def load_app_config() -> AppConfig:
         "time_estimation": data.get("time_estimation", {}),
         "cover_generation": data.get("cover_generation", {}),
         "temperature": data.get("temperature", {}),
+        "cost_estimation": data.get("cost_estimation", {}),
     }
 
 
@@ -232,4 +235,82 @@ def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
     else:
         # Default conservativo se non si riesce a determinare la versione
         return 0.0
+
+
+def get_tokens_per_page() -> int:
+    """Restituisce il numero di token stimati per pagina."""
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    return int(cost_config.get("tokens_per_page", 350))
+
+
+def get_model_pricing(model_name: str) -> dict[str, float]:
+    """
+    Restituisce i costi per input/output per il modello specificato.
+    
+    Args:
+        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3-pro-preview")
+    
+    Returns:
+        Dizionario con 'input_cost_per_million' e 'output_cost_per_million' in USD
+    """
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    model_costs = cost_config.get("model_costs", {})
+    
+    # Normalizza il nome del modello per il lookup
+    model_normalized = model_name.lower().replace("_", "-")
+    
+    # Prova prima il nome esatto, poi varianti comuni
+    if model_normalized in model_costs:
+        costs = model_costs[model_normalized]
+    elif "gemini-2.5-flash" in model_normalized:
+        costs = model_costs.get("gemini-2.5-flash", {})
+    elif "gemini-2.5-pro" in model_normalized:
+        costs = model_costs.get("gemini-2.5-pro", {})
+    elif "gemini-3-flash" in model_normalized:
+        costs = model_costs.get("gemini-3-flash-preview", {})
+    elif "gemini-3-pro" in model_normalized:
+        costs = model_costs.get("gemini-3-pro-preview", {})
+    else:
+        # Fallback a default
+        costs = model_costs.get("default", {})
+    
+    return {
+        "input_cost_per_million": float(costs.get("input_cost_per_million", 1.0)),
+        "output_cost_per_million": float(costs.get("output_cost_per_million", 3.0)),
+    }
+
+
+def get_image_generation_cost() -> float:
+    """Restituisce il costo per generazione immagine copertina in USD."""
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    return float(cost_config.get("image_generation_cost", 0.02))
+
+
+def get_cost_currency() -> str:
+    """Restituisce la valuta di visualizzazione."""
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    return str(cost_config.get("currency", "EUR"))
+
+
+def get_exchange_rate_usd_to_eur() -> float:
+    """Restituisce il tasso di cambio USD->EUR."""
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    return float(cost_config.get("exchange_rate_usd_to_eur", 0.92))
+
+
+def get_token_estimates() -> dict[str, Any]:
+    """Restituisce le stime di token per le varie fasi."""
+    app_config = get_app_config()
+    cost_config = app_config.get("cost_estimation", {})
+    return cost_config.get("token_estimates", {
+        "draft": {"input_base": 800, "output_per_page": 12},
+        "outline": {"input_base": 3000, "output_base": 2000},
+        "chapter": {"context_base": 8000},
+        "critique": {"input_multiplier": 1.2, "output_base": 1200},
+    })
 

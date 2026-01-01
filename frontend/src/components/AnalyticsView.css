@@ -1,0 +1,101 @@
+.analytics-view {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.analytics-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary, #213547);
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.analytics-section {
+  margin-bottom: 3rem;
+  padding: 1.5rem;
+  background: var(--surface, #fff);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #213547);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--border-light, #e0e0e0);
+}
+
+.section-description {
+  margin: 0 0 1rem 0;
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.chart-container {
+  margin-top: 1.5rem;
+}
+
+.chart-subtitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #213547);
+  margin-bottom: 1rem;
+}
+
+.coming-soon {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+}
+
+.loading-message,
+.error-message,
+.empty-state {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-secondary, #666);
+}
+
+.error-message {
+  color: var(--error, #f44336);
+}
+
+.error-message button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary, #646cff);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.error-message button:hover {
+  background: var(--primary-hover, #535bf2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .analytics-view {
+    padding: 1rem;
+  }
+
+  .analytics-title {
+    font-size: 1.5rem;
+  }
+
+  .analytics-section {
+    padding: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .section-title {
+    font-size: 1.2rem;
+  }
+}

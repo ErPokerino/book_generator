@@ -23,7 +23,11 @@ import base64
 import math
 from xhtml2pdf import pisa
 from pathlib import Path as PathLib
-from app.config import get_config, reload_config, get_app_config
+from app.config import (
+    get_config, reload_config, get_app_config,
+    get_tokens_per_page, get_model_pricing, get_image_generation_cost,
+    get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
+)
 from app.models import (
     ConfigResponse,
     SubmissionRequest,
@@ -52,6 +56,8 @@ from app.models import (
     LibraryStats,
     LibraryResponse,
     PdfEntry,
+    AdvancedStats,
+    ModelComparisonEntry,
 )
 from app.agent.question_generator import generate_questions
 from app.agent.draft_generator import generate_draft
@@ -1096,6 +1102,114 @@ def calculate_estimated_time(session_id: str, current_step: int, total_steps: in
         return None, None
 
 
+def calculate_generation_cost(
+    session,
+    total_pages: Optional[int],
+) -> Optional[float]:
+    """
+    Calcola il costo stimato di generazione dei capitoli del libro.
+    
+    Considera solo il costo di generazione dei capitoli (processo autoregressivo),
+    escludendo bozza, outline, critica e copertina.
+    
+    Args:
+        session: SessionData object
+        total_pages: Numero totale di pagine del libro (None se non disponibile)
+    
+    Returns:
+        Costo stimato in EUR, o None se non calcolabile
+    """
+    # Calcola solo se il libro è completo e abbiamo total_pages
+    if not total_pages or total_pages <= 0:
+        return None
+    
+    try:
+        # Recupera configurazione costi
+        tokens_per_page = get_tokens_per_page()
+        model_name = session.form_data.llm_model if session.form_data else None
+        if not model_name:
+            return None
+        
+        # Mappa il nome del modello al nome API
+        from app.agent.writer_generator import map_model_name
+        gemini_model = map_model_name(model_name)
+        
+        # Recupera pricing del modello
+        pricing = get_model_pricing(gemini_model)
+        input_cost_per_million = pricing["input_cost_per_million"]
+        output_cost_per_million = pricing["output_cost_per_million"]
+        
+        # Recupera stime token
+        token_estimates = get_token_estimates()
+        
+        # Calcola pagine capitoli (escludendo copertina e TOC)
+        chapters_pages = total_pages - 1  # -1 per copertina
+        app_config = get_app_config()
+        toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+        completed_chapters = len(session.book_chapters) if session.book_chapters else 0
+        toc_pages = math.ceil(completed_chapters / toc_chapters_per_page) if completed_chapters > 0 else 0
+        chapters_pages = chapters_pages - toc_pages  # Rimuovi anche TOC
+        
+        if chapters_pages <= 0:
+            chapters_pages = max(1, total_pages - 1)  # Fallback minimo
+        
+        if completed_chapters == 0:
+            print(f"[COST CALCULATION] Nessun capitolo completato per sessione {session.session_id}")
+            return None  # Nessun capitolo, non calcolabile
+        
+        print(f"[COST CALCULATION] Calcolo costo per: modello={gemini_model}, capitoli={completed_chapters}, pagine={chapters_pages}")
+        
+        # Calcolo costo Capitoli (processo autoregressivo)
+        # Formula: per ogni capitolo i (da 1 a N):
+        #   Input per capitolo i = context_base + somma(pagine di tutti i capitoli precedenti 0..i-1) × tokens_per_page
+        #   Output per capitolo i = pagine_capitolo_i × tokens_per_page
+        #
+        # Input totale = sum(i=1 to N) di [context_base + sum(j=0 to i-1) di (pages[j] × tokens_per_page)]
+        # Con approssimazione pagine uniformi:
+        #   = N × context_base + tokens_per_page × avg_pages × sum(i=1 to N) di (i-1)
+        #   = N × context_base + tokens_per_page × avg_pages × [N × (N-1) / 2]
+        
+        num_chapters = completed_chapters
+        context_base = token_estimates.get("chapter", {}).get("context_base", 8000)
+        avg_pages_per_chapter = chapters_pages / num_chapters if num_chapters > 0 else chapters_pages
+        
+        # Input totale per tutti i capitoli
+        # Base: ogni capitolo include il context_base (draft + outline + form_data + system_prompt)
+        chapters_input = num_chapters * context_base
+        
+        # Somma cumulativa: per ogni capitolo i, aggiungi i capitoli precedenti (0..i-1)
+        # Questo rappresenta il fatto che ogni capitolo vede tutti i capitoli precedenti nel contesto
+        for i in range(1, num_chapters + 1):
+            # Capitoli precedenti: (i-1) capitoli
+            # Pagine totali dei capitoli precedenti: (i-1) × avg_pages_per_chapter
+            previous_pages = (i - 1) * avg_pages_per_chapter
+            # Token dei capitoli precedenti da includere nell'input
+            chapters_input += previous_pages * tokens_per_page
+        
+        # Output totale: tutte le pagine generate dai capitoli
+        chapters_output = chapters_pages * tokens_per_page
+        
+        # Calcola costo
+        chapters_cost_usd = (
+            (chapters_input * input_cost_per_million / 1_000_000) +
+            (chapters_output * output_cost_per_million / 1_000_000)
+        )
+        
+        # Converti USD -> EUR
+        exchange_rate = get_exchange_rate_usd_to_eur()
+        total_cost_eur = chapters_cost_usd * exchange_rate
+        
+        print(f"[COST CALCULATION] Risultato: ${chapters_cost_usd:.6f} USD = €{total_cost_eur:.4f} EUR")
+        
+        return round(total_cost_eur, 4)
+        
+    except Exception as e:
+        print(f"[COST CALCULATION] Errore nel calcolo costo: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def session_to_library_entry(session) -> "LibraryEntry":
     """Converte una SessionData in una LibraryEntry."""
     from app.models import LibraryEntry
@@ -1172,6 +1286,19 @@ def session_to_library_entry(session) -> "LibraryEntry":
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
     
+    # Calcola costo stimato (solo se libro completo)
+    estimated_cost = None
+    if status == "complete" and total_pages:
+        print(f"[LIBRARY ENTRY] Tentativo calcolo costo per {session.session_id}: total_pages={total_pages}, completed_chapters={completed_chapters}, book_chapters={len(session.book_chapters) if session.book_chapters else 0}")
+        estimated_cost = calculate_generation_cost(session, total_pages)
+        if estimated_cost is None:
+            print(f"[LIBRARY ENTRY] Costo non calcolato per {session.session_id}: status={status}, total_pages={total_pages}, completed_chapters={completed_chapters}")
+        else:
+            print(f"[LIBRARY ENTRY] Costo calcolato per {session.session_id}: €{estimated_cost:.4f}")
+    else:
+        if status == "complete":
+            print(f"[LIBRARY ENTRY] Costo non calcolato per {session.session_id}: status=complete ma total_pages={total_pages}")
+    
     return LibraryEntry(
         session_id=session.session_id,
         title=session.current_title or "Romanzo",
@@ -1190,6 +1317,7 @@ def session_to_library_entry(session) -> "LibraryEntry":
         pdf_filename=pdf_filename,
         cover_image_path=session.cover_image_path,
         writing_time_minutes=writing_time_minutes,
+        estimated_cost=estimated_cost,
     )
 
 
@@ -1283,6 +1411,8 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
             average_writing_time_by_model={},
             average_time_per_page_by_model={},
             average_pages_by_model={},
+            average_cost_by_model={},
+            average_cost_per_page_by_model={},
         )
     
     completed = [e for e in entries if e.status == "complete"]
@@ -1373,6 +1503,30 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         if pages_list:
             average_pages_by_model[model] = round(sum(pages_list) / len(pages_list), 1)
     
+    # Calcola costo medio per libro per modello (solo libri completati con costo valido)
+    model_costs = defaultdict(list)
+    for e in completed:
+        if e.estimated_cost is not None and e.estimated_cost > 0:
+            model_costs[e.llm_model].append(e.estimated_cost)
+    
+    average_cost_by_model = {}
+    for model, costs_list in model_costs.items():
+        if costs_list:
+            average_cost_by_model[model] = round(sum(costs_list) / len(costs_list), 4)
+    
+    # Calcola costo medio per pagina per modello (solo libri completati con costo e pagine valide)
+    model_costs_per_page = defaultdict(list)
+    for e in completed:
+        if (e.estimated_cost is not None and e.estimated_cost > 0 and
+            e.total_pages is not None and e.total_pages > 0):
+            cost_per_page = e.estimated_cost / e.total_pages
+            model_costs_per_page[e.llm_model].append(cost_per_page)
+    
+    average_cost_per_page_by_model = {}
+    for model, costs_per_page_list in model_costs_per_page.items():
+        if costs_per_page_list:
+            average_cost_per_page_by_model[model] = round(sum(costs_per_page_list) / len(costs_per_page_list), 4)
+    
     return LibraryStats(
         total_books=len(entries),
         completed_books=len(completed),
@@ -1387,6 +1541,131 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         average_writing_time_by_model=average_writing_time_by_model,
         average_time_per_page_by_model=average_time_per_page_by_model,
         average_pages_by_model=average_pages_by_model,
+        average_cost_by_model=average_cost_by_model,
+        average_cost_per_page_by_model=average_cost_per_page_by_model,
+    )
+
+
+def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
+    """Calcola statistiche avanzate con analisi temporali e confronto modelli."""
+    from app.models import AdvancedStats, ModelComparisonEntry
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    
+    if not entries:
+        return AdvancedStats(
+            books_over_time={},
+            score_trend_over_time={},
+            model_comparison=[],
+        )
+    
+    completed = [e for e in entries if e.status == "complete"]
+    
+    # Calcola libri creati nel tempo (raggruppati per giorno)
+    books_over_time = defaultdict(int)
+    for entry in entries:
+        # Formatta la data come YYYY-MM-DD
+        date_str = entry.created_at.strftime("%Y-%m-%d")
+        books_over_time[date_str] += 1
+    
+    # Ordina per data
+    books_over_time_sorted = dict(sorted(books_over_time.items()))
+    
+    # Calcola trend voto nel tempo (voto medio per giorno)
+    score_by_date = defaultdict(list)
+    for entry in completed:
+        if entry.critique_score is not None:
+            date_str = entry.created_at.strftime("%Y-%m-%d")
+            score_by_date[date_str].append(entry.critique_score)
+    
+    score_trend_over_time = {}
+    for date_str, scores in sorted(score_by_date.items()):
+        score_trend_over_time[date_str] = round(sum(scores) / len(scores), 2)
+    
+    # Calcola confronto dettagliato per ogni modello
+    model_comparison_data = defaultdict(lambda: {
+        'total': 0,
+        'completed': 0,
+        'scores': [],
+        'pages': [],
+        'costs': [],
+        'writing_times': [],
+        'times_per_page': [],
+        'score_distribution': defaultdict(int),
+    })
+    
+    for entry in entries:
+        model = entry.llm_model
+        model_comparison_data[model]['total'] += 1
+        if entry.status == "complete":
+            model_comparison_data[model]['completed'] += 1
+            
+            if entry.critique_score is not None:
+                model_comparison_data[model]['scores'].append(entry.critique_score)
+                # Distribuzione voti per modello
+                score = entry.critique_score
+                if score < 2:
+                    model_comparison_data[model]['score_distribution']["0-2"] += 1
+                elif score < 4:
+                    model_comparison_data[model]['score_distribution']["2-4"] += 1
+                elif score < 6:
+                    model_comparison_data[model]['score_distribution']["4-6"] += 1
+                elif score < 8:
+                    model_comparison_data[model]['score_distribution']["6-8"] += 1
+                else:
+                    model_comparison_data[model]['score_distribution']["8-10"] += 1
+            
+            if entry.total_pages is not None and entry.total_pages > 0:
+                model_comparison_data[model]['pages'].append(entry.total_pages)
+            
+            if entry.estimated_cost is not None and entry.estimated_cost > 0:
+                model_comparison_data[model]['costs'].append(entry.estimated_cost)
+            
+            if entry.writing_time_minutes is not None and entry.writing_time_minutes > 0:
+                model_comparison_data[model]['writing_times'].append(entry.writing_time_minutes)
+                if entry.total_pages is not None and entry.total_pages > 0:
+                    time_per_page = entry.writing_time_minutes / entry.total_pages
+                    model_comparison_data[model]['times_per_page'].append(time_per_page)
+    
+    # Crea lista ModelComparisonEntry
+    model_comparison = []
+    for model, data in sorted(model_comparison_data.items()):
+        avg_score = None
+        if data['scores']:
+            avg_score = round(sum(data['scores']) / len(data['scores']), 2)
+        
+        avg_pages = 0.0
+        if data['pages']:
+            avg_pages = round(sum(data['pages']) / len(data['pages']), 1)
+        
+        avg_cost = None
+        if data['costs']:
+            avg_cost = round(sum(data['costs']) / len(data['costs']), 1)
+        
+        avg_writing_time = 0.0
+        if data['writing_times']:
+            avg_writing_time = round(sum(data['writing_times']) / len(data['writing_times']), 1)
+        
+        avg_time_per_page = 0.0
+        if data['times_per_page']:
+            avg_time_per_page = round(sum(data['times_per_page']) / len(data['times_per_page']), 2)
+        
+        model_comparison.append(ModelComparisonEntry(
+            model=model,
+            total_books=data['total'],
+            completed_books=data['completed'],
+            average_score=avg_score,
+            average_pages=avg_pages,
+            average_cost=avg_cost,
+            average_writing_time=avg_writing_time,
+            average_time_per_page=avg_time_per_page,
+            score_range=dict(data['score_distribution']),
+        ))
+    
+    return AdvancedStats(
+        books_over_time=books_over_time_sorted,
+        score_trend_over_time=score_trend_over_time,
+        model_comparison=model_comparison,
     )
 
 
@@ -2277,6 +2556,11 @@ async def get_book_progress_endpoint(session_id: str):
                 delta = session.writing_end_time - session.writing_start_time
                 writing_time_minutes = delta.total_seconds() / 60
         
+        # Calcola costo stimato (solo se libro completo)
+        estimated_cost = None
+        if is_complete and total_pages:
+            estimated_cost = calculate_generation_cost(session, total_pages)
+        
         # Recupera la valutazione critica se disponibile
         critique = None
         if session.literary_critique:
@@ -2396,6 +2680,7 @@ async def get_book_progress_endpoint(session_id: str):
             error=progress.get('error'),
             total_pages=total_pages,
             writing_time_minutes=writing_time_minutes,
+            estimated_cost=estimated_cost,
             critique=critique,
             critique_status=critique_status,
             critique_error=critique_error,
@@ -2546,7 +2831,7 @@ async def get_library_endpoint(
     - llm_model: filtro per modello LLM
     - genre: filtro per genere
     - search: ricerca in titolo/autore
-    - sort_by: ordinamento (created_at, title, score, updated_at)
+    - sort_by: ordinamento (created_at, title, score, cost, updated_at)
     - sort_order: ordine (asc, desc)
     """
     try:
@@ -2588,6 +2873,17 @@ async def get_library_endpoint(
             filtered_entries.sort(key=lambda e: e.title.lower(), reverse=reverse_order)
         elif sort_by == "score":
             filtered_entries.sort(key=lambda e: e.critique_score or 0, reverse=reverse_order)
+        elif sort_by == "cost":
+            # Per il costo, i valori None vengono sempre messi alla fine
+            # Usa una tupla per garantire che None sia sempre dopo i valori numerici
+            if reverse_order:  # Discendente: costi alti prima, None alla fine
+                filtered_entries.sort(
+                    key=lambda e: (e.estimated_cost is None, -(e.estimated_cost or float('inf')))
+                )
+            else:  # Ascendente: costi bassi prima, None alla fine
+                filtered_entries.sort(
+                    key=lambda e: (e.estimated_cost is None, e.estimated_cost or float('inf'))
+                )
         elif sort_by == "updated_at":
             filtered_entries.sort(key=lambda e: e.updated_at, reverse=reverse_order)
         else:  # created_at default
@@ -2639,6 +2935,36 @@ async def get_library_stats_endpoint():
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel calcolo delle statistiche: {str(e)}"
+        )
+
+
+@app.get("/api/library/stats/advanced", response_model=AdvancedStats)
+async def get_advanced_stats_endpoint():
+    """Restituisce statistiche avanzate con analisi temporali e confronto modelli."""
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        # Converti tutte le sessioni in LibraryEntry
+        entries = []
+        for session in all_sessions.values():
+            try:
+                entry = session_to_library_entry(session)
+                entries.append(entry)
+            except Exception as e:
+                print(f"[ADVANCED STATS] Errore nel convertire sessione {session.session_id}: {e}")
+                continue
+        
+        advanced_stats = calculate_advanced_stats(entries)
+        return advanced_stats
+    
+    except Exception as e:
+        print(f"[ADVANCED STATS] Errore nel calcolo statistiche avanzate: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel calcolo delle statistiche avanzate: {str(e)}"
         )
 
 
@@ -2777,6 +3103,213 @@ async def get_cover_image_endpoint(session_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero della copertina: {str(e)}"
+        )
+
+
+def sanitize_plot_for_cover(plot: str) -> str:
+    """
+    Sanitizza il plot creando un riassunto molto generico con solo elementi atmosferici e visivi.
+    Usata solo per la rigenerazione manuale della copertina per evitare blocchi da contenuti sensibili.
+    """
+    if not plot:
+        return ""
+    
+    import re
+    
+    # Estrai solo elementi chiave per la copertina: setting, atmosfera, temi visuali
+    plot_lower = plot.lower()
+    
+    # Cerca luoghi/setting
+    places = []
+    if 'villa' in plot_lower:
+        places.append('villa')
+    if 'vienna' in plot_lower:
+        places.append('Vienna')
+    if 'new york' in plot_lower or 'newyork' in plot_lower:
+        places.append('New York')
+    if 'roma' in plot_lower:
+        places.append('Roma')
+    if 'parigi' in plot_lower or 'paris' in plot_lower:
+        places.append('Parigi')
+    if 'ligure' in plot_lower or 'liguria' in plot_lower:
+        places.append('costa ligure')
+    
+    # Cerca elementi atmosferici
+    atmosphere = []
+    if 'estate' in plot_lower:
+        atmosphere.append('estate')
+    if 'neve' in plot_lower:
+        atmosphere.append('neve')
+    if 'mare' in plot_lower:
+        atmosphere.append('mare')
+    if 'caldo' in plot_lower:
+        atmosphere.append('caldo opprimente')
+    if 'luce' in plot_lower or 'tramonto' in plot_lower:
+        atmosphere.append('luce del tramonto')
+    
+    # Cerca temi principali (senza dettagli narrativi)
+    themes = []
+    if 'architettura' in plot_lower:
+        themes.append('architettura')
+    if 'musica' in plot_lower or 'violoncello' in plot_lower:
+        themes.append('musica')
+    if 'tempo' in plot_lower or 'memoria' in plot_lower:
+        themes.append('tempo e memoria')
+    if 'spazio' in plot_lower:
+        themes.append('spazio')
+    
+    # Cerca elementi visivi
+    visual_elements = []
+    if 'serra' in plot_lower:
+        visual_elements.append('serra')
+    if 'giardino' in plot_lower:
+        visual_elements.append('giardino')
+    if 'stanza' in plot_lower or 'camera' in plot_lower:
+        visual_elements.append('stanza')
+    
+    # Crea un riassunto molto generico e sicuro
+    sanitized_parts = []
+    
+    if places:
+        sanitized_parts.append(f"Ambientato in {', '.join(set(places[:3]))}")
+    
+    if atmosphere:
+        sanitized_parts.append(f"Atmosfera: {', '.join(set(atmosphere[:3]))}")
+    
+    if themes:
+        sanitized_parts.append(f"Temi: {', '.join(set(themes[:3]))}")
+    
+    if visual_elements:
+        sanitized_parts.append(f"Elementi visivi: {', '.join(set(visual_elements[:3]))}")
+    
+    # Crea un riassunto finale molto generico
+    if sanitized_parts:
+        sanitized = "Romanzo " + ". ".join(sanitized_parts) + "."
+    else:
+        # Fallback: estrai solo la prima frase descrittiva senza dettagli
+        sentences = re.split(r'[.!?]', plot)
+        first_safe_sentences = []
+        for sent in sentences[:3]:
+            sent_clean = sent.strip()
+            if len(sent_clean) > 20 and len(sent_clean) < 200:
+                # Verifica che non contenga parole problematiche
+                sent_lower = sent_clean.lower()
+                if not any(word in sent_lower for word in ['amore', 'bacio', 'corpo', 'intim', 'fisic', 'nud']):
+                    first_safe_sentences.append(sent_clean)
+        if first_safe_sentences:
+            sanitized = ". ".join(first_safe_sentences) + "."
+        else:
+            # Ultimo fallback: descrizione generica
+            sanitized = "Romanzo con temi di architettura, musica e memoria. Ambientato in luoghi che variano nel tempo."
+    
+    # Limita lunghezza per sicurezza
+    if len(sanitized) > 500:
+        sanitized = sanitized[:500]
+    
+    return sanitized
+
+
+@app.post("/api/library/cover/regenerate/{session_id}")
+async def regenerate_cover_endpoint(session_id: str):
+    """Rigenera la copertina per un libro completato."""
+    try:
+        session_store = get_session_store()
+        session = session_store.get_session(session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        status = session.get_status()
+        if status != "complete":
+            raise HTTPException(
+                status_code=400,
+                detail="Il libro deve essere completato per rigenerare la copertina"
+            )
+        
+        # Recupera API key
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
+            )
+        
+        print(f"[REGENERATE COVER] Avvio rigenerazione copertina per sessione {session_id}")
+        
+        # Sanitizza il plot per evitare blocchi da contenuti sensibili
+        original_plot = session.current_draft or ""
+        sanitized_plot = sanitize_plot_for_cover(original_plot)
+        print(f"[REGENERATE COVER] Plot sanitizzato: {len(original_plot)} -> {len(sanitized_plot)} caratteri")
+        
+        # Rigenera copertina con plot sanitizzato
+        cover_path = await generate_book_cover(
+            session_id=session_id,
+            title=session.current_title or "Romanzo",
+            author=session.form_data.user_name or "Autore",
+            plot=sanitized_plot,
+            api_key=api_key,
+            cover_style=session.form_data.cover_style,
+        )
+        
+        session_store.update_cover_image_path(session_id, cover_path)
+        session_store._save_sessions()
+        
+        print(f"[REGENERATE COVER] Copertina rigenerata con successo: {cover_path}")
+        
+        return {"success": True, "cover_path": str(cover_path)}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[REGENERATE COVER] Errore nella rigenerazione copertina: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nella rigenerazione della copertina: {str(e)}"
+        )
+
+
+@app.get("/api/library/missing-covers")
+async def get_missing_covers_endpoint():
+    """Restituisce lista di libri completati senza copertina."""
+    try:
+        session_store = get_session_store()
+        all_sessions = session_store._sessions
+        
+        missing_covers = []
+        
+        for session_id, session in all_sessions.items():
+            status = session.get_status()
+            if status == "complete":
+                # Controlla se la copertina manca o il file non esiste
+                has_cover = False
+                if session.cover_image_path:
+                    cover_path = Path(session.cover_image_path)
+                    if cover_path.exists():
+                        has_cover = True
+                
+                if not has_cover:
+                    entry = session_to_library_entry(session)
+                    missing_covers.append({
+                        "session_id": session_id,
+                        "title": entry.title,
+                        "author": entry.author,
+                        "created_at": entry.created_at.isoformat(),
+                    })
+        
+        return {"missing_covers": missing_covers, "count": len(missing_covers)}
+    
+    except Exception as e:
+        print(f"[MISSING COVERS] Errore nel recupero libri senza copertina: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero dei libri senza copertina: {str(e)}"
         )
 
 

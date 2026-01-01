@@ -209,6 +209,7 @@ class BookProgress(BaseModel):
     error: Optional[str] = None
     total_pages: Optional[int] = None  # Numero totale di pagine (calcolato quando is_complete=True)
     writing_time_minutes: Optional[float] = None  # Tempo di scrittura in minuti (solo generazione capitoli)
+    estimated_cost: Optional[float] = None  # Costo stimato in EUR
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro
     critique_status: Optional[Literal["pending", "running", "completed", "failed"]] = None
     critique_error: Optional[str] = None
@@ -260,6 +261,7 @@ class LibraryEntry(BaseModel):
     pdf_filename: Optional[str] = None
     cover_image_path: Optional[str] = None
     writing_time_minutes: Optional[float] = None
+    estimated_cost: Optional[float] = None  # Costo stimato in EUR
 
 
 class LibraryStats(BaseModel):
@@ -277,6 +279,28 @@ class LibraryStats(BaseModel):
     average_writing_time_by_model: Dict[str, float] = Field(default_factory=dict)  # Tempo medio libro per modello (minuti)
     average_time_per_page_by_model: Dict[str, float] = Field(default_factory=dict)  # Tempo medio per pagina per modello (minuti)
     average_pages_by_model: Dict[str, float] = Field(default_factory=dict)  # Pagine medie per modello
+    average_cost_by_model: Dict[str, float] = Field(default_factory=dict)  # Costo medio per libro per modello (EUR)
+    average_cost_per_page_by_model: Dict[str, float] = Field(default_factory=dict)  # Costo medio per pagina per modello (EUR)
+
+
+class ModelComparisonEntry(BaseModel):
+    """Entry per confronto dettagliato modelli."""
+    model: str
+    total_books: int
+    completed_books: int
+    average_score: Optional[float] = None
+    average_pages: float = 0.0
+    average_cost: Optional[float] = None  # Costo medio per libro in EUR
+    average_writing_time: float = 0.0
+    average_time_per_page: float = 0.0
+    score_range: Dict[str, int] = Field(default_factory=dict)  # Distribuzione voti {"0-2": 1, "2-4": 2, etc}
+
+
+class AdvancedStats(BaseModel):
+    """Statistiche avanzate con analisi temporali e confronto modelli."""
+    books_over_time: Dict[str, int] = Field(default_factory=dict)  # date (YYYY-MM-DD) -> count
+    score_trend_over_time: Dict[str, float] = Field(default_factory=dict)  # date (YYYY-MM-DD) -> voto medio
+    model_comparison: list[ModelComparisonEntry] = Field(default_factory=list)
 
 
 class LibraryResponse(BaseModel):
