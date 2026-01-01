@@ -1,6 +1,15 @@
-# Scrittura Libro - Agente di Scrittura Romanzi
+# NarrAI - Agente di Scrittura Romanzi
 
 Sistema per la creazione di romanzi personalizzati utilizzando modelli LLM della famiglia Gemini.
+
+## Documentazione
+
+Per approfondire l'applicazione, consulta la documentazione completa:
+
+- **[Documentazione Tecnica](docs/TECNICA.md)**: Architettura, stack tecnologico, struttura del codice, API design, sistema di persistenza, configurazione e pattern implementati.
+- **[Documentazione Funzionale](docs/FUNZIONALE.md)**: Flussi utente, logiche di business, processi di generazione, calcoli e metriche, validazioni e regole.
+
+Questa documentazione (README.md) contiene informazioni essenziali per setup e utilizzo rapido.
 
 ## Struttura del Progetto
 
@@ -23,6 +32,8 @@ scrittura-libro/
 - **Python 3.11+**
 - **uv** (gestore pacchetti Python) - [Installazione](https://github.com/astral-sh/uv)
 - **Node.js 18+** e **npm** (o pnpm/yarn)
+- **Docker** (opzionale, per MongoDB locale) - [Installazione](https://www.docker.com/get-started)
+- **MongoDB** (opzionale, può usare MongoDB Atlas o Docker locale)
 
 ## Installazione e Avvio
 
@@ -93,6 +104,57 @@ cost_estimation:
 ```
 
 Aggiorna questi valori con i costi reali da Google Gemini API pricing per avere stime accurate.
+
+### Configurazione Database (MongoDB)
+
+Il sistema supporta due modalità di persistenza:
+
+1. **File JSON** (default): Se `MONGODB_URI` non è configurata, il sistema usa `FileSessionStore` che salva i dati in `.sessions.json`
+2. **MongoDB**: Se `MONGODB_URI` è configurata nel file `.env`, il sistema usa `MongoSessionStore`
+
+#### Setup MongoDB Locale (Docker) - Sviluppo
+
+1. Avvia MongoDB usando Docker Compose:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. MongoDB sarà disponibile su `mongodb://localhost:27017`
+   - Mongo Express (UI admin) sarà disponibile su `http://localhost:8081`
+   - Credenziali default: `admin` / `admin123`
+
+3. Configura il file `.env` nella root del progetto:
+   ```env
+   MONGODB_URI=mongodb://admin:admin123@localhost:27017/narrai?authSource=admin
+   ```
+
+#### Setup MongoDB Atlas - Produzione
+
+1. Crea un cluster su [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+
+2. Ottieni la connection string e aggiungila al `.env`:
+   ```env
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/narrai?retryWrites=true&w=majority
+   ```
+
+#### Migrazione Dati da JSON a MongoDB
+
+Per migrare le sessioni esistenti da file JSON a MongoDB:
+
+```bash
+cd backend
+python scripts/migrate_to_mongodb.py
+```
+
+Opzioni disponibili:
+- `--mongodb-uri`: MongoDB connection string (default: da variabile d'ambiente)
+- `--database`: Nome database (default: "narrai")
+- `--collection`: Nome collection (default: "sessions")
+- `--dry-run`: Simula la migrazione senza scrivere dati
+- `--verify`: Verifica la migrazione dopo il completamento
+- `--no-backup`: Non crea backup del file JSON originale
+
+Lo script crea automaticamente un backup del file `.sessions.json` prima della migrazione.
 
 ## Configurazione Critico Letterario
 
@@ -344,115 +406,39 @@ Health check endpoint.
 
 ## Processo di Generazione del Libro
 
-Il processo di generazione del libro segue questi step visualizzati nell'interfaccia utente:
+Il processo di generazione del libro segue 6 fasi principali:
 
-1. **Setup** 📝 - L'utente compila il form iniziale con i dettagli del romanzo (trama, genere, stile, ecc.) e seleziona il modello LLM (predefinito: Gemini 3 Flash)
+1. **Setup** - Configurazione iniziale (form dinamico)
+2. **Domande** - Domande preliminari generate automaticamente
+3. **Bozza** - Generazione e modifica bozza estesa
+4. **Struttura** - Generazione outline con editor drag-and-drop
+5. **Scrittura** - Generazione capitoli autoregressiva con monitoraggio progresso
+6. **Critica** - Valutazione automatica del libro completato
 
-2. **Domande** ❓ - Il sistema genera automaticamente domande preliminari basate sulla configurazione per approfondire alcuni aspetti narrativi
-
-3. **Bozza** 📄 - Viene generata una bozza estesa della trama che l'utente può rivedere e modificare tramite un'interfaccia chat
-
-4. **Struttura** 📋 - Dopo la validazione della bozza, viene generata automaticamente la struttura dettagliata del libro (capitoli e sezioni). L'utente può modificare la struttura usando un editor drag-and-drop prima di procedere
-
-5. **Scrittura** ✍️ - Avvio della scrittura completa del libro. Il sistema genera tutti i capitoli automaticamente con monitoraggio del progresso in tempo reale
-
-Durante tutto il processo, uno step indicator verticale mostra sempre lo step corrente e lo stato di avanzamento.
+Per dettagli completi sul flusso e le logiche di business, consulta la [Documentazione Funzionale - Flusso Generazione Libro](docs/FUNZIONALE.md#flusso-generazione-libro).
 
 ## Interfaccia Utente
 
-L'applicazione è organizzata in quattro sezioni principali accessibili tramite la navigazione:
+L'applicazione è organizzata in quattro sezioni principali:
 
-### 📚 Libreria
-- **Visualizzazione libri**: Lista completa di tutti i libri generati con informazioni dettagliate (titolo, autore, genere, modello, stato, voto, pagine, tempo di scrittura/lettura, costo stimato)
-- **Filtri avanzati**: Filtra per stato (bozza, struttura, in scrittura, pausa, completati), modello LLM, genere
-- **Ricerca**: Cerca libri per titolo o autore
-- **Ordinamento**: Ordina per data creazione, ultima modifica, titolo, voto, costo
-- **Azioni**: Per ogni libro è possibile:
-  - Leggere il libro completo in un visualizzatore dedicato
-  - Visualizzare la critica letteraria completa in un modal
-  - Scaricare il PDF
-  - Continuare la generazione se in pausa
-  - Eliminare il progetto
+- **📚 Libreria**: Visualizzazione libri con filtri, ricerca, ordinamento, export e azioni (leggi, elimina, riprendi)
+- **📖 Nuovo Libro**: Wizard guidato con step indicator per creazione nuovo libro
+- **📊 Analisi**: Dashboard statistiche con grafici temporali, confronto modelli, analisi costi
+- **🎯 Valuta**: Valutazione e confronto modelli LLM
 
-### 📖 Nuovo Libro
-Interfaccia guidata per la creazione di un nuovo libro con step indicator visuale:
-- **Setup**: Form dinamico configurato tramite YAML (modello predefinito: Gemini 3 Flash)
-- **Domande**: Domande preliminari generate automaticamente
-- **Bozza**: Generazione e modifica bozza tramite chat interattiva
-- **Struttura**: Generazione struttura dettagliata con editor drag-and-drop per modifiche
-- **Scrittura**: Generazione completa con monitoraggio progresso in tempo reale
-
-### 📊 Analisi
-Sezione dedicata a statistiche e analisi avanzate:
-- **Dashboard**: Statistiche generali (libri totali, completati, voto medio, pagine medie, tempo medio scrittura)
-- **Grafici temporali**:
-  - Libri creati nel tempo (line chart)
-  - Trend voto nel tempo (line chart)
-- **Grafici per modello**:
-  - Tempo medio di generazione (libro/pagina)
-  - Pagine medie per libro
-  - Costo medio (libro/pagina)
-- **Confronto modelli**: Tabella comparativa con:
-  - Libri completati
-  - Voto medio
-  - Pagine medie
-  - Tempo medio scrittura
-  - Tempo medio per pagina
-  - Costo medio per libro
-
-### 🎯 Benchmark
-Sezione per valutare e confrontare i modelli LLM (funzionalità dedicata).
+Per dettagli sulle funzionalità e logiche di business, consulta la [Documentazione Funzionale](docs/FUNZIONALE.md).
 
 ## Funzionalità Principali
 
-### Generazione Automatica del Libro
-- **Generazione capitoli**: Scrittura automatica sezione per sezione con contesto autoregressivo
-- **Validazione capitoli**: Controllo automatico per evitare capitoli vuoti con retry (max 2 tentativi)
-- **Progress tracking**: Monitoraggio in tempo reale dello stato di avanzamento con step indicator visivo
-- **Editing struttura interattivo**: Editor drag-and-drop per modificare la struttura prima della scrittura
+- **Generazione Automatica**: Scrittura capitoli con processo autoregressivo per coerenza narrativa
+- **Export Multiformato**: PDF, EPUB, DOCX con layout professionale
+- **Critica Letteraria**: Valutazione automatica AI con score, punti di forza/debolezza
+- **Calcolo Costi**: Stima automatica basata su token utilizzati e modelli LLM
+- **Statistiche Avanzate**: Analytics con grafici temporali e confronto modelli
+- **Ripristino Sessione**: Continuazione processi interrotti con stato persistito
+- **Copertina AI**: Generazione automatica immagini copertina con Gemini
 
-### Copertina AI
-- **Generazione automatica**: Copertina generata con AI usando `gemini-3-pro-image-preview` (fallback: `gemini-2.5-flash-image`)
-- **Contenuto copertina**: Include titolo, autore e immagine generata dalla trama
-- **Integrazione PDF**: La copertina viene automaticamente inclusa come prima pagina del PDF
-- **Rigenerazione**: Possibilità di rigenerare la copertina per libri esistenti
-
-### Calcolo Pagine
-- **Pagine per capitolo**: Calcolo automatico basato su parole/250 (arrotondato per eccesso)
-- **Totale pagine**: Include capitoli + copertina (1 pagina) + indice (calcolato dinamicamente)
-- **Visualizzazione**: Numero pagine mostrato per ogni capitolo e totale nel libro
-- **Tempo di lettura**: Calcolo automatico del tempo stimato di lettura in ore
-
-### Stima Costi
-- **Calcolo automatico**: Stima del costo di generazione basato su:
-  - Modello LLM utilizzato
-  - Numero di pagine generate
-  - Costi per token input/output configurati in `app.yaml`
-- **Configurazione**: Parametri configurabili in `config/app.yaml`:
-  - Token per pagina (default: 350)
-  - Costi per modello (input/output per milione di token)
-  - Tasso di cambio USD/EUR
-- **Visualizzazione**: Costo mostrato per ogni libro nella libreria e nelle statistiche
-
-### Valutazione Critica Automatica
-- **Agente critico letterario**: Valutazione automatica del libro completato
-- **Modelli**: Usa `gemini-3-pro` (default) con fallback `gemini-3-flash`
-- **Valutazione**: Score 0-10 con punti di forza, debolezze e sintesi
-- **Timing**: La critica viene generata automaticamente dopo il completamento del libro
-- **Visualizzazione**: Modal dedicato per visualizzare la critica completa con formattazione Markdown
-- **Rigenerazione**: Possibilità di rigenerare la critica per libri completati
-
-### Gestione PDF
-- **Salvataggio automatico**: I PDF vengono salvati in `backend/books/` con nome formato `YYYY-MM-DD_TitoloLibro.pdf`
-- **Download**: Download diretto tramite browser con nome file corretto
-- **Layout professionale**: PDF generato con xhtml2pdf, layout tipografico ottimizzato
-- **Visualizzazione inline**: BookReader dedicato per leggere i libri direttamente nell'interfaccia web
-
-### Statistiche e Analytics
-- **Statistiche aggregate**: Calcolo automatico di metriche globali e per modello
-- **Analisi temporali**: Tracking di libri creati e trend voti nel tempo
-- **Confronto modelli**: Analisi comparativa delle performance dei diversi modelli LLM
-- **Visualizzazione grafici**: Grafici interattivi con recharts per visualizzare i dati
+Per dettagli completi su logiche di business, calcoli e processi, consulta la [Documentazione Funzionale](docs/FUNZIONALE.md).
 
 ## Sviluppo
 
@@ -470,39 +456,15 @@ Sezione per valutare e confrontare i modelli LLM (funzionalità dedicata).
 
 ## Note Tecniche
 
-### Validazione Capitoli
-Il sistema include validazione automatica per evitare capitoli vuoti:
-- Controllo lunghezza minima (50 caratteri)
-- Retry automatico fino a 2 tentativi
-- Messaggio di errore se la generazione fallisce completamente
+Per approfondimenti tecnici dettagliati, consulta la [Documentazione Tecnica](docs/TECNICA.md) che copre:
 
-### Polling e Aggiornamenti
-- Il frontend effettua polling ogni 2 secondi durante la generazione
-- Il polling continua anche dopo il completamento del libro finché la critica non è disponibile
-- Progress bar aggiornata in tempo reale con indicatore per generazione critica
-
-### Formato File PDF
-I file PDF vengono salvati con il seguente formato:
-- **Pattern**: `YYYY-MM-DD_TitoloLibro.pdf`
-- **Esempio**: `2024-01-15_Il_Romanzo_di_Esempio.pdf`
-- **Posizione**: `backend/books/` (creata automaticamente)
-
-### Design System
-L'interfaccia utilizza un design system moderno con:
-- **Gradienti e glassmorphism**: Effetti visivi moderni per un'esperienza utente elegante
-- **CSS Variables**: Sistema di variabili per colori, ombre, transizioni e radius
-- **Tipografia**: Font "Outfit" per il testo e "Playfair Display" per i titoli
-- **Responsive**: Layout adattivo per diversi dispositivi
-- **Animazioni**: Transizioni fluide e feedback visivi per le interazioni utente
-
-### Componenti Principali
-- **DynamicForm**: Form dinamico con step indicator per la creazione libri
-- **LibraryView**: Visualizzazione libreria con filtri e ordinamento
-- **AnalyticsView**: Dashboard analitica con grafici e statistiche
-- **BookReader**: Visualizzatore libri con navigazione capitoli
-- **OutlineEditor**: Editor drag-and-drop per modificare la struttura
-- **CritiqueModal**: Modal per visualizzare la critica letteraria
-- **ModelComparisonTable**: Tabella comparativa per i modelli
+- Architettura sistema e pattern implementati
+- Stack tecnologico completo
+- Struttura del codice e organizzazione
+- Sistema di persistenza (MongoDB/File)
+- Design API RESTful
+- Configurazione e gestione dati
+- Pattern e convenzioni di sviluppo
 
 
 
