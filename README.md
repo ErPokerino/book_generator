@@ -121,12 +121,14 @@ Il sistema supporta due modalità di persistenza:
 
 2. MongoDB sarà disponibile su `mongodb://localhost:27017`
    - Mongo Express (UI admin) sarà disponibile su `http://localhost:8081`
-   - Credenziali default: `admin` / `admin123`
+   - Credenziali default: vedi file `docker-compose.yml` (credenziali di esempio per sviluppo locale)
 
 3. Configura il file `.env` nella root del progetto:
    ```env
-   MONGODB_URI=mongodb://admin:admin123@localhost:27017/narrai?authSource=admin
+   MONGODB_URI=mongodb://username:password@localhost:27017/narrai?authSource=admin
    ```
+   
+   **Nota**: Sostituisci `username` e `password` con le credenziali configurate in Docker Compose.
 
 #### Setup MongoDB Atlas - Produzione
 
