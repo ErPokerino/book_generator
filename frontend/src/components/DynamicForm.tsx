@@ -854,8 +854,8 @@ export default function DynamicForm() {
       </div>
       <div className="dynamic-form-main-content">
         <div className="dynamic-form-container">
-          <h1>Agente di Scrittura Romanzi</h1>
-          <p className="subtitle">Compila il form per configurare il tuo romanzo</p>
+          <h1>NarrAI</h1>
+          <p className="subtitle">La tua storia, generata dall'AI</p>
           
           {error && <div className="error-banner">{error}</div>}
           

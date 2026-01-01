@@ -9,7 +9,7 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
   return (
     <nav className="main-navigation">
       <div className="nav-brand">
-        <h1>📚 Scrittura Libro</h1>
+        <h1>📚 NarrAI</h1>
       </div>
       <div className="nav-links">
         <button

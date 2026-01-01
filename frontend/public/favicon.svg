@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Libro aperto -->
+  <path d="M12 14C12 12.3431 13.3431 11 15 11H29C30.6569 11 32 12.3431 32 14V50C32 51.6569 30.6569 53 29 53H15C13.3431 53 12 51.6569 12 50V14Z" fill="url(#bookGrad1)" stroke="#ffffff" stroke-width="2" opacity="0.9"/>
+  <path d="M32 14C32 12.3431 33.3431 11 35 11H49C50.6569 11 52 12.3431 52 14V50C52 51.6569 50.6569 53 49 53H35C33.3431 53 32 51.6569 32 50V14Z" fill="url(#bookGrad2)" stroke="#ffffff" stroke-width="2" opacity="0.9"/>
+  
+  <!-- Righe di testo stilizzate -->
+  <line x1="18" y1="22" x2="28" y2="22" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="18" y1="27" x2="25" y2="27" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="18" y1="32" x2="28" y2="32" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  
+  <line x1="36" y1="22" x2="46" y2="22" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="36" y1="27" x2="43" y2="27" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <line x1="36" y1="32" x2="46" y2="32" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+  
+  <!-- Penna stilizzata -->
+  <path d="M38 38L48 48M48 48L45 51L43 49M48 48L43 43" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="43" cy="43" r="2.5" fill="#ffffff" opacity="0.8"/>
+  
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="bookGrad1" x1="12" y1="11" x2="32" y2="53" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF8A80"/>
+      <stop offset="100%" stop-color="#FF6B6B"/>
+    </linearGradient>
+    <linearGradient id="bookGrad2" x1="32" y1="11" x2="52" y2="53" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#64B5F6"/>
+      <stop offset="100%" stop-color="#42A5F5"/>
+    </linearGradient>
+  </defs>
+</svg>
