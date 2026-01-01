@@ -6,7 +6,7 @@ from typing import Any, Optional, Dict
 from google import genai
 from google.genai import types
 
-from app.config import get_literary_critic_config
+from app.core.config import get_literary_critic_config
 
 
 def _coerce_points_to_list(value: Any) -> list[str]:

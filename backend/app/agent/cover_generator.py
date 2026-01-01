@@ -7,7 +7,7 @@ import asyncio
 from google import genai
 from google.genai import types
 from PIL import Image as PILImage
-from app.config import get_app_config
+from app.core.config import get_app_config
 
 
 async def generate_book_cover(

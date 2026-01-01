@@ -7,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, Question, QuestionsResponse
 from app.agent.state import AgentState
-from app.config import get_temperature_for_agent
+from app.core.config import get_temperature_for_agent
 
 
 def load_agent_context() -> str:
