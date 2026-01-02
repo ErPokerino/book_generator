@@ -42,9 +42,10 @@ gcloud secrets create mongodb-uri --replication-policy="automatic"
 gcloud secrets create jwt-secret --replication-policy="automatic"
 
 # Aggiungere i valori (sostituisci con i tuoi valori reali)
-echo -n "YOUR_GEMINI_KEY" | gcloud secrets versions add gemini-api-key --data-file=-
-echo -n "mongodb+srv://user:pass@cluster.mongodb.net/narrai?retryWrites=true&w=majority" | gcloud secrets versions add mongodb-uri --data-file=-
-echo -n "your-super-secret-jwt-key-change-this" | gcloud secrets versions add jwt-secret --data-file=-
+# IMPORTANTE: Non committare mai i valori reali in questo file!
+echo -n "YOUR_GEMINI_API_KEY_HERE" | gcloud secrets versions add gemini-api-key --data-file=-
+echo -n "mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/DATABASE?retryWrites=true&w=majority" | gcloud secrets versions add mongodb-uri --data-file=-
+echo -n "your-super-secret-jwt-key-minimum-32-characters-long" | gcloud secrets versions add jwt-secret --data-file=-
 ```
 
 **Nota**: Per GCP credentials, puoi:
@@ -111,7 +112,7 @@ gcloud run deploy narrai \
     --cpu=2 \
     --timeout=3600 \
     --set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest \
-    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=narrai-books-483022
+    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=YOUR_BUCKET_NAME
 ```
 
 ## Configurazioni Aggiuntive
@@ -141,7 +142,7 @@ cat > cors.json << EOF
 EOF
 
 # Applica CORS
-gsutil cors set cors.json gs://narrai-books-483022
+gsutil cors set cors.json gs://YOUR_BUCKET_NAME
 ```
 
 ### Aggiornare FRONTEND_URL dopo il deploy
