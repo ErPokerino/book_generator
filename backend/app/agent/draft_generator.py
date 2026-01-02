@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
+from app.agent.session_store_helpers import get_session_async
 from app.core.config import get_temperature_for_agent
 
 
@@ -253,7 +254,7 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         
         # Recupera la sessione per determinare la versione
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if session:
             new_version = session.current_version + 1

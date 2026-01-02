@@ -321,6 +321,7 @@ class LibraryResponse(BaseModel):
     """Risposta con lista libri della libreria."""
     books: list[LibraryEntry]
     total: int
+    has_more: bool = False  # Indica se ci sono altri libri da caricare
     stats: Optional[LibraryStats] = None
 
 

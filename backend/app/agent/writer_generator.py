@@ -7,6 +7,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
+from app.agent.session_store_helpers import (
+    get_session_async, update_writing_progress_async, start_chapter_timing_async, 
+    end_chapter_timing_async, update_book_chapter_async, pause_writing_async, resume_writing_async
+)
 from app.core.config import get_app_config, get_temperature_for_agent
 
 
@@ -461,12 +465,13 @@ async def generate_full_book(
     
     # Verifica che il progresso sia già stato inizializzato dall'endpoint
     # Se non lo è, lo inizializziamo qui (fallback)
-    existing_progress = session_store.get_session(session_id)
+    existing_progress = await get_session_async(session_store, session_id, user_id=None)
     if existing_progress and existing_progress.writing_progress:
         existing_total = existing_progress.writing_progress.get('total_steps', 0)
         if existing_total != total_sections:
             print(f"[WRITER] WARNING: total_steps nel progresso ({existing_total}) != sezioni trovate ({total_sections}). Aggiorno.")
-            session_store.update_writing_progress(
+            await update_writing_progress_async(
+                session_store,
                 session_id=session_id,
                 current_step=0,
                 total_steps=total_sections,
@@ -477,7 +482,8 @@ async def generate_full_book(
     else:
         # Progresso non inizializzato, lo inizializziamo qui
         print(f"[WRITER] Progresso non trovato, inizializzazione...")
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=0,
             total_steps=total_sections,
@@ -493,7 +499,8 @@ async def generate_full_book(
         print(f"[WRITER] === Scrittura sezione {index + 1}/{total_sections}: {section['title']} ===")
         
         # Aggiorna il progresso PRIMA di iniziare la generazione
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=index,
             total_steps=total_sections,
@@ -511,7 +518,7 @@ async def generate_full_book(
         
         # Inizia tracciamento tempo capitolo
         print(f"[WRITER] Inizio tracciamento tempo per capitolo '{section['title']}'")
-        session_store.start_chapter_timing(session_id)
+        await start_chapter_timing_async(session_store, session_id)
         
         for retry in range(max_retries):
             try:
@@ -539,8 +546,8 @@ async def generate_full_book(
                 if chapter_content and len(chapter_content.strip()) >= min_chapter_length:
                     print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
                     # Termina tracciamento tempo capitolo
-                    session_store.end_chapter_timing(session_id)
-                    session = session_store.get_session(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
+                    session = await get_session_async(session_store, session_id, user_id=None)
                     if session and session.chapter_timings:
                         print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
                     break
@@ -553,7 +560,7 @@ async def generate_full_book(
                         # Ultimo tentativo fallito, usa placeholder
                         print(f"[WRITER] ERRORE: Impossibile generare contenuto valido dopo {max_retries} tentativi")
                         # Termina tracciamento tempo anche in caso di errore
-                        session_store.end_chapter_timing(session_id)
+                        await end_chapter_timing_async(session_store, session_id)
                         chapter_content = (
                             f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
                             f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
@@ -570,7 +577,7 @@ async def generate_full_book(
                     # Ultimo tentativo fallito
                     print(f"[WRITER] ERRORE: {str(ve)} dopo {max_retries} tentativi")
                     # Termina tracciamento tempo anche in caso di errore
-                    session_store.end_chapter_timing(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
                     chapter_content = (
                         f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
                         f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
@@ -588,12 +595,13 @@ async def generate_full_book(
                     error_msg = f"Errore nella generazione della sezione '{section['title']}': {str(e)}"
                     print(f"[WRITER] ERRORE: {error_msg} - Mettendo in pausa la generazione")
                     # Termina tracciamento tempo anche in caso di errore critico
-                    session_store.end_chapter_timing(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
                     import traceback
                     traceback.print_exc()
                     
                     # Metti in pausa la generazione invece di rilanciare l'eccezione
-                    session_store.pause_writing(
+                    await pause_writing_async(
+                        session_store,
                         session_id=session_id,
                         current_step=index,
                         total_steps=total_sections,
@@ -613,7 +621,8 @@ async def generate_full_book(
                 'section_index': index,
             }
             
-            session_store.update_book_chapter(
+            await update_book_chapter_async(
+                session_store,
                 session_id=session_id,
                 chapter_title=section['title'],
                 chapter_content=chapter_content,
@@ -625,7 +634,8 @@ async def generate_full_book(
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
     # Marca come completato
-    session_store.update_writing_progress(
+    await update_writing_progress_async(
+        session_store,
         session_id=session_id,
         current_step=total_sections,
         total_steps=total_sections,
@@ -654,7 +664,7 @@ async def resume_book_generation(
         Lista di dizionari con 'title', 'content', 'section_index' per ogni capitolo
     """
     session_store = get_session_store()
-    session = session_store.get_session(session_id)
+    session = await get_session_async(session_store, session_id, user_id=None)
     
     if not session:
         raise ValueError(f"Sessione {session_id} non trovata")
@@ -667,7 +677,7 @@ async def resume_book_generation(
         raise ValueError(f"Sessione {session_id} non è in stato di pausa")
     
     # Riprendi lo stato di pausa
-    session_store.resume_writing(session_id)
+    await resume_writing_async(session_store, session_id)
     
     # Recupera i dati necessari dalla sessione
     form_data = session.form_data
@@ -705,7 +715,8 @@ async def resume_book_generation(
         print(f"[WRITER] === Scrittura sezione {index + 1}/{total_sections}: {section['title']} ===")
         
         # Aggiorna il progresso PRIMA di iniziare la generazione
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=index,
             total_steps=total_sections,
@@ -720,7 +731,7 @@ async def resume_book_generation(
         
         # Inizia tracciamento tempo capitolo
         print(f"[WRITER] Inizio tracciamento tempo per capitolo '{section['title']}'")
-        session_store.start_chapter_timing(session_id)
+        await start_chapter_timing_async(session_store, session_id)
         
         for retry in range(max_retries):
             try:
@@ -746,8 +757,8 @@ async def resume_book_generation(
                 
                 if chapter_content and len(chapter_content.strip()) >= min_chapter_length:
                     print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
-                    session_store.end_chapter_timing(session_id)
-                    session = session_store.get_session(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
+                    session = await get_session_async(session_store, session_id, user_id=None)
                     if session and session.chapter_timings:
                         print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
                     break
@@ -757,7 +768,7 @@ async def resume_book_generation(
                         continue
                     else:
                         print(f"[WRITER] ERRORE: Impossibile generare contenuto valido dopo {max_retries} tentativi")
-                        session_store.end_chapter_timing(session_id)
+                        await end_chapter_timing_async(session_store, session_id)
                         chapter_content = (
                             f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
                             f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
@@ -771,7 +782,7 @@ async def resume_book_generation(
                     continue
                 else:
                     print(f"[WRITER] ERRORE: {str(ve)} dopo {max_retries} tentativi")
-                    session_store.end_chapter_timing(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
                     chapter_content = (
                         f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
                         f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
@@ -787,12 +798,13 @@ async def resume_book_generation(
                     # Ultimo tentativo fallito: metti in pausa invece di rilanciare
                     error_msg = f"Errore nella generazione della sezione '{section['title']}': {str(e)}"
                     print(f"[WRITER] ERRORE: {error_msg} - Mettendo in pausa la generazione")
-                    session_store.end_chapter_timing(session_id)
+                    await end_chapter_timing_async(session_store, session_id)
                     import traceback
                     traceback.print_exc()
                     
                     # Metti in pausa la generazione invece di rilanciare l'eccezione
-                    session_store.pause_writing(
+                    await pause_writing_async(
+                        session_store,
                         session_id=session_id,
                         current_step=index,
                         total_steps=total_sections,
@@ -811,7 +823,8 @@ async def resume_book_generation(
                 'content': chapter_content,
                 'section_index': index,
             }
-            session_store.update_book_chapter(
+            await update_book_chapter_async(
+                session_store,
                 session_id=session_id,
                 chapter_title=section['title'],
                 chapter_content=chapter_content,
@@ -821,7 +834,8 @@ async def resume_book_generation(
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
     # Marca come completato
-    session_store.update_writing_progress(
+    await update_writing_progress_async(
+        session_store,
         session_id=session_id,
         current_step=total_sections,
         total_steps=total_sections,

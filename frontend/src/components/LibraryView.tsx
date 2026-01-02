@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   getLibrary, 
   LibraryEntry, 
@@ -21,12 +21,18 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
   const [books, setBooks] = useState<LibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
+  const [totalBooks, setTotalBooks] = useState(0);  // Totale libri disponibili dal server
   const filtersRef = useRef<LibraryFilters>({});
   const isFirstLoad = useRef(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const isLoadingRef = useRef(false);  // Previene chiamate duplicate
+  const pageSize = 10;  // Ridotto a 10 per caricamenti più veloci
 
   // Carica configurazione per avere modelli e generi disponibili
   useEffect(() => {
@@ -39,15 +45,34 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       });
   }, []);
 
-  const loadLibrary = async (currentFilters?: LibraryFilters, isRefresh = false) => {
+  const loadLibrary = async (currentFilters?: LibraryFilters, isRefresh = false, append = false, currentBooksCount = 0) => {
+    // Previeni chiamate duplicate
+    if (isLoadingRef.current && append) {
+      return;
+    }
+    
     try {
+      isLoadingRef.current = true;
+      
       if (isRefresh) {
         setRefreshing(true);
-      } else {
+      } else if (!append) {
         setLoading(true);
+      } else {
+        setLoadingMore(true);
       }
       setError(null);
-      const filtersToUse = currentFilters ?? filtersRef.current;
+      const filtersToUse = { ...(currentFilters ?? filtersRef.current) };
+      
+      // Per il primo caricamento o refresh, reset paginazione
+      if (!append) {
+        filtersToUse.skip = 0;
+        filtersToUse.limit = pageSize;
+      } else {
+        // Per il caricamento incrementale, usa il conteggio passato
+        filtersToUse.skip = currentBooksCount;
+        filtersToUse.limit = pageSize;
+      }
       
       // Timeout di 30 secondi per le chiamate API
       const apiPromise = getLibrary(filtersToUse);
@@ -61,22 +86,58 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
         timeoutPromise,
       ]);
       
-      setBooks(libraryResponse.books);
+      // Salva il totale dal server
+      setTotalBooks(libraryResponse.total);
+      
+      if (append) {
+        // Aggiungi i nuovi libri a quelli esistenti, evitando duplicati
+        setBooks(prev => {
+          const existingIds = new Set(prev.map(b => b.session_id));
+          const newBooks = libraryResponse.books.filter(b => !existingIds.has(b.session_id));
+          return [...prev, ...newBooks];
+        });
+      } else {
+        // Sostituisci i libri esistenti
+        setBooks(libraryResponse.books);
+      }
+      
+      // Aggiorna stato hasMore
+      setHasMore(libraryResponse.has_more ?? false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
       setError(errorMessage);
       console.error('Errore nel caricamento libreria:', err);
       // Assicuriamoci di avere valori default anche in caso di errore
-      setBooks([]);
+      if (!append) {
+        setBooks([]);
+        setHasMore(false);
+        setTotalBooks(0);
+      }
     } finally {
+      isLoadingRef.current = false;
       // Sempre disabilita il loading, anche in caso di errore
       if (isRefresh) {
         setRefreshing(false);
-      } else {
+      } else if (!append) {
         setLoading(false);
+      } else {
+        setLoadingMore(false);
       }
     }
   };
+
+  const loadMoreBooks = useCallback(() => {
+    if (!loadingMore && hasMore && !isLoadingRef.current) {
+      // Usa una funzione setter per ottenere il valore aggiornato di books
+      setBooks(prevBooks => {
+        // Solo se ci sono libri da caricare
+        if (prevBooks.length < totalBooks || hasMore) {
+          loadLibrary(filtersRef.current, false, true, prevBooks.length);
+        }
+        return prevBooks;  // Non modifica lo stato, solo legge
+      });
+    }
+  }, [loadingMore, hasMore, totalBooks]);
 
   // Carica la libreria solo al primo render
   useEffect(() => {
@@ -88,8 +149,33 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
 
   const handleFiltersChange = (newFilters: LibraryFilters) => {
     filtersRef.current = newFilters;
-    loadLibrary(newFilters, true);
+    setHasMore(true);  // Reset hasMore quando cambiano i filtri
+    loadLibrary(newFilters, true, false);  // Reset lista (non append)
   };
+
+  // IntersectionObserver per rilevare quando la sentinella entra nel viewport
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading && !refreshing) {
+          loadMoreBooks();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+    
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+      observer.disconnect();
+    };
+  }, [hasMore, loadingMore, loading, refreshing, loadMoreBooks]);
 
   const handleDelete = (sessionId: string) => {
     setBooks(prev => prev.filter(book => book.session_id !== sessionId));
@@ -177,27 +263,43 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       )}
 
       <div className="library-header">
-        <h2>I Tuoi Libri ({books.length})</h2>
+        <h2>I Tuoi Libri ({books.length}{totalBooks > 0 && books.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
       </div>
 
-      {books.length === 0 ? (
+      {books.length === 0 && !loading ? (
         <div className="empty-library">
           <p>Nessun libro trovato con i filtri selezionati.</p>
         </div>
       ) : (
-        <div className="books-grid">
-          {books.map(book => (
-            <BookCard
-              key={book.session_id}
-              book={book}
-              onDelete={handleDelete}
-              onContinue={handleContinue}
-              onResume={handleResume}
-              onRead={book.status === 'complete' ? onReadBook : undefined}
-              onShowCritique={handleShowCritique}
-            />
-          ))}
-        </div>
+        <>
+          <div className="books-grid">
+            {books.map(book => (
+              <BookCard
+                key={book.session_id}
+                book={book}
+                onDelete={handleDelete}
+                onContinue={handleContinue}
+                onResume={handleResume}
+                onRead={book.status === 'complete' ? onReadBook : undefined}
+                onShowCritique={handleShowCritique}
+              />
+            ))}
+          </div>
+          
+          {/* Elemento sentinella per infinite scroll */}
+          <div ref={loadMoreRef} className="load-more-sentinel">
+            {loadingMore && (
+              <div className="loading-more-indicator">
+                <span>Caricamento altri libri...</span>
+              </div>
+            )}
+            {!hasMore && books.length > 0 && (
+              <div className="no-more-books">
+                <p>Non ci sono altri libri da mostrare.</p>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {critiqueModalSessionId && (

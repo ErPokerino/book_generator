@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, Response, Depends, Cookie
 from fastapi.responses import JSONResponse
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from app.models import (
     RegisterRequest,
@@ -27,18 +27,36 @@ from app.middleware.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+@router.get("/test")
+async def auth_test():
+    return {"status": "ok"}
 
+# Password hashing - usa bcrypt direttamente per evitare problemi con passlib
 
 def hash_password(password: str) -> str:
-    """Hash della password."""
-    return pwd_context.hash(password)
+    """Hash della password usando bcrypt direttamente."""
+    # Bcrypt ha un limite di 72 bytes per la password
+    # Converti a bytes e tronca se necessario
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    
+    # Genera salt e hash
+    salt = bcrypt.gensalt()
+    password_hash = bcrypt.hashpw(password_bytes, salt)
+    return password_hash.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifica password usando bcrypt direttamente."""
+    try:
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception:
+        return False
 
 
 def create_reset_token() -> str:
@@ -81,10 +99,67 @@ async def register(request: RegisterRequest):
             created_at=user.created_at,
         )
     except ValueError as e:
+        print(f"[AUTH ERROR] ValueError in register: {e}", file=sys.stderr)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+    except Exception as e:
+        print(f"[AUTH ERROR] Exception in register: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Errore interno durante la registrazione",
+        )
+
+    
+    # Verifica email già esistente
+    # existing_user = await user_store.get_user_by_email(request.email)
+    # if existing_user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Email già registrata",
+    #     )
+    
+    # Hash password
+    # try:
+    #     password_hash = hash_password(request.password)
+    # except Exception as e:
+    #     print(f"[AUTH ERROR] Errore hashing password: {e}", file=sys.stderr)
+    #     import traceback
+    #     traceback.print_exc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail=f"Errore interno (hashing): {str(e)}",
+    #     )
+    
+    # Crea utente
+    # try:
+    #     user = await user_store.create_user(
+    #         email=request.email,
+    #         password_hash=password_hash,
+    #         name=request.name,
+    #         role="user"
+    #     )
+    #     print(f"[AUTH] Utente registrato: {user.email}", file=sys.stderr)
+        
+    #     return UserResponse(
+    #         id=user.id,
+    #         email=user.email,
+    #         name=user.name,
+    #         role=user.role,
+    #         is_active=user.is_active,
+    #         created_at=user.created_at,
+    #     )
+    # except Exception as e:
+    #     print(f"[AUTH CRITICAL] Errore non gestito in register: {e}", file=sys.stderr)
+    #     import traceback
+    #     traceback.print_exc()
+    #     raise HTTPException(
+    #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #         detail=f"Errore critico: {str(e)}"
+    #     )
 
 
 @router.post("/login")
@@ -187,9 +262,16 @@ async def forgot_password(request: ForgotPasswordRequest):
     await user_store.set_reset_token(request.email, token, expires_hours=24)
     
     # TODO: Invia email con token (implementare quando SMTP configurato)
-    # Per ora, loggiamo il token (solo in sviluppo)
-    if os.getenv("ENVIRONMENT") != "production":
+    # In dev mode, restituisci il token nella risposta (per testing)
+    is_dev = os.getenv("ENVIRONMENT") != "production"
+    
+    if is_dev:
         print(f"[AUTH] Reset token per {request.email}: {token}", file=sys.stderr)
+        return {
+            "success": True, 
+            "message": "Token generato (modalità sviluppo)",
+            "token": token  # Solo in dev mode!
+        }
     
     return {"success": True, "message": "Se l'email esiste, riceverai istruzioni per il reset"}
 

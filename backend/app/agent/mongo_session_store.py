@@ -137,21 +137,32 @@ class MongoSessionStore(SessionStore):
             user_id: ID utente per verificare ownership (opzionale)
         
         Returns:
-            SessionData se trovata e user_id corrisponde (se fornito), None altrimenti
+            SessionData se trovata e ownership verificata, None altrimenti.
+            Le sessioni legacy (senza user_id) sono accessibili da tutti durante la migrazione.
         """
         if self.sessions_collection is None:
             await self.connect()
         
         try:
+            # Recupera sessione senza filtro user_id (per permettere accesso a sessioni legacy)
             query = {"_id": session_id}
-            # Se user_id fornito, verifica ownership
-            if user_id:
-                query["user_id"] = user_id
-            
             doc = await self.sessions_collection.find_one(query)
-            if doc:
-                return self._doc_to_session(doc)
-            return None
+            
+            if not doc:
+                return None
+            
+            session = self._doc_to_session(doc)
+            
+            # Verifica ownership se user_id fornito
+            # Se la sessione non ha user_id (legacy), permettere accesso
+            if user_id and session.user_id:
+                # Sessione ha user_id: verifica ownership
+                if session.user_id != user_id:
+                    return None  # Sessione appartiene a altro utente
+            
+            # Sessione legacy (senza user_id) o ownership verificata: permettere accesso
+            return session
+            
         except Exception as e:
             print(f"[MongoSessionStore] ERRORE nel recupero sessione {session_id}: {e}", file=sys.stderr)
             return None
@@ -446,12 +457,19 @@ class MongoSessionStore(SessionStore):
         
         return await self.save_session(session)
     
-    async def get_all_sessions(self, user_id: Optional[str] = None) -> Dict[str, SessionData]:
+    async def get_all_sessions(self, user_id: Optional[str] = None, fields: Optional[list] = None, 
+                              status: Optional[str] = None, llm_model: Optional[str] = None,
+                              genre: Optional[str] = None) -> Dict[str, SessionData]:
         """
         Recupera tutte le sessioni (per libreria/statistiche).
         
         Args:
             user_id: Se fornito, filtra solo le sessioni dell'utente
+            fields: Lista di campi da includere (proiezione MongoDB). Se None, carica tutto.
+                    Esempio: ["_id", "current_title", "form_data.user_name"]
+            status: Filtra per stato della sessione (draft, outline, writing, paused, complete)
+            llm_model: Filtra per modello LLM usato
+            genre: Filtra per genere del libro
         
         Returns:
             Dict di SessionData
@@ -461,13 +479,40 @@ class MongoSessionStore(SessionStore):
         
         sessions = {}
         try:
+            # Costruisci query MongoDB con tutti i filtri
             query = {}
             if user_id:
                 query["user_id"] = user_id
             
-            cursor = self.sessions_collection.find(query)
+            # Filtri opzionali
+            if status and status != "all":
+                # Lo status è un campo calcolato, quindi dobbiamo costruirlo logicamente
+                # Per ora manteniamo il filtro in Python, ma possiamo ottimizzare in futuro
+                pass  # Gestito dopo il caricamento
+            
+            if llm_model:
+                query["form_data.llm_model"] = llm_model
+            
+            if genre:
+                query["form_data.genre"] = genre
+            
+            # Costruisci proiezione se specificata
+            projection = None
+            if fields:
+                projection = {field: 1 for field in fields}
+                # Assicurati che _id sia sempre incluso
+                projection["_id"] = 1
+            
+            cursor = self.sessions_collection.find(query, projection)
             async for doc in cursor:
                 session = self._doc_to_session(doc)
+                
+                # Filtra per status se richiesto (dopo la conversione perché è calcolato)
+                if status and status != "all":
+                    session_status = session.get_status()
+                    if session_status != status:
+                        continue
+                
                 sessions[session.session_id] = session
             return sessions
         except Exception as e:

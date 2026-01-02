@@ -4,6 +4,17 @@ from pathlib import Path
 from typing import Optional
 from io import BytesIO
 from datetime import timedelta
+from dotenv import load_dotenv
+
+# Carica variabili d'ambiente PRIMA di qualsiasi altra operazione
+# Il file .env è nella root del progetto (un livello sopra backend)
+# Path(__file__) = backend/app/services/storage_service.py
+# parent.parent.parent = root del progetto
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+# Fallback: carica anche dalla directory corrente
+load_dotenv()
 
 # Import condizionale per GCS
 try:
@@ -17,7 +28,15 @@ except ImportError:
 
 
 class StorageService:
-    """Servizio per gestire upload/download file su GCS o locale."""
+    """
+    Servizio per gestire upload/download file su GCS o locale.
+    
+    Struttura bucket GCS:
+    - Con user_id: users/{user_id}/books/... e users/{user_id}/covers/...
+    - Senza user_id (sessione anonima): books/... e covers/... (root)
+    
+    I file vengono organizzati per utente quando possibile per isolamento e gestione più semplice.
+    """
     
     def __init__(self):
         self.gcs_enabled = os.getenv("GCS_ENABLED", "false").lower() == "true"
@@ -76,9 +95,10 @@ class StorageService:
         Returns:
             Path del file caricato (gs://bucket/path per GCS, path locale per fallback)
         """
-        # Se user_id fornito, organizza i file per utente
+        # Se user_id fornito E GCS è abilitato, organizza i file per utente
+        # Struttura: users/{user_id}/books/... o users/{user_id}/covers/...
+        # Se user_id non è disponibile o GCS non è abilitato, usa la struttura root: covers/... o books/...
         if user_id and self.gcs_enabled:
-            # Path: users/{user_id}/books/... o users/{user_id}/covers/...
             if "books/" in destination_path:
                 destination_path = f"users/{user_id}/books/{destination_path.split('books/')[-1]}"
             elif "covers/" in destination_path:
@@ -151,13 +171,44 @@ class StorageService:
         Returns:
             Contenuto del file in bytes
         """
-        if source_path.startswith("gs://") and self.gcs_enabled:
-            return self._download_from_gcs(source_path)
-        else:
-            return self._download_from_local(source_path)
+        # Se il path è gs://, prova sempre GCS prima (anche se gcs_enabled è False)
+        # perché il file potrebbe essere stato salvato su GCS in precedenza
+        if source_path.startswith("gs://"):
+            if not self.gcs_enabled:
+                # Prova a inizializzare GCS comunque (potrebbe essere solo un problema di config)
+                try:
+                    if GCS_AVAILABLE:
+                        self._init_gcs_client()
+                        self.gcs_enabled = self.client is not None and self.bucket is not None
+                except Exception as e:
+                    print(f"[STORAGE] WARN: Impossibile inizializzare GCS: {e}")
+            
+            if self.gcs_enabled:
+                try:
+                    return self._download_from_gcs(source_path)
+                except Exception as e:
+                    print(f"[STORAGE] Errore download da GCS: {e}")
+                    # Non fare fallback locale per path GCS - il file è su GCS
+                    raise FileNotFoundError(
+                        f"File non trovato su GCS: {source_path}. "
+                        f"Verifica che GCS_ENABLED=true e che le credenziali siano configurate."
+                    )
+            else:
+                raise FileNotFoundError(
+                    f"Path GCS richiesto ({source_path}) ma GCS non è abilitato. "
+                    f"Imposta GCS_ENABLED=true nel .env"
+                )
+        
+        # Path locale
+        return self._download_from_local(source_path)
     
     def _download_from_gcs(self, gcs_path: str) -> bytes:
-        """Download da Google Cloud Storage."""
+        """
+        Download da Google Cloud Storage con retrocompatibilità.
+        
+        Cerca il file in diverse posizioni per gestire migrazione da struttura vecchia (covers/) 
+        a struttura nuova (users/{user_id}/covers/).
+        """
         if self.bucket is None:
             self._init_gcs_client()
         
@@ -167,12 +218,42 @@ class StorageService:
         else:
             blob_path = gcs_path
         
-        blob = self.bucket.blob(blob_path)
+        # Lista di path alternativi da provare (in ordine di priorità)
+        paths_to_try = [blob_path]
         
-        if not blob.exists():
+        # Retrocompatibilità: se il path è users/{user_id}/covers/xxx, prova anche covers/xxx
+        if blob_path.startswith("users/") and "/covers/" in blob_path:
+            # Estrai solo il nome file
+            filename = blob_path.split("/covers/")[-1]
+            alt_path = f"covers/{filename}"
+            if alt_path not in paths_to_try:
+                paths_to_try.append(alt_path)
+        # Retrocompatibilità: se il path è covers/xxx, prova anche users/{user_id}/covers/xxx
+        # ma solo se abbiamo informazioni sull'utente (implementabile in futuro se necessario)
+        elif blob_path.startswith("covers/"):
+            # Manteniamo il path originale come prima scelta
+            # Non proviamo in users/ perché richiederebbe di listare tutti gli utenti
+            pass
+        
+        # Prova ogni path in ordine
+        last_error = None
+        for path in paths_to_try:
+            try:
+                blob = self.bucket.blob(path)
+                if blob.exists():
+                    print(f"[STORAGE] File trovato su GCS: {path} (path originale: {blob_path})")
+                    return blob.download_as_bytes()
+            except Exception as e:
+                last_error = e
+                continue
+        
+        # Se nessun path ha funzionato, solleva errore con informazioni utili
+        if len(paths_to_try) > 1:
+            raise FileNotFoundError(
+                f"File non trovato su GCS: {gcs_path} (prova anche: {paths_to_try[1:]})"
+            )
+        else:
             raise FileNotFoundError(f"File non trovato su GCS: {gcs_path}")
-        
-        return blob.download_as_bytes()
     
     def _download_from_local(self, local_path: str) -> bytes:
         """Download da filesystem locale."""
@@ -180,14 +261,22 @@ class StorageService:
         
         # Se è un path relativo, prova a cercarlo nelle directory standard
         if not path.is_absolute():
-            # Prova books/ o sessions/
+            # Prova books/ o sessions/ o covers/
             if "books" in str(local_path) or local_path.endswith(".pdf"):
                 path = self.local_base_path / "books" / Path(local_path).name
             elif "covers" in str(local_path) or local_path.endswith((".png", ".jpg", ".jpeg")):
-                path = self.local_base_path / "sessions" / Path(local_path).name
+                # Prova prima in sessions/, poi in covers/ se esiste
+                path_sessions = self.local_base_path / "sessions" / Path(local_path).name
+                path_covers = self.local_base_path / "covers" / Path(local_path).name
+                if path_sessions.exists():
+                    path = path_sessions
+                elif path_covers.exists():
+                    path = path_covers
+                else:
+                    path = path_sessions  # Usa questo per il messaggio di errore
         
         if not path.exists():
-            raise FileNotFoundError(f"File non trovato localmente: {local_path}")
+            raise FileNotFoundError(f"File non trovato localmente: {local_path} (cercato in: {path})")
         
         with open(path, 'rb') as f:
             return f.read()
@@ -207,18 +296,34 @@ class StorageService:
         Returns:
             URL firmato per GCS, o path locale per fallback
         """
-        if path.startswith("gs://") and self.gcs_enabled:
-            return self._get_gcs_signed_url(path, expiration_minutes)
-        else:
-            # Per locale, restituisci un path API relativo
-            if path.startswith("gs://"):
-                # Estrai solo il nome file
-                filename = Path(path).name
-                if "books" in path:
-                    return f"/api/files/books/{filename}"
-                elif "covers" in path:
-                    return f"/api/files/covers/{filename}"
-            return path
+        # Se il path è gs://, prova sempre GCS prima
+        if path.startswith("gs://"):
+            if not self.gcs_enabled:
+                # Prova a inizializzare GCS comunque
+                try:
+                    if GCS_AVAILABLE:
+                        self._init_gcs_client()
+                        self.gcs_enabled = self.client is not None and self.bucket is not None
+                except Exception as e:
+                    print(f"[STORAGE] WARN: Impossibile inizializzare GCS per signed URL: {e}")
+            
+            if self.gcs_enabled:
+                try:
+                    return self._get_gcs_signed_url(path, expiration_minutes)
+                except Exception as e:
+                    print(f"[STORAGE] Errore generazione signed URL da GCS: {e}")
+                    # Fallback: restituisci None per far gestire il download diretto
+                    return None
+        
+        # Per locale, restituisci un path API relativo
+        if path.startswith("gs://"):
+            # Estrai solo il nome file
+            filename = Path(path).name
+            if "books" in path:
+                return f"/api/files/books/{filename}"
+            elif "covers" in path:
+                return f"/api/files/covers/{filename}"
+        return path
     
     def _get_gcs_signed_url(self, gcs_path: str, expiration_minutes: int) -> str:
         """Genera URL firmato GCS."""

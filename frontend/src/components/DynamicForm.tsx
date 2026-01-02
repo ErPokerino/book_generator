@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, SessionRestoreResponse } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
@@ -16,6 +17,7 @@ const OutlineEditor = lazy(() => import('./OutlineEditor'));
 const SESSION_STORAGE_KEY = 'current_book_session_id';
 
 export default function DynamicForm() {
+  const { user } = useAuth();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +202,11 @@ export default function DynamicForm() {
       const llmModelField = data.fields.find(f => f.id === 'llm_model');
       if (llmModelField && llmModelField.type === 'select') {
         initialData['llm_model'] = 'gemini-3-flash';
+      }
+      
+      // Imposta default per user_name con il nome dell'utente loggato se disponibile
+      if (user?.name) {
+        initialData['user_name'] = user.name;
       }
       
       setFormData(initialData);
@@ -451,7 +458,7 @@ export default function DynamicForm() {
             onChange={(e) => handleChange(field.id, e.target.value)}
             className={fieldError ? 'error' : ''}
           >
-            <option value="">-- Seleziona --</option>
+            {field.id !== 'llm_model' && <option value="">-- Seleziona --</option>}
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label || opt.value}
@@ -859,15 +866,27 @@ export default function DynamicForm() {
           
           {error && <div className="error-banner">{error}</div>}
           
-          <form onSubmit={handleSubmit} className="dynamic-form">
-            {config?.fields.map((field) => renderField(field))}
-            
-            <div className="form-actions">
-              <button type="submit" disabled={isSubmitting} className="submit-button">
-                {isSubmitting ? 'Invio in corso...' : 'Invia'}
-              </button>
+          {!config && !loading && !error && (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <p>Caricamento configurazione in corso...</p>
             </div>
-          </form>
+          )}
+          
+          {config && config.fields && config.fields.length > 0 ? (
+            <form onSubmit={handleSubmit} className="dynamic-form">
+              {config.fields.map((field) => renderField(field))}
+              
+              <div className="form-actions">
+                <button type="submit" disabled={isSubmitting} className="submit-button">
+                  {isSubmitting ? 'Invio in corso...' : 'Invia'}
+                </button>
+              </div>
+            </form>
+          ) : config && (!config.fields || config.fields.length === 0) ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <p>Nessun campo disponibile nella configurazione.</p>
+            </div>
+          ) : null}
         </div>
       </div>
 

@@ -69,7 +69,11 @@ from app.agent.writer_generator import generate_full_book, parse_outline_section
 from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
-from app.agent.session_store_helpers import get_session_async
+from app.agent.session_store_helpers import (
+    get_session_async, update_writing_progress_async, update_critique_async, 
+    update_critique_status_async, update_writing_times_async, update_cover_image_path_async,
+    delete_session_async
+)
 from app.services.pdf_service import generate_complete_book_pdf
 from app.services.export_service import generate_epub, generate_docx
 from app.services.storage_service import get_storage_service
@@ -136,6 +140,32 @@ app.include_router(questions.router)
 app.include_router(draft.router)
 app.include_router(outline.router)
 app.include_router(auth.router)
+
+
+# ============================================================================
+# Constants
+# ============================================================================
+
+# Campi MongoDB necessari per creare LibraryEntry (ottimizzazione performance)
+# Escludiamo current_draft che può essere molto grande (migliaia di righe)
+LIBRARY_ENTRY_FIELDS = [
+    "_id",
+    "user_id",
+    "session_id",
+    "current_title",
+    "form_data",
+    "question_answers",  # Necessario per SessionData.from_dict()
+    "created_at",
+    "updated_at",
+    "book_chapters",
+    "writing_progress",
+    "current_outline",
+    "literary_critique",
+    "cover_image_path",
+    "writing_start_time",
+    "writing_end_time",
+    "critique_status",
+]
 
 
 # Lifecycle hooks per MongoDB
@@ -1210,11 +1240,15 @@ def session_to_library_entry(session) -> "LibraryEntry":
     if session.writing_progress:
         total_chapters = session.writing_progress.get('total_steps', 0)
     elif session.current_outline:
-        # Prova a parsare l'outline per contare le sezioni
+        # Ottimizzazione: invece di parsare tutto l'outline, conta approssimativamente le sezioni
+        # contando i caratteri "##" o "#" che indicano header Markdown
+        # Questo è molto più veloce del parsing completo
         try:
-            from app.agent.writer_generator import parse_outline_sections
-            sections = parse_outline_sections(session.current_outline)
-            total_chapters = len(sections)
+            outline_text = session.current_outline
+            # Conta header Markdown (# o ##) come proxy per il numero di sezioni
+            section_count = outline_text.count('\n##') + outline_text.count('\n#')
+            if section_count > 0:
+                total_chapters = section_count
         except:
             pass
     
@@ -1267,15 +1301,8 @@ def session_to_library_entry(session) -> "LibraryEntry":
             if local_pdf_path.exists():
                 pdf_path = str(local_pdf_path)
                 pdf_filename = expected_filename
-            else:
-                # Cerca qualsiasi PDF che potrebbe corrispondere (locale)
-                books_dir = Path(__file__).parent.parent / "books"
-                if books_dir.exists():
-                    for pdf_file in books_dir.glob("*.pdf"):
-                        if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
-                            pdf_path = str(pdf_file)
-                            pdf_filename = pdf_file.name
-                            break
+            # Rimosso glob costoso: se il file non esiste con il nome atteso, non cerchiamo
+            # (ottimizzazione performance - il PDF verrà trovato quando necessario)
     
     # Calcola writing_time_minutes
     writing_time_minutes = None
@@ -1288,15 +1315,7 @@ def session_to_library_entry(session) -> "LibraryEntry":
     # Calcola costo stimato (solo se libro completo)
     estimated_cost = None
     if status == "complete" and total_pages:
-        print(f"[LIBRARY ENTRY] Tentativo calcolo costo per {session.session_id}: total_pages={total_pages}, completed_chapters={completed_chapters}, book_chapters={len(session.book_chapters) if session.book_chapters else 0}")
         estimated_cost = calculate_generation_cost(session, total_pages)
-        if estimated_cost is None:
-            print(f"[LIBRARY ENTRY] Costo non calcolato per {session.session_id}: status={status}, total_pages={total_pages}, completed_chapters={completed_chapters}")
-        else:
-            print(f"[LIBRARY ENTRY] Costo calcolato per {session.session_id}: €{estimated_cost:.4f}")
-    else:
-        if status == "complete":
-            print(f"[LIBRARY ENTRY] Costo non calcolato per {session.session_id}: status=complete ma total_pages={total_pages}")
     
     return LibraryEntry(
         session_id=session.session_id,
@@ -2152,13 +2171,13 @@ async def regenerate_book_critique_endpoint(
 
     # Genera/recupera PDF (salvato anche su disco da download_book_pdf_endpoint)
     try:
-        session_store.update_critique_status(session_id, "running", error=None)
-        pdf_response = await download_book_pdf_endpoint(session_id)
+        await update_critique_status_async(session_store, session_id, "running", error=None)
+        pdf_response = await download_book_pdf_endpoint(session_id, current_user=None)
         pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
         if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
             raise ValueError("PDF bytes non disponibili.")
     except Exception as e:
-        session_store.update_critique_status(session_id, "failed", error=str(e))
+        await update_critique_status_async(session_store, session_id, "failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Errore nel generare il PDF per la critica: {e}")
 
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -2170,10 +2189,10 @@ async def regenerate_book_critique_endpoint(
             api_key=api_key,
         )
     except Exception as e:
-        session_store.update_critique_status(session_id, "failed", error=str(e))
+        await update_critique_status_async(session_store, session_id, "failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Errore nella generazione della critica: {e}")
 
-    session_store.update_critique(session_id, critique)
+    await update_critique_async(session_store, session_id, critique)
     return critique
 
 
@@ -2213,7 +2232,8 @@ async def background_book_generation(
             print(f"[BOOK GENERATION] WARNING: Progresso non inizializzato per sessione {session_id}, inizializzo ora...")
             # Fallback: inizializza il progresso se non è stato fatto
             sections = parse_outline_sections(outline_text)
-            session_store.update_writing_progress(
+            await update_writing_progress_async(
+                session_store,
                 session_id=session_id,
                 current_step=0,
                 total_steps=len(sections),
@@ -2224,7 +2244,7 @@ async def background_book_generation(
         
         # Registra timestamp inizio scrittura capitoli
         start_time = datetime.now()
-        session_store.update_writing_times(session_id, start_time=start_time)
+        await update_writing_times_async(session_store, session_id, start_time=start_time)
         print(f"[BOOK GENERATION] Timestamp inizio scrittura: {start_time.isoformat()}")
         
         await generate_full_book(
@@ -2248,7 +2268,7 @@ async def background_book_generation(
         
         # Registra timestamp fine scrittura capitoli e calcola tempo
         end_time = datetime.now()
-        session_store.update_writing_times(session_id, end_time=end_time)
+        await update_writing_times_async(session_store, session_id, end_time=end_time)
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
         
@@ -2258,7 +2278,8 @@ async def background_book_generation(
             # Mantieni tutti i valori esistenti e aggiungi writing_time_minutes
             existing_progress = session.writing_progress.copy()
             existing_progress['writing_time_minutes'] = writing_time_minutes
-            session_store.update_writing_progress(
+            await update_writing_progress_async(
+                session_store,
                 session_id=session_id,
                 current_step=existing_progress.get('current_step', 0),
                 total_steps=existing_progress.get('total_steps', 0),
@@ -2299,11 +2320,11 @@ async def background_book_generation(
                         content_type="image/png",
                         user_id=user_id,
                     )
-                    session_store.update_cover_image_path(session_id, gcs_path)
+                    await update_cover_image_path_async(session_store, session_id, gcs_path)
                     print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
                 except Exception as e:
                     print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
-                    session_store.update_cover_image_path(session_id, cover_path)
+                    await update_cover_image_path_async(session_store, session_id, cover_path)
                     print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
@@ -2317,9 +2338,9 @@ async def background_book_generation(
             session = await get_session_async(session_store, session_id)
             if session and session.book_chapters and len(session.book_chapters) > 0:
                 # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
-                session_store.update_critique_status(session_id, "running", error=None)
+                await update_critique_status_async(session_store, session_id, "running", error=None)
                 try:
-                    pdf_response = await download_book_pdf_endpoint(session_id)
+                    pdf_response = await download_book_pdf_endpoint(session_id, current_user=None)
                     pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
                     if pdf_bytes is None:
                         # Fallback: rigenera via endpoint e prendi il body
@@ -2336,7 +2357,7 @@ async def background_book_generation(
                     api_key=api_key,
                 )
 
-                session_store.update_critique(session_id, critique)
+                await update_critique_async(session_store, session_id, critique)
                 print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
@@ -2344,7 +2365,7 @@ async def background_book_generation(
             traceback.print_exc()
             # Niente placeholder: settiamo status failed e salviamo errore per UI (stop polling + retry).
             try:
-                session_store.update_critique_status(session_id, "failed", error=str(e))
+                await update_critique_status_async(session_store, session_id, "failed", error=str(e))
             except Exception as _e:
                 print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
     except ValueError as e:
@@ -2359,7 +2380,8 @@ async def background_book_generation(
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
         
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=0,
             total_steps=existing_total if existing_total > 0 else 1,
@@ -2379,7 +2401,8 @@ async def background_book_generation(
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
         
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=0,
             total_steps=existing_total if existing_total > 0 else 1,
@@ -2448,7 +2471,8 @@ async def generate_book_endpoint(
                 )
             
             # Inizializza il progresso PRIMA di avviare il task
-            session_store.update_writing_progress(
+            await update_writing_progress_async(
+                session_store,
                 session_id=request.session_id,
                 current_step=0,
                 total_steps=total_sections,
@@ -2527,7 +2551,7 @@ async def background_resume_book_generation(
         # Recupera il timestamp di inizio se esiste, altrimenti usa quello corrente
         start_time = session.writing_start_time or datetime.now()
         if not session.writing_start_time:
-            session_store.update_writing_times(session_id, start_time=start_time)
+            await update_writing_times_async(session_store, session_id, start_time=start_time)
         
         await resume_book_generation(
             session_id=session_id,
@@ -2544,7 +2568,7 @@ async def background_resume_book_generation(
         
         # Registra timestamp fine scrittura capitoli e calcola tempo
         end_time = datetime.now()
-        session_store.update_writing_times(session_id, end_time=end_time)
+        await update_writing_times_async(session_store, session_id, end_time=end_time)
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
         
@@ -2553,7 +2577,8 @@ async def background_resume_book_generation(
         if session and session.writing_progress:
             existing_progress = session.writing_progress.copy()
             existing_progress['writing_time_minutes'] = writing_time_minutes
-            session_store.update_writing_progress(
+            await update_writing_progress_async(
+                session_store,
                 session_id=session_id,
                 current_step=existing_progress.get('current_step', 0),
                 total_steps=existing_progress.get('total_steps', 0),
@@ -2593,11 +2618,11 @@ async def background_resume_book_generation(
                             content_type="image/png",
                             user_id=user_id,
                         )
-                        session_store.update_cover_image_path(session_id, gcs_path)
+                        await update_cover_image_path_async(session_store, session_id, gcs_path)
                         print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
                     except Exception as e:
                         print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
-                        session_store.update_cover_image_path(session_id, cover_path)
+                        await update_cover_image_path_async(session_store, session_id, cover_path)
                         print(f"[BOOK GENERATION] Copertina generata: {cover_path}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
@@ -2608,18 +2633,36 @@ async def background_resume_book_generation(
         try:
             print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
             session = await get_session_async(session_store, session_id)
-            if session and session.book_chapters:
-                session_store.update_critique_status(session_id, "running")
-                critique = await generate_literary_critique_from_pdf(session_id, api_key)
-                if critique:
-                    session_store.update_critique(session_id, critique)
-                    print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
+            if session and session.book_chapters and len(session.book_chapters) > 0:
+                # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
+                await update_critique_status_async(session_store, session_id, "running", error=None)
+                try:
+                    pdf_response = await download_book_pdf_endpoint(session_id, current_user=None)
+                    pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
+                    if pdf_bytes is None:
+                        # Fallback: rigenera via endpoint e prendi il body
+                        pdf_bytes = pdf_response.body
+                    if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
+                        raise ValueError("PDF bytes non disponibili per la critica.")
+                except Exception as e:
+                    raise RuntimeError(f"Impossibile generare/recuperare PDF per critica: {e}")
+
+                critique = await generate_literary_critique_from_pdf(
+                    title=session.current_title or "Romanzo",
+                    author=session.form_data.user_name or "Autore",
+                    pdf_bytes=bytes(pdf_bytes),
+                    api_key=api_key,
+                )
+
+                await update_critique_async(session_store, session_id, critique)
+                print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
             import traceback
             traceback.print_exc()
+            # Niente placeholder: settiamo status failed e salviamo errore per UI (stop polling + retry).
             try:
-                session_store.update_critique_status(session_id, "failed", error=str(e))
+                await update_critique_status_async(session_store, session_id, "failed", error=str(e))
             except Exception as _e:
                 print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
     except ValueError as e:
@@ -2632,7 +2675,8 @@ async def background_resume_book_generation(
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
         
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=0,
             total_steps=existing_total if existing_total > 0 else 1,
@@ -2651,7 +2695,8 @@ async def background_resume_book_generation(
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
         
-        session_store.update_writing_progress(
+        await update_writing_progress_async(
+            session_store,
             session_id=session_id,
             current_step=0,
             total_steps=existing_total if existing_total > 0 else 1,
@@ -3241,9 +3286,12 @@ async def get_library_endpoint(
     search: Optional[str] = None,
     sort_by: Optional[str] = "created_at",
     sort_order: Optional[str] = "desc",
+    skip: int = 0,
+    limit: int = 20,
+    current_user = Depends(get_current_user_optional),
 ):
     """
-    Restituisce la lista dei libri nella libreria con filtri opzionali.
+    Restituisce la lista dei libri nella libreria con filtri opzionali e paginazione.
     
     Query parameters:
     - status: filtro per stato (draft, outline, writing, paused, complete, all)
@@ -3252,11 +3300,23 @@ async def get_library_endpoint(
     - search: ricerca in titolo/autore
     - sort_by: ordinamento (created_at, title, score, cost, updated_at)
     - sort_order: ordine (asc, desc)
+    - skip: numero di libri da saltare (per paginazione, default: 0)
+    - limit: numero massimo di libri da restituire (per paginazione, default: 20)
     """
     try:
         from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = await get_all_sessions_async(session_store)
+        user_id = current_user.id if current_user else None
+        
+        # Filtri vengono applicati nella query MongoDB (ottimizzazione performance)
+        all_sessions = await get_all_sessions_async(
+            session_store, 
+            user_id=user_id, 
+            fields=LIBRARY_ENTRY_FIELDS,
+            status=status,
+            llm_model=llm_model,
+            genre=genre
+        )
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3268,17 +3328,8 @@ async def get_library_endpoint(
                 print(f"[LIBRARY] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
         
-        # Applica filtri
+        # Filtri già applicati nella query MongoDB, manteniamo solo search che richiede testo
         filtered_entries = entries
-        
-        if status and status != "all":
-            filtered_entries = [e for e in filtered_entries if e.status == status]
-        
-        if llm_model:
-            filtered_entries = [e for e in filtered_entries if e.llm_model == llm_model]
-        
-        if genre:
-            filtered_entries = [e for e in filtered_entries if e.genre == genre]
         
         if search:
             search_lower = search.lower()
@@ -3312,9 +3363,17 @@ async def get_library_endpoint(
         # Calcola statistiche su tutte le entry (non solo filtrate)
         stats = calculate_library_stats(entries)
         
+        # Applica paginazione DOPO l'ordinamento
+        total_filtered = len(filtered_entries)
+        start_index = skip
+        end_index = skip + limit
+        paginated_entries = filtered_entries[start_index:end_index]
+        has_more = end_index < total_filtered
+        
         return LibraryResponse(
-            books=filtered_entries,
-            total=len(filtered_entries),
+            books=paginated_entries,
+            total=total_filtered,  # Totale prima della paginazione
+            has_more=has_more,
             stats=stats,
         )
     
@@ -3337,7 +3396,8 @@ async def get_library_stats_endpoint(
         from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
-        all_sessions = await get_all_sessions_async(session_store, user_id=user_id)
+        # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
+        all_sessions = await get_all_sessions_async(session_store, user_id=user_id, fields=LIBRARY_ENTRY_FIELDS)
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3371,7 +3431,8 @@ async def get_advanced_stats_endpoint(
         from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
-        all_sessions = await get_all_sessions_async(session_store, user_id=user_id)
+        # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
+        all_sessions = await get_all_sessions_async(session_store, user_id=user_id, fields=LIBRARY_ENTRY_FIELDS)
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3456,7 +3517,7 @@ async def delete_library_entry_endpoint(
             print(f"[LIBRARY DELETE] Errore nell'eliminazione file per {session_id}: {file_error}")
             # Continua comunque con l'eliminazione della sessione
         
-        deleted = session_store.delete_session(session_id)
+        deleted = await delete_session_async(session_store, session_id)
         if deleted:
             response = {"success": True, "message": f"Progetto {session_id} eliminato con successo"}
             if deleted_files:
@@ -3545,13 +3606,19 @@ async def get_cover_image_endpoint(
                     suffix = Path(cover_path_str).suffix.lower()
                     media_type = 'image/png' if suffix == '.png' else 'image/jpeg'
                     return Response(content=cover_data, media_type=media_type)
+            except FileNotFoundError as download_err:
+                error_msg = str(download_err)
+                print(f"[COVER IMAGE] Errore download da GCS: {error_msg}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=error_msg
+                )
             except Exception as download_err:
                 print(f"[COVER IMAGE] Errore download da GCS: {download_err}")
-            
-            raise HTTPException(
-                status_code=404,
-                detail="File copertina non trovato su GCS"
-            )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Errore nel recupero della copertina: {str(download_err)}"
+                )
         
         # Path locale
         cover_path = Path(cover_path_str)
@@ -3753,14 +3820,12 @@ async def regenerate_cover_endpoint(
                 content_type="image/png",
                 user_id=user_id,
             )
-            session_store.update_cover_image_path(session_id, gcs_path)
-            session_store._save_sessions()
+            await update_cover_image_path_async(session_store, session_id, gcs_path)
             print(f"[REGENERATE COVER] Copertina rigenerata e caricata su GCS: {gcs_path}")
             return {"success": True, "cover_path": gcs_path}
         except Exception as e:
             print(f"[REGENERATE COVER] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
-            session_store.update_cover_image_path(session_id, cover_path)
-            session_store._save_sessions()
+            await update_cover_image_path_async(session_store, session_id, str(cover_path))
             print(f"[REGENERATE COVER] Copertina rigenerata con successo: {cover_path}")
             return {"success": True, "cover_path": str(cover_path)}
     
@@ -3965,7 +4030,7 @@ async def cleanup_obsolete_books_endpoint():
                     errors.append(f"Errore eliminazione file per {book_info['title']}: {file_error}")
                 
                 # Elimina sessione
-                if session_store.delete_session(session_id):
+                if await delete_session_async(session_store, session_id):
                     deleted_count += 1
                     deleted_files_count += files_deleted
                 else:

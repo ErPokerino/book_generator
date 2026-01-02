@@ -97,7 +97,7 @@ class SessionData:
         session = cls(
             session_id=data["session_id"],
             form_data=SubmissionRequest(**data["form_data"]),
-            question_answers=[QuestionAnswer(**qa) for qa in data["question_answers"]],
+            question_answers=[QuestionAnswer(**qa) for qa in data.get("question_answers", [])],  # Defensivo: usa .get() con fallback
             user_id=data.get("user_id"),  # Associazione utente (retrocompatibile)
         )
         session.draft_history = data.get("draft_history", [])

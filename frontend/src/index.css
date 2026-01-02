@@ -73,10 +73,19 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+  overflow-y: auto; /* Abilita scroll verticale a livello html */
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  height: auto; /* Permette al body di crescere oltre 100vh */
+  overflow-x: hidden; /* Previene scroll orizzontale indesiderato */
+  overflow-y: visible; /* Permette scroll verticale quando necessario */
   background: 
     radial-gradient(ellipse at top right, rgba(233, 69, 96, 0.03) 0%, transparent 50%),
     radial-gradient(ellipse at bottom left, rgba(15, 52, 96, 0.05) 0%, transparent 50%),
@@ -88,6 +97,8 @@ body {
   margin: 0;
   padding: 0;
   text-align: left;
+  overflow-y: auto; /* Permette scroll verticale */
+  overflow-x: hidden; /* Previene scroll orizzontale */
 }
 
 /* Typography Headings - Playfair Display */

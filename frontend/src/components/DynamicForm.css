@@ -5,8 +5,13 @@
 .dynamic-form-container {
   max-width: 850px;
   margin: 0 auto;
-  padding: 0;
+  padding: 2rem !important; /* Padding per assicurare spazio e leggibilità - FORZATO */
   animation: fadeIn 0.4s ease-out forwards;
+  background-color: transparent; /* Assicura che sia visibile */
+  min-height: calc(100vh - 200px); /* Altezza minima per garantire scroll */
+  opacity: 1 !important; /* Forza visibilità */
+  visibility: visible !important; /* Forza visibilità */
+  display: block !important; /* Forza display */
 }
 
 /* Layout con Step Indicator */
@@ -18,6 +23,10 @@
   margin: 0 auto;
   padding: 2.5rem 2rem;
   animation: fadeIn 0.4s ease-out forwards;
+  width: 100%; /* Assicura che occupi tutto lo spazio disponibile */
+  min-height: 400px; /* Assicura altezza minima */
+  overflow-y: visible; /* Permette scroll del contenuto */
+  overflow-x: hidden; /* Previene scroll orizzontale */
 }
 
 .dynamic-form-layout .step-indicator-wrapper {
@@ -29,10 +38,21 @@
 .dynamic-form-layout .dynamic-form-main-content {
   flex: 1;
   min-width: 0; /* Permette al contenuto di restringersi */
+  background-color: transparent; /* Assicura che sia visibile */
+  width: 100%; /* Assicura che occupi tutto lo spazio disponibile */
+  overflow-y: auto; /* Abilita scroll verticale quando necessario */
+  overflow-x: hidden; /* Previene scroll orizzontale */
+  position: relative; /* Per z-index se necessario */
+  opacity: 1 !important; /* Forza visibilità */
+  visibility: visible !important; /* Forza visibilità */
+  display: block !important; /* Forza display */
+  /* Rimuovo max-height per permettere al contenuto di espandersi e scrollare */
 }
 
 .dynamic-form-layout .dynamic-form-main-content > .dynamic-form-container {
-  padding: 0;
+  padding: 2rem !important; /* Padding per leggibilità e scroll */
+  max-width: 100%; /* Assicura che non superi il contenitore */
+  width: 100%; /* Assicura che occupi tutto lo spazio disponibile */
 }
 
 @media (max-width: 968px) {
@@ -69,6 +89,12 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
+  width: 100%; /* Assicura che il form occupi tutto lo spazio */
+  min-width: 0; /* Previene overflow */
+  opacity: 1 !important; /* Forza visibilità */
+  visibility: visible !important; /* Forza visibilità */
+  position: relative; /* Assicura posizionamento normale */
+  z-index: 1; /* Assicura che sia sopra altri elementi */
 }
 
 /* Form Field */
@@ -76,6 +102,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  opacity: 1 !important; /* Forza visibilità */
+  visibility: visible !important; /* Forza visibilità */
+  width: 100%; /* Assicura larghezza completa */
 }
 
 .form-field label {

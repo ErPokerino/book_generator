@@ -135,18 +135,31 @@ class UserStore:
         doc = self._user_to_doc(user)
         
         try:
+            print(f"[UserStore] Tentativo inserimento utente: {email}", file=sys.stderr)
             await self.users_collection.insert_one(doc)
             print(f"[UserStore] Utente creato: {email}", file=sys.stderr)
             return user
         except DuplicateKeyError:
+            print(f"[UserStore] DuplicateKeyError per: {email}", file=sys.stderr)
             raise ValueError(f"Email {email} già registrata")
+        except Exception as e:
+            print(f"[UserStore] ERRORE GRAVE insert_one: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            raise
     
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Recupera utente per email."""
-        doc = await self.users_collection.find_one({"email": email.lower().strip()})
-        if doc:
-            return self._doc_to_user(doc)
-        return None
+        try:
+            print(f"[UserStore] Cerco utente: {email}", file=sys.stderr)
+            doc = await self.users_collection.find_one({"email": email.lower().strip()})
+            print(f"[UserStore] Utente trovato: {bool(doc)}", file=sys.stderr)
+            if doc:
+                return self._doc_to_user(doc)
+            return None
+        except Exception as e:
+            print(f"[UserStore] ERRORE get_user_by_email: {e}", file=sys.stderr)
+            raise
     
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Recupera utente per ID."""

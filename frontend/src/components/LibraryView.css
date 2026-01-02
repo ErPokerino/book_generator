@@ -120,6 +120,51 @@
   transform: translateX(-3px);
 }
 
+/* Infinite Scroll Sentinel & Loading Indicators */
+.load-more-sentinel {
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.loading-more-indicator {
+  padding: 1.5rem 2rem;
+  text-align: center;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-family: 'Outfit', sans-serif;
+}
+
+.loading-more-indicator span {
+  display: inline-block;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.no-more-books {
+  padding: 1.5rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-family: 'Outfit', sans-serif;
+}
+
+.no-more-books p {
+  margin: 0;
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .books-grid {

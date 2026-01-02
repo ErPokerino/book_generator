@@ -15,9 +15,17 @@
   position: sticky;
   top: 0;
   z-index: 100;
+  gap: 2rem; /* Spaziatura tra elementi per evitare sovrapposizioni */
+  min-width: 0; /* Permette restringimento flex items */
+  width: 100%; /* Assicura larghezza completa */
 }
 
 /* Brand */
+.nav-brand {
+  flex-shrink: 0; /* Previene che il logo si rimpicciolisca */
+  margin-right: auto; /* Spinge il logo a sinistra */
+}
+
 .nav-brand h1 {
   margin: 0;
   font-size: 1.6rem;
@@ -29,12 +37,15 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  white-space: nowrap; /* Previene wrapping del testo */
 }
 
 /* Navigation Links Container */
 .nav-links {
   display: flex;
   gap: 0.75rem;
+  flex-shrink: 0; /* Previene che i link si rimpiccioliscano */
+  margin: 0 auto; /* Centra i link tra logo e user */
 }
 
 /* Navigation Button - Glassmorphism Style */
@@ -108,4 +119,66 @@
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
   }
+
+  .nav-user {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+}
+
+/* User Section */
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  flex-shrink: 0; /* Previene che la sezione utente si rimpicciolisca */
+  min-width: fit-content; /* Assicura spazio minimo per contenuto */
+  padding-left: 1rem; /* Spazio aggiuntivo se necessario */
+}
+
+.nav-user-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap; /* Previene il wrapping del nome */
+  overflow: visible; /* Assicura che il testo sia visibile */
+  text-overflow: ellipsis; /* Se necessario, mostra "..." invece di tagliare */
+  max-width: none; /* Rimuove limite per mostrare nome completo */
+  min-width: fit-content; /* Assicura spazio per nome completo */
+}
+
+.nav-user-badge {
+  padding: 0.25rem 0.5rem;
+  background: rgba(233, 69, 96, 0.3);
+  border: 1px solid rgba(233, 69, 96, 0.5);
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.nav-logout-button {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.nav-logout-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-logout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

@@ -1,3 +1,50 @@
+// ===== Auth Types =====
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'user' | 'admin';
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  user: User;
+  message?: string;
+}
+
+export interface ForgotPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+// ===== Existing Types =====
 export interface FieldOption {
   value: string;
   label?: string;
@@ -772,6 +819,7 @@ export interface AdvancedStats {
 export interface LibraryResponse {
   books: LibraryEntry[];
   total: number;
+  has_more?: boolean;  // Indica se ci sono altri libri da caricare
   stats?: LibraryStats;
 }
 
@@ -782,6 +830,8 @@ export interface LibraryFilters {
   search?: string;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
+  skip?: number;  // Numero di libri da saltare (per paginazione)
+  limit?: number;  // Numero massimo di libri da restituire (per paginazione)
 }
 
 export interface PdfEntry {
@@ -803,10 +853,14 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
     if (filters.search) params.append('search', filters.search);
     if (filters.sort_by) params.append('sort_by', filters.sort_by);
     if (filters.sort_order) params.append('sort_order', filters.sort_order);
+    if (filters.skip !== undefined) params.append('skip', filters.skip.toString());
+    if (filters.limit !== undefined) params.append('limit', filters.limit.toString());
   }
   
   const url = `${API_BASE}/library${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    credentials: 'include',
+  });
   
   if (!response.ok) {
     const error = await response.json();
@@ -920,5 +974,138 @@ export async function analyzeExternalPdf(
     }
     throw error;
   }
+}
+
+// ===== Auth API Functions =====
+
+export async function login(credentials: LoginRequest): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include', // Include cookies for session management
+    body: JSON.stringify(credentials),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Email o password non corretti';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function register(userData: RegisterRequest): Promise<User> {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nella registrazione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function logout(): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error('Errore nel logout');
+  }
+
+  return response.json();
+}
+
+export async function getCurrentUser(): Promise<User | null> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/me`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return null; // Non autenticato
+    }
+
+    if (!response.ok) {
+      throw new Error('Errore nel recupero utente');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('[API] Errore nel recupero utente corrente:', error);
+    return null;
+  }
+}
+
+export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  const response = await fetch(`${API_BASE}/auth/password/forgot`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nella richiesta reset password';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
+  const response = await fetch(`${API_BASE}/auth/password/reset`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel reset password';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
 }
 
