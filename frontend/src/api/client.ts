@@ -1062,27 +1062,41 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
-  const response = await fetch(`${API_BASE}/auth/password/forgot`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ email }),
-  });
+  console.log('[API] forgotPassword chiamato per email:', email);
+  console.log('[API] URL:', `${API_BASE}/auth/password/forgot`);
+  
+  try {
+    const response = await fetch(`${API_BASE}/auth/password/forgot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
 
-  if (!response.ok) {
-    let errorDetail = 'Errore nella richiesta reset password';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
+    console.log('[API] forgotPassword response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      let errorDetail = 'Errore nella richiesta reset password';
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+        console.error('[API] forgotPassword error response:', error);
+      } catch (e) {
+        console.error('[API] forgotPassword errore nel parsing JSON:', e);
+        // Se non è JSON, usa il messaggio di default
+      }
+      throw new Error(errorDetail);
     }
-    throw new Error(errorDetail);
-  }
 
-  return response.json();
+    const result = await response.json();
+    console.log('[API] forgotPassword success response:', result);
+    return result;
+  } catch (error) {
+    console.error('[API] forgotPassword eccezione:', error);
+    throw error;
+  }
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
@@ -1108,4 +1122,3 @@ export async function resetPassword(token: string, newPassword: string): Promise
 
   return response.json();
 }
-

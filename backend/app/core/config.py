@@ -16,7 +16,9 @@ class LiteraryCriticConfig(TypedDict, total=False):
 
 def load_config() -> ConfigResponse:
     """Carica la configurazione dal file YAML."""
-    config_path = Path(__file__).parent.parent.parent.parent / "config" / "inputs.yaml"
+    # Nel container: __file__ = /app/app/core/config.py
+    # .parent.parent.parent = /app/
+    config_path = Path(__file__).parent.parent.parent / "config" / "inputs.yaml"
     
     if not config_path.exists():
         raise FileNotFoundError(f"File di configurazione non trovato: {config_path}")
@@ -77,7 +79,9 @@ _critic_config: Optional[LiteraryCriticConfig] = None
 
 def load_literary_critic_config() -> LiteraryCriticConfig:
     """Carica la configurazione del critico letterario dal file YAML."""
-    config_path = Path(__file__).parent.parent.parent.parent / "config" / "literary_critic.yaml"
+    # Nel container: __file__ = /app/app/core/config.py
+    # .parent.parent.parent = /app/
+    config_path = Path(__file__).parent.parent.parent / "config" / "literary_critic.yaml"
     if not config_path.exists():
         raise FileNotFoundError(f"File di configurazione non trovato: {config_path}")
 
@@ -127,7 +131,9 @@ _app_config: Optional[AppConfig] = None
 
 def load_app_config() -> AppConfig:
     """Carica la configurazione dell'applicazione dal file YAML."""
-    config_path = Path(__file__).parent.parent.parent.parent / "config" / "app.yaml"
+    # Nel container: __file__ = /app/app/core/config.py
+    # .parent.parent.parent = /app/
+    config_path = Path(__file__).parent.parent.parent / "config" / "app.yaml"
     
     if not config_path.exists():
         # Valori di default se il file non esiste

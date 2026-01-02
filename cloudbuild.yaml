@@ -1,0 +1,42 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:$BUILD_ID'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:$BUILD_ID'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:latest'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'narrai'
+      - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:$BUILD_ID'
+      - '--region=europe-west1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=3600'
+      - '--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest'
+      - '--set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=narrai-books-483022'
+
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:$BUILD_ID'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
