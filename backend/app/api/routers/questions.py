@@ -1,15 +1,24 @@
 """Router per gli endpoint delle domande."""
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models import QuestionGenerationRequest, QuestionsResponse, AnswersRequest, AnswersResponse
 from app.agent.question_generator import generate_questions
 from app.agent.session_store import get_session_store, FileSessionStore
+from app.agent.session_store_helpers import (
+    create_session_async,
+    save_generated_questions_async,
+    get_session_async,
+)
+from app.middleware.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
 
 @router.post("/generate", response_model=QuestionsResponse)
-async def generate_questions_endpoint(request: QuestionGenerationRequest):
+async def generate_questions_endpoint(
+    request: QuestionGenerationRequest,
+    current_user = Depends(get_current_user_optional)
+):
     """Genera domande preliminari basate sul form compilato."""
     try:
         # Verifica che l'API key sia configurata
@@ -26,14 +35,19 @@ async def generate_questions_endpoint(request: QuestionGenerationRequest):
         # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande
         session_store = get_session_store()
         try:
-            session_store.create_session(
+            questions_dict = [q.model_dump() for q in response.questions]
+            user_id = current_user.id if current_user else None
+            await create_session_async(
+                session_store=session_store,
                 session_id=response.session_id,
                 form_data=request.form_data,
                 question_answers=[],
+                user_id=user_id,
             )
-            session_store.save_generated_questions(
+            await save_generated_questions_async(
+                session_store=session_store,
                 session_id=response.session_id,
-                questions=response.questions,
+                questions=questions_dict,
             )
             print(f"[DEBUG] Sessione {response.session_id} creata nel session store dopo generazione domande")
         except Exception as session_error:
@@ -54,19 +68,30 @@ async def generate_questions_endpoint(request: QuestionGenerationRequest):
 
 
 @router.post("/answers", response_model=AnswersResponse)
-async def submit_answers(data: AnswersRequest):
+async def submit_answers(
+    data: AnswersRequest,
+    current_user = Depends(get_current_user_optional)
+):
     """Riceve le risposte alle domande e continua il flusso."""
     print(f"[SUBMIT ANSWERS] Ricevute risposte per sessione {data.session_id}")
     print(f"[SUBMIT ANSWERS] Numero di risposte: {len(data.answers)}")
     try:
         session_store = get_session_store()
-        session = session_store.get_session(data.session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, data.session_id, user_id=user_id)
         
         if not session:
             print(f"[SUBMIT ANSWERS] ERRORE: Sessione {data.session_id} NON trovata!")
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {data.session_id} non trovata. Ricarica la pagina e riprova."
+            )
+        
+        # Verifica ownership se autenticato
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         print(f"[SUBMIT ANSWERS] Sessione trovata, aggiorno le risposte...")
@@ -81,6 +106,9 @@ async def submit_answers(data: AnswersRequest):
                 print(f"[SUBMIT ANSWERS] Sessioni salvate con successo")
             except Exception as save_error:
                 print(f"[WARNING] Errore nel salvataggio sessioni: {save_error}")
+        elif hasattr(session_store, 'save_session'):
+            # MongoSessionStore
+            await session_store.save_session(session)
         
         return AnswersResponse(
             success=True,

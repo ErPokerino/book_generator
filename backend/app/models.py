@@ -269,9 +269,11 @@ class LibraryEntry(BaseModel):
     total_pages: Optional[int] = None
     critique_score: Optional[float] = None
     critique_status: Optional[str] = None
-    pdf_path: Optional[str] = None
+    pdf_path: Optional[str] = None  # Path GCS (gs://bucket/path) o path locale
     pdf_filename: Optional[str] = None
-    cover_image_path: Optional[str] = None
+    pdf_url: Optional[str] = None  # URL firmato temporaneo per accesso PDF
+    cover_image_path: Optional[str] = None  # Path GCS (gs://bucket/path) o path locale
+    cover_url: Optional[str] = None  # URL firmato temporaneo per accesso copertina
     writing_time_minutes: Optional[float] = None
     estimated_cost: Optional[float] = None  # Costo stimato in EUR
 
@@ -330,4 +332,53 @@ class PdfEntry(BaseModel):
     author: Optional[str] = None
     created_date: Optional[datetime] = None
     size_bytes: Optional[int] = None
+
+
+# Modelli per autenticazione utente
+class User(BaseModel):
+    """Modello per utente del sistema."""
+    id: str  # UUID
+    email: str  # unique
+    password_hash: str
+    name: str
+    role: Literal["user", "admin"] = "user"
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+    password_reset_token: Optional[str] = None
+    password_reset_expires: Optional[datetime] = None
+
+
+class UserResponse(BaseModel):
+    """Risposta con dati utente (senza password)."""
+    id: str
+    email: str
+    name: str
+    role: Literal["user", "admin"]
+    is_active: bool
+    created_at: datetime
+
+
+class RegisterRequest(BaseModel):
+    """Richiesta registrazione nuovo utente."""
+    email: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=8)
+    name: str = Field(..., min_length=1)
+
+
+class LoginRequest(BaseModel):
+    """Richiesta login."""
+    email: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Richiesta reset password."""
+    email: str = Field(..., min_length=1)
+
+
+class ResetPasswordRequest(BaseModel):
+    """Richiesta reset password con token."""
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
 

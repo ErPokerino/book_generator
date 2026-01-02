@@ -14,6 +14,7 @@ from reportlab.lib.enums import TA_CENTER
 from xhtml2pdf import pisa
 from app.agent.session_store import SessionData
 from app.core.config import get_app_config
+from app.services.storage_service import get_storage_service
 
 
 def get_model_abbreviation(model_name: str) -> str:
@@ -408,15 +409,20 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
         title_sanitized = f"Libro_{session.session_id[:8]}"
     filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
     
-    # Salva PDF su disco nella cartella backend/books/
+    # Salva PDF su GCS o locale tramite StorageService
     try:
-        books_dir = Path(__file__).parent.parent.parent / "books"
-        books_dir.mkdir(exist_ok=True)
-        pdf_path = books_dir / filename
-        with open(pdf_path, 'wb') as f:
-            f.write(pdf_content)
+        storage_service = get_storage_service()
+        user_id = getattr(session, 'user_id', None)  # Ottieni user_id dalla sessione se disponibile
+        gcs_path = storage_service.upload_file(
+            data=pdf_content,
+            destination_path=f"books/{filename}",
+            content_type="application/pdf",
+            user_id=user_id,
+        )
+        print(f"[BOOK PDF] PDF salvato: {gcs_path}")
     except Exception as e:
-        print(f"[BOOK PDF] Errore nel salvataggio PDF su disco: {e}")
+        print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
         # Non blocchiamo il download HTTP se il salvataggio fallisce
+        gcs_path = None
     
     return pdf_content, filename

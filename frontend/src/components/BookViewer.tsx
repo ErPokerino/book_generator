@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getCompleteBook, downloadBookPdf, BookResponse } from '../api/client';
+import { getCompleteBook, BookResponse } from '../api/client';
 import AlertModal from './AlertModal';
+import ExportDropdown from './ExportDropdown';
 import './BookViewer.css';
 
 interface BookViewerProps {
@@ -15,7 +16,6 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState<number>(0);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
     isOpen: false,
     title: '',
@@ -49,43 +49,6 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
     }
   };
 
-  const handleDownloadPdf = async () => {
-    try {
-      setIsDownloading(true);
-      console.log('[BookViewer] Avvio download PDF per sessione:', sessionId);
-      
-      const { blob, filename } = await downloadBookPdf(sessionId);
-      console.log('[BookViewer] PDF ricevuto, dimensione:', blob.size, 'bytes');
-      
-      if (blob.size === 0) {
-        throw new Error('Il PDF ricevuto è vuoto');
-      }
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      console.log('[BookViewer] Download avviato, filename:', filename);
-      
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 100);
-    } catch (err) {
-      console.error('[BookViewer] Errore nel download del PDF:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto';
-      setAlertModal({
-        isOpen: true,
-        title: 'Errore',
-        message: `Errore nel download del PDF: ${errorMessage}`,
-        variant: 'error',
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -149,13 +112,7 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
           <p className="book-time">Tempo scrittura: {Math.round(book.writing_time_minutes)} minuti</p>
         )}
         <div className="book-actions">
-          <button 
-            onClick={handleDownloadPdf} 
-            className="download-pdf-button"
-            disabled={isDownloading}
-          >
-            {isDownloading ? '⏳ Download in corso...' : '📥 Scarica PDF'}
-          </button>
+          <ExportDropdown sessionId={sessionId} />
         </div>
       </div>
 

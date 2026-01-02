@@ -14,10 +14,12 @@ class SessionData:
         session_id: str,
         form_data: SubmissionRequest,
         question_answers: list[QuestionAnswer],
+        user_id: Optional[str] = None,  # ID utente proprietario della sessione
     ):
         self.session_id = session_id
         self.form_data = form_data
         self.question_answers = question_answers
+        self.user_id = user_id  # Associazione con utente
         self.draft_history: list[Dict[str, Any]] = []  # Lista di bozze con version e text
         self.current_draft: Optional[str] = None
         self.current_title: Optional[str] = None
@@ -64,6 +66,7 @@ class SessionData:
         """Converte SessionData in un dizionario per la serializzazione JSON."""
         return {
             "session_id": self.session_id,
+            "user_id": self.user_id,  # Associazione utente
             "form_data": self.form_data.model_dump(),
             "question_answers": [qa.model_dump() for qa in self.question_answers],
             "draft_history": self.draft_history,
@@ -95,6 +98,7 @@ class SessionData:
             session_id=data["session_id"],
             form_data=SubmissionRequest(**data["form_data"]),
             question_answers=[QuestionAnswer(**qa) for qa in data["question_answers"]],
+            user_id=data.get("user_id"),  # Associazione utente (retrocompatibile)
         )
         session.draft_history = data.get("draft_history", [])
         session.current_draft = data.get("current_draft")
@@ -653,15 +657,30 @@ class FileSessionStore(SessionStore):
         return session
 
 
-# Istanza globale del session store (usa FileSessionStore per persistenza)
+# Istanza globale del session store
 _session_store: Optional[SessionStore] = None
 
 
 def get_session_store() -> SessionStore:
-    """Restituisce l'istanza globale del session store (con persistenza su file)."""
+    """
+    Restituisce l'istanza globale del session store.
+    Se MONGODB_URI è configurata, usa MongoSessionStore, altrimenti FileSessionStore.
+    """
     global _session_store
     if _session_store is None:
-        _session_store = FileSessionStore()
+        mongo_uri = os.getenv("MONGODB_URI")
+        if mongo_uri:
+            try:
+                from app.agent.mongo_session_store import MongoSessionStore
+                _session_store = MongoSessionStore(mongo_uri)
+                print(f"[SessionStore] Usando MongoSessionStore (URI: {mongo_uri[:50]}...)", file=sys.stderr)
+            except ImportError as e:
+                print(f"[SessionStore] ERRORE: Impossibile importare MongoSessionStore: {e}", file=sys.stderr)
+                print(f"[SessionStore] Fallback a FileSessionStore", file=sys.stderr)
+                _session_store = FileSessionStore()
+        else:
+            _session_store = FileSessionStore()
+            print(f"[SessionStore] Usando FileSessionStore", file=sys.stderr)
     return _session_store
 
 

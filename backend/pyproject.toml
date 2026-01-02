@@ -19,6 +19,15 @@ dependencies = [
     "xhtml2pdf>=0.2.11",
     "markdown>=3.4.0",
     "python-multipart>=0.0.21",
+    "ebooklib>=0.18",
+    "python-docx>=1.1.0",
+    "motor>=3.3.0",
+    "pymongo>=4.6.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    "itsdangerous>=2.1.2",
+    "python-multipart>=0.0.21",
+    "aiofiles>=23.2.1",
 ]
 
 [build-system]

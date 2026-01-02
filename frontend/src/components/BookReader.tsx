@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getCompleteBook, BookResponse, Chapter, getCoverImage } from '../api/client';
+import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
 import './BookReader.css';
 
 interface BookReaderProps {
@@ -22,12 +22,10 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
       try {
         setLoading(true);
         setError(null);
-        const [bookData, coverUrl] = await Promise.all([
-          getCompleteBook(sessionId),
-          getCoverImage(sessionId)
-        ]);
+        const bookData = await getCompleteBook(sessionId);
         setBook(bookData);
-        setCoverImageUrl(coverUrl);
+        // Usa URL diretto invece di scaricare come blob
+        setCoverImageUrl(getCoverImageUrl(sessionId));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Errore nel caricamento del libro');
       } finally {
@@ -37,15 +35,6 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
 
     loadBook();
   }, [sessionId]);
-
-  // Cleanup cover image URL when component unmounts
-  useEffect(() => {
-    return () => {
-      if (coverImageUrl) {
-        URL.revokeObjectURL(coverImageUrl);
-      }
-    };
-  }, [coverImageUrl]);
 
   // Helper functions (defined before useCallbacks that use them)
   const scrollToTop = () => {

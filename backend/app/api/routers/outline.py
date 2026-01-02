@@ -1,16 +1,24 @@
 """Router per gli endpoint degli outline."""
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest
 from app.agent.outline_generator import generate_outline
 from app.agent.writer_generator import regenerate_outline_markdown
 from app.agent.session_store import get_session_store
+from app.agent.session_store_helpers import (
+    get_session_async,
+    update_outline_async,
+)
+from app.middleware.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
 
 
 @router.post("/generate", response_model=OutlineResponse)
-async def generate_outline_endpoint(request: OutlineGenerateRequest):
+async def generate_outline_endpoint(
+    request: OutlineGenerateRequest,
+    current_user = Depends(get_current_user_optional)
+):
     """Genera la struttura/indice del libro basandosi sulla bozza validata."""
     try:
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -21,12 +29,19 @@ async def generate_outline_endpoint(request: OutlineGenerateRequest):
             )
         
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, request.session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft:
@@ -57,7 +72,8 @@ async def generate_outline_endpoint(request: OutlineGenerateRequest):
         print(f"[DEBUG OUTLINE] Outline generato, length: {len(outline_text) if outline_text else 0}")
         print(f"[DEBUG OUTLINE] Preview: {outline_text[:200] if outline_text else 'None'}...")
         
-        session_store.update_outline(request.session_id, outline_text)
+        await update_outline_async(session_store, request.session_id, outline_text)
+        session = await get_session_async(session_store, request.session_id)  # Re-fetch per versione aggiornata
         print(f"[DEBUG OUTLINE] Outline salvato nella sessione")
         
         return OutlineResponse(
@@ -78,16 +94,26 @@ async def generate_outline_endpoint(request: OutlineGenerateRequest):
 
 
 @router.get("/{session_id}", response_model=OutlineResponse)
-async def get_outline_endpoint(session_id: str):
+async def get_outline_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional)
+):
     """Recupera la struttura corrente di una sessione."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_outline:
@@ -114,16 +140,26 @@ async def get_outline_endpoint(session_id: str):
 
 
 @router.post("/update", response_model=OutlineResponse)
-async def update_outline_endpoint(request: OutlineUpdateRequest):
+async def update_outline_endpoint(
+    request: OutlineUpdateRequest,
+    current_user = Depends(get_current_user_optional)
+):
     """Aggiorna l'outline con sezioni modificate dall'utente."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, request.session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_outline:
@@ -169,7 +205,7 @@ async def update_outline_endpoint(request: OutlineUpdateRequest):
         
         # Salva l'outline modificato (non permettere se writing già iniziato)
         try:
-            session_store.update_outline(request.session_id, updated_outline_text, allow_if_writing=False)
+            await update_outline_async(session_store, request.session_id, updated_outline_text, allow_if_writing=False)
         except ValueError as e:
             raise HTTPException(
                 status_code=400,
@@ -177,7 +213,7 @@ async def update_outline_endpoint(request: OutlineUpdateRequest):
             )
         
         # Recupera la sessione aggiornata per avere la versione corretta
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         return OutlineResponse(
             success=True,

@@ -583,23 +583,50 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
   return { blob, filename };
 }
 
-export async function getCoverImage(sessionId: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${API_BASE}/library/cover/${sessionId}`);
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // Nessuna copertina disponibile
-      }
-      throw new Error(`Errore nel recupero della copertina: ${response.statusText}`);
+export async function exportBook(sessionId: string, format: 'pdf' | 'epub' | 'docx'): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_BASE}/book/export/${sessionId}?format=${format}`);
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nell'export del libro in formato ${format}: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Ignora errori di parsing JSON
     }
-    
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  } catch (err) {
-    console.warn('[getCoverImage] Errore:', err);
-    return null;
+    throw new Error(errorMessage);
   }
+  
+  // Estrai il nome file dall'header Content-Disposition
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = `Libro_${sessionId.substring(0, 8)}.${format}`;
+  
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, '');
+    }
+  }
+  
+  const blob = await response.blob();
+  return { blob, filename };
+}
+
+/**
+ * Restituisce l'URL diretto per la copertina.
+ * L'endpoint gestirà il redirect a GCS se necessario.
+ */
+export function getCoverImageUrl(sessionId: string): string {
+  return `${API_BASE}/library/cover/${sessionId}`;
+}
+
+/**
+ * @deprecated Usa getCoverImageUrl() invece. Mantenuto per compatibilità.
+ */
+export async function getCoverImage(sessionId: string): Promise<string | null> {
+  // Usa direttamente l'URL invece di scaricare come blob
+  // Questo evita problemi con redirect cross-origin
+  return getCoverImageUrl(sessionId);
 }
 
 export interface MissingCoverBook {

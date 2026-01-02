@@ -5,9 +5,9 @@ from io import BytesIO
 from datetime import datetime
 from collections import defaultdict
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -28,7 +28,8 @@ from app.core.config import (
     get_tokens_per_page, get_model_pricing, get_image_generation_cost,
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
-from app.api.routers import config, submission, questions, draft, outline
+from app.api.routers import config, submission, questions, draft, outline, auth
+from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
     ConfigResponse,
     SubmissionRequest,
@@ -68,6 +69,10 @@ from app.agent.writer_generator import generate_full_book, parse_outline_section
 from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store, FileSessionStore
+from app.agent.session_store_helpers import get_session_async
+from app.services.pdf_service import generate_complete_book_pdf
+from app.services.export_service import generate_epub, generate_docx
+from app.services.storage_service import get_storage_service
 
 
 def get_model_abbreviation(model_name: str) -> str:
@@ -130,6 +135,44 @@ app.include_router(submission.router)
 app.include_router(questions.router)
 app.include_router(draft.router)
 app.include_router(outline.router)
+app.include_router(auth.router)
+
+
+# Lifecycle hooks per MongoDB
+@app.on_event("startup")
+async def startup_db():
+    """Connette al database MongoDB all'avvio se configurato."""
+    try:
+        session_store = get_session_store()
+        if hasattr(session_store, 'connect'):
+            await session_store.connect()
+            print("[STARTUP] MongoDB (sessions) connesso con successo")
+        
+        # Inizializza anche UserStore
+        from app.agent.user_store import get_user_store
+        user_store = get_user_store()
+        await user_store.connect()
+        print("[STARTUP] MongoDB (users) connesso con successo")
+    except Exception as e:
+        print(f"[STARTUP] Avviso: MongoDB non disponibile: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_db():
+    """Chiude la connessione MongoDB allo shutdown."""
+    try:
+        session_store = get_session_store()
+        if hasattr(session_store, 'disconnect'):
+            await session_store.disconnect()
+            print("[SHUTDOWN] MongoDB (sessions) disconnesso")
+        
+        # Chiudi anche UserStore
+        from app.agent.user_store import get_user_store
+        user_store = get_user_store()
+        await user_store.disconnect()
+        print("[SHUTDOWN] MongoDB (users) disconnesso")
+    except Exception as e:
+        print(f"[SHUTDOWN] Errore nella disconnessione MongoDB: {e}")
 
 
 # NOTE: Gli endpoint sono stati spostati nei router:
@@ -201,7 +244,7 @@ async def submit_answers(data: AnswersRequest):
         session_store = get_session_store()
         print(f"[SUBMIT ANSWERS] Session store ottenuto: {type(session_store).__name__}")
         
-        session = session_store.get_session(data.session_id)
+        session = await get_session_async(session_store, data.session_id)
         
         if not session:
             print(f"[SUBMIT ANSWERS] ERRORE: Sessione {data.session_id} NON trovata!")
@@ -262,7 +305,7 @@ async def generate_draft_endpoint(request: DraftGenerationRequest):
         
         # Crea o recupera la sessione
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             print(f"[DEBUG] Sessione {request.session_id} non trovata, creazione nuova...")
@@ -319,7 +362,7 @@ async def modify_draft_endpoint(request: DraftModificationRequest):
         
         # Recupera la sessione
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
@@ -369,7 +412,7 @@ async def validate_draft_endpoint(request: DraftValidationRequest):
     """Valida la bozza finale."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
@@ -415,7 +458,7 @@ async def get_draft_endpoint(session_id: str):
     """Recupera la bozza corrente di una sessione."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             raise HTTPException(
@@ -461,7 +504,7 @@ async def generate_outline_endpoint(request: OutlineGenerateRequest):
         
         # Recupera la sessione
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
@@ -524,7 +567,7 @@ async def get_outline_endpoint(session_id: str):
     """Recupera la struttura corrente di una sessione."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             raise HTTPException(
@@ -560,7 +603,7 @@ async def update_outline_endpoint(request: OutlineUpdateRequest):
     """Aggiorna l'outline con sezioni modificate dall'utente."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
@@ -619,7 +662,7 @@ async def update_outline_endpoint(request: OutlineUpdateRequest):
             )
         
         # Recupera la sessione aggiornata per avere la versione corretta
-        session = session_store.get_session(request.session_id)
+        session = await get_session_async(session_store, request.session_id)
         
         return OutlineResponse(
             success=True,
@@ -644,7 +687,7 @@ async def download_pdf_endpoint(session_id: str):
     try:
         print(f"[DEBUG PDF] Richiesta PDF per sessione: {session_id}")
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             print(f"[DEBUG PDF] Sessione {session_id} non trovata")
@@ -863,7 +906,7 @@ def calculate_page_count(content: str) -> int:
         return 0
 
 
-def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
+async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
     """
     Calcola la stima del tempo rimanente per completare il libro.
     Restituisce (estimated_minutes, confidence) dove confidence è "high", "medium", o "low".
@@ -891,7 +934,7 @@ def calculate_estimated_time(session_id: str, current_step: int, total_steps: in
         
         from app.agent.session_store import get_session_store
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         
         remaining_chapters = total_steps - current_step
         print(f"[CALCULATE_ESTIMATED_TIME] Capitoli rimanenti: {remaining_chapters}")
@@ -1196,30 +1239,43 @@ def session_to_library_entry(session) -> "LibraryEntry":
     # Cerca PDF collegato
     pdf_path = None
     pdf_filename = None
+    pdf_url = None
+    cover_url = None
+    
+    # Ottimizzazione: non generiamo URL firmati qui per evitare chiamate GCS sincrone
+    # Gli URL verranno generati on-demand dagli endpoint dedicati
+    storage_service = get_storage_service()
+    
     if status == "complete":
-        books_dir = Path(__file__).parent.parent / "books"
-        if books_dir.exists():
-            # Genera il nome file atteso
-            date_prefix = session.created_at.strftime("%Y-%m-%d")
-            model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-            title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            title_sanitized = title_sanitized.replace(" ", "_")
-            if not title_sanitized:
-                title_sanitized = f"Libro_{session.session_id[:8]}"
-            expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-            expected_path = books_dir / expected_filename
-            
-            if expected_path.exists():
-                pdf_path = str(expected_path)
+        # Prova a costruire il path atteso
+        date_prefix = session.created_at.strftime("%Y-%m-%d")
+        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+        title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        title_sanitized = title_sanitized.replace(" ", "_")
+        if not title_sanitized:
+            title_sanitized = f"Libro_{session.session_id[:8]}"
+        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+        
+        # Costruisci path senza verificare esistenza (verificato on-demand)
+        if storage_service.gcs_enabled:
+            # Assumiamo che il PDF sia su GCS se GCS è abilitato
+            pdf_path = f"gs://{storage_service.bucket_name}/books/{expected_filename}"
+            pdf_filename = expected_filename
+        else:
+            # Verifica locale (veloce, no chiamate HTTP)
+            local_pdf_path = Path(__file__).parent.parent / "books" / expected_filename
+            if local_pdf_path.exists():
+                pdf_path = str(local_pdf_path)
                 pdf_filename = expected_filename
             else:
-                # Cerca qualsiasi PDF che potrebbe corrispondere (cerca per session_id nel nome o per titolo)
-                for pdf_file in books_dir.glob("*.pdf"):
-                    # Prova a matchare per session_id o per pattern simile
-                    if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
-                        pdf_path = str(pdf_file)
-                        pdf_filename = pdf_file.name
-                        break
+                # Cerca qualsiasi PDF che potrebbe corrispondere (locale)
+                books_dir = Path(__file__).parent.parent / "books"
+                if books_dir.exists():
+                    for pdf_file in books_dir.glob("*.pdf"):
+                        if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
+                            pdf_path = str(pdf_file)
+                            pdf_filename = pdf_file.name
+                            break
     
     # Calcola writing_time_minutes
     writing_time_minutes = None
@@ -1258,7 +1314,9 @@ def session_to_library_entry(session) -> "LibraryEntry":
         critique_status=session.critique_status,
         pdf_path=pdf_path,
         pdf_filename=pdf_filename,
+        pdf_url=pdf_url,
         cover_image_path=session.cover_image_path,
+        cover_url=cover_url,
         writing_time_minutes=writing_time_minutes,
         estimated_cost=estimated_cost,
     )
@@ -1613,17 +1671,27 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
 
 
 @app.get("/api/book/pdf/{session_id}")
-async def download_book_pdf_endpoint(session_id: str):
+async def download_book_pdf_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """Genera e scarica un PDF del libro completo con titolo, indice e capitoli usando WeasyPrint."""
     try:
         print(f"[BOOK PDF] Richiesta PDF libro completo per sessione: {session_id}")
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.writing_progress or not session.writing_progress.get('is_complete'):
@@ -1866,16 +1934,19 @@ async def download_book_pdf_endpoint(session_id: str):
             title_sanitized = f"Libro_{session_id[:8]}"
         filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
         
-        # Salva PDF su disco nella cartella backend/books/
+        # Salva PDF su GCS o locale tramite StorageService
         try:
-            books_dir = Path(__file__).parent.parent / "books"
-            books_dir.mkdir(exist_ok=True)
-            pdf_path = books_dir / filename
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf_content)
-            print(f"[BOOK PDF] PDF salvato su disco: {pdf_path}")
+            storage_service = get_storage_service()
+            user_id = session.user_id if hasattr(session, 'user_id') else None
+            gcs_path = storage_service.upload_file(
+                data=pdf_content,
+                destination_path=f"books/{filename}",
+                content_type="application/pdf",
+                user_id=user_id,
+            )
+            print(f"[BOOK PDF] PDF salvato: {gcs_path}")
         except Exception as e:
-            print(f"[BOOK PDF] Errore nel salvataggio PDF su disco: {e}")
+            print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
             import traceback
             traceback.print_exc()
             # Non blocchiamo il download HTTP se il salvataggio fallisce
@@ -1900,16 +1971,181 @@ async def download_book_pdf_endpoint(session_id: str):
         )
 
 
+@app.get("/api/book/export/{session_id}")
+async def export_book_endpoint(
+    session_id: str,
+    format: str = "pdf",
+    current_user = Depends(get_current_user_optional),
+):
+    """
+    Genera e scarica il libro in diversi formati: PDF, EPUB o DOCX.
+    
+    Args:
+        session_id: ID della sessione del libro
+        format: Formato di export ("pdf", "epub", "docx"), default "pdf"
+    
+    Returns:
+        File Response con il libro nel formato richiesto
+    """
+    try:
+        print(f"[BOOK EXPORT] Richiesta export {format} per sessione: {session_id}")
+        session_store = get_session_store()
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            )
+        
+        if not session.writing_progress or not session.writing_progress.get('is_complete'):
+            raise HTTPException(
+                status_code=400,
+                detail="Il libro non è ancora completo. Attendi il completamento della scrittura."
+            )
+        
+        if not session.book_chapters or len(session.book_chapters) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessun capitolo trovato nel libro."
+            )
+        
+        format_lower = format.lower()
+        
+        # Genera il file nel formato richiesto
+        if format_lower == "pdf":
+            file_content, filename = generate_complete_book_pdf(session)
+            media_type = "application/pdf"
+        elif format_lower == "epub":
+            file_content, filename = generate_epub(session)
+            media_type = "application/epub+zip"
+        elif format_lower == "docx":
+            file_content, filename = generate_docx(session)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Formato non supportato: {format}. Formati supportati: pdf, epub, docx"
+            )
+        
+        print(f"[BOOK EXPORT] File {format} generato con successo: {filename}")
+        
+        return Response(
+            content=file_content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[BOOK EXPORT] ERRORE nella generazione del file {format}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nella generazione del file {format}: {str(e)}"
+        )
+
+
+@app.get("/api/files/{tipo}/{filename}")
+async def get_file_endpoint(tipo: str, filename: str):
+    """
+    Genera un URL firmato temporaneo per accedere a un file su GCS.
+    
+    Args:
+        tipo: Tipo di file ("books" o "covers")
+        filename: Nome del file
+    
+    Returns:
+        Redirect all'URL firmato GCS o file locale
+    """
+    try:
+        storage_service = get_storage_service()
+        
+        if tipo not in ["books", "covers"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo non valido: {tipo}. Tipi supportati: books, covers"
+            )
+        
+        # Costruisci il path
+        if storage_service.gcs_enabled:
+            gcs_path = f"gs://{storage_service.bucket_name}/{tipo}/{filename}"
+        else:
+            # Fallback locale
+            if tipo == "books":
+                local_path = Path(__file__).parent.parent / "books" / filename
+            else:  # covers
+                local_path = Path(__file__).parent.parent / "sessions" / filename
+            
+            if not local_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"File non trovato: {filename}"
+                )
+            
+            # Per locale, restituisci il file direttamente
+            return FileResponse(
+                path=str(local_path),
+                filename=filename,
+                media_type="application/pdf" if filename.endswith(".pdf") else "image/png"
+            )
+        
+        # Verifica che il file esista
+        if not storage_service.file_exists(gcs_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"File non trovato: {filename}"
+            )
+        
+        # Genera URL firmato (valido 15 minuti)
+        signed_url = storage_service.get_signed_url(gcs_path, expiration_minutes=15)
+        
+        # Redirect all'URL firmato
+        return RedirectResponse(url=signed_url, status_code=307)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[GET FILE] Errore nel recupero file: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del file: {str(e)}"
+        )
+
+
 @app.post("/api/book/critique/{session_id}")
-async def regenerate_book_critique_endpoint(session_id: str):
+async def regenerate_book_critique_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """
     Rigenera la valutazione critica usando come input il PDF finale del libro.
     Utile per test e per rigenerare in caso di errore.
     """
     session_store = get_session_store()
-    session = session_store.get_session(session_id)
+    user_id = current_user.id if current_user else None
+    session = await get_session_async(session_store, session_id, user_id=user_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
+    
+    if current_user and session.user_id and session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Accesso negato: questa sessione appartiene a un altro utente"
+        )
 
     if not session.writing_progress or not session.writing_progress.get("is_complete"):
         raise HTTPException(status_code=400, detail="Il libro non è ancora completo.")
@@ -1972,7 +2208,7 @@ async def background_book_generation(
         print(f"[BOOK GENERATION] Avvio generazione libro per sessione {session_id}")
         
         # Verifica che il progresso sia stato inizializzato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if not session or not session.writing_progress:
             print(f"[BOOK GENERATION] WARNING: Progresso non inizializzato per sessione {session_id}, inizializzo ora...")
             # Fallback: inizializza il progresso se non è stato fatto
@@ -2002,7 +2238,7 @@ async def background_book_generation(
         )
         
         # Verifica se la generazione è stata messa in pausa
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if session and session.writing_progress and session.writing_progress.get('is_paused', False):
             print(f"[BOOK GENERATION] Generazione messa in pausa per sessione {session_id}")
             # Non continuare con copertina e critica se è in pausa
@@ -2017,7 +2253,7 @@ async def background_book_generation(
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
         
         # Aggiorna writing_progress con il tempo calcolato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if session and session.writing_progress:
             # Mantieni tutti i valori esistenti e aggiungi writing_time_minutes
             existing_progress = session.writing_progress.copy()
@@ -2040,7 +2276,7 @@ async def background_book_generation(
         # Genera la copertina dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
-            session = session_store.get_session(session_id)
+            session = await get_session_async(session_store, session_id)
             if session:
                 cover_path = await generate_book_cover(
                     session_id=session_id,
@@ -2050,8 +2286,25 @@ async def background_book_generation(
                     api_key=api_key,
                     cover_style=form_data.cover_style,
                 )
-                session_store.update_cover_image_path(session_id, cover_path)
-                print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
+                # Carica copertina su GCS
+                try:
+                    storage_service = get_storage_service()
+                    user_id = session.user_id if hasattr(session, 'user_id') else None
+                    cover_filename = f"{session_id}_cover.png"
+                    with open(cover_path, 'rb') as f:
+                        cover_data = f.read()
+                    gcs_path = storage_service.upload_file(
+                        data=cover_data,
+                        destination_path=f"covers/{cover_filename}",
+                        content_type="image/png",
+                        user_id=user_id,
+                    )
+                    session_store.update_cover_image_path(session_id, gcs_path)
+                    print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
+                except Exception as e:
+                    print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+                    session_store.update_cover_image_path(session_id, cover_path)
+                    print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
             import traceback
@@ -2061,7 +2314,7 @@ async def background_book_generation(
         # Genera la valutazione critica dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
-            session = session_store.get_session(session_id)
+            session = await get_session_async(session_store, session_id)
             if session and session.book_chapters and len(session.book_chapters) > 0:
                 # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
                 session_store.update_critique_status(session_id, "running", error=None)
@@ -2101,7 +2354,7 @@ async def background_book_generation(
         import traceback
         traceback.print_exc()
         # Salva l'errore nel progresso mantenendo il total_steps se già impostato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
@@ -2121,7 +2374,7 @@ async def background_book_generation(
         import traceback
         traceback.print_exc()
         # Salva l'errore nel progresso mantenendo il total_steps se già impostato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
@@ -2141,6 +2394,7 @@ async def background_book_generation(
 async def generate_book_endpoint(
     request: BookGenerationRequest,
     background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user_optional),
 ):
     """Avvia la generazione del libro completo in background."""
     try:
@@ -2154,12 +2408,19 @@ async def generate_book_endpoint(
         
         # Recupera la sessione
         session_store = get_session_store()
-        session = session_store.get_session(request.session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, request.session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft or not session.validated:
@@ -2252,7 +2513,7 @@ async def background_resume_book_generation(
         print(f"[BOOK GENERATION] Ripresa generazione libro per sessione {session_id}")
         
         # Recupera la sessione per verificare lo stato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
         
@@ -2274,7 +2535,7 @@ async def background_resume_book_generation(
         )
         
         # Verifica se la generazione è stata completata o rimessa in pausa
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if session and session.writing_progress and session.writing_progress.get('is_paused', False):
             print(f"[BOOK GENERATION] Generazione rimessa in pausa per sessione {session_id}")
             return
@@ -2288,7 +2549,7 @@ async def background_resume_book_generation(
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
         
         # Aggiorna writing_progress con il tempo calcolato
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         if session and session.writing_progress:
             existing_progress = session.writing_progress.copy()
             existing_progress['writing_time_minutes'] = writing_time_minutes
@@ -2308,7 +2569,7 @@ async def background_resume_book_generation(
         # Genera la copertina dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
-            session = session_store.get_session(session_id)
+            session = await get_session_async(session_store, session_id)
             if session:
                 cover_path = await generate_book_cover(
                     session_id=session_id,
@@ -2319,8 +2580,25 @@ async def background_resume_book_generation(
                     cover_style=session.form_data.cover_style,
                 )
                 if cover_path:
-                    session_store.update_cover_image_path(session_id, cover_path)
-                    print(f"[BOOK GENERATION] Copertina generata: {cover_path}")
+                    # Carica copertina su GCS
+                    try:
+                        storage_service = get_storage_service()
+                        user_id = session.user_id if hasattr(session, 'user_id') else None
+                        cover_filename = f"{session_id}_cover.png"
+                        with open(cover_path, 'rb') as f:
+                            cover_data = f.read()
+                        gcs_path = storage_service.upload_file(
+                            data=cover_data,
+                            destination_path=f"covers/{cover_filename}",
+                            content_type="image/png",
+                            user_id=user_id,
+                        )
+                        session_store.update_cover_image_path(session_id, gcs_path)
+                        print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
+                    except Exception as e:
+                        print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+                        session_store.update_cover_image_path(session_id, cover_path)
+                        print(f"[BOOK GENERATION] Copertina generata: {cover_path}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
             import traceback
@@ -2329,7 +2607,7 @@ async def background_resume_book_generation(
         # Genera la valutazione critica dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
-            session = session_store.get_session(session_id)
+            session = await get_session_async(session_store, session_id)
             if session and session.book_chapters:
                 session_store.update_critique_status(session_id, "running")
                 critique = await generate_literary_critique_from_pdf(session_id, api_key)
@@ -2349,7 +2627,7 @@ async def background_resume_book_generation(
         print(f"[BOOK GENERATION] ERRORE (ValueError): {error_msg}")
         import traceback
         traceback.print_exc()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
@@ -2368,7 +2646,7 @@ async def background_resume_book_generation(
         print(f"[BOOK GENERATION] ERRORE (Exception): {error_msg}")
         import traceback
         traceback.print_exc()
-        session = session_store.get_session(session_id)
+        session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
             existing_total = session.writing_progress.get('total_steps', 0)
@@ -2388,6 +2666,7 @@ async def background_resume_book_generation(
 async def resume_book_generation_endpoint(
     session_id: str,
     background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user_optional),
 ):
     """Riprende la generazione del libro dal capitolo fallito."""
     try:
@@ -2401,12 +2680,19 @@ async def resume_book_generation_endpoint(
         
         # Recupera la sessione
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.writing_progress:
@@ -2449,16 +2735,26 @@ async def resume_book_generation_endpoint(
 
 
 @app.get("/api/session/{session_id}/restore", response_model=SessionRestoreResponse)
-async def restore_session_endpoint(session_id: str):
+async def restore_session_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional)
+):
     """Ripristina lo stato completo di una sessione per permettere il recupero del processo interrotto."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         # Determina lo step corrente
@@ -2608,16 +2904,26 @@ async def restore_session_endpoint(session_id: str):
 
 
 @app.get("/api/book/progress/{session_id}", response_model=BookProgress)
-async def get_book_progress_endpoint(session_id: str):
+async def get_book_progress_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """Recupera lo stato di avanzamento della scrittura del libro."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         # Costruisci la risposta dal progresso salvato
@@ -2735,7 +3041,7 @@ async def get_book_progress_endpoint(session_id: str):
                 calculated_total_steps = 1  # IMPORTANTE: assegniamo anche qui
             
             # Calcola sempre la stima
-            estimated_time_minutes, estimated_time_confidence = calculate_estimated_time(
+            estimated_time_minutes, estimated_time_confidence = await calculate_estimated_time(
                 session_id, current_step, total_steps
             )
             print(f"[GET BOOK PROGRESS] estimated_time_minutes: {estimated_time_minutes}, confidence: {estimated_time_confidence}")
@@ -2800,18 +3106,29 @@ async def get_book_progress_endpoint(session_id: str):
 
 
 @app.get("/api/book/{session_id}", response_model=BookResponse)
-async def get_complete_book_endpoint(session_id: str):
+async def get_complete_book_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional)
+):
     """Restituisce il libro completo con tutti i capitoli."""
     try:
         print(f"[GET BOOK] Richiesta libro completo per sessione: {session_id}")
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             print(f"[GET BOOK] Sessione {session_id} non trovata")
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        # Verifica ownership se autenticato
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         print(f"[GET BOOK] Sessione trovata. Progresso: {session.writing_progress}, Capitoli: {len(session.book_chapters) if session.book_chapters else 0}")
@@ -2937,8 +3254,9 @@ async def get_library_endpoint(
     - sort_order: ordine (asc, desc)
     """
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        all_sessions = await get_all_sessions_async(session_store)
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3011,11 +3329,15 @@ async def get_library_endpoint(
 
 
 @app.get("/api/library/stats", response_model=LibraryStats)
-async def get_library_stats_endpoint():
+async def get_library_stats_endpoint(
+    current_user = Depends(get_current_user_optional),
+):
     """Restituisce statistiche aggregate della libreria."""
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        user_id = current_user.id if current_user else None
+        all_sessions = await get_all_sessions_async(session_store, user_id=user_id)
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3041,11 +3363,15 @@ async def get_library_stats_endpoint():
 
 
 @app.get("/api/library/stats/advanced", response_model=AdvancedStats)
-async def get_advanced_stats_endpoint():
+async def get_advanced_stats_endpoint(
+    current_user = Depends(get_current_user_optional),
+):
     """Restituisce statistiche avanzate con analisi temporali e confronto modelli."""
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        user_id = current_user.id if current_user else None
+        all_sessions = await get_all_sessions_async(session_store, user_id=user_id)
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -3071,16 +3397,26 @@ async def get_advanced_stats_endpoint():
 
 
 @app.delete("/api/library/{session_id}")
-async def delete_library_entry_endpoint(session_id: str):
+async def delete_library_entry_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """Elimina un progetto dalla libreria."""
     try:
         session_store = get_session_store()
         
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Progetto {session_id} non trovato"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         # Elimina file associati (PDF e copertina)
@@ -3162,16 +3498,26 @@ async def get_available_pdfs_endpoint():
 
 
 @app.get("/api/library/cover/{session_id}")
-async def get_cover_image_endpoint(session_id: str):
+async def get_cover_image_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """Restituisce l'immagine della copertina per una sessione."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.cover_image_path:
@@ -3180,7 +3526,35 @@ async def get_cover_image_endpoint(session_id: str):
                 detail="Copertina non disponibile per questa sessione"
             )
         
-        cover_path = Path(session.cover_image_path)
+        cover_path_str = session.cover_image_path
+        
+        # Se il path è su GCS, usa StorageService
+        if cover_path_str.startswith("gs://"):
+            storage_service = get_storage_service()
+            
+            # Genera URL firmato e redirect
+            signed_url = storage_service.get_signed_url(cover_path_str, expiration_minutes=60)
+            if signed_url and signed_url.startswith("http"):
+                return RedirectResponse(url=signed_url)
+            
+            # Se non riesce a generare URL firmato, scarica e serve
+            try:
+                cover_data = storage_service.download_file(cover_path_str)
+                if cover_data:
+                    # Determina il media type dal nome file
+                    suffix = Path(cover_path_str).suffix.lower()
+                    media_type = 'image/png' if suffix == '.png' else 'image/jpeg'
+                    return Response(content=cover_data, media_type=media_type)
+            except Exception as download_err:
+                print(f"[COVER IMAGE] Errore download da GCS: {download_err}")
+            
+            raise HTTPException(
+                status_code=404,
+                detail="File copertina non trovato su GCS"
+            )
+        
+        # Path locale
+        cover_path = Path(cover_path_str)
         if not cover_path.exists():
             raise HTTPException(
                 status_code=404,
@@ -3312,16 +3686,26 @@ def sanitize_plot_for_cover(plot: str) -> str:
 
 
 @app.post("/api/library/cover/regenerate/{session_id}")
-async def regenerate_cover_endpoint(session_id: str):
+async def regenerate_cover_endpoint(
+    session_id: str,
+    current_user = Depends(get_current_user_optional),
+):
     """Rigenera la copertina per un libro completato."""
     try:
         session_store = get_session_store()
-        session = session_store.get_session(session_id)
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         status = session.get_status()
@@ -3356,12 +3740,29 @@ async def regenerate_cover_endpoint(session_id: str):
             cover_style=session.form_data.cover_style,
         )
         
-        session_store.update_cover_image_path(session_id, cover_path)
-        session_store._save_sessions()
-        
-        print(f"[REGENERATE COVER] Copertina rigenerata con successo: {cover_path}")
-        
-        return {"success": True, "cover_path": str(cover_path)}
+        # Carica copertina su GCS
+        try:
+            storage_service = get_storage_service()
+            user_id = session.user_id if hasattr(session, 'user_id') else None
+            cover_filename = f"{session_id}_cover.png"
+            with open(cover_path, 'rb') as f:
+                cover_data = f.read()
+            gcs_path = storage_service.upload_file(
+                data=cover_data,
+                destination_path=f"covers/{cover_filename}",
+                content_type="image/png",
+                user_id=user_id,
+            )
+            session_store.update_cover_image_path(session_id, gcs_path)
+            session_store._save_sessions()
+            print(f"[REGENERATE COVER] Copertina rigenerata e caricata su GCS: {gcs_path}")
+            return {"success": True, "cover_path": gcs_path}
+        except Exception as e:
+            print(f"[REGENERATE COVER] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+            session_store.update_cover_image_path(session_id, cover_path)
+            session_store._save_sessions()
+            print(f"[REGENERATE COVER] Copertina rigenerata con successo: {cover_path}")
+            return {"success": True, "cover_path": str(cover_path)}
     
     except HTTPException:
         raise
@@ -3379,8 +3780,9 @@ async def regenerate_cover_endpoint(session_id: str):
 async def get_missing_covers_endpoint():
     """Restituisce lista di libri completati senza copertina."""
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        all_sessions = await get_all_sessions_async(session_store)
         
         missing_covers = []
         
@@ -3424,8 +3826,9 @@ async def preview_obsolete_books_endpoint():
     - Sono completati ma senza copertina
     """
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        all_sessions = await get_all_sessions_async(session_store)
         
         # Identifica libri obsoleti
         obsolete_books = []
@@ -3482,8 +3885,9 @@ async def cleanup_obsolete_books_endpoint():
     - Sono completati ma senza copertina
     """
     try:
+        from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        all_sessions = session_store._sessions
+        all_sessions = await get_all_sessions_async(session_store)
         
         # Identifica libri obsoleti
         obsolete_session_ids = []
@@ -3521,7 +3925,7 @@ async def cleanup_obsolete_books_endpoint():
         for book_info in obsolete_session_ids:
             session_id = book_info["session_id"]
             try:
-                session = session_store.get_session(session_id)
+                session = await get_session_async(session_store, session_id)
                 if not session:
                     continue
                 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getBookProgress, BookProgress, downloadBookPdf, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
+import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
+import ExportDropdown from './ExportDropdown';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -13,7 +14,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const [progress, setProgress] = useState<BookProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isRetryingCritique, setIsRetryingCritique] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
@@ -358,57 +358,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
             </p>
           )}
           <div className="completion-actions">
-            <button
-              onClick={async () => {
-                if (!sessionId) {
-                  setAlertModal({
-                    isOpen: true,
-                    title: 'Errore',
-                    message: 'Errore: SessionId non disponibile.',
-                    variant: 'error',
-                  });
-                  return;
-                }
-                
-                try {
-                  setIsDownloading(true);
-                  console.log('[WritingStep] Avvio download PDF per sessione:', sessionId);
-                  const { blob, filename } = await downloadBookPdf(sessionId);
-                  console.log('[WritingStep] PDF ricevuto, dimensione:', blob.size, 'bytes');
-                  
-                  if (blob.size === 0) {
-                    throw new Error('Il PDF ricevuto è vuoto');
-                  }
-                  
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  console.log('[WritingStep] Download avviato, filename:', filename);
-                  
-                  setTimeout(() => {
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                  }, 100);
-                } catch (err) {
-                  console.error('[WritingStep] Errore nel download del PDF:', err);
-                  setAlertModal({
-                    isOpen: true,
-                    title: 'Errore',
-                    message: `Errore nel download del PDF: ${err instanceof Error ? err.message : 'Errore sconosciuto'}`,
-                    variant: 'error',
-                  });
-                } finally {
-                  setIsDownloading(false);
-                }
-              }}
-              className="download-pdf-button"
-              disabled={isDownloading}
-            >
-              {isDownloading ? '⏳ Download in corso...' : '📥 Scarica PDF'}
-            </button>
+            <ExportDropdown sessionId={sessionId} disabled={!progress?.is_complete} />
             {onNewBook && (
               <button
                 onClick={onNewBook}

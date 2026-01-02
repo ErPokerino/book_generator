@@ -52,6 +52,13 @@ temperature:
     # question_generator: 0.7  # Esempio: scommentare per override
     # literary_critic è configurato in literary_critic.yaml
 
+# Configurazione database
+database:
+  type: "mongodb"  # "mongodb" o "file" (fallback)
+  mongodb:
+    database_name: "narrai"
+    collection_sessions: "sessions"
+
 # Stima costi generazione libro
 # NOTA: Aggiornare i costi con i valori reali da Google Gemini API pricing
 cost_estimation:

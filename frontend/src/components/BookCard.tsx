@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { LibraryEntry, downloadPdfByFilename, downloadBookPdf, deleteBook, regenerateCover } from '../api/client';
+import { LibraryEntry, deleteBook, regenerateCover } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
+import ExportDropdown from './ExportDropdown';
 import './BookCard.css';
 
 const API_BASE = '/api';
@@ -49,37 +50,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     }
   };
 
-  const handleDownloadPdf = async () => {
-    try {
-      let blob: Blob;
-      let filename: string;
-
-      if (book.pdf_filename) {
-        blob = await downloadPdfByFilename(book.pdf_filename);
-        filename = book.pdf_filename;
-      } else {
-        const result = await downloadBookPdf(book.session_id);
-        blob = result.blob;
-        filename = result.filename;
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      setAlertModal({
-        isOpen: true,
-        title: 'Errore',
-        message: `Errore nel download del PDF: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
-        variant: 'error',
-      });
-    }
-  };
 
   const handleDelete = () => {
     setShowDeleteConfirm(true);
@@ -240,9 +210,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             </button>
           )}
           {book.status === 'complete' && (
-            <button className="action-btn download-btn" onClick={handleDownloadPdf}>
-              📥 Scarica PDF
-            </button>
+            <ExportDropdown sessionId={book.session_id} />
           )}
           {(book.status === 'writing' || book.status === 'paused') && onContinue && (
             <button className="action-btn continue-btn" onClick={() => onContinue(book.session_id)}>
