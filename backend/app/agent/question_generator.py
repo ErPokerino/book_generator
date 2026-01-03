@@ -12,7 +12,15 @@ from app.core.config import get_temperature_for_agent
 
 def load_agent_context() -> str:
     """Carica il contesto dell'agente dal file Markdown."""
-    config_path = Path(__file__).parent.parent.parent.parent / "config" / "agent_context.md"
+    # In locale: __file__ = backend/app/agent/question_generator.py -> root = .parent.parent.parent.parent
+    # Nel container: __file__ = /app/app/agent/question_generator.py -> root = .parent.parent.parent
+    base_path = Path(__file__).parent.parent.parent
+    config_path = base_path / "config" / "agent_context.md"
+    
+    # Se non esiste, prova un livello sopra (per ambiente locale)
+    if not config_path.exists():
+        base_path = base_path.parent
+        config_path = base_path / "config" / "agent_context.md"
     
     if not config_path.exists():
         raise FileNotFoundError(f"File di contesto agente non trovato: {config_path}")

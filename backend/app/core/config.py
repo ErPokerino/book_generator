@@ -16,9 +16,16 @@ class LiteraryCriticConfig(TypedDict, total=False):
 
 def load_config() -> ConfigResponse:
     """Carica la configurazione dal file YAML."""
-    # Nel container: __file__ = /app/app/core/config.py
-    # .parent.parent.parent = /app/
-    config_path = Path(__file__).parent.parent.parent / "config" / "inputs.yaml"
+    # In locale: __file__ = backend/app/core/config.py -> root = .parent.parent.parent.parent
+    # Nel container: __file__ = /app/app/core/config.py -> root = .parent.parent.parent
+    # Prova prima il path locale, poi quello del container
+    base_path = Path(__file__).parent.parent.parent
+    config_path = base_path / "config" / "inputs.yaml"
+    
+    # Se non esiste, prova un livello sopra (per ambiente locale)
+    if not config_path.exists():
+        base_path = base_path.parent
+        config_path = base_path / "config" / "inputs.yaml"
     
     if not config_path.exists():
         raise FileNotFoundError(f"File di configurazione non trovato: {config_path}")
@@ -79,9 +86,17 @@ _critic_config: Optional[LiteraryCriticConfig] = None
 
 def load_literary_critic_config() -> LiteraryCriticConfig:
     """Carica la configurazione del critico letterario dal file YAML."""
-    # Nel container: __file__ = /app/app/core/config.py
-    # .parent.parent.parent = /app/
-    config_path = Path(__file__).parent.parent.parent / "config" / "literary_critic.yaml"
+    # In locale: __file__ = backend/app/core/config.py -> root = .parent.parent.parent.parent
+    # Nel container: __file__ = /app/app/core/config.py -> root = .parent.parent.parent
+    # Prova prima il path locale, poi quello del container
+    base_path = Path(__file__).parent.parent.parent
+    config_path = base_path / "config" / "literary_critic.yaml"
+    
+    # Se non esiste, prova un livello sopra (per ambiente locale)
+    if not config_path.exists():
+        base_path = base_path.parent
+        config_path = base_path / "config" / "literary_critic.yaml"
+    
     if not config_path.exists():
         raise FileNotFoundError(f"File di configurazione non trovato: {config_path}")
 
@@ -131,9 +146,16 @@ _app_config: Optional[AppConfig] = None
 
 def load_app_config() -> AppConfig:
     """Carica la configurazione dell'applicazione dal file YAML."""
-    # Nel container: __file__ = /app/app/core/config.py
-    # .parent.parent.parent = /app/
-    config_path = Path(__file__).parent.parent.parent / "config" / "app.yaml"
+    # In locale: __file__ = backend/app/core/config.py -> root = .parent.parent.parent.parent
+    # Nel container: __file__ = /app/app/core/config.py -> root = .parent.parent.parent
+    # Prova prima il path locale, poi quello del container
+    base_path = Path(__file__).parent.parent.parent
+    config_path = base_path / "config" / "app.yaml"
+    
+    # Se non esiste, prova un livello sopra (per ambiente locale)
+    if not config_path.exists():
+        base_path = base_path.parent
+        config_path = base_path / "config" / "app.yaml"
     
     if not config_path.exists():
         # Valori di default se il file non esiste

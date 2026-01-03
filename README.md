@@ -37,6 +37,31 @@ scrittura-libro/
 
 ## Installazione e Avvio
 
+> **⚠️ IMPORTANTE: Note per Windows PowerShell**
+>
+> Se stai usando **Windows PowerShell**, `&&` non è supportato come separatore di comandi. Usa invece:
+> - **Punto e virgola** (`;`) per separare comandi nella stessa riga: `cd backend; uv run start`
+> - **Oppure** esegui i comandi separatamente in righe diverse
+>
+> **Esempi corretti per PowerShell:**
+> ```powershell
+> # Backend (metodo 1: comandi separati)
+> cd backend
+> uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+>
+> # Backend (metodo 2: punto e virgola)
+> cd backend; uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+>
+> # Frontend (metodo 1: comandi separati)
+> cd frontend
+> npm run dev
+>
+> # Frontend (metodo 2: punto e virgola)
+> cd frontend; npm run dev
+> ```
+>
+> I comandi mostrati di seguito utilizzano la sintassi `bash` standard. Se usi PowerShell, applica le modifiche sopra.
+
 ### Backend (FastAPI)
 
 1. Naviga nella directory backend:
