@@ -105,7 +105,7 @@ export default function BenchmarkView() {
       <div className="benchmark-container">
         <h2 className="benchmark-title">Valuta un Libro</h2>
         <p className="benchmark-description">
-          Carica un PDF per farlo valutare dall'agente critico letterario.
+          Carica un PDF per farlo valutare dal critico letterario.
           Ottieni una valutazione completa con punteggio, punti di forza e aree di miglioramento.
         </p>
 

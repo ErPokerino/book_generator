@@ -88,30 +88,40 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  
+  /* Glassmorphism Effect */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 .status-draft {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  background: rgba(3, 105, 161, 0.1);
+  border: 1px solid rgba(3, 105, 161, 0.2);
   color: #0369a1;
 }
 
 .status-outline {
-  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.2);
   color: #7c3aed;
 }
 
 .status-writing {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.2);
   color: #d97706;
 }
 
 .status-paused {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.2);
   color: #dc2626;
 }
 
 .status-complete {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.2);
   color: #059669;
 }
 
