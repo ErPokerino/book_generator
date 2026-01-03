@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status, Response, Depends, Cookie
 from fastapi.responses import JSONResponse
 import bcrypt
 from jose import JWTError, jwt
+from pydantic import BaseModel, Field
 from app.models import (
     RegisterRequest,
     LoginRequest,
@@ -17,6 +18,7 @@ from app.models import (
     User,
 )
 from app.agent.user_store import get_user_store
+from app.services.email_service import get_email_service
 from app.middleware.auth import (
     create_session,
     delete_session,
@@ -24,6 +26,11 @@ from app.middleware.auth import (
     get_current_user_optional,
     require_admin,
 )
+
+
+class ResendVerificationRequest(BaseModel):
+    """Richiesta reinvio email verifica."""
+    email: str = Field(..., min_length=1)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -64,10 +71,11 @@ def create_reset_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register")
 async def register(request: RegisterRequest):
-    """Registrazione nuovo utente."""
+    """Registrazione nuovo utente con invio email di verifica."""
     user_store = get_user_store()
+    email_service = get_email_service()
     
     # Verifica email già esistente
     existing_user = await user_store.get_user_by_email(request.email)
@@ -80,7 +88,7 @@ async def register(request: RegisterRequest):
     # Hash password
     password_hash = hash_password(request.password)
     
-    # Crea utente
+    # Crea utente (non verificato)
     try:
         user = await user_store.create_user(
             email=request.email,
@@ -88,16 +96,37 @@ async def register(request: RegisterRequest):
             name=request.name,
             role="user"
         )
-        print(f"[AUTH] Utente registrato: {user.email}", file=sys.stderr)
+        print(f"[AUTH] Utente registrato (non verificato): {user.email}", file=sys.stderr)
         
-        return UserResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            role=user.role,
-            is_active=user.is_active,
-            created_at=user.created_at,
+        # Genera token di verifica
+        verification_token = secrets.token_urlsafe(32)
+        await user_store.set_verification_token(user.email, verification_token, expires_hours=24)
+        
+        # Invia email di verifica
+        email_sent = email_service.send_verification_email(
+            to_email=user.email,
+            token=verification_token,
+            user_name=user.name
         )
+        
+        if not email_sent:
+            print(f"[AUTH] ATTENZIONE: Email di verifica non inviata a {user.email}", file=sys.stderr)
+        
+        # In dev mode, restituisci anche il token per testing
+        is_dev = os.getenv("ENVIRONMENT") != "production"
+        response_data = {
+            "success": True,
+            "message": f"Registrazione completata! Controlla la tua email ({user.email}) per verificare l'account.",
+            "email": user.email,
+            "requires_verification": True,
+        }
+        
+        if is_dev:
+            response_data["verification_token"] = verification_token
+            response_data["dev_note"] = "Token visibile solo in dev mode"
+        
+        return response_data
+        
     except ValueError as e:
         print(f"[AUTH ERROR] ValueError in register: {e}", file=sys.stderr)
         raise HTTPException(
@@ -189,6 +218,13 @@ async def login(request: LoginRequest, response: Response):
             detail="Utente disattivato",
         )
     
+    # Verifica email verificata
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="EMAIL_NOT_VERIFIED",  # Codice speciale per il frontend
+        )
+    
     # Crea sessione
     session_id = await create_session(user.id)
     
@@ -212,6 +248,7 @@ async def login(request: LoginRequest, response: Response):
             name=user.name,
             role=user.role,
             is_active=user.is_active,
+            is_verified=user.is_verified,
             created_at=user.created_at,
         ),
     }
@@ -241,8 +278,152 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         name=current_user.name,
         role=current_user.role,
         is_active=current_user.is_active,
+        is_verified=current_user.is_verified,
         created_at=current_user.created_at,
     )
+
+
+class VerifyEmailRequest(BaseModel):
+    """Richiesta verifica email."""
+    token: str = Field(..., min_length=1)
+
+
+@router.get("/verify/check")
+async def check_verification_token(token: str):
+    """
+    Controlla se il token di verifica è valido senza invalidarlo.
+    Usato dal frontend per mostrare lo stato prima della conferma.
+    """
+    user_store = get_user_store()
+    
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token mancante",
+        )
+    
+    # Controlla token senza invalidarlo
+    check_result = await user_store.check_verification_token(token)
+    
+    if not check_result:
+        # Token non trovato - potrebbe essere già stato usato
+        # Verifica se esiste un utente già verificato con questo token (caso edge)
+        # Per semplicità, restituiamo un errore generico
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token non valido o scaduto. Richiedi un nuovo link di verifica.",
+        )
+    
+    # Se l'utente è già verificato, restituisci info positiva
+    if check_result["already_verified"]:
+        return {
+            "success": True,
+            "valid": True,
+            "already_verified": True,
+            "message": "Account già verificato! Puoi procedere al login.",
+            "email": check_result["user"].email,
+        }
+    
+    # Token valido ma non ancora verificato
+    if check_result["valid"]:
+        return {
+            "success": True,
+            "valid": True,
+            "already_verified": False,
+            "message": "Token valido. Clicca sul pulsante per confermare la verifica.",
+            "email": check_result["user"].email,
+        }
+    
+    # Token scaduto
+    if check_result["expired"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token scaduto. Richiedi un nuovo link di verifica.",
+        )
+    
+    # Caso generico
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Token non valido. Richiedi un nuovo link di verifica.",
+    )
+
+
+@router.post("/verify")
+async def verify_email(request: VerifyEmailRequest):
+    """
+    Verifica email con token dal link.
+    Questo endpoint invalida il token e marca l'utente come verificato.
+    """
+    user_store = get_user_store()
+    
+    if not request.token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token mancante",
+        )
+    
+    # Verifica e attiva utente
+    user = await user_store.verify_email(request.token)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token non valido o scaduto. Richiedi un nuovo link di verifica.",
+        )
+    
+    print(f"[AUTH] Email verificata per: {user.email}", file=sys.stderr)
+    
+    return {
+        "success": True,
+        "message": "Email verificata con successo! Ora puoi accedere.",
+        "email": user.email,
+    }
+
+
+@router.post("/resend-verification")
+async def resend_verification(request: ResendVerificationRequest):
+    """Reinvia email di verifica."""
+    user_store = get_user_store()
+    email_service = get_email_service()
+    
+    # Recupera utente
+    user = await user_store.get_user_by_email(request.email)
+    
+    if not user:
+        # Non rivelare se l'email esiste (security)
+        return {
+            "success": True,
+            "message": "Se l'email è registrata, riceverai un nuovo link di verifica.",
+        }
+    
+    # Se già verificato
+    if user.is_verified:
+        return {
+            "success": True,
+            "message": "Email già verificata. Puoi accedere normalmente.",
+            "already_verified": True,
+        }
+    
+    # Genera nuovo token
+    verification_token = secrets.token_urlsafe(32)
+    await user_store.set_verification_token(user.email, verification_token, expires_hours=24)
+    
+    # Invia email
+    email_sent = email_service.send_verification_email(
+        to_email=user.email,
+        token=verification_token,
+        user_name=user.name
+    )
+    
+    if email_sent:
+        print(f"[AUTH] Email di verifica reinviata a: {user.email}", file=sys.stderr)
+    else:
+        print(f"[AUTH] ERRORE reinvio email a: {user.email}", file=sys.stderr)
+    
+    return {
+        "success": True,
+        "message": "Se l'email è registrata, riceverai un nuovo link di verifica.",
+    }
 
 
 @router.post("/password/forgot")

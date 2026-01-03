@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import DynamicForm from './components/DynamicForm'
 import Navigation from './components/Navigation'
@@ -10,18 +10,48 @@ import LoginPage from './components/LoginPage'
 import RegisterPage from './components/RegisterPage'
 import ForgotPasswordPage from './components/ForgotPasswordPage'
 import ResetPasswordPage from './components/ResetPasswordPage'
+import VerifyEmailPage from './components/VerifyEmailPage'
 import './App.css'
 
 import AnalyticsView from './components/AnalyticsView'
 
-type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password'
+type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<'library' | 'newBook' | 'benchmark' | 'analytics'>('newBook')
   const [readingBookId, setReadingBookId] = useState<string | null>(null)
   const [authView, setAuthView] = useState<AuthView | null>(null)
   const [resetToken, setResetToken] = useState<string | null>(null)
+  const [verifyToken, setVerifyToken] = useState<string | null>(null)
   const { isAuthenticated, isLoading } = useAuth()
+
+  // Controlla URL per token di verifica o reset all'avvio
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const path = window.location.pathname;
+    
+    // Gestisci /verify?token=xxx
+    if (path === '/verify' || urlParams.has('token') && path.includes('verify')) {
+      const token = urlParams.get('token');
+      if (token) {
+        setVerifyToken(token);
+        setAuthView('verify-email');
+        // Pulisci l'URL
+        window.history.replaceState({}, document.title, '/');
+      }
+    }
+    
+    // Gestisci /reset-password?token=xxx
+    if (path === '/reset-password' || path.includes('reset')) {
+      const token = urlParams.get('token');
+      if (token) {
+        setResetToken(token);
+        setAuthView('reset-password');
+        // Pulisci l'URL
+        window.history.replaceState({}, document.title, '/');
+      }
+    }
+  }, []);
 
   const handleReadBook = (sessionId: string) => {
     setReadingBookId(sessionId)
@@ -42,6 +72,19 @@ function AppContent() {
 
   // Se non autenticato, mostra le pagine di autenticazione
   if (!isAuthenticated && !isLoading) {
+    if (authView === 'verify-email' && verifyToken) {
+      return (
+        <ErrorBoundary>
+          <VerifyEmailPage 
+            token={verifyToken}
+            onNavigateToLogin={() => {
+              setVerifyToken(null);
+              setAuthView('login');
+            }}
+          />
+        </ErrorBoundary>
+      )
+    }
     if (authView === 'register') {
       return (
         <ErrorBoundary>

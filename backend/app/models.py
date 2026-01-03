@@ -344,10 +344,13 @@ class User(BaseModel):
     name: str
     role: Literal["user", "admin"] = "user"
     is_active: bool = True
+    is_verified: bool = False  # Email verificata
     created_at: datetime
     updated_at: datetime
     password_reset_token: Optional[str] = None
     password_reset_expires: Optional[datetime] = None
+    verification_token: Optional[str] = None
+    verification_expires: Optional[datetime] = None
 
 
 class UserResponse(BaseModel):
@@ -357,6 +360,7 @@ class UserResponse(BaseModel):
     name: str
     role: Literal["user", "admin"]
     is_active: bool
+    is_verified: bool = False
     created_at: datetime
 
 

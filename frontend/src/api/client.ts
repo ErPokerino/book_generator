@@ -5,6 +5,7 @@ export interface User {
   name: string;
   role: 'user' | 'admin';
   is_active: boolean;
+  is_verified?: boolean;
   created_at: string;
 }
 
@@ -32,6 +33,34 @@ export interface AuthResponse {
   success: boolean;
   user: User;
   message?: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  email: string;
+  requires_verification: boolean;
+  verification_token?: string; // Solo in dev mode
+}
+
+export interface VerifyEmailResponse {
+  success: boolean;
+  message: string;
+  email: string;
+}
+
+export interface CheckVerificationTokenResponse {
+  success: boolean;
+  valid: boolean;
+  already_verified: boolean;
+  message: string;
+  email: string;
+}
+
+export interface ResendVerificationResponse {
+  success: boolean;
+  message: string;
+  already_verified?: boolean;
 }
 
 export interface ForgotPasswordResponse {
@@ -1002,7 +1031,7 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   return response.json();
 }
 
-export async function register(userData: RegisterRequest): Promise<User> {
+export async function register(userData: RegisterRequest): Promise<RegisterResponse> {
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: {
@@ -1014,6 +1043,74 @@ export async function register(userData: RegisterRequest): Promise<User> {
 
   if (!response.ok) {
     let errorDetail = 'Errore nella registrazione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function checkVerificationToken(token: string): Promise<CheckVerificationTokenResponse> {
+  const response = await fetch(`${API_BASE}/auth/verify/check?token=${encodeURIComponent(token)}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Token non valido o scaduto';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function verifyEmail(token: string): Promise<VerifyEmailResponse> {
+  const response = await fetch(`${API_BASE}/auth/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ token }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Token non valido o scaduto';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function resendVerification(email: string): Promise<ResendVerificationResponse> {
+  const response = await fetch(`${API_BASE}/auth/resend-verification`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel reinvio email';
     try {
       const error = await response.json();
       errorDetail = error.detail || errorDetail;

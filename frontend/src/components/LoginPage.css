@@ -200,6 +200,92 @@
   }
 }
 
+/* Verification Message Styles */
+.verification-message {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.verification-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.verification-text {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.verification-email {
+  color: var(--accent);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  word-break: break-all;
+}
+
+.verification-instructions {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.verification-instructions small {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* Email Not Verified Warning */
+.email-not-verified-warning {
+  padding: 1.25rem;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid #ffc107;
+  border-radius: var(--radius-md);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.email-not-verified-warning p {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.resend-button {
+  padding: 0.625rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.resend-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.resend-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.resend-success {
+  color: var(--success);
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 480px) {
   .auth-container {
     padding: 2rem 1.5rem;

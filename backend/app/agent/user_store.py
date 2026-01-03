@@ -76,6 +76,7 @@ class UserStore:
             "name": user.name,
             "role": user.role,
             "is_active": user.is_active,
+            "is_verified": user.is_verified,
             "created_at": user.created_at,
             "updated_at": user.updated_at,
         }
@@ -83,6 +84,10 @@ class UserStore:
             doc["password_reset_token"] = user.password_reset_token
         if user.password_reset_expires:
             doc["password_reset_expires"] = user.password_reset_expires
+        if user.verification_token:
+            doc["verification_token"] = user.verification_token
+        if user.verification_expires:
+            doc["verification_expires"] = user.verification_expires
         return doc
     
     @classmethod
@@ -95,10 +100,13 @@ class UserStore:
             name=doc["name"],
             role=doc.get("role", "user"),
             is_active=doc.get("is_active", True),
+            is_verified=doc.get("is_verified", False),
             created_at=doc["created_at"],
             updated_at=doc["updated_at"],
             password_reset_token=doc.get("password_reset_token"),
             password_reset_expires=doc.get("password_reset_expires"),
+            verification_token=doc.get("verification_token"),
+            verification_expires=doc.get("verification_expires"),
         )
     
     async def create_user(self, email: str, password_hash: str, name: str, role: str = "user") -> User:
@@ -128,6 +136,7 @@ class UserStore:
             name=name.strip(),
             role=role,
             is_active=True,
+            is_verified=False,
             created_at=now,
             updated_at=now,
         )
@@ -253,6 +262,130 @@ class UserStore:
             {"$set": updates}
         )
         return result.modified_count > 0
+    
+    async def set_verification_token(self, email: str, token: str, expires_hours: int = 24) -> bool:
+        """
+        Imposta token per verifica email.
+        
+        Args:
+            email: Email utente
+            token: Token di verifica
+            expires_hours: Ore di validità (default: 24)
+        
+        Returns:
+            True se impostato con successo
+        """
+        # Auto-connect se non connesso
+        if self.users_collection is None:
+            await self.connect()
+        expires = datetime.utcnow() + timedelta(hours=expires_hours)
+        result = await self.users_collection.update_one(
+            {"email": email.lower().strip()},
+            {
+                "$set": {
+                    "verification_token": token,
+                    "verification_expires": expires,
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
+        return result.modified_count > 0
+    
+    async def check_verification_token(self, token: str) -> Optional[dict]:
+        """
+        Controlla se il token di verifica è valido senza invalidarlo.
+        
+        Returns:
+            Dict con informazioni sul token:
+            - "valid": bool - se il token è valido
+            - "user": User - utente associato (se trovato)
+            - "already_verified": bool - se l'utente è già verificato
+            - "expired": bool - se il token è scaduto
+        """
+        # Auto-connect se non connesso
+        if self.users_collection is None:
+            await self.connect()
+        
+        # Prima cerca utente con token valido
+        doc = await self.users_collection.find_one({
+            "verification_token": token,
+            "verification_expires": {"$gt": datetime.utcnow()}
+        })
+        
+        if doc:
+            user = self._doc_to_user(doc)
+            return {
+                "valid": True,
+                "user": user,
+                "already_verified": user.is_verified,
+                "expired": False,
+            }
+        
+        # Se non trovato, cerca se il token esiste ma è scaduto
+        doc_expired = await self.users_collection.find_one({
+            "verification_token": token,
+        })
+        
+        if doc_expired:
+            user = self._doc_to_user(doc_expired)
+            return {
+                "valid": False,
+                "user": user,
+                "already_verified": user.is_verified,
+                "expired": True,
+            }
+        
+        # Se il token non esiste, potrebbe essere che l'utente sia già verificato
+        # Cerca tutti gli utenti non verificati per vedere se qualcuno ha questo token
+        # (ma questo è poco probabile, quindi restituiamo None)
+        return None
+    
+    async def verify_email(self, token: str) -> Optional[User]:
+        """
+        Verifica email con token e attiva l'utente.
+        
+        Returns:
+            User se token valido, None altrimenti
+        """
+        # Auto-connect se non connesso
+        if self.users_collection is None:
+            await self.connect()
+        # Trova utente con token valido
+        doc = await self.users_collection.find_one({
+            "verification_token": token,
+            "verification_expires": {"$gt": datetime.utcnow()}
+        })
+        
+        if not doc:
+            return None
+        
+        # Aggiorna utente come verificato
+        await self.users_collection.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {
+                    "is_verified": True,
+                    "verification_token": None,
+                    "verification_expires": None,
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
+        
+        # Restituisci utente aggiornato
+        user = self._doc_to_user(doc)
+        user.is_verified = True
+        return user
+    
+    async def get_user_by_verification_token(self, token: str) -> Optional[User]:
+        """Recupera utente per token di verifica (anche scaduto, per reinvio)."""
+        # Auto-connect se non connesso
+        if self.users_collection is None:
+            await self.connect()
+        doc = await self.users_collection.find_one({"verification_token": token})
+        if doc:
+            return self._doc_to_user(doc)
+        return None
 
 
 # Istanza globale

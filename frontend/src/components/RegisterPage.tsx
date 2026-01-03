@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { register as registerApi } from '../api/client';
 import './RegisterPage.css';
 
 interface RegisterPageProps {
@@ -15,7 +15,8 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const validateForm = (): boolean => {
     if (password.length < 8) {
@@ -42,14 +43,55 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
     setIsLoading(true);
 
     try {
-      await register(email, password, name);
-      // Il redirect viene gestito da App.tsx quando isAuthenticated diventa true
+      const result = await registerApi({ email, password, name });
+      if (result.requires_verification) {
+        setRegisteredEmail(result.email);
+        setRegistrationSuccess(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore durante la registrazione');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Mostra schermata di successo dopo registrazione
+  if (registrationSuccess) {
+    return (
+      <div className="auth-page">
+        <div className="auth-container">
+          <div className="auth-header">
+            <h1>📚 NarrAI</h1>
+            <h2>Verifica la tua email</h2>
+          </div>
+
+          <div className="verification-message">
+            <div className="verification-icon">📧</div>
+            <p className="verification-text">
+              Abbiamo inviato un'email di verifica a:
+            </p>
+            <p className="verification-email">{registeredEmail}</p>
+            <p className="verification-instructions">
+              Clicca sul link nell'email per attivare il tuo account.
+              <br />
+              <small>Controlla anche la cartella spam.</small>
+            </p>
+          </div>
+
+          <div className="auth-links" style={{ marginTop: '2rem' }}>
+            <span>Hai già verificato?</span>
+            <button
+              type="button"
+              onClick={onNavigateToLogin}
+              className="auth-link-button"
+            >
+              Vai al login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-page">

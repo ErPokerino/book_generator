@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { resendVerification } from '../api/client';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -13,20 +14,50 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setEmailNotVerified(false);
+    setResendSuccess(false);
     setIsLoading(true);
 
     try {
       await login(email, password);
       // Il redirect viene gestito da App.tsx quando isAuthenticated diventa true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore durante il login');
+      const errorMessage = err instanceof Error ? err.message : 'Errore durante il login';
+      // Controlla se è l'errore specifico di email non verificata
+      if (errorMessage === 'EMAIL_NOT_VERIFIED') {
+        setEmailNotVerified(true);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError('Inserisci prima la tua email');
+      return;
+    }
+
+    setResendingEmail(true);
+    setError(null);
+
+    try {
+      await resendVerification(email);
+      setResendSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nel reinvio email');
+    } finally {
+      setResendingEmail(false);
     }
   };
 
@@ -40,6 +71,25 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="auth-error">{error}</div>}
+
+          {emailNotVerified && (
+            <div className="email-not-verified-warning">
+              <p>📧 La tua email non è ancora verificata.</p>
+              <p>Controlla la tua casella di posta (anche spam).</p>
+              {resendSuccess ? (
+                <p className="resend-success">✅ Email inviata! Controlla la tua casella.</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="resend-button"
+                  disabled={resendingEmail}
+                >
+                  {resendingEmail ? 'Invio in corso...' : '📨 Reinvia email di verifica'}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="auth-field">
             <label htmlFor="email">Email</label>
