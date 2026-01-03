@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { exportBook } from '../api/client';
 import './ExportDropdown.css';
 
@@ -12,11 +13,41 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'epub' | 'docx' | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Calcola la posizione del menu e aggiorna su scroll/resize
+  useEffect(() => {
+    const updatePosition = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8, // 8px di gap, usa coordinate viewport (fixed)
+          left: rect.right - 140, // Allinea a destra (140px è la larghezza min del menu)
+        });
+      }
+    };
+
+    if (isOpen) {
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, true); // true per capture phase
+      window.addEventListener('resize', updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isButtonClick = buttonRef.current?.contains(target);
+      const isMenuClick = menuRef.current?.contains(target);
+      
+      if (!isButtonClick && !isMenuClick) {
         setIsOpen(false);
       }
     };
@@ -82,9 +113,50 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
     }
   };
 
+  // Render del menu tramite Portal (fuori dal DOM della card)
+  const renderMenu = () => {
+    if (!isOpen || disabled || isExporting) return null;
+
+    return createPortal(
+      <div 
+        className="export-dropdown-menu export-dropdown-menu-portal"
+        ref={menuRef}
+        style={{
+          position: 'fixed',
+          top: menuPosition.top,
+          left: menuPosition.left,
+        }}
+      >
+        <button
+          className="export-option"
+          onClick={() => handleExport('pdf')}
+        >
+          <span className="format-icon">📄</span>
+          <span>PDF</span>
+        </button>
+        <button
+          className="export-option"
+          onClick={() => handleExport('epub')}
+        >
+          <span className="format-icon">📚</span>
+          <span>EPUB</span>
+        </button>
+        <button
+          className="export-option"
+          onClick={() => handleExport('docx')}
+        >
+          <span className="format-icon">📝</span>
+          <span>DOCX</span>
+        </button>
+      </div>,
+      document.body
+    );
+  };
+
   return (
-    <div className={`export-dropdown ${className}`} ref={dropdownRef}>
+    <div className={`export-dropdown ${className}`}>
       <button
+        ref={buttonRef}
         className="export-dropdown-button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled || isExporting}
@@ -101,31 +173,7 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
         )}
       </button>
       
-      {isOpen && !disabled && !isExporting && (
-        <div className="export-dropdown-menu">
-          <button
-            className="export-option"
-            onClick={() => handleExport('pdf')}
-          >
-            <span className="format-icon">📄</span>
-            <span>PDF</span>
-          </button>
-          <button
-            className="export-option"
-            onClick={() => handleExport('epub')}
-          >
-            <span className="format-icon">📚</span>
-            <span>EPUB</span>
-          </button>
-          <button
-            className="export-option"
-            onClick={() => handleExport('docx')}
-          >
-            <span className="format-icon">📝</span>
-            <span>DOCX</span>
-          </button>
-        </div>
-      )}
+      {renderMenu()}
     </div>
   );
 }

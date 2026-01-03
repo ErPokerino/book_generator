@@ -4221,11 +4221,19 @@ if os.path.exists(static_path):
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
     
+    # Serve favicon
+    @app.get("/favicon.svg")
+    async def serve_favicon():
+        favicon_path = os.path.join(static_path, "favicon.svg")
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path, media_type="image/svg+xml")
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Skip if it's an API route
-        if full_path.startswith("api/"):
+        # Skip if it's an API route or favicon
+        if full_path.startswith("api/") or full_path == "favicon.svg":
             raise HTTPException(status_code=404, detail="Not found")
         # Serve index.html for SPA routing
         index_path = os.path.join(static_path, "index.html")

@@ -3,6 +3,10 @@
   display: inline-block;
 }
 
+.export-dropdown.is-open {
+  z-index: 9999; /* Quando aperto, va sopra tutto */
+}
+
 .export-dropdown-button {
   display: flex;
   align-items: center;
@@ -49,10 +53,16 @@
   border: 1px solid var(--border-light, #e5e7eb);
   border-radius: var(--radius-md, 0.5rem);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  z-index: 9999;
   min-width: 140px;
   overflow: hidden;
   animation: slideDown 0.2s ease;
+}
+
+/* Menu renderizzato come Portal (posizione fixed nel body) */
+.export-dropdown-menu-portal {
+  position: fixed;
+  z-index: 99999; /* Sopra tutto */
 }
 
 @keyframes slideDown {

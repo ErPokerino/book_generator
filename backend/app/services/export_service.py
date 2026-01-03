@@ -276,7 +276,7 @@ def generate_docx(session: SessionData) -> tuple[bytes, str]:
     
     # Aggiungi indice
     doc.add_paragraph("Indice").runs[0].font.bold = True
-    doc.add_paragraph().runs[0].font.size = Pt(16)
+    doc.add_paragraph()  # Riga vuota dopo il titolo
     
     # Ordina i capitoli per section_index
     sorted_chapters = sorted(session.book_chapters, key=lambda x: x.get('section_index', 0))

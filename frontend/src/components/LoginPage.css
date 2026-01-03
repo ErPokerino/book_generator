@@ -67,6 +67,16 @@
   transition: all var(--transition-fast);
   background: var(--surface);
   color: var(--text-primary);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.auth-field .password-input-wrapper {
+  position: relative;
+}
+
+.auth-field .password-input-wrapper input {
+  padding-right: 2.75rem; /* Spazio per l'icona occhio */
 }
 
 .auth-field input:focus {

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
-import ExportDropdown from './ExportDropdown';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -363,7 +362,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
             </p>
           )}
           <div className="completion-actions">
-            <ExportDropdown sessionId={sessionId} disabled={!progress?.is_complete} />
             {onNewBook && (
               <button
                 onClick={onNewBook}

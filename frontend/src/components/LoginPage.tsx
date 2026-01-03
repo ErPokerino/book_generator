@@ -56,7 +56,7 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
 
           <div className="auth-field">
             <label htmlFor="password">Password</label>
-            <div style={{ position: 'relative' }}>
+            <div className="password-input-wrapper">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
@@ -65,24 +65,25 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
                 required
                 placeholder="••••••••"
                 disabled={isLoading}
-                style={{ paddingRight: '40px' }}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 style={{
                   position: 'absolute',
-                  right: '10px',
+                  right: '0.75rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '5px',
+                  padding: '0.25rem',
                   color: '#666',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  width: '1.5rem',
+                  height: '1.5rem',
                 }}
                 tabIndex={-1}
                 title={showPassword ? 'Nascondi password' : 'Mostra password'}
