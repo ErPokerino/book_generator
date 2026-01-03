@@ -152,7 +152,11 @@ app.include_router(auth.router)
 # ============================================================================
 
 # Campi MongoDB necessari per creare LibraryEntry (ottimizzazione performance)
-# Escludiamo current_draft che può essere molto grande (migliaia di righe)
+# ESCLUSI per performance:
+# - current_draft: può essere molto grande (migliaia di righe)
+# - book_chapters: contiene il testo completo di tutti i capitoli
+# - current_outline: può essere grande
+# Invece, usiamo total_pages e completed_chapters_count pre-calcolati in writing_progress
 LIBRARY_ENTRY_FIELDS = [
     "_id",
     "user_id",
@@ -162,9 +166,9 @@ LIBRARY_ENTRY_FIELDS = [
     "question_answers",  # Necessario per SessionData.from_dict()
     "created_at",
     "updated_at",
-    "book_chapters",
+    # book_chapters RIMOSSO - troppo pesante, usa writing_progress.total_pages
     "writing_progress",
-    "current_outline",
+    # current_outline RIMOSSO - usa writing_progress.total_steps per conteggio sezioni
     "literary_critique",
     "cover_image_path",
     "writing_start_time",
@@ -1238,28 +1242,28 @@ def session_to_library_entry(session) -> "LibraryEntry":
     
     status = session.get_status()
     
-    # Calcola total_chapters e completed_chapters
+    # Ottimizzazione: usa valori pre-calcolati da writing_progress
+    # Questi sono stati salvati quando il libro è stato completato, evitando di caricare book_chapters
     total_chapters = 0
-    completed_chapters = len(session.book_chapters) if session.book_chapters else 0
+    completed_chapters = 0
+    total_pages = None
     
     if session.writing_progress:
         total_chapters = session.writing_progress.get('total_steps', 0)
-    elif session.current_outline:
-        # Ottimizzazione: invece di parsare tutto l'outline, conta approssimativamente le sezioni
-        # contando i caratteri "##" o "#" che indicano header Markdown
-        # Questo è molto più veloce del parsing completo
-        try:
-            outline_text = session.current_outline
-            # Conta header Markdown (# o ##) come proxy per il numero di sezioni
-            section_count = outline_text.count('\n##') + outline_text.count('\n#')
-            if section_count > 0:
-                total_chapters = section_count
-        except:
-            pass
+        # Usa completed_chapters_count pre-calcolato se disponibile
+        completed_chapters = session.writing_progress.get('completed_chapters_count', 
+                                                           session.writing_progress.get('current_step', 0))
+        # Usa total_pages pre-calcolato se disponibile
+        total_pages = session.writing_progress.get('total_pages')
     
-    # Calcola total_pages se il libro è completo
-    total_pages = None
-    if status == "complete" and session.book_chapters:
+    # Fallback per libri che non hanno valori pre-calcolati
+    # (book_chapters potrebbe non essere caricato nella proiezione)
+    if completed_chapters == 0 and session.book_chapters:
+        completed_chapters = len(session.book_chapters)
+    
+    # Per total_pages, usiamo il valore pre-calcolato
+    # Se non disponibile e book_chapters è presente (caricato per altri motivi), calcola
+    if total_pages is None and status == "complete" and session.book_chapters:
         chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in session.book_chapters)
         cover_pages = 1
         app_config = get_app_config()

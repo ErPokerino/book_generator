@@ -99,17 +99,21 @@ async def update_writing_progress_async(
     is_complete: bool = False,
     is_paused: bool = False,
     error: Optional[str] = None,
+    total_pages: Optional[int] = None,
+    completed_chapters_count: Optional[int] = None,
 ) -> SessionData:
     """Helper per aggiornare il progresso della scrittura in modo async-compatibile."""
     if hasattr(session_store, 'connect'):
         # MongoSessionStore - metodo async
         return await session_store.update_writing_progress(
-            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error
+            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error,
+            total_pages=total_pages, completed_chapters_count=completed_chapters_count
         )
     else:
         # FileSessionStore - metodo sync
         return session_store.update_writing_progress(
-            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error
+            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error,
+            total_pages=total_pages, completed_chapters_count=completed_chapters_count
         )
 
 

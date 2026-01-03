@@ -22,9 +22,26 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
     const updatePosition = () => {
       if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
+        const menuWidth = 140; // Larghezza minima del menu
+        const viewportWidth = window.innerWidth;
+        
+        // Se il pulsante è nella metà sinistra dello schermo, allinea a sinistra
+        // Altrimenti allinea a destra
+        let left: number;
+        if (rect.left < viewportWidth / 2) {
+          // Allinea a sinistra del pulsante
+          left = rect.left;
+        } else {
+          // Allinea a destra del pulsante
+          left = rect.right - menuWidth;
+        }
+        
+        // Assicurati che il menu non esca dallo schermo
+        left = Math.max(8, Math.min(left, viewportWidth - menuWidth - 8));
+        
         setMenuPosition({
-          top: rect.bottom + 8, // 8px di gap, usa coordinate viewport (fixed)
-          left: rect.right - 140, // Allinea a destra (140px è la larghezza min del menu)
+          top: rect.bottom + 8, // 8px di gap
+          left: left,
         });
       }
     };

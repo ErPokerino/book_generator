@@ -280,6 +280,8 @@ class MongoSessionStore(SessionStore):
         is_complete: bool = False,
         is_paused: bool = False,
         error: Optional[str] = None,
+        total_pages: Optional[int] = None,
+        completed_chapters_count: Optional[int] = None,
     ) -> SessionData:
         """Aggiorna lo stato di avanzamento della scrittura del romanzo."""
         session = await self.get_session(session_id)
@@ -295,6 +297,11 @@ class MongoSessionStore(SessionStore):
             "is_paused": is_paused,
             "error": error,
         }
+        # Aggiungi campi opzionali solo se specificati
+        if total_pages is not None:
+            session.writing_progress["total_pages"] = total_pages
+        if completed_chapters_count is not None:
+            session.writing_progress["completed_chapters_count"] = completed_chapters_count
         
         return await self.save_session(session)
     

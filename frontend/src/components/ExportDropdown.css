@@ -63,6 +63,8 @@
 .export-dropdown-menu-portal {
   position: fixed;
   z-index: 99999; /* Sopra tutto */
+  width: 140px; /* Larghezza fissa per evitare espansione */
+  max-width: 140px;
 }
 
 @keyframes slideDown {

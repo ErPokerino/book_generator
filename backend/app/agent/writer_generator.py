@@ -12,6 +12,8 @@ from app.agent.session_store_helpers import (
     end_chapter_timing_async, update_book_chapter_async, pause_writing_async, resume_writing_async
 )
 from app.core.config import get_app_config, get_temperature_for_agent
+from app.services.pdf_service import calculate_page_count
+import math
 
 
 def load_writer_agent_context() -> str:
@@ -641,7 +643,15 @@ async def generate_full_book(
             completed_chapters.append(chapter_dict)
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
-    # Marca come completato
+    # Calcola total_pages per la libreria (ottimizzazione performance)
+    chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in completed_chapters)
+    cover_pages = 1
+    app_config = get_app_config()
+    toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+    toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page) if completed_chapters else 0
+    total_pages = chapters_pages + cover_pages + toc_pages
+    
+    # Marca come completato con total_pages pre-calcolato
     await update_writing_progress_async(
         session_store,
         session_id=session_id,
@@ -650,9 +660,11 @@ async def generate_full_book(
         current_section_name=None,
         is_complete=True,
         is_paused=False,
+        total_pages=total_pages,
+        completed_chapters_count=len(completed_chapters),
     )
     
-    print(f"[WRITER] Scrittura completata: {total_sections} sezioni scritte")
+    print(f"[WRITER] Scrittura completata: {total_sections} sezioni scritte, {total_pages} pagine")
     
     return completed_chapters
 
@@ -841,7 +853,15 @@ async def resume_book_generation(
             completed_chapters.append(chapter_dict)
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
-    # Marca come completato
+    # Calcola total_pages per la libreria (ottimizzazione performance)
+    chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in completed_chapters)
+    cover_pages = 1
+    app_config = get_app_config()
+    toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+    toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page) if completed_chapters else 0
+    total_pages = chapters_pages + cover_pages + toc_pages
+    
+    # Marca come completato con total_pages pre-calcolato
     await update_writing_progress_async(
         session_store,
         session_id=session_id,
@@ -850,9 +870,11 @@ async def resume_book_generation(
         current_section_name=None,
         is_complete=True,
         is_paused=False,
+        total_pages=total_pages,
+        completed_chapters_count=len(completed_chapters),
     )
     
-    print(f"[WRITER] Scrittura completata: {total_sections} sezioni scritte")
+    print(f"[WRITER] Scrittura completata: {total_sections} sezioni scritte, {total_pages} pagine")
     
     return completed_chapters
 
