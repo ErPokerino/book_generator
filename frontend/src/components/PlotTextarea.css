@@ -1,0 +1,281 @@
+/* PlotTextarea Component */
+.plot-textarea-wrapper {
+  width: 100%;
+}
+
+.plot-textarea-wrapper label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #213547);
+}
+
+.plot-textarea-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.plot-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 120px;
+  transition: border-color var(--transition-fast, 0.15s ease);
+  background-color: var(--surface, #ffffff);
+  color: var(--text-primary, #213547);
+}
+
+.plot-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #e94560);
+  box-shadow: 0 0 0 3px var(--accent-light, rgba(233, 69, 96, 0.1));
+}
+
+.plot-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--surface-hover, #f1f5f9);
+}
+
+.plot-textarea.error {
+  border-color: var(--accent, #e94560);
+}
+
+.plot-expand-btn {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  background: var(--surface-elevated, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  color: var(--text-primary, #213547);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.plot-expand-btn:hover:not(:disabled) {
+  background: var(--surface-hover, #f1f5f9);
+  border-color: var(--accent, #e94560);
+  color: var(--accent, #e94560);
+}
+
+.plot-expand-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.plot-textarea-footer {
+  margin-top: 0.5rem;
+}
+
+.plot-counter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  flex-wrap: wrap;
+}
+
+.plot-word-count,
+.plot-char-count {
+  font-weight: 500;
+}
+
+.plot-hint {
+  color: var(--warning, #f59e0b);
+  font-style: italic;
+}
+
+.error-message {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--accent, #e94560);
+  font-size: 0.875rem;
+}
+
+/* Modal Espanso */
+.plot-expanded-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.plot-expanded-modal {
+  background: var(--surface, #ffffff);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.1));
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.plot-expanded-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-light, #f1f5f9);
+}
+
+.plot-expanded-modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #213547);
+}
+
+.plot-expanded-close-btn {
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-secondary, #64748b);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.plot-expanded-close-btn:hover {
+  background: var(--surface-hover, #f1f5f9);
+  color: var(--text-primary, #213547);
+}
+
+.plot-expanded-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1.5rem;
+}
+
+.plot-expanded-textarea {
+  width: 100%;
+  min-height: 400px;
+  padding: 1rem;
+  border: 2px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color var(--transition-fast, 0.15s ease);
+  background-color: var(--surface, #ffffff);
+  color: var(--text-primary, #213547);
+}
+
+.plot-expanded-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #e94560);
+  box-shadow: 0 0 0 3px var(--accent-light, rgba(233, 69, 96, 0.1));
+}
+
+.plot-expanded-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--surface-hover, #f1f5f9);
+}
+
+.plot-expanded-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-light, #f1f5f9);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.plot-expanded-close-action-btn {
+  padding: 0.625rem 1.25rem;
+  background: var(--accent, #e94560);
+  border: none;
+  border-radius: var(--radius-md, 10px);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.plot-expanded-close-action-btn:hover {
+  background: var(--accent-hover, #ff6b6b);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .plot-expanded-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .plot-expanded-modal-header,
+  .plot-expanded-modal-body,
+  .plot-expanded-modal-footer {
+    padding: 1rem;
+  }
+
+  .plot-expanded-textarea {
+    min-height: 300px;
+  }
+
+  .plot-expanded-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plot-expanded-close-action-btn {
+    width: 100%;
+  }
+}

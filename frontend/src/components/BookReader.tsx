@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
+import { SkeletonBox, SkeletonText, SkeletonChapter } from './Skeleton';
 import './BookReader.css';
 
 interface BookReaderProps {
@@ -142,9 +143,16 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
   if (loading) {
     return (
       <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
-        <div className="reader-loading">
-          <div className="loading-spinner"></div>
-          <p>Caricamento libro...</p>
+        <header className="reader-header">
+          <div className="header-left">
+            <SkeletonBox width="80px" height="2rem" borderRadius="var(--radius-md)" />
+          </div>
+          <div className="header-right">
+            <SkeletonBox width="100px" height="2rem" borderRadius="var(--radius-md)" />
+          </div>
+        </header>
+        <div className="reader-content">
+          <SkeletonChapter />
         </div>
       </div>
     );

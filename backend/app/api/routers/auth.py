@@ -32,6 +32,12 @@ class ResendVerificationRequest(BaseModel):
     """Richiesta reinvio email verifica."""
     email: str = Field(..., min_length=1)
 
+
+class UpdateRoleRequest(BaseModel):
+    """Richiesta aggiornamento ruolo utente."""
+    role: str = Field(..., pattern="^(user|admin)$")
+
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.get("/test")
@@ -484,3 +490,84 @@ async def reset_password(request: ResetPasswordRequest):
     print(f"[AUTH] Password resettata per: {user.email}", file=sys.stderr)
     
     return {"success": True, "message": "Password aggiornata con successo"}
+
+
+@router.patch("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    request: UpdateRoleRequest,
+    current_user: User = Depends(require_admin)
+):
+    """
+    Aggiorna il ruolo di un utente (solo admin).
+    
+    Args:
+        user_id: ID dell'utente da modificare
+        request: Richiesta con nuovo ruolo (user o admin)
+    """
+    user_store = get_user_store()
+    
+    # Verifica che l'utente esista
+    target_user = await user_store.get_user_by_id(user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utente non trovato",
+        )
+    
+    # Valida ruolo
+    if request.role not in ["user", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ruolo non valido. Deve essere 'user' o 'admin'",
+        )
+    
+    # Aggiorna ruolo
+    success = await user_store.update_user(user_id, {"role": request.role})
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Errore nell'aggiornamento del ruolo",
+        )
+    
+    print(f"[AUTH] Ruolo aggiornato per {target_user.email}: {request.role}", file=sys.stderr)
+    
+    return {
+        "success": True,
+        "message": f"Ruolo aggiornato a '{request.role}' per {target_user.email}",
+        "user": {
+            "id": target_user.id,
+            "email": target_user.email,
+            "name": target_user.name,
+            "role": request.role,
+        }
+    }
+
+
+@router.get("/users/by-email/{email}")
+async def get_user_by_email_endpoint(
+    email: str,
+    current_user: User = Depends(require_admin)
+):
+    """
+    Cerca un utente per email (solo admin).
+    Utile per trovare user_id prima di modificare il ruolo.
+    """
+    user_store = get_user_store()
+    
+    user = await user_store.get_user_by_email(email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utente non trovato",
+        )
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "is_active": user.is_active,
+        "is_verified": user.is_verified,
+        "created_at": user.created_at,
+    }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { LibraryEntry, deleteBook, regenerateCover } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
@@ -20,12 +21,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const [regenerating, setRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
-  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    variant: 'error',
-  });
 
   const handleRegenerateCover = async () => {
     setShowRegenerateConfirm(true);
@@ -59,14 +54,10 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     setShowDeleteConfirm(false);
     try {
       await deleteBook(book.session_id);
+      toast.success('Libro eliminato con successo');
       onDelete(book.session_id);
     } catch (error) {
-      setAlertModal({
-        isOpen: true,
-        title: 'Errore',
-        message: `Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
-        variant: 'error',
-      });
+      toast.error(`Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     }
   };
 
@@ -256,13 +247,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         onCancel={() => setShowRegenerateConfirm(false)}
       />
 
-      <AlertModal
-        isOpen={alertModal.isOpen}
-        title={alertModal.title}
-        message={alertModal.message}
-        variant={alertModal.variant}
-        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
-      />
     </div>
   );
 }

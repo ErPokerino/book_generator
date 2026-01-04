@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 import { exportBook } from '../api/client';
 import './ExportDropdown.css';
 
@@ -107,10 +108,11 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
       }, 100);
       
       console.log(`[ExportDropdown] Download avviato per ${filename}`);
+      toast.success(`${format.toUpperCase()} esportato con successo!`);
     } catch (error) {
       console.error(`[ExportDropdown] Errore nell'export ${format}:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
-      alert(`Errore nell'export ${format}:\n\n${errorMessage}\n\nVerifica che:\n- Il backend sia in esecuzione\n- Il libro sia completato\n- La sessione sia valida`);
+      toast.error(`Errore nell'export ${format.toUpperCase()}: ${errorMessage}`);
     } finally {
       setIsExporting(false);
       setExportingFormat(null);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getLibraryStats, getAdvancedStats, getUsersStats, LibraryStats, AdvancedStats, UsersStats } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
+import { SkeletonBox, SkeletonText, SkeletonChart } from './Skeleton';
 import {
   LineChart,
   Line,
@@ -64,7 +65,29 @@ export default function AnalyticsView() {
   if (loading) {
     return (
       <div className="analytics-view">
-        <div className="loading-message">Caricamento analisi...</div>
+        <h1 className="analytics-title">📊 Analisi e Statistiche</h1>
+        
+        {/* Skeleton Statistiche Base */}
+        <section className="analytics-section">
+          <h2 className="section-title">Statistiche Base</h2>
+          <div className="stats-grid-skeleton">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="stat-card-skeleton">
+                <SkeletonBox width="100%" height="1rem" className="skeleton-stat-label" />
+                <SkeletonBox width="60%" height="2rem" className="skeleton-stat-value" style={{ marginTop: '0.75rem' }} />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Skeleton Tendenze Temporali */}
+        <section className="analytics-section">
+          <h2 className="section-title">Tendenze Temporali</h2>
+          <div className="chart-container">
+            <SkeletonBox width="200px" height="1.5rem" className="skeleton-chart-subtitle" style={{ marginBottom: '1rem' }} />
+            <SkeletonChart height="300px" />
+          </div>
+        </section>
       </div>
     );
   }

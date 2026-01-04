@@ -10,6 +10,7 @@ import FilterBar from './FilterBar';
 import BookCard from './BookCard';
 import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
+import { SkeletonCard } from './Skeleton';
 import './LibraryView.css';
 
 interface LibraryViewProps {
@@ -232,7 +233,16 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
   if (loading) {
     return (
       <div className="library-view">
-        <div className="loading-message">Caricamento libreria...</div>
+        <FilterBar 
+          onFiltersChange={handleFiltersChange}
+          availableModels={availableModels}
+          availableGenres={availableGenres}
+        />
+        <div className="books-grid">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <SkeletonCard key={index} />
+          ))}
+        </div>
       </div>
     );
   }

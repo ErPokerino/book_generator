@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import DynamicForm from './components/DynamicForm'
 import Navigation from './components/Navigation'
@@ -156,6 +157,18 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <div className="App">
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            success: {
+              duration: 3000,
+            },
+            error: {
+              duration: 5000,
+            },
+          }}
+        />
         <Navigation 
           currentView={currentView} 
           onNavigate={(view) => setCurrentView(view)} 

@@ -61,6 +61,35 @@
   color: var(--text-secondary, #666);
 }
 
+/* Skeleton Styles */
+.stats-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card-skeleton {
+  background: var(--surface, #ffffff);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--border-light, #e0e0e0);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+  text-align: center;
+}
+
+.skeleton-stat-label {
+  margin-bottom: 0.6rem;
+}
+
+.skeleton-stat-value {
+  margin: 0 auto;
+}
+
+.skeleton-chart-subtitle {
+  display: block;
+}
+
 .error-message {
   color: var(--error, #f44336);
 }

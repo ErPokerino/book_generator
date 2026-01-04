@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import toast from 'react-hot-toast';
 import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, SessionRestoreResponse } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
@@ -9,6 +10,7 @@ import WritingStep from './WritingStep';
 import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
 import AlertModal from './AlertModal';
+import PlotTextarea from './PlotTextarea';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -37,12 +39,6 @@ export default function DynamicForm() {
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
-  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; variant?: 'error' | 'warning' | 'info' | 'success' }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    variant: 'error',
-  });
 
   useEffect(() => {
     loadConfig();
@@ -347,11 +343,13 @@ export default function DynamicForm() {
         // Salva sessionId in localStorage per permettere il ripristino
         localStorage.setItem(SESSION_STORAGE_KEY, questionsResponse.session_id);
         setIsGeneratingQuestions(false);
+        toast.success('Domande generate con successo!');
         setCurrentStep('questions'); // Passa allo step delle domande
       } catch (err) {
         console.error('[DynamicForm] Errore nella generazione delle domande:', err);
         setIsGeneratingQuestions(false);
         const errorMessage = err instanceof Error ? err.message : 'Errore nella generazione delle domande';
+        toast.error(errorMessage);
         setError(errorMessage);
         // Non rilanciare l'errore qui, così l'utente vede il messaggio
       }
@@ -471,8 +469,31 @@ export default function DynamicForm() {
     }
 
     if (field.type === 'text') {
-      // Usa input normale per campi che non sono "plot", textarea solo per "plot"
-      const isMultiline = field.id === 'plot';
+      // Usa PlotTextarea per "plot", input normale per altri campi
+      const isPlot = field.id === 'plot';
+      
+      if (isPlot) {
+        return (
+          <div key={field.id} className="form-field">
+            <PlotTextarea
+              value={fieldValue}
+              onChange={(value) => handleChange(field.id, value)}
+              disabled={false}
+              label={
+                <>
+                  {field.label}
+                  {field.required && <span className="required"> *</span>}
+                  {renderInfoIcon(field.description)}
+                </>
+              }
+              placeholder={field.placeholder}
+              minWordsHint={50}
+              error={fieldError}
+              id={field.id}
+            />
+          </div>
+        );
+      }
       
       return (
         <div key={field.id} className="form-field">
@@ -481,25 +502,14 @@ export default function DynamicForm() {
             {field.required && <span className="required"> *</span>}
             {renderInfoIcon(field.description)}
           </label>
-          {isMultiline ? (
-            <textarea
-              id={field.id}
-              value={fieldValue}
-              onChange={(e) => handleChange(field.id, e.target.value)}
-              placeholder={field.placeholder}
-              rows={6}
-              className={fieldError ? 'error' : ''}
-            />
-          ) : (
-            <input
-              type="text"
-              id={field.id}
-              value={fieldValue}
-              onChange={(e) => handleChange(field.id, e.target.value)}
-              placeholder={field.placeholder}
-              className={fieldError ? 'error' : ''}
-            />
-          )}
+          <input
+            type="text"
+            id={field.id}
+            value={fieldValue}
+            onChange={(e) => handleChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            className={fieldError ? 'error' : ''}
+          />
           {fieldError && <span className="error-message">{fieldError}</span>}
         </div>
       );
@@ -730,12 +740,7 @@ export default function DynamicForm() {
                 } catch (err) {
                   console.error('Errore nel download del PDF:', err);
                   const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto nel download del PDF';
-                  setAlertModal({
-                    isOpen: true,
-                    title: 'Errore',
-                    message: `Errore: ${errorMessage}\n\nVerifica che:\n- La sessione sia ancora valida\n- Il backend sia in esecuzione\n- La bozza sia stata validata`,
-                    variant: 'error',
-                  });
+                  toast.error(`Errore nel download del PDF: ${errorMessage}`);
                 }
               }}
               className="download-pdf-button"
@@ -750,22 +755,12 @@ export default function DynamicForm() {
               console.log('[DEBUG] outline:', outline ? 'presente' : 'assente');
               
               if (!sessionId) {
-                setAlertModal({
-                  isOpen: true,
-                  title: 'Errore',
-                  message: 'Errore: SessionId non disponibile.',
-                  variant: 'error',
-                });
+                toast.error('Errore: SessionId non disponibile.');
                 return;
               }
               
               if (!outline) {
-                setAlertModal({
-                  isOpen: true,
-                  title: 'Errore',
-                  message: 'Errore: La struttura del romanzo non è ancora disponibile.',
-                  variant: 'error',
-                });
+                toast.error('Errore: La struttura del romanzo non è ancora disponibile.');
                 return;
               }
               
@@ -890,13 +885,6 @@ export default function DynamicForm() {
         </div>
       </div>
 
-      <AlertModal
-        isOpen={alertModal.isOpen}
-        title={alertModal.title}
-        message={alertModal.message}
-        variant={alertModal.variant}
-        onClose={() => setAlertModal({ isOpen: false, title: '', message: '' })}
-      />
     </div>
   );
 }
