@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import Optional, Literal
 from io import BytesIO
@@ -116,6 +117,25 @@ load_dotenv(dotenv_path=env_path)
 load_dotenv()
 
 app = FastAPI(title="Scrittura Libro API", version="0.1.0")
+
+# Cache in memoria per statistiche (TTL: 30 secondi)
+_stats_cache = {}
+_stats_cache_ttl = 30  # secondi
+
+def get_cached_stats(cache_key: str):
+    """Recupera statistiche dalla cache se valide."""
+    if cache_key in _stats_cache:
+        data, timestamp = _stats_cache[cache_key]
+        if (datetime.now() - timestamp).total_seconds() < _stats_cache_ttl:
+            return data
+        else:
+            # Cache scaduta, rimuovi
+            del _stats_cache[cache_key]
+    return None
+
+def set_cached_stats(cache_key: str, data):
+    """Salva statistiche nella cache."""
+    _stats_cache[cache_key] = (data, datetime.now())
 
 # CORS per sviluppo locale e produzione
 frontend_url = os.getenv("FRONTEND_URL", "")
@@ -1171,7 +1191,15 @@ def calculate_generation_cost(
         chapters_pages = total_pages - 1  # -1 per copertina
         app_config = get_app_config()
         toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
-        completed_chapters = len(session.book_chapters) if session.book_chapters else 0
+        
+        # Usa writing_progress.completed_chapters_count se disponibile (più efficiente, non richiede book_chapters)
+        if session.writing_progress and session.writing_progress.get("completed_chapters_count"):
+            completed_chapters = session.writing_progress.get("completed_chapters_count")
+        elif session.book_chapters:
+            completed_chapters = len(session.book_chapters)
+        else:
+            completed_chapters = 0
+        
         toc_pages = math.ceil(completed_chapters / toc_chapters_per_page) if completed_chapters > 0 else 0
         chapters_pages = chapters_pages - toc_pages  # Rimuovi anche TOC
         
@@ -1179,7 +1207,7 @@ def calculate_generation_cost(
             chapters_pages = max(1, total_pages - 1)  # Fallback minimo
         
         if completed_chapters == 0:
-            print(f"[COST CALCULATION] Nessun capitolo completato per sessione {session.session_id}")
+            # Non loggare più questo messaggio per evitare spam nei log
             return None  # Nessun capitolo, non calcolabile
         
         print(f"[COST CALCULATION] Calcolo costo per: modello={gemini_model}, capitoli={completed_chapters}, pagine={chapters_pages}")
@@ -1235,8 +1263,13 @@ def calculate_generation_cost(
         return None
 
 
-def session_to_library_entry(session) -> "LibraryEntry":
-    """Converte una SessionData in una LibraryEntry."""
+def session_to_library_entry(session, skip_cost_calculation: bool = False) -> "LibraryEntry":
+    """Converte una SessionData in una LibraryEntry.
+    
+    Args:
+        session: SessionData da convertire
+        skip_cost_calculation: Se True, salta il calcolo dei costi (ottimizzazione per statistiche aggregate)
+    """
     from app.models import LibraryEntry
     from app.agent.session_store import get_session_store
     
@@ -1321,10 +1354,19 @@ def session_to_library_entry(session) -> "LibraryEntry":
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
     
-    # Calcola costo stimato (solo se libro completo)
+    # Calcola costo stimato (solo se libro completo e non saltato)
     estimated_cost = None
-    if status == "complete" and total_pages:
-        estimated_cost = calculate_generation_cost(session, total_pages)
+    if not skip_cost_calculation and status == "complete" and total_pages:
+        # Prova prima a leggere il costo già salvato in writing_progress (veloce)
+        if session.writing_progress and session.writing_progress.get("estimated_cost") is not None:
+            estimated_cost = session.writing_progress.get("estimated_cost")
+        else:
+            # Calcola solo se non salvato (e salva per le prossime volte)
+            estimated_cost = calculate_generation_cost(session, total_pages)
+            # Salva il costo calcolato in writing_progress per le prossime richieste (in background)
+            if estimated_cost is not None and session.writing_progress:
+                # Aggiorna il dict in-place (verrà salvato al prossimo save_session)
+                session.writing_progress["estimated_cost"] = estimated_cost
     
     return LibraryEntry(
         session_id=session.session_id,
@@ -3398,27 +3440,35 @@ async def get_library_endpoint(
 
 @app.get("/api/library/stats", response_model=LibraryStats)
 async def get_library_stats_endpoint(
-    current_user = Depends(get_current_user_optional),
+    current_user = Depends(require_admin),
 ):
-    """Restituisce statistiche aggregate della libreria."""
+    """Restituisce statistiche aggregate della libreria (solo admin, dati globali)."""
     try:
+        # Controlla cache
+        cache_key = "library_stats"
+        cached = get_cached_stats(cache_key)
+        if cached is not None:
+            return cached
+        
         from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
+        # Admin vede tutte le sessioni (user_id=None)
         # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
-        all_sessions = await get_all_sessions_async(session_store, user_id=user_id, fields=LIBRARY_ENTRY_FIELDS)
+        all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
-        # Converti tutte le sessioni in LibraryEntry
+        # Converti tutte le sessioni in LibraryEntry (salta calcolo costi per performance)
         entries = []
         for session in all_sessions.values():
             try:
-                entry = session_to_library_entry(session)
+                entry = session_to_library_entry(session, skip_cost_calculation=True)
                 entries.append(entry)
             except Exception as e:
                 print(f"[LIBRARY STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
         
         stats = calculate_library_stats(entries)
+        # Salva in cache
+        set_cached_stats(cache_key, stats)
         return stats
     
     except Exception as e:
@@ -3433,27 +3483,35 @@ async def get_library_stats_endpoint(
 
 @app.get("/api/library/stats/advanced", response_model=AdvancedStats)
 async def get_advanced_stats_endpoint(
-    current_user = Depends(get_current_user_optional),
+    current_user = Depends(require_admin),
 ):
-    """Restituisce statistiche avanzate con analisi temporali e confronto modelli."""
+    """Restituisce statistiche avanzate con analisi temporali e confronto modelli (solo admin, dati globali)."""
     try:
+        # Controlla cache
+        cache_key = "library_stats_advanced"
+        cached = get_cached_stats(cache_key)
+        if cached is not None:
+            return cached
+        
         from app.agent.session_store_helpers import get_all_sessions_async
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
+        # Admin vede tutte le sessioni (user_id=None)
         # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
-        all_sessions = await get_all_sessions_async(session_store, user_id=user_id, fields=LIBRARY_ENTRY_FIELDS)
+        all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
-        # Converti tutte le sessioni in LibraryEntry
+        # Converti tutte le sessioni in LibraryEntry (salta calcolo costi per performance)
         entries = []
         for session in all_sessions.values():
             try:
-                entry = session_to_library_entry(session)
+                entry = session_to_library_entry(session, skip_cost_calculation=True)
                 entries.append(entry)
             except Exception as e:
                 print(f"[ADVANCED STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
         
         advanced_stats = calculate_advanced_stats(entries)
+        # Salva in cache
+        set_cached_stats(cache_key, advanced_stats)
         return advanced_stats
     
     except Exception as e:
@@ -3463,6 +3521,106 @@ async def get_advanced_stats_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel calcolo delle statistiche avanzate: {str(e)}"
+        )
+
+
+@app.get("/api/admin/users/stats")
+async def get_users_stats_endpoint(
+    current_user = Depends(require_admin),
+):
+    """Restituisce statistiche sugli utenti: totale utenti e conteggio libri per utente (solo admin)."""
+    try:
+        # Controlla cache
+        cache_key = "admin_users_stats"
+        cached = get_cached_stats(cache_key)
+        if cached is not None:
+            return cached
+        
+        from app.agent.session_store_helpers import get_all_sessions_async
+        from app.agent.user_store import get_user_store
+        
+        user_store = get_user_store()
+        session_store = get_session_store()
+        
+        # Ottieni tutti gli utenti
+        all_users = await user_store.get_all_users(skip=0, limit=10000)  # Limite alto per ottenere tutti
+        total_users = len(all_users)
+        
+        # Conta libri per utente usando aggregazione MongoDB diretta con client dedicato
+        books_per_user = defaultdict(int)
+        
+        # Usa un client MongoDB dedicato per l'aggregazione (più robusto e indipendente)
+        mongo_uri = os.getenv("MONGODB_URI")
+        if mongo_uri:
+            from motor.motor_asyncio import AsyncIOMotorClient
+            client = AsyncIOMotorClient(mongo_uri)
+            try:
+                db = client["narrai"]
+                sessions_collection = db["sessions"]
+                
+                pipeline = [
+                    {"$group": {
+                        "_id": "$user_id",
+                        "count": {"$sum": 1}
+                    }},
+                    {"$match": {"_id": {"$ne": None}}}  # Escludi sessioni senza user_id
+                ]
+                
+                async for result in sessions_collection.aggregate(pipeline):
+                    user_id = result["_id"]
+                    count = result["count"]
+                    books_per_user[user_id] = count
+                
+                print(f"[USERS STATS] Contati {sum(books_per_user.values())} libri totali da aggregazione MongoDB", file=sys.stderr)
+            except Exception as e:
+                print(f"[USERS STATS] Errore nell'aggregazione MongoDB: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                client.close()
+        else:
+            # Fallback: carica tutte le sessioni (meno efficiente ma funziona anche con FileSessionStore)
+            print(f"[USERS STATS] WARNING: MONGODB_URI non configurato, uso fallback")
+            all_sessions = await get_all_sessions_async(session_store, user_id=None)
+            for session in all_sessions.values():
+                if session.user_id:
+                    books_per_user[session.user_id] += 1
+            print(f"[USERS STATS] Contati {len(all_sessions)} sessioni totali (fallback)")
+        
+        # Crea lista utenti con conteggio libri
+        users_with_books = []
+        for user in all_users:
+            books_count = books_per_user.get(user.id, 0)
+            users_with_books.append({
+                "user_id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "books_count": books_count,
+            })
+        
+        # Rimuovi entry "__unassigned__" se presente (non è un utente reale)
+        if "__unassigned__" in books_per_user:
+            unassigned_count = books_per_user["__unassigned__"]
+            print(f"[USERS STATS] Sessioni senza user_id (non assegnate): {unassigned_count}")
+        
+        # Ordina per numero di libri (decrescente)
+        users_with_books.sort(key=lambda x: x["books_count"], reverse=True)
+        
+        result = {
+            "total_users": total_users,
+            "users_with_books": users_with_books,
+        }
+        # Salva in cache
+        set_cached_stats(cache_key, result)
+        return result
+    
+    except Exception as e:
+        print(f"[USERS STATS] Errore nel calcolo statistiche utenti: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel calcolo delle statistiche utenti: {str(e)}"
         )
 
 

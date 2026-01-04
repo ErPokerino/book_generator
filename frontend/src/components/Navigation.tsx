@@ -56,12 +56,14 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
         >
           Valuta
         </button>
-        <button
-          className={`nav-link ${currentView === 'analytics' ? 'active' : ''}`}
-          onClick={() => onNavigate('analytics')}
-        >
-          Analisi
-        </button>
+        {user?.role === 'admin' && (
+          <button
+            className={`nav-link ${currentView === 'analytics' ? 'active' : ''}`}
+            onClick={() => onNavigate('analytics')}
+          >
+            Analisi
+          </button>
+        )}
       </div>
       {user && (
         <div className="nav-user">

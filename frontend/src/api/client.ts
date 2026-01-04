@@ -900,18 +900,36 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
 }
 
 export async function getLibraryStats(): Promise<LibraryStats> {
-  const response = await fetch(`${API_BASE}/library/stats`);
+  const response = await fetch(`${API_BASE}/library/stats`, {
+    credentials: 'include',
+  });
   
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || `Errore nel recupero delle statistiche: ${response.statusText}`);
+    let errorMessage = `Errore nel recupero delle statistiche: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Se la risposta non è JSON valido (es. connessione interrotta), usa il messaggio di default
+      const text = await response.text().catch(() => '');
+      if (text) {
+        errorMessage = `Errore: ${text.substring(0, 100)}`;
+      }
+    }
+    throw new Error(errorMessage);
   }
   
-  return response.json();
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new Error(`Errore nel parsing della risposta: la connessione potrebbe essere stata interrotta. Riprova.`);
+  }
 }
 
 export async function getAdvancedStats(): Promise<AdvancedStats> {
-  const response = await fetch(`${API_BASE}/library/stats/advanced`);
+  const response = await fetch(`${API_BASE}/library/stats/advanced`, {
+    credentials: 'include',
+  });
   
   if (!response.ok) {
     const error = await response.json();
@@ -919,6 +937,43 @@ export async function getAdvancedStats(): Promise<AdvancedStats> {
   }
   
   return response.json();
+}
+
+export interface UsersStats {
+  total_users: number;
+  users_with_books: Array<{
+    user_id: string;
+    name: string;
+    email: string;
+    books_count: number;
+  }>;
+}
+
+export async function getUsersStats(): Promise<UsersStats> {
+  const response = await fetch(`${API_BASE}/admin/users/stats`, {
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nel recupero delle statistiche utenti: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Se la risposta non è JSON valido (es. connessione interrotta), usa il messaggio di default
+      const text = await response.text().catch(() => '');
+      if (text) {
+        errorMessage = `Errore: ${text.substring(0, 100)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+  
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new Error(`Errore nel parsing della risposta: la connessione potrebbe essere stata interrotta. Riprova.`);
+  }
 }
 
 export async function deleteBook(sessionId: string): Promise<void> {

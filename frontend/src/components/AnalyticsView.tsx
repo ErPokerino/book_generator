@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLibraryStats, getAdvancedStats, LibraryStats, AdvancedStats } from '../api/client';
+import { getLibraryStats, getAdvancedStats, getUsersStats, LibraryStats, AdvancedStats, UsersStats } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
 import {
@@ -17,6 +17,7 @@ import './AnalyticsView.css';
 export default function AnalyticsView() {
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [advancedStats, setAdvancedStats] = useState<AdvancedStats | null>(null);
+  const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,12 +26,14 @@ export default function AnalyticsView() {
       try {
         setLoading(true);
         setError(null);
-        const [statsData, advancedData] = await Promise.all([
+        const [statsData, advancedData, usersData] = await Promise.all([
           getLibraryStats(),
           getAdvancedStats(),
+          getUsersStats(),
         ]);
         setStats(statsData);
         setAdvancedStats(advancedData);
+        setUsersStats(usersData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Errore nel caricamento delle statistiche');
       } finally {
@@ -199,6 +202,88 @@ export default function AnalyticsView() {
             Tabella comparativa dettagliata dei modelli LLM utilizzati. Clicca sulle colonne per ordinare.
           </p>
           <ModelComparisonTable models={advancedStats.model_comparison} />
+        </section>
+      )}
+
+      {/* Statistiche Utenti */}
+      {usersStats && (
+        <section className="analytics-section">
+          <h2 className="section-title">Statistiche Utenti</h2>
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '1rem 2rem',
+              background: 'linear-gradient(135deg, var(--primary-dark), var(--primary-light))',
+              borderRadius: 'var(--radius-md)',
+              color: 'white',
+              fontSize: '1.1rem',
+              fontWeight: 600,
+            }}>
+              👥 Totale Utenti: {usersStats.total_users}
+            </div>
+          </div>
+          
+          {usersStats.users_with_books.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                marginTop: '1rem',
+              }}>
+                <thead>
+                  <tr style={{
+                    background: 'var(--surface-elevated)',
+                    borderBottom: '2px solid var(--border)',
+                  }}>
+                    <th style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}>Nome</th>
+                    <th style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}>Email</th>
+                    <th style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'right',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}>Libri Generati</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usersStats.users_with_books.map((user) => (
+                    <tr
+                      key={user.user_id}
+                      style={{
+                        borderBottom: '1px solid var(--border-light)',
+                      }}
+                    >
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        color: 'var(--text-primary)',
+                      }}>{user.name}</td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.9rem',
+                      }}>{user.email}</td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        textAlign: 'right',
+                        fontWeight: 600,
+                        color: 'var(--accent)',
+                      }}>{user.books_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
     </div>
