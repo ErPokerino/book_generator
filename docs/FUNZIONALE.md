@@ -3,12 +3,14 @@
 ## Indice
 
 1. [Flusso Generazione Libro](#flusso-generazione-libro)
-2. [Logiche di Business](#logiche-di-business)
-3. [Gestione Sessioni](#gestione-sessioni)
-4. [Sistema Critica Letteraria](#sistema-critica-letteraria)
-5. [Export Multiformato](#export-multiformato)
-6. [Statistiche e Analytics](#statistiche-e-analytics)
-7. [Validazioni e Regole](#validazioni-e-regole)
+2. [Autenticazione e Autorizzazione](#autenticazione-e-autorizzazione)
+3. [Logiche di Business](#logiche-di-business)
+4. [Interfaccia Utente](#interfaccia-utente)
+5. [Gestione Sessioni](#gestione-sessioni)
+6. [Sistema Critica Letteraria](#sistema-critica-letteraria)
+7. [Export Multiformato](#export-multiformato)
+8. [Statistiche e Analytics](#statistiche-e-analytics)
+9. [Validazioni e Regole](#validazioni-e-regole)
 
 ## Flusso Generazione Libro
 
@@ -49,6 +51,189 @@ stateDiagram-v2
 **Output**: `SubmissionResponse` con `session_id`
 
 **File**: `backend/app/api/routers/submission.py`, `frontend/src/components/DynamicForm.tsx`
+
+## Autenticazione e Autorizzazione
+
+### Sistema di Registrazione e Login
+
+L'applicazione implementa un sistema completo di autenticazione utenti con registrazione, login, verifica email e reset password.
+
+#### Registrazione Utente
+
+**Processo**:
+1. Utente compila form registrazione (nome, email, password)
+2. Chiamata a `POST /api/auth/register`
+3. Verifica email non già esistente
+4. Hash password con bcrypt
+5. Creazione utente in UserStore (MongoDB) con `is_verified=False`
+6. Generazione token di verifica (32 caratteri URL-safe)
+7. Invio email di verifica tramite EmailService (SMTP)
+8. Risposta con messaggio di successo
+
+**Validazioni**:
+- Email univoca (verifica duplicati)
+- Password minimo 8 caratteri (validazione frontend/backend)
+- Email formato valido
+
+**File**: `backend/app/api/routers/auth.py`, `backend/app/agent/user_store.py`, `backend/app/services/email_service.py`
+
+#### Verifica Email
+
+**Processo**:
+1. Utente clicca link verifica nell'email (token nella query string)
+2. Frontend chiama `GET /api/auth/verify?token=...`
+3. Backend valida token (verifica esistenza e scadenza, default 24h)
+4. Aggiornamento utente: `is_verified=True`
+5. Utente può effettuare login
+
+**Scadenza Token**: 24 ore (configurabile)
+
+**File**: `backend/app/api/routers/auth.py` (`verify_email_endpoint`)
+
+#### Login
+
+**Processo**:
+1. Utente inserisce email e password
+2. Chiamata a `POST /api/auth/login`
+3. Verifica utente esistente
+4. Verifica password (bcrypt compare)
+5. Verifica utente attivo (`is_active=True`)
+6. Verifica email verificata (`is_verified=True`)
+7. Creazione sessione (UUID session_id salvato in MongoDB collection `sessions_auth`)
+8. Impostazione cookie `session_id` (httpOnly, 7 giorni scadenza)
+9. Risposta con dati utente (senza password)
+
+**Gestione Errori**:
+- Email/password non corretti → 401
+- Utente disattivato → 403
+- Email non verificata → 403 con codice `EMAIL_NOT_VERIFIED`
+
+**File**: `backend/app/api/routers/auth.py` (`login`), `backend/app/middleware/auth.py` (`create_session`)
+
+#### Password Reset
+
+**Processo**:
+1. Utente richiede reset password (`POST /api/auth/forgot-password` con email)
+2. Generazione token reset (32 caratteri, scadenza 1h)
+3. Salvataggio token in UserStore
+4. Invio email con link reset
+5. Utente clicca link e inserisce nuova password
+6. Chiamata `POST /api/auth/reset-password` con token e nuova password
+7. Validazione token e scadenza
+8. Hash nuova password
+9. Aggiornamento password in UserStore
+10. Invalidazione token
+
+**Scadenza Token**: 1 ora
+
+**File**: `backend/app/api/routers/auth.py` (`forgot_password`, `reset_password`)
+
+#### Logout
+
+**Processo**:
+1. Chiamata `POST /api/auth/logout`
+2. Eliminazione sessione da MongoDB
+3. Rimozione cookie `session_id`
+4. Risposta success
+
+**File**: `backend/app/api/routers/auth.py` (`logout`), `backend/app/middleware/auth.py` (`delete_session`)
+
+### Role-Based Access Control (RBAC)
+
+Il sistema supporta due ruoli utente:
+
+- **user**: Ruolo default, accesso a tutte le funzionalità base
+- **admin**: Ruolo privilegiato, accesso aggiuntivo a:
+  - Sezione **Analisi** (Analytics dashboard)
+  - Endpoint statistiche globali (`/api/library/stats`, `/api/library/stats/advanced`)
+  - Endpoint statistiche utenti (`/api/admin/users/stats`)
+  - Gestione ruoli utenti (`PATCH /api/auth/users/{user_id}/role`)
+
+#### Gestione Ruoli
+
+**Endpoint Admin**:
+- `PATCH /api/auth/users/{user_id}/role`: Cambia ruolo utente (richiede admin)
+- `GET /api/auth/users/by-email/{email}`: Cerca utente per email (richiede admin)
+
+**Middleware**:
+- `get_current_user`: Dependency FastAPI per ottenere utente corrente (richiede autenticazione)
+- `get_current_user_optional`: Dependency opzionale (restituisce None se non autenticato)
+- `require_admin`: Dependency che verifica ruolo admin (403 se non admin)
+
+**File**: `backend/app/middleware/auth.py`, `backend/app/api/routers/auth.py`
+
+### Protezione Endpoint
+
+Gli endpoint sono protetti usando FastAPI Dependencies:
+
+**Endpoint Autenticati** (richiedono login):
+- Tutti gli endpoint `/api/library/*` (libreria utente)
+- Endpoint generazione libro (`/api/book/*`)
+- Endpoint export (`/api/book/export/*`)
+
+**Endpoint Admin-Only**:
+- `/api/library/stats`: Statistiche globali
+- `/api/library/stats/advanced`: Statistiche avanzate
+- `/api/admin/users/stats`: Statistiche utenti
+- `/api/auth/users/{user_id}/role`: Gestione ruoli
+
+**Endpoint Pubblici**:
+- `/api/config`: Configurazione form
+- `/api/auth/register`: Registrazione
+- `/api/auth/login`: Login
+- `/api/auth/verify`: Verifica email
+- `/api/auth/forgot-password`: Richiesta reset password
+- `/api/auth/reset-password`: Reset password
+
+**File**: `backend/app/main.py`, `backend/app/middleware/auth.py`
+
+### Persistenza Utenti
+
+Gli utenti sono salvati in MongoDB (collection `users`) tramite `UserStore`:
+
+**Struttura User**:
+```python
+class User:
+    id: str  # UUID
+    email: str  # unique
+    password_hash: str  # bcrypt hash
+    name: str
+    role: Literal["user", "admin"] = "user"
+    is_active: bool = True
+    is_verified: bool = False
+    created_at: datetime
+    updated_at: datetime
+    password_reset_token: Optional[str]
+    password_reset_expires: Optional[datetime]
+    verification_token: Optional[str]
+    verification_expires: Optional[datetime]
+```
+
+**Sessioni Auth**:
+- Collection MongoDB: `sessions_auth`
+- Campi: `session_id` (UUID), `user_id`, `created_at`, `expires_at`
+- Scadenza: 7 giorni (configurabile via `SESSION_EXPIRE_DAYS`)
+
+**File**: `backend/app/models.py` (`User`), `backend/app/agent/user_store.py`, `backend/app/middleware/auth.py`
+
+### Email Service
+
+Il sistema utilizza SMTP per invio email (verifica e password reset):
+
+**Configurazione** (variabili d'ambiente):
+- `SMTP_HOST`: Server SMTP (default: `smtp.gmail.com`)
+- `SMTP_PORT`: Porta SMTP (default: `587`)
+- `SMTP_USER`: Email mittente
+- `SMTP_PASSWORD`: Password/App Password
+- `FRONTEND_URL`: URL frontend per link email (default: `http://localhost:5173`)
+
+**Tipo Email**:
+- Email verifica: HTML + testo, link con token
+- Email password reset: HTML + testo, link con token
+
+**Fallback**: Se credenziali SMTP non configurate, email non vengono inviate ma il processo continua (utile per sviluppo).
+
+**File**: `backend/app/services/email_service.py`
 
 ### Step 2: Questions (Domande Preliminari)
 
@@ -232,14 +417,17 @@ Il calcolo dei costi considera **solo la generazione dei capitoli**, escludendo:
 - Critica letteraria (critique)
 - Copertina (cover)
 
-#### Formula Calcolo
+#### Formula Calcolo Ottimizzata (O(1))
+
+Il calcolo utilizza una formula chiusa invece di loop per migliorare performance:
 
 ```python
+# Formula chiusa: sum(i=1 to N) di (i-1) = N * (N-1) / 2
+cumulative_pages_sum = (num_chapters * (num_chapters - 1) / 2) * avg_pages_per_chapter
+
 # Input totale (autoregressivo)
 chapters_input = num_chapters * context_base  # Contesto base per ogni capitolo
-for i in range(1, num_chapters + 1):
-    previous_pages = (i - 1) * avg_pages_per_chapter
-    chapters_input += previous_pages * tokens_per_page  # Accumulo capitoli precedenti
+chapters_input += cumulative_pages_sum * tokens_per_page  # Accumulo capitoli precedenti (O(1))
 
 # Output totale
 chapters_output = chapters_pages * tokens_per_page
@@ -251,6 +439,11 @@ cost_usd = (chapters_input * input_cost / 1_000_000) + (chapters_output * output
 cost_eur = cost_usd * exchange_rate
 ```
 
+**Ottimizzazioni**:
+- Formula chiusa O(1) invece di loop O(N)
+- Log spam ridotto (solo per modelli "pro" o libri con molti capitoli >30)
+- Uso `completed_chapters_count` da `writing_progress` (non richiede caricamento `book_chapters`)
+
 **Parametri Configurabili** (`config/app.yaml`):
 - `tokens_per_page`: 350 (default)
 - `model_costs`: Costi input/output per modello (per 1M token)
@@ -261,11 +454,30 @@ cost_eur = cost_usd * exchange_rate
 - Input cost: $2.00 / 1M token
 - Output cost: $12.00 / 1M token
 - Context base: 8000 token/capitolo
-- Input: 10 * 8000 + (0+1+2+...+9) * 200/10 * 350 = 80,000 + 31,500 = 111,500 token
+- Cumulative pages: (10 * 9 / 2) * 20 = 900 pagine
+- Input: 10 * 8000 + 900 * 350 = 80,000 + 315,000 = 395,000 token
 - Output: 200 * 350 = 70,000 token
-- Costo: (111,500 * 2 / 1M) + (70,000 * 12 / 1M) = $0.223 + $0.84 = **$1.063 USD = €0.978 EUR**
+- Costo: (395,000 * 2 / 1M) + (70,000 * 12 / 1M) = $0.79 + $0.84 = **$1.63 USD = €1.50 EUR**
 
-**File**: `backend/app/services/cost_service.py`
+**File**: `backend/app/main.py` (`calculate_generation_cost`)
+
+#### Persistenza Costi
+
+I costi calcolati vengono salvati in MongoDB per evitare ricalcoli:
+
+**Processo**:
+1. Calcolo costo in memoria quando necessario
+2. Salvataggio in `writing_progress.estimated_cost` (MongoDB)
+3. Lettura da `writing_progress` per performance
+4. Update parziale usando `$set` (non sovrascrive intero `writing_progress`)
+
+**Backfill Automatico**:
+- Quando admin apre Analisi, backend calcola costi mancanti in memoria
+- Costi usati immediatamente per statistiche (sparisce "N/A")
+- Salvataggio in background (batch) per chiamate future
+- Cache invalidata dopo backfill
+
+**File**: `backend/app/main.py` (`get_advanced_stats_endpoint`, `get_library_stats_endpoint`), `backend/app/agent/mongo_session_store.py` (`set_estimated_cost`)
 
 ### Calcolo Pagine
 
@@ -500,6 +712,127 @@ Il sistema supporta export in 3 formati: PDF, EPUB, DOCX.
 
 **File**: `backend/app/services/export_service.py` (`generate_epub`)
 
+## Interfaccia Utente
+
+### Form Semplificato (Base/Avanzate)
+
+Il form "Nuovo Libro" utilizza un pattern di **progressive disclosure** per semplificare l'esperienza utente:
+
+**Sezione Base** (sempre visibile):
+- Trama (textarea migliorata con PlotTextarea)
+- Genere
+- Stile Copertina
+- Nome Autore (user_name)
+- Autore di Riferimento (Stile)
+- Modello LLM
+
+**Sezione Avanzate** (accordion collassabile):
+- Pubblico di riferimento (target_audience)
+- Sottogenere, Tema
+- Protagonista, Archetipo Protagonista, Arco del Personaggio
+- Punto di Vista, Voce Narrante, Stile
+- Struttura Temporale, Ritmo
+- Realismo, Ambiguità, Intenzionalità
+
+**Caratteristiche**:
+- Accordion chiuso di default (stato salvato in localStorage)
+- Toggle con icona e conteggio campi avanzati
+- Tutti i campi rimangono nella configurazione (compatibilità backend)
+- Submit invariato (tutti i campi vengono inviati se compilati)
+
+**File**: `frontend/src/components/DynamicForm.tsx`, `frontend/src/components/DynamicForm.css`
+
+### PlotTextarea (Textarea Migliorata)
+
+Componente textarea avanzato per il campo "Trama":
+
+**Funzionalità**:
+- Contatori caratteri e parole in tempo reale
+- Indicatore minimo parole consigliate (default: 50)
+- Pulsante "Espandi" per editor modale full-screen
+- Autosave debounced a localStorage (chiave per utente)
+- Restore automatico da localStorage al mount
+- Gestione tastiera (Esc per chiudere modale)
+- Disabilita scroll body quando modale aperta
+- Focus management (textarea inline e modale)
+
+**Autosave**:
+- Debounce 500ms
+- Chiave localStorage: `plot_autosave_{user_email}` (se autenticato) o `plot_autosave_anonymous`
+- Restore automatico se value prop vuoto
+
+**File**: `frontend/src/components/PlotTextarea.tsx`, `frontend/src/components/PlotTextarea.css`
+
+### Sistema Toast/Notifiche
+
+L'applicazione utilizza `react-hot-toast` per notifiche non bloccanti:
+
+**Tipi Notifiche**:
+- Success: Operazioni completate (3s durata)
+- Error: Errori operazioni (5s durata)
+- Default: Info generali (4s durata)
+
+**Uso**:
+- Sostituisce `alert()` e modali per feedback operazioni
+- Notifiche per: generazione domande, download PDF, avvio scrittura, rigenerazione copertina, eliminazione libro, export
+
+**Configurazione**:
+- Posizione: top-right
+- Animazioni: slide-in/out
+- Dismissibile: click o timeout
+
+**File**: `frontend/src/App.tsx` (`<Toaster />`), vari componenti (import `toast`)
+
+### Skeleton Loaders
+
+Componenti skeleton per migliorare la percezione di velocità durante il caricamento:
+
+**Componenti**:
+- `SkeletonText`: Riga di testo placeholder
+- `SkeletonBox`: Box rettangolare placeholder
+- `SkeletonCard`: Card completa (titolo + contenuto)
+- `SkeletonChapter`: Layout capitolo (titolo + paragrafi)
+- `SkeletonChart`: Grafico placeholder
+
+**Uso**:
+- Libreria: Grid di `SkeletonCard` durante caricamento
+- BookReader: Layout skeleton per header e capitoli
+- AnalyticsView: Skeleton per stats grid e grafici
+
+**Animazione**: Shimmer effect (gradient animato)
+
+**File**: `frontend/src/components/Skeleton.tsx`, `frontend/src/components/Skeleton.css`
+
+### Libreria con Filtri e Ricerca
+
+La sezione Libreria offre strumenti avanzati per gestione libri:
+
+**Filtri**:
+- Stato: draft, outline, writing, paused, complete, all
+- Modello LLM: Dropdown con modelli disponibili
+- Genere: Dropdown con generi disponibili
+
+**Ricerca**:
+- Testo libero in titolo e autore
+- Filtraggio lato frontend (dopo caricamento)
+
+**Ordinamento**:
+- Data creazione (default: desc)
+- Ultima modifica
+- Titolo (alfabetico)
+- Voto (critique_score)
+- Costo (estimated_cost)
+- Ordinamento ascendente/descendente
+
+**Azioni**:
+- Leggi libro (visualizzazione completa)
+- Elimina libro (con conferma)
+- Riprendi scrittura (se in pausa)
+- Export (PDF, EPUB, DOCX)
+- Rigenera copertina
+
+**File**: `frontend/src/components/LibraryView.tsx`, `frontend/src/components/FilterBar.tsx`, `frontend/src/components/BookCard.tsx`
+
 ### DOCX
 
 **Libreria**: `python-docx`
@@ -591,9 +924,44 @@ Grafici temporali mostrano evoluzione nel tempo:
 - **Trend voto**: Line chart con voto medio per data
 
 **Aggregazione**:
-- Raggruppamento per data (`created_at`)
+- Raggruppamento per data (`created_at`, formato YYYY-MM-DD)
 - Calcolo medie/conti per data
 - Ordinamento cronologico
+- Visualizzazione con grafici line chart (Recharts)
+
+### Statistiche Utenti
+
+La sezione "Statistiche Utenti" mostra:
+
+**Metriche**:
+- Totale utenti registrati nel sistema
+- Tabella utenti con conteggio libri per utente
+- Include utenti con 0 libri (mostra tutti gli utenti)
+
+**Calcolo**:
+- Aggregazione MongoDB per performance (`$group` su `user_id`)
+- Conteggio sessioni per utente (stato "complete")
+- Ordinamento per conteggio libri (descendente)
+
+**File**: `backend/app/main.py` (`get_users_stats_endpoint`), `frontend/src/components/AnalyticsView.tsx`
+
+### Cache e Performance
+
+Le statistiche utilizzano cache in-memory per migliorare performance:
+
+**Cache**:
+- TTL: 30 secondi
+- Chiavi: `library_stats`, `library_stats_advanced`, `admin_users_stats`
+- Invalida automatica dopo scadenza TTL
+- Invalida manuale dopo backfill costi
+
+**Ottimizzazioni**:
+- Proiezione MongoDB per caricare solo campi necessari
+- Calcolo costi mancanti in memoria (batch)
+- Salvataggio costi in background (non blocca response)
+- Aggregazione MongoDB per statistiche utenti (server-side)
+
+**File**: `backend/app/main.py` (`get_cached_stats`, `set_cached_stats`, cache TTL)
 
 **File**: `frontend/src/components/AnalyticsView.tsx`
 

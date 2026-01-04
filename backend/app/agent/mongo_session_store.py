@@ -305,6 +305,32 @@ class MongoSessionStore(SessionStore):
         
         return await self.save_session(session)
     
+    async def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:
+        """
+        Aggiorna solo estimated_cost in writing_progress senza sovrascrivere l'intero dict.
+        
+        Args:
+            session_id: ID della sessione
+            estimated_cost: Costo stimato da salvare (in EUR)
+        
+        Returns:
+            True se l'aggiornamento è riuscito, False altrimenti
+        """
+        if self.sessions_collection is None:
+            await self.connect()
+        
+        try:
+            from datetime import datetime
+            # Usa $set per aggiornare solo writing_progress.estimated_cost
+            result = await self.sessions_collection.update_one(
+                {"_id": session_id},
+                {"$set": {"writing_progress.estimated_cost": estimated_cost, "updated_at": datetime.now().isoformat()}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            print(f"[MongoSessionStore] ERRORE nell'aggiornamento estimated_cost per sessione {session_id}: {e}", file=sys.stderr)
+            return False
+    
     async def pause_writing(
         self,
         session_id: str,

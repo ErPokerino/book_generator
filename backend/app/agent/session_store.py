@@ -284,6 +284,29 @@ class SessionStore:
         
         return session
     
+    def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:
+        """
+        Aggiorna solo estimated_cost in writing_progress senza sovrascrivere l'intero dict.
+        
+        Args:
+            session_id: ID della sessione
+            estimated_cost: Costo stimato da salvare (in EUR)
+        
+        Returns:
+            True se l'aggiornamento è riuscito, False altrimenti
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+        
+        if session.writing_progress is None:
+            session.writing_progress = {}
+        
+        session.writing_progress["estimated_cost"] = estimated_cost
+        session.update_timestamp()
+        
+        return True
+    
     def pause_writing(
         self,
         session_id: str,

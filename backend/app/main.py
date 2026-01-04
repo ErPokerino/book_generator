@@ -73,6 +73,7 @@ from app.agent.session_store import get_session_store, FileSessionStore
 from app.agent.session_store_helpers import (
     get_session_async, update_writing_progress_async, update_critique_async, 
     update_critique_status_async, update_writing_times_async, update_cover_image_path_async,
+    set_estimated_cost_async,
     delete_session_async
 )
 from app.services.pdf_service import generate_complete_book_pdf
@@ -1231,13 +1232,10 @@ def calculate_generation_cost(
         chapters_input = num_chapters * context_base
         
         # Somma cumulativa: per ogni capitolo i, aggiungi i capitoli precedenti (0..i-1)
+        # Formula chiusa O(1): sum(i=1 to N) di (i-1) = N * (N-1) / 2
         # Questo rappresenta il fatto che ogni capitolo vede tutti i capitoli precedenti nel contesto
-        for i in range(1, num_chapters + 1):
-            # Capitoli precedenti: (i-1) capitoli
-            # Pagine totali dei capitoli precedenti: (i-1) × avg_pages_per_chapter
-            previous_pages = (i - 1) * avg_pages_per_chapter
-            # Token dei capitoli precedenti da includere nell'input
-            chapters_input += previous_pages * tokens_per_page
+        cumulative_pages_sum = (num_chapters * (num_chapters - 1) / 2) * avg_pages_per_chapter
+        chapters_input += cumulative_pages_sum * tokens_per_page
         
         # Output totale: tutte le pagine generate dai capitoli
         chapters_output = chapters_pages * tokens_per_page
@@ -1252,7 +1250,9 @@ def calculate_generation_cost(
         exchange_rate = get_exchange_rate_usd_to_eur()
         total_cost_eur = chapters_cost_usd * exchange_rate
         
-        print(f"[COST CALCULATION] Risultato: ${chapters_cost_usd:.6f} USD = €{total_cost_eur:.4f} EUR")
+        # Log ridotto: solo per modelli pro o calcoli costosi
+        if num_chapters > 30 or "pro" in gemini_model.lower():
+            print(f"[COST CALCULATION] Risultato: ${chapters_cost_usd:.6f} USD = €{total_cost_eur:.4f} EUR")
         
         return round(total_cost_eur, 4)
         
@@ -1354,19 +1354,20 @@ def session_to_library_entry(session, skip_cost_calculation: bool = False) -> "L
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
     
-    # Calcola costo stimato (solo se libro completo e non saltato)
+    # Calcola costo stimato
     estimated_cost = None
-    if not skip_cost_calculation and status == "complete" and total_pages:
-        # Prova prima a leggere il costo già salvato in writing_progress (veloce)
-        if session.writing_progress and session.writing_progress.get("estimated_cost") is not None:
-            estimated_cost = session.writing_progress.get("estimated_cost")
-        else:
-            # Calcola solo se non salvato (e salva per le prossime volte)
-            estimated_cost = calculate_generation_cost(session, total_pages)
-            # Salva il costo calcolato in writing_progress per le prossime richieste (in background)
-            if estimated_cost is not None and session.writing_progress:
-                # Aggiorna il dict in-place (verrà salvato al prossimo save_session)
-                session.writing_progress["estimated_cost"] = estimated_cost
+    
+    # PRIMA: sempre prova a leggere il costo già salvato (veloce, nessun calcolo)
+    if status == "complete" and session.writing_progress:
+        estimated_cost = session.writing_progress.get("estimated_cost")
+    
+    # SECONDA: calcola solo se non già salvato E skip_cost_calculation=False
+    if estimated_cost is None and not skip_cost_calculation and status == "complete" and total_pages:
+        estimated_cost = calculate_generation_cost(session, total_pages)
+        # Salva il costo calcolato in writing_progress per le prossime richieste (in background)
+        if estimated_cost is not None and session.writing_progress:
+            # Aggiorna il dict in-place (verrà salvato al prossimo save_session)
+            session.writing_progress["estimated_cost"] = estimated_cost
     
     return LibraryEntry(
         session_id=session.session_id,
@@ -3441,6 +3442,7 @@ async def get_library_endpoint(
 @app.get("/api/library/stats", response_model=LibraryStats)
 async def get_library_stats_endpoint(
     current_user = Depends(require_admin),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Restituisce statistiche aggregate della libreria (solo admin, dati globali)."""
     try:
@@ -3456,15 +3458,43 @@ async def get_library_stats_endpoint(
         # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
         all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
-        # Converti tutte le sessioni in LibraryEntry (salta calcolo costi per performance)
+        # Converti tutte le sessioni in LibraryEntry e calcola costi mancanti in memoria
         entries = []
+        sessions_to_update = []  # Raccogli sessioni da aggiornare in background
+        
         for session in all_sessions.values():
             try:
                 entry = session_to_library_entry(session, skip_cost_calculation=True)
+                
+                # Se il costo manca ma è calcolabile, calcolalo in memoria per le stats
+                if entry.estimated_cost is None and entry.status == "complete" and entry.total_pages:
+                    # Calcola costo in memoria
+                    calculated_cost = calculate_generation_cost(session, entry.total_pages)
+                    if calculated_cost is not None:
+                        # Aggiorna entry con costo calcolato (per le stats)
+                        entry.estimated_cost = calculated_cost
+                        # Raccogli per salvare in background
+                        sessions_to_update.append((session.session_id, calculated_cost))
+                
                 entries.append(entry)
             except Exception as e:
                 print(f"[LIBRARY STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
+        
+        # Salva costi calcolati in background (batch)
+        if sessions_to_update:
+            async def backfill_costs():
+                """Salva costi calcolati in background."""
+                for session_id, cost in sessions_to_update:
+                    try:
+                        await set_estimated_cost_async(session_store, session_id, cost)
+                    except Exception as e:
+                        print(f"[LIBRARY STATS] Errore nel salvare costo per {session_id}: {e}")
+                # Invalida cache dopo il backfill
+                if cache_key in _stats_cache:
+                    del _stats_cache[cache_key]
+            
+            background_tasks.add_task(backfill_costs)
         
         stats = calculate_library_stats(entries)
         # Salva in cache
@@ -3484,6 +3514,7 @@ async def get_library_stats_endpoint(
 @app.get("/api/library/stats/advanced", response_model=AdvancedStats)
 async def get_advanced_stats_endpoint(
     current_user = Depends(require_admin),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Restituisce statistiche avanzate con analisi temporali e confronto modelli (solo admin, dati globali)."""
     try:
@@ -3499,15 +3530,43 @@ async def get_advanced_stats_endpoint(
         # Usa proiezione MongoDB per caricare solo i campi necessari (ottimizzazione performance)
         all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
-        # Converti tutte le sessioni in LibraryEntry (salta calcolo costi per performance)
+        # Converti tutte le sessioni in LibraryEntry e calcola costi mancanti in memoria
         entries = []
+        sessions_to_update = []  # Raccogli sessioni da aggiornare in background
+        
         for session in all_sessions.values():
             try:
                 entry = session_to_library_entry(session, skip_cost_calculation=True)
+                
+                # Se il costo manca ma è calcolabile, calcolalo in memoria per le stats
+                if entry.estimated_cost is None and entry.status == "complete" and entry.total_pages:
+                    # Calcola costo in memoria
+                    calculated_cost = calculate_generation_cost(session, entry.total_pages)
+                    if calculated_cost is not None:
+                        # Aggiorna entry con costo calcolato (per le stats)
+                        entry.estimated_cost = calculated_cost
+                        # Raccogli per salvare in background
+                        sessions_to_update.append((session.session_id, calculated_cost))
+                
                 entries.append(entry)
             except Exception as e:
                 print(f"[ADVANCED STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
+        
+        # Salva costi calcolati in background (batch)
+        if sessions_to_update:
+            async def backfill_costs():
+                """Salva costi calcolati in background."""
+                for session_id, cost in sessions_to_update:
+                    try:
+                        await set_estimated_cost_async(session_store, session_id, cost)
+                    except Exception as e:
+                        print(f"[ADVANCED STATS] Errore nel salvare costo per {session_id}: {e}")
+                # Invalida cache dopo il backfill
+                if cache_key in _stats_cache:
+                    del _stats_cache[cache_key]
+            
+            background_tasks.add_task(backfill_costs)
         
         advanced_stats = calculate_advanced_stats(entries)
         # Salva in cache

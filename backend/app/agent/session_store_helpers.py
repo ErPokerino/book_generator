@@ -117,6 +117,20 @@ async def update_writing_progress_async(
         )
 
 
+async def set_estimated_cost_async(
+    session_store: SessionStore,
+    session_id: str,
+    estimated_cost: float,
+) -> bool:
+    """Helper per aggiornare estimated_cost in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        # MongoSessionStore - metodo async
+        return await session_store.set_estimated_cost(session_id, estimated_cost)
+    else:
+        # FileSessionStore - metodo sync
+        return session_store.set_estimated_cost(session_id, estimated_cost)
+
+
 async def start_chapter_timing_async(
     session_store: SessionStore,
     session_id: str,

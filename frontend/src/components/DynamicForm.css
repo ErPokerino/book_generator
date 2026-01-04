@@ -97,6 +97,80 @@
   z-index: 1; /* Assicura che sia sopra altri elementi */
 }
 
+/* Form Fields Sections */
+.form-fields-base {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.form-fields-advanced-section {
+  margin-top: 2rem;
+  border-top: 2px solid var(--border-light, #f1f5f9);
+  padding-top: 1.5rem;
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-elevated, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-md, 10px);
+  color: var(--text-primary, #213547);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+  width: 100%;
+  text-align: left;
+}
+
+.advanced-toggle:hover {
+  background: var(--surface-hover, #f1f5f9);
+  border-color: var(--accent, #e94560);
+  color: var(--accent, #e94560);
+}
+
+.advanced-toggle span:first-child {
+  font-size: 0.75rem;
+  transition: transform var(--transition-fast, 0.15s ease);
+}
+
+.advanced-toggle[aria-expanded="true"] span:first-child {
+  transform: rotate(90deg);
+}
+
+.form-fields-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-light, #f1f5f9);
+}
+
+/* Responsive Advanced Section */
+@media (max-width: 768px) {
+  .form-fields-advanced-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+  
+  .advanced-toggle {
+    font-size: 0.875rem;
+    padding: 0.625rem 0.875rem;
+  }
+  
+  .form-fields-advanced {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    gap: 1.5rem;
+  }
+}
+
 /* Form Field */
 .form-field {
   display: flex;

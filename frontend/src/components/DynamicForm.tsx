@@ -39,9 +39,20 @@ export default function DynamicForm() {
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     loadConfig();
+    
+    // Ripristina preferenza showAdvanced da localStorage
+    try {
+      const saved = localStorage.getItem('dynamicForm.showAdvanced');
+      if (saved === 'true') {
+        setShowAdvanced(true);
+      }
+    } catch (err) {
+      // Ignora errori localStorage
+    }
   }, []);
 
   // Hook per ripristinare lo stato della sessione al mount
@@ -436,6 +447,32 @@ export default function DynamicForm() {
         ℹ️
       </span>
     );
+  };
+
+  // Lista campi Base (ordine desiderato)
+  const baseFieldIds = ['plot', 'genre', 'cover_style', 'user_name', 'author', 'llm_model'];
+  const baseFieldIdsSet = new Set(baseFieldIds);
+
+  // Raggruppa campi in Base e Avanzate
+  const getGroupedFields = () => {
+    if (!config || !config.fields) {
+      return { baseFields: [], advancedFields: [] };
+    }
+
+    // Ordina baseFields secondo l'ordine desiderato
+    const baseFields: FieldConfig[] = [];
+    const fieldMap = new Map(config.fields.map(f => [f.id, f]));
+    
+    for (const fieldId of baseFieldIds) {
+      const field = fieldMap.get(fieldId);
+      if (field) {
+        baseFields.push(field);
+      }
+    }
+    
+    const advancedFields = config.fields.filter(f => !baseFieldIdsSet.has(f.id));
+    
+    return { baseFields, advancedFields };
   };
 
   const renderField = (field: FieldConfig) => {
@@ -867,17 +904,53 @@ export default function DynamicForm() {
             </div>
           )}
           
-          {config && config.fields && config.fields.length > 0 ? (
-            <form onSubmit={handleSubmit} className="dynamic-form">
-              {config.fields.map((field) => renderField(field))}
-              
-              <div className="form-actions">
-                <button type="submit" disabled={isSubmitting} className="submit-button">
-                  {isSubmitting ? 'Invio in corso...' : 'Invia'}
-                </button>
-              </div>
-            </form>
-          ) : config && (!config.fields || config.fields.length === 0) ? (
+          {config && config.fields && config.fields.length > 0 ? (() => {
+            const { baseFields, advancedFields } = getGroupedFields();
+            
+            return (
+              <form onSubmit={handleSubmit} className="dynamic-form">
+                {/* Campi Base */}
+                <div className="form-fields-base">
+                  {baseFields.map((field) => renderField(field))}
+                </div>
+                
+                {/* Sezione Avanzate (collassabile) */}
+                {advancedFields.length > 0 && (
+                  <div className="form-fields-advanced-section">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newValue = !showAdvanced;
+                        setShowAdvanced(newValue);
+                        try {
+                          localStorage.setItem('dynamicForm.showAdvanced', String(newValue));
+                        } catch (err) {
+                          // Ignora errori localStorage
+                        }
+                      }}
+                      className="advanced-toggle"
+                      aria-expanded={showAdvanced}
+                    >
+                      <span>{showAdvanced ? '▼' : '▶'}</span>
+                      <span>Opzioni Avanzate ({advancedFields.length})</span>
+                    </button>
+                    
+                    {showAdvanced && (
+                      <div className="form-fields-advanced">
+                        {advancedFields.map((field) => renderField(field))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="form-actions">
+                  <button type="submit" disabled={isSubmitting} className="submit-button">
+                    {isSubmitting ? 'Invio in corso...' : 'Invia'}
+                  </button>
+                </div>
+              </form>
+            );
+          })() : config && (!config.fields || config.fields.length === 0) ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
               <p>Nessun campo disponibile nella configurazione.</p>
             </div>
