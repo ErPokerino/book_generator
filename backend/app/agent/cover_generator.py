@@ -167,60 +167,96 @@ La copertina deve essere:
                 if hasattr(response.prompt_feedback, 'block_reason'):
                     print(f"[COVER GENERATOR] ATTENZIONE - Blocco: {response.prompt_feedback.block_reason}")
             
-            # Verifica parts
-            if hasattr(response, 'parts'):
-                print(f"[COVER GENERATOR] DEBUG - parts presente: {response.parts}")
-            else:
-                print(f"[COVER GENERATOR] DEBUG - response non ha attributo 'parts'")
-            
             # Estrai l'immagine dalla risposta
-            # La nuova API restituisce response.parts direttamente
-            if not hasattr(response, 'parts') or not response.parts:
+            # Gestisci sia response.parts che response.candidates[0].content.parts
+            parts_to_process = None
+            
+            # Metodo 1: Prova response.parts direttamente
+            if hasattr(response, 'parts') and response.parts:
+                parts_to_process = response.parts
+                print(f"[COVER GENERATOR] Usando response.parts (metodo diretto), {len(parts_to_process)} parts trovate")
+            
+            # Metodo 2: Prova response.candidates[0].content.parts (struttura standard Gemini)
+            elif hasattr(response, 'candidates') and response.candidates:
+                for idx, candidate in enumerate(response.candidates):
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            parts_to_process = candidate.content.parts
+                            print(f"[COVER GENERATOR] Usando response.candidates[{idx}].content.parts (struttura standard), {len(parts_to_process)} parts trovate")
+                            break
+            
+            if not parts_to_process:
                 # Log dettagliato prima di sollevare l'eccezione
-                print(f"[COVER GENERATOR] ERRORE - Nessuna part nella risposta da {model_name}")
+                print(f"[COVER GENERATOR] ERRORE - Nessuna part disponibile nella risposta da {model_name}")
+                print(f"[COVER GENERATOR] DEBUG - Tipo risposta: {type(response)}")
+                print(f"[COVER GENERATOR] DEBUG - Attributi risposta: {[a for a in dir(response) if not a.startswith('_')]}")
                 if hasattr(response, 'candidates') and response.candidates:
                     for idx, candidate in enumerate(response.candidates):
-                        print(f"[COVER GENERATOR] ERRORE - Candidate {idx} details:")
-                        print(f"  {candidate}")
-                raise Exception(f"Nessuna part nella risposta da {model_name}")
+                        print(f"[COVER GENERATOR] ERRORE - Candidate {idx}:")
+                        print(f"  Tipo: {type(candidate)}")
+                        if hasattr(candidate, 'finish_reason'):
+                            print(f"  finish_reason: {candidate.finish_reason}")
+                        if hasattr(candidate, 'safety_ratings'):
+                            print(f"  safety_ratings: {candidate.safety_ratings}")
+                        if hasattr(candidate, 'content'):
+                            print(f"  content presente: {candidate.content}")
+                            if hasattr(candidate.content, 'parts'):
+                                print(f"  content.parts: {candidate.content.parts}")
+                raise Exception(f"Nessuna part disponibile nella risposta da {model_name}")
             
-            print(f"[COVER GENERATOR] Numero di parts nella risposta: {len(response.parts)}")
+            print(f"[COVER GENERATOR] Numero di parts nella risposta: {len(parts_to_process)}")
             
-            # Estrai l'immagine usando part.as_image() che restituisce direttamente PIL Image
+            # Estrai l'immagine
             pil_image = None
             
-            for idx, part in enumerate(response.parts):
+            for idx, part in enumerate(parts_to_process):
                 print(f"[COVER GENERATOR] Analizzando part {idx}, tipo: {type(part).__name__}")
                 
-                # Metodo principale: usa inline_data.data (part.as_image() restituisce google.genai.types.Image, non PIL Image)
-                # Quindi usiamo direttamente inline_data.data che è già bytes
-                
-                # Fallback: usa inline_data.data (può essere bytes o base64 string)
+                # Metodo 1: inline_data (snake_case)
                 if hasattr(part, 'inline_data') and part.inline_data is not None:
-                    print(f"[COVER GENERATOR] Trovato inline_data, mime_type: {getattr(part.inline_data, 'mime_type', 'N/A')}")
+                    print(f"[COVER GENERATOR] Trovato inline_data (snake_case), mime_type: {getattr(part.inline_data, 'mime_type', 'N/A')}")
                     if hasattr(part.inline_data, 'data'):
                         data = part.inline_data.data
                         print(f"[COVER GENERATOR] Tipo di data: {type(data)}")
                         
-                        # Gestisci sia bytes che base64 string
-                        
-                        if isinstance(data, bytes):
-                            print(f"[COVER GENERATOR] data è già bytes, dimensione: {len(data)} bytes")
-                            image_bytes = data
-                        elif isinstance(data, str):
-                            print(f"[COVER GENERATOR] data è stringa, provo base64 decode...")
-                            try:
+                        try:
+                            if isinstance(data, bytes):
+                                print(f"[COVER GENERATOR] data è già bytes, dimensione: {len(data)} bytes")
+                                image_bytes = data
+                            elif isinstance(data, str):
+                                print(f"[COVER GENERATOR] data è stringa, provo base64 decode...")
                                 image_bytes = base64.b64decode(data)
                                 print(f"[COVER GENERATOR] Base64 decodificato, dimensione: {len(image_bytes)} bytes")
-                            except Exception as decode_error:
-                                print(f"[COVER GENERATOR] Errore nel decode base64: {decode_error}")
+                            else:
+                                print(f"[COVER GENERATOR] Tipo di data non supportato: {type(data)}")
                                 continue
-                        else:
-                            print(f"[COVER GENERATOR] Tipo di data non supportato: {type(data)}")
+                            
+                            pil_image = PILImage.open(BytesIO(image_bytes))
+                            print(f"[COVER GENERATOR] Immagine caricata come PIL Image, dimensioni: {pil_image.size}")
+                            break
+                        except Exception as load_error:
+                            print(f"[COVER GENERATOR] Errore nel caricamento PIL Image: {load_error}")
                             continue
+                
+                # Metodo 2: inlineData (camelCase) - per compatibilità con alcune versioni dell'API
+                elif hasattr(part, 'inlineData') and part.inlineData is not None:
+                    print(f"[COVER GENERATOR] Trovato inlineData (camelCase), mime_type: {getattr(part.inlineData, 'mimeType', getattr(part.inlineData, 'mime_type', 'N/A'))}")
+                    if hasattr(part.inlineData, 'data'):
+                        data = part.inlineData.data
+                        print(f"[COVER GENERATOR] Tipo di data: {type(data)}")
                         
-                        # Carica i bytes come PIL Image
                         try:
+                            if isinstance(data, bytes):
+                                print(f"[COVER GENERATOR] data è già bytes, dimensione: {len(data)} bytes")
+                                image_bytes = data
+                            elif isinstance(data, str):
+                                print(f"[COVER GENERATOR] data è stringa, provo base64 decode...")
+                                image_bytes = base64.b64decode(data)
+                                print(f"[COVER GENERATOR] Base64 decodificato, dimensione: {len(image_bytes)} bytes")
+                            else:
+                                print(f"[COVER GENERATOR] Tipo di data non supportato: {type(data)}")
+                                continue
+                            
                             pil_image = PILImage.open(BytesIO(image_bytes))
                             print(f"[COVER GENERATOR] Immagine caricata come PIL Image, dimensioni: {pil_image.size}")
                             break
@@ -247,8 +283,17 @@ La copertina deve essere:
             if pil_image is None:
                 # Log dettagliato per debug
                 print(f"[COVER GENERATOR] ERRORE: Impossibile estrarre immagine. Parts disponibili:")
-                for idx, part in enumerate(response.parts):
-                    print(f"  Part {idx}: {type(part).__name__}, attributi: {[a for a in dir(part) if not a.startswith('_')]}")
+                for idx, part in enumerate(parts_to_process):
+                    print(f"  Part {idx}: {type(part).__name__}")
+                    print(f"    Attributi: {[a for a in dir(part) if not a.startswith('_')]}")
+                    # Prova a vedere se ci sono attributi con valori
+                    try:
+                        for attr in ['inline_data', 'inlineData', 'text', 'data']:
+                            if hasattr(part, attr):
+                                value = getattr(part, attr)
+                                print(f"    {attr}: {type(value).__name__}")
+                    except Exception:
+                        pass
                 raise Exception(f"Impossibile estrarre l'immagine dalla risposta di {model_name}. Formato non supportato.")
             
             # Verifica che l'immagine sia valida prima del salvataggio

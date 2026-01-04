@@ -311,7 +311,10 @@ class StorageService:
                 try:
                     return self._get_gcs_signed_url(path, expiration_minutes)
                 except Exception as e:
-                    print(f"[STORAGE] Errore generazione signed URL da GCS: {e}")
+                    # Log solo la prima volta per evitare spam nei log di produzione
+                    if not hasattr(self, '_signed_url_warning_logged'):
+                        print(f"[STORAGE] INFO: Signed URL non disponibile (credenziali Cloud Run), usando download diretto: {str(e)[:100]}")
+                        self._signed_url_warning_logged = True
                     # Fallback: restituisci None per far gestire il download diretto
                     return None
         
