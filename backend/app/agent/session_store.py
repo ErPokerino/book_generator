@@ -261,25 +261,36 @@ class SessionStore:
         total_pages: Optional[int] = None,
         completed_chapters_count: Optional[int] = None,
     ) -> SessionData:
-        """Aggiorna lo stato di avanzamento della scrittura del romanzo."""
+        """Aggiorna lo stato di avanzamento della scrittura del romanzo (merge-safe)."""
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
         
-        session.writing_progress = {
-            "session_id": session_id,
-            "current_step": current_step,
-            "total_steps": total_steps,
-            "current_section_name": current_section_name,
-            "is_complete": is_complete,
-            "is_paused": is_paused,
-            "error": error,
-        }
-        # Aggiungi campi opzionali solo se specificati
+        # Merge-safe: preserva campi esistenti come estimated_cost, writing_time_minutes, etc.
+        existing_progress = session.writing_progress or {}
+        
+        # Crea nuovo dict partendo da quello esistente
+        new_progress = existing_progress.copy()
+        
+        # Aggiorna sempre i campi "core" (stato progresso)
+        new_progress["session_id"] = session_id
+        new_progress["current_step"] = current_step
+        new_progress["total_steps"] = total_steps
+        new_progress["current_section_name"] = current_section_name
+        new_progress["is_complete"] = is_complete
+        new_progress["is_paused"] = is_paused
+        new_progress["error"] = error
+        
+        # Aggiorna campi opzionali solo se passati esplicitamente
         if total_pages is not None:
-            session.writing_progress["total_pages"] = total_pages
+            new_progress["total_pages"] = total_pages
         if completed_chapters_count is not None:
-            session.writing_progress["completed_chapters_count"] = completed_chapters_count
+            new_progress["completed_chapters_count"] = completed_chapters_count
+        
+        # Campi come estimated_cost, writing_time_minutes vengono preservati automaticamente
+        # perché partiamo da existing_progress.copy()
+        
+        session.writing_progress = new_progress
         session.update_timestamp()
         
         return session

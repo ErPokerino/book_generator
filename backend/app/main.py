@@ -1551,18 +1551,25 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         if times_list:
             average_writing_time_by_model[model] = round(sum(times_list) / len(times_list), 1)
     
-    # Calcola tempo medio per pagina per modello (solo libri completati con tempo e pagine valide)
-    model_times_per_page = defaultdict(list)
+    # Calcola tempo medio per pagina per modello (MEDIA PESATA):
+    # (somma tempi) / (somma pagine) sui libri completati con tempo e pagine valide
+    model_time_sum_minutes = defaultdict(float)
+    model_pages_sum_for_time = defaultdict(float)
     for e in completed:
-        if (e.writing_time_minutes is not None and e.writing_time_minutes > 0 and 
-            e.total_pages is not None and e.total_pages > 0):
-            time_per_page = e.writing_time_minutes / e.total_pages
-            model_times_per_page[e.llm_model].append(time_per_page)
-    
+        if (
+            e.writing_time_minutes is not None
+            and e.writing_time_minutes > 0
+            and e.total_pages is not None
+            and e.total_pages > 0
+        ):
+            model_time_sum_minutes[e.llm_model] += float(e.writing_time_minutes)
+            model_pages_sum_for_time[e.llm_model] += float(e.total_pages)
+
     average_time_per_page_by_model = {}
-    for model, times_per_page_list in model_times_per_page.items():
-        if times_per_page_list:
-            average_time_per_page_by_model[model] = round(sum(times_per_page_list) / len(times_per_page_list), 2)
+    for model in set(list(model_time_sum_minutes.keys()) + list(model_pages_sum_for_time.keys())):
+        pages_sum = model_pages_sum_for_time.get(model, 0.0)
+        if pages_sum > 0:
+            average_time_per_page_by_model[model] = round(model_time_sum_minutes.get(model, 0.0) / pages_sum, 2)
     
     # Calcola pagine medie per modello (solo libri completati con pagine valide)
     model_pages = defaultdict(list)
@@ -1662,7 +1669,9 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
         'pages': [],
         'costs': [],
         'writing_times': [],
-        'times_per_page': [],
+        # Tempo/pagina (MEDIA PESATA): accumuli per calcolare (somma tempi) / (somma pagine)
+        'time_sum_minutes_for_pages': 0.0,
+        'pages_sum_for_time': 0.0,
         'score_distribution': defaultdict(int),
     })
     
@@ -1696,8 +1705,8 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
             if entry.writing_time_minutes is not None and entry.writing_time_minutes > 0:
                 model_comparison_data[model]['writing_times'].append(entry.writing_time_minutes)
                 if entry.total_pages is not None and entry.total_pages > 0:
-                    time_per_page = entry.writing_time_minutes / entry.total_pages
-                    model_comparison_data[model]['times_per_page'].append(time_per_page)
+                    model_comparison_data[model]['time_sum_minutes_for_pages'] += float(entry.writing_time_minutes)
+                    model_comparison_data[model]['pages_sum_for_time'] += float(entry.total_pages)
     
     # Crea lista ModelComparisonEntry
     model_comparison = []
@@ -1719,8 +1728,9 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
             avg_writing_time = round(sum(data['writing_times']) / len(data['writing_times']), 1)
         
         avg_time_per_page = 0.0
-        if data['times_per_page']:
-            avg_time_per_page = round(sum(data['times_per_page']) / len(data['times_per_page']), 2)
+        pages_sum = float(data.get('pages_sum_for_time', 0.0) or 0.0)
+        if pages_sum > 0:
+            avg_time_per_page = round(float(data.get('time_sum_minutes_for_pages', 0.0) or 0.0) / pages_sum, 2)
         
         model_comparison.append(ModelComparisonEntry(
             model=model,
@@ -3341,6 +3351,7 @@ async def get_library_endpoint(
     skip: int = 0,
     limit: int = 20,
     current_user = Depends(get_current_user_optional),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """
     Restituisce la lista dei libri nella libreria con filtri opzionali e paginazione.
@@ -3356,7 +3367,7 @@ async def get_library_endpoint(
     - limit: numero massimo di libri da restituire (per paginazione, default: 20)
     """
     try:
-        from app.agent.session_store_helpers import get_all_sessions_async
+        from app.agent.session_store_helpers import get_all_sessions_async, get_session_async
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
         
@@ -3370,15 +3381,111 @@ async def get_library_endpoint(
             genre=genre
         )
         
-        # Converti tutte le sessioni in LibraryEntry
+        # Converti tutte le sessioni in LibraryEntry e identifica sessioni che necessitano backfill
         entries = []
+        sessions_to_backfill = []  # Raccogli sessioni che necessitano backfill (total_pages o estimated_cost)
+        
         for session in all_sessions.values():
             try:
                 entry = session_to_library_entry(session)
+                
+                # Identifica sessioni complete che necessitano backfill
+                if entry.status == "complete":
+                    needs_pages_backfill = entry.total_pages is None
+                    needs_cost_backfill = entry.estimated_cost is None and entry.total_pages is not None
+                    
+                    if needs_pages_backfill or needs_cost_backfill:
+                        # Carica sessione completa per calcolare total_pages se mancante
+                        full_session = None
+                        if needs_pages_backfill:
+                            try:
+                                full_session = await get_session_async(session_store, session.session_id, user_id=user_id)
+                                if full_session and full_session.book_chapters:
+                                    # Calcola total_pages on the fly
+                                    chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in full_session.book_chapters)
+                                    cover_pages = 1
+                                    app_config = get_app_config()
+                                    toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+                                    toc_pages = math.ceil(len(full_session.book_chapters) / toc_chapters_per_page)
+                                    calculated_pages = chapters_pages + cover_pages + toc_pages
+                                    calculated_chapters_count = len(full_session.book_chapters)
+                                    
+                                    # Aggiorna entry con total_pages calcolato
+                                    entry.total_pages = calculated_pages
+                                    
+                                    # Se anche estimated_cost mancava, calcolalo ora
+                                    if needs_cost_backfill and calculated_pages:
+                                        calculated_cost = calculate_generation_cost(full_session, calculated_pages)
+                                        if calculated_cost is not None:
+                                            entry.estimated_cost = calculated_cost
+                                            sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, calculated_cost))
+                                        else:
+                                            sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, None))
+                                    else:
+                                        sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, None))
+                            except Exception as e:
+                                print(f"[LIBRARY] Errore nel caricare sessione completa per backfill {session.session_id}: {e}")
+                        elif needs_cost_backfill:
+                            # Solo estimated_cost mancante, usa session parziale
+                            calculated_cost = calculate_generation_cost(session, entry.total_pages)
+                            if calculated_cost is not None:
+                                entry.estimated_cost = calculated_cost
+                                sessions_to_backfill.append((session.session_id, None, None, calculated_cost))
+                
                 entries.append(entry)
             except Exception as e:
                 print(f"[LIBRARY] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
+        
+        # Salva dati backfillati in background (total_pages e estimated_cost)
+        if sessions_to_backfill:
+            async def backfill_library_data():
+                """Salva total_pages e estimated_cost calcolati in background."""
+                from app.agent.session_store_helpers import update_writing_progress_async, set_estimated_cost_async, get_session_async
+                store = get_session_store()  # Ricrea session_store nella closure
+                uid = user_id  # Usa user_id dalla closure
+                
+                for session_id, total_pages, completed_chapters_count, estimated_cost in sessions_to_backfill:
+                    try:
+                        # Salva total_pages se calcolato
+                        if total_pages is not None:
+                            # Carica sessione per ottenere i dati di writing_progress attuali
+                            full_session = await get_session_async(store, session_id, user_id=uid)
+                            if full_session and full_session.writing_progress:
+                                current_step = full_session.writing_progress.get('current_step', 0)
+                                total_steps = full_session.writing_progress.get('total_steps', 0)
+                                current_section_name = full_session.writing_progress.get('current_section_name')
+                                is_complete = full_session.writing_progress.get('is_complete', False)
+                                is_paused = full_session.writing_progress.get('is_paused', False)
+                                error = full_session.writing_progress.get('error')
+                                # Usa completed_chapters_count calcolato se disponibile, altrimenti quello salvato
+                                final_chapters_count = completed_chapters_count if completed_chapters_count is not None else full_session.writing_progress.get('completed_chapters_count')
+                                
+                                await update_writing_progress_async(
+                                    store,
+                                    session_id,
+                                    current_step=current_step,
+                                    total_steps=total_steps,
+                                    current_section_name=current_section_name,
+                                    is_complete=is_complete,
+                                    is_paused=is_paused,
+                                    error=error,
+                                    total_pages=total_pages,
+                                    completed_chapters_count=final_chapters_count,
+                                )
+                        
+                        # Salva estimated_cost se calcolato
+                        if estimated_cost is not None:
+                            await set_estimated_cost_async(store, session_id, estimated_cost)
+                    except Exception as e:
+                        print(f"[LIBRARY] Errore nel backfill per sessione {session_id}: {e}")
+                
+                # Invalida cache stats dopo il backfill
+                for cache_key in ["library_stats", "library_stats_advanced"]:
+                    if cache_key in _stats_cache:
+                        del _stats_cache[cache_key]
+            
+            background_tasks.add_task(backfill_library_data)
         
         # Filtri già applicati nella query MongoDB, manteniamo solo search che richiede testo
         filtered_entries = entries
