@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { resendVerification } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -12,16 +13,15 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const { login } = useAuth();
+  const toast = useToast();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
     setEmailNotVerified(false);
     setResendSuccess(false);
     setIsLoading(true);
@@ -35,7 +35,7 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
       if (errorMessage === 'EMAIL_NOT_VERIFIED') {
         setEmailNotVerified(true);
       } else {
-        setError(errorMessage);
+        toast.error(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -44,18 +44,18 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
 
   const handleResendVerification = async () => {
     if (!email) {
-      setError('Inserisci prima la tua email');
+      toast.error('Inserisci prima la tua email');
       return;
     }
 
     setResendingEmail(true);
-    setError(null);
 
     try {
       await resendVerification(email);
       setResendSuccess(true);
+      toast.success('Email di verifica inviata! Controlla la tua casella.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel reinvio email');
+      toast.error(err instanceof Error ? err.message : 'Errore nel reinvio email');
     } finally {
       setResendingEmail(false);
     }
@@ -70,8 +70,6 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-
           {emailNotVerified && (
             <div className="email-not-verified-warning">
               <p>📧 La tua email non è ancora verificata.</p>

@@ -18,6 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { parseOutlineSections, OutlineSection } from '../utils/parseOutline';
 import { updateOutline } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './OutlineEditor.css';
 
 interface OutlineEditorProps {
@@ -33,9 +34,9 @@ export default function OutlineEditor({
   onOutlineUpdated,
   onCancel,
 }: OutlineEditorProps) {
+  const toast = useToast();
   const [sections, setSections] = useState<OutlineSection[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
   const sensors = useSensors(
@@ -93,19 +94,18 @@ export default function OutlineEditor({
   const handleSave = async () => {
     // Valida
     if (sections.length === 0) {
-      setError('Deve esserci almeno un capitolo');
+      toast.error('Deve esserci almeno un capitolo');
       return;
     }
 
     for (let i = 0; i < sections.length; i++) {
       if (!sections[i].title || !sections[i].title.trim()) {
-        setError(`Il capitolo ${i + 1} deve avere un titolo`);
+        toast.error(`Il capitolo ${i + 1} deve avere un titolo`);
         return;
       }
     }
 
     setIsSaving(true);
-    setError(null);
 
     try {
       const response = await updateOutline(sessionId, sections);
@@ -113,8 +113,9 @@ export default function OutlineEditor({
       if (onOutlineUpdated) {
         onOutlineUpdated(response.outline_text);
       }
+      toast.success('Struttura salvata con successo!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel salvataggio');
+      toast.error(err instanceof Error ? err.message : 'Errore nel salvataggio');
     } finally {
       setIsSaving(false);
     }
@@ -125,7 +126,6 @@ export default function OutlineEditor({
     const parsed = parseOutlineSections(outlineText);
     setSections(parsed);
     setHasChanges(false);
-    setError(null);
     if (onCancel) {
       onCancel();
     }
@@ -140,7 +140,6 @@ export default function OutlineEditor({
         </p>
       </div>
 
-      {error && <div className="outline-editor-error">{error}</div>}
 
       <DndContext
         sensors={sensors}

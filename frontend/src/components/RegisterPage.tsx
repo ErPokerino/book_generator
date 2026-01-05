@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { register as registerApi } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './RegisterPage.css';
 
 interface RegisterPageProps {
@@ -13,19 +14,19 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  const toast = useToast();
 
   const validateForm = (): boolean => {
     if (password.length < 8) {
-      setError('La password deve essere di almeno 8 caratteri');
+      toast.error('La password deve essere di almeno 8 caratteri');
       return false;
     }
 
     if (password !== confirmPassword) {
-      setError('Le password non corrispondono');
+      toast.error('Le password non corrispondono');
       return false;
     }
 
@@ -34,7 +35,6 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (!validateForm()) {
       return;
@@ -47,9 +47,10 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
       if (result.requires_verification) {
         setRegisteredEmail(result.email);
         setRegistrationSuccess(true);
+        toast.success('Registrazione completata! Verifica la tua email.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore durante la registrazione');
+      toast.error(err instanceof Error ? err.message : 'Errore durante la registrazione');
     } finally {
       setIsLoading(false);
     }
@@ -102,8 +103,6 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-
           <div className="auth-field">
             <label htmlFor="name">Nome</label>
             <input

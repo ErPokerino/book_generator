@@ -34,8 +34,8 @@
 
 .plot-textarea:focus {
   outline: none;
-  border-color: var(--accent, #e94560);
-  box-shadow: 0 0 0 3px var(--accent-light, rgba(233, 69, 96, 0.1));
+  border-color: var(--accent, #c9485b);
+  box-shadow: 0 0 0 3px var(--accent-light, rgba(201, 72, 91, 0.1));
 }
 
 .plot-textarea:disabled {
@@ -45,7 +45,7 @@
 }
 
 .plot-textarea.error {
-  border-color: var(--accent, #e94560);
+  border-color: var(--accent, #c9485b);
 }
 
 .plot-expand-btn {
@@ -66,8 +66,8 @@
 
 .plot-expand-btn:hover:not(:disabled) {
   background: var(--surface-hover, #f1f5f9);
-  border-color: var(--accent, #e94560);
-  color: var(--accent, #e94560);
+  border-color: var(--accent, #c9485b);
+  color: var(--accent, #c9485b);
 }
 
 .plot-expand-btn:disabled {
@@ -101,7 +101,7 @@
 .error-message {
   display: block;
   margin-top: 0.5rem;
-  color: var(--accent, #e94560);
+  color: var(--accent, #c9485b);
   font-size: 0.875rem;
 }
 
@@ -214,8 +214,8 @@
 
 .plot-expanded-textarea:focus {
   outline: none;
-  border-color: var(--accent, #e94560);
-  box-shadow: 0 0 0 3px var(--accent-light, rgba(233, 69, 96, 0.1));
+  border-color: var(--accent, #c9485b);
+  box-shadow: 0 0 0 3px var(--accent-light, rgba(201, 72, 91, 0.1));
 }
 
 .plot-expanded-textarea:disabled {
@@ -236,7 +236,7 @@
 
 .plot-expanded-close-action-btn {
   padding: 0.625rem 1.25rem;
-  background: var(--accent, #e94560);
+  background: var(--accent, #c9485b);
   border: none;
   border-radius: var(--radius-md, 10px);
   color: white;

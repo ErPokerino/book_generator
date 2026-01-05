@@ -99,7 +99,7 @@
 .step-indicator-content.current .step-indicator-icon {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(233, 69, 96, 0.1);
+  box-shadow: 0 0 0 4px rgba(201, 72, 91, 0.1);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -110,10 +110,10 @@
 
 @keyframes pulse {
   0%, 100% {
-    box-shadow: 0 0 0 4px rgba(233, 69, 96, 0.1);
+    box-shadow: 0 0 0 4px rgba(201, 72, 91, 0.1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(233, 69, 96, 0.05);
+    box-shadow: 0 0 0 8px rgba(201, 72, 91, 0.05);
   }
 }
 

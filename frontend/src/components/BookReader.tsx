@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
 import { SkeletonBox, SkeletonText, SkeletonChapter } from './Skeleton';
+import { useToast } from '../hooks/useToast';
 import './BookReader.css';
 
 interface BookReaderProps {
@@ -9,6 +10,7 @@ interface BookReaderProps {
 }
 
 export default function BookReader({ sessionId, onClose }: BookReaderProps) {
+  const toast = useToast();
   const [book, setBook] = useState<BookResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,9 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
         // Usa URL diretto invece di scaricare come blob
         setCoverImageUrl(getCoverImageUrl(sessionId));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Errore nel caricamento del libro');
+        const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento del libro';
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }

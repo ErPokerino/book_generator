@@ -283,7 +283,7 @@
 }
 
 .toc-item.active {
-  background: linear-gradient(90deg, rgba(233, 69, 96, 0.1), transparent);
+  background: linear-gradient(90deg, rgba(201, 72, 91, 0.1), transparent);
   border-left: 3px solid var(--accent-color);
 }
 

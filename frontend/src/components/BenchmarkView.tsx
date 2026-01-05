@@ -1,13 +1,14 @@
 import { useState, useRef } from 'react';
 import { analyzeExternalPdf, LiteraryCritique } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './BenchmarkView.css';
 
 export default function BenchmarkView() {
+  const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState<string>('');
   const [author, setAuthor] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [critique, setCritique] = useState<LiteraryCritique | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,18 +23,17 @@ export default function BenchmarkView() {
 
     // Validazione file
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
-      setError('Il file deve essere un PDF (.pdf)');
+      toast.error('Il file deve essere un PDF (.pdf)');
       setFile(null);
       return;
     }
 
     if (selectedFile.size > MAX_FILE_SIZE) {
-      setError(`File troppo grande. Dimensione massima: ${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB`);
+      toast.error(`File troppo grande. Dimensione massima: ${(MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB`);
       setFile(null);
       return;
     }
 
-    setError(null);
     setFile(selectedFile);
     // Suggerisci titolo dal nome file
     if (!title && selectedFile.name) {
@@ -46,13 +46,14 @@ export default function BenchmarkView() {
     e.preventDefault();
     
     if (!file) {
-      setError('Seleziona un file PDF');
+      toast.error('Seleziona un file PDF');
       return;
     }
 
     setLoading(true);
-    setError(null);
     setCritique(null);
+    
+    const loadingToast = toast.loading('Analisi PDF in corso...');
 
     try {
       // Timeout di 10 minuti (600 secondi) per l'analisi PDF
@@ -73,9 +74,12 @@ export default function BenchmarkView() {
       ]);
       
       setCritique(result);
+      toast.dismiss(loadingToast);
+      toast.success('Analisi completata con successo!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore durante l\'analisi del PDF';
-      setError(errorMessage);
+      toast.dismiss(loadingToast);
+      toast.error(errorMessage);
       console.error('Errore nell\'analisi PDF:', err);
     } finally {
       // Sempre disabilita il loading, anche in caso di errore
@@ -87,7 +91,6 @@ export default function BenchmarkView() {
     setFile(null);
     setTitle('');
     setAuthor('');
-    setError(null);
     setCritique(null);
     // Reset file input
     if (fileInputRef.current) {
@@ -174,11 +177,6 @@ export default function BenchmarkView() {
             />
           </div>
 
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
 
           <div className="form-actions">
             <button

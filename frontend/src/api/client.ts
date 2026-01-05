@@ -566,22 +566,30 @@ export async function resumeBookGeneration(sessionId: string): Promise<BookGener
 }
 
 export async function getBookProgress(sessionId: string): Promise<BookProgress> {
-  const response = await fetch(`${API_BASE}/book/progress/${sessionId}`);
-  
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE}/book/progress/${sessionId}`);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    // DEBUG: Log per verificare la risposta raw del backend
+    console.log('[API] getBookProgress response:', {
+      estimated_time_minutes: data.estimated_time_minutes,
+      estimated_time_confidence: data.estimated_time_confidence,
+      current_step: data.current_step,
+      total_steps: data.total_steps
+    });
+    return data;
+  } catch (err) {
+    // fetch() in browser lancia spesso TypeError su errori di rete (es. backend down / riavvio / proxy)
+    if (err instanceof TypeError) {
+      throw new Error('Connessione al backend non disponibile (riavvio in corso?). Riprovo tra poco.');
+    }
+    throw err;
   }
-  
-  const data = await response.json();
-  // DEBUG: Log per verificare la risposta raw del backend
-  console.log('[API] getBookProgress response:', {
-    estimated_time_minutes: data.estimated_time_minutes,
-    estimated_time_confidence: data.estimated_time_confidence,
-    current_step: data.current_step,
-    total_steps: data.total_steps
-  });
-  return data;
 }
 
 export interface BookResponse {
@@ -1063,51 +1071,65 @@ export async function analyzeExternalPdf(
 // ===== Auth API Functions =====
 
 export async function login(credentials: LoginRequest): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include', // Include cookies for session management
-    body: JSON.stringify(credentials),
-  });
+  try {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Include cookies for session management
+      body: JSON.stringify(credentials),
+    });
 
-  if (!response.ok) {
-    let errorDetail = 'Email o password non corretti';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
+    if (!response.ok) {
+      let errorDetail = 'Email o password non corretti';
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // Se non è JSON, usa il messaggio di default
+      }
+      throw new Error(errorDetail);
     }
-    throw new Error(errorDetail);
-  }
 
-  return response.json();
+    return response.json();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
+    }
+    throw err;
+  }
 }
 
 export async function register(userData: RegisterRequest): Promise<RegisterResponse> {
-  const response = await fetch(`${API_BASE}/auth/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(userData),
-  });
+  try {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(userData),
+    });
 
-  if (!response.ok) {
-    let errorDetail = 'Errore nella registrazione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
+    if (!response.ok) {
+      let errorDetail = 'Errore nella registrazione';
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // Se non è JSON, usa il messaggio di default
+      }
+      throw new Error(errorDetail);
     }
-    throw new Error(errorDetail);
-  }
 
-  return response.json();
+    return response.json();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
+    }
+    throw err;
+  }
 }
 
 export async function checkVerificationToken(token: string): Promise<CheckVerificationTokenResponse> {
@@ -1155,27 +1177,34 @@ export async function verifyEmail(token: string): Promise<VerifyEmailResponse> {
 }
 
 export async function resendVerification(email: string): Promise<ResendVerificationResponse> {
-  const response = await fetch(`${API_BASE}/auth/resend-verification`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ email }),
-  });
+  try {
+    const response = await fetch(`${API_BASE}/auth/resend-verification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
 
-  if (!response.ok) {
-    let errorDetail = 'Errore nel reinvio email';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
+    if (!response.ok) {
+      let errorDetail = 'Errore nel reinvio email';
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch {
+        // Se non è JSON, usa il messaggio di default
+      }
+      throw new Error(errorDetail);
     }
-    throw new Error(errorDetail);
-  }
 
-  return response.json();
+    return response.json();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
+    }
+    throw err;
+  }
 }
 
 export async function logout(): Promise<{ success: boolean; message: string }> {

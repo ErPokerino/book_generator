@@ -33,7 +33,6 @@ fields:
     required: false
     description: "Cornice narrativa che definisce aspettative e tipo di conflitto"
     options:
-      - value: "letterario"
       - value: "storico"
       - value: "fantascienza"
       - value: "fantasy"
@@ -43,7 +42,6 @@ fields:
       - value: "romantico"
       - value: "formazione"
       - value: "avventura"
-      - value: "romantico"
 
   - id: subgenre
     label: "Sottogenere"
@@ -54,7 +52,6 @@ fields:
       - value: "hard sci-fi"
       - value: "soft sci-fi"
       - value: "noir"
-      - value: "cozy"
       - value: "psicologico"
       - value: "epico"
       - value: "epistolare"
@@ -222,15 +219,10 @@ fields:
     description: "Stile visivo per la copertina del libro"
     options:
       - value: "illustrato"
-        label: "Illustrato – Disegni artistici o pittorici, orientato all'atmosfera"
       - value: "fotografico"
-        label: "Fotografico – Uso di foto reali o rielaborate, effetto realistico"
       - value: "tipografico"
-        label: "Tipografico / Minimal – Centralità del testo e della composizione grafica"
       - value: "simbolico"
-        label: "Simbolico – Un'immagine o segno metaforico che rappresenta il tema"
       - value: "cartoon"
-        label: "Cartoon – Illustrazione stilizzata"
 
   - id: user_name
     label: "Nome Autore"

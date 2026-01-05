@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
+import ProgressBar from './ui/ProgressBar';
+import FadeIn from './ui/FadeIn';
+import { useToast } from '../hooks/useToast';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -10,8 +14,10 @@ interface WritingStepProps {
 }
 
 export default function WritingStep({ sessionId, onComplete, onNewBook }: WritingStepProps) {
+  const toast = useToast();
   const [progress, setProgress] = useState<BookProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [fatalError, setFatalError] = useState<string | null>(null);
+  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   const [isPolling, setIsPolling] = useState(true);
   const [isRetryingCritique, setIsRetryingCritique] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
@@ -22,6 +28,8 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
     message: '',
     variant: 'error',
   });
+  const latestProgressRef = useRef<BookProgress | null>(null);
+  const consecutiveFailuresRef = useRef(0);
 
   const getScoreColor = (score: number): string => {
     // Score da 0 a 10
@@ -67,6 +75,9 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           is_complete: currentProgress.is_complete
         });
         setProgress(currentProgress);
+        latestProgressRef.current = currentProgress;
+        consecutiveFailuresRef.current = 0;
+        setConsecutiveFailures(0);
 
         const critiqueStatus = currentProgress.critique_status;
         const isCritiqueDone = critiqueStatus === 'completed' && !!currentProgress.critique;
@@ -90,40 +101,72 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Errore nel recupero del progresso');
-        setIsPolling(false);
+        const msg = err instanceof Error ? err.message : 'Errore nel recupero del progresso';
+        // Non bloccare tutto al primo glitch: spesso è un micro-restart del backend o un timeout di rete.
+        const next = consecutiveFailuresRef.current + 1;
+        consecutiveFailuresRef.current = next;
+        setConsecutiveFailures(next);
+        
+        // Mostra toast solo ogni 3 tentativi per evitare spam
+        if (next % 3 === 1) {
+          toast.error(`Connessione instabile (tentativo ${next}/10). Riprovo...`);
+        }
+        
+        // Dopo molti tentativi falliti consecutivi, consideralo fatale.
+        if (next >= 10) {
+          setFatalError(msg);
+          setIsPolling(false);
+        }
       }
     };
 
-    // Polling adattivo basato sulla config e sullo stato
-    const getPollingInterval = (): number => {
-      if (!appConfig) {
-        return 2000; // Default
-      }
-      
-      // Se in attesa critica, polling più lento
-      if (progress?.is_complete && progress?.critique_status === 'pending') {
+    // Polling adattivo + backoff su errori di rete
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const getBasePollingInterval = (current: BookProgress | null): number => {
+      if (!appConfig) return 2000;
+      if (current?.is_complete && current?.critique_status === 'pending') {
         return appConfig.frontend.polling_interval_critique || 5000;
       }
-      
       return appConfig.frontend.polling_interval || 2000;
     };
 
-    const pollingInterval = getPollingInterval();
-    const intervalId = setInterval(pollProgress, pollingInterval);
-    
-    // Prima chiamata immediata
-    pollProgress();
+    const scheduleNext = (delayMs: number) => {
+      if (cancelled) return;
+      timeoutId = window.setTimeout(async () => {
+        await runOnce();
+      }, delayMs);
+    };
 
-    return () => clearInterval(intervalId);
-  }, [sessionId, isPolling, onComplete, appConfig, progress]);
+    const runOnce = async () => {
+      if (cancelled) return;
+      await pollProgress();
 
-  if (error) {
+      // Se il polling è stato fermato dentro pollProgress (complete/errore/paused), non schedulare.
+      if (cancelled) return;
+      // Usa l'ultimo progress noto (se presente) per scegliere intervallo base.
+      const base = getBasePollingInterval(latestProgressRef.current);
+      // Backoff esponenziale su errori consecutivi (max 15s)
+      const failures = consecutiveFailuresRef.current;
+      const backoff = failures > 0 ? Math.min(15000, base * Math.pow(2, Math.min(failures, 3))) : base;
+      scheduleNext(backoff);
+    };
+
+    runOnce();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [sessionId, isPolling, onComplete, appConfig]);
+
+  if (fatalError) {
     return (
       <div className="writing-step">
         <div className="error-container">
           <h3>Errore durante la scrittura</h3>
-          <p>{error}</p>
+          <p>{fatalError}</p>
         </div>
       </div>
     );
@@ -162,10 +205,11 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const critiqueFailed = critiqueStatus === 'failed';
   const includeCritiqueStep = progress.is_complete;
 
-  // Progress bar: aggiunge 1 step per la critica solo dopo completamento capitoli.
-  // Finché la critica non è pronta, NON consideriamo completato lo step extra.
-  const totalSteps = progress.total_steps + (includeCritiqueStep ? 1 : 0);
-  const currentStep = progress.current_step + (includeCritiqueStep && hasCritique ? 1 : 0);
+  // Progress bar: i passi sono solo i capitoli/sezioni.
+  // La critica è una fase separata: mentre è in corso, mostriamo N/N e la clessidra.
+  void includeCritiqueStep; // mantenuto per compatibilità con logica UI esistente
+  const totalSteps = progress.total_steps;
+  const currentStep = Math.min(progress.current_step, totalSteps);
 
   const progressPercentage = totalSteps > 0 
     ? Math.round((currentStep / totalSteps) * 100)
@@ -198,18 +242,27 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           </span>
         </div>
         
-        <div className="progress-bar-container">
-          <div 
-            className="progress-bar-fill"
-            style={{ width: `${progressPercentage}%` }}
-          />
-        </div>
-        {critiqueInProgress && (
-          <div className="critique-loading-indicator">
-            <span className="loading-spinner">⏳</span>
-            <span>Generazione valutazione critica...</span>
-          </div>
-        )}
+        <ProgressBar percentage={progressPercentage} />
+        <AnimatePresence>
+          {critiqueInProgress && (
+            <motion.div
+              className="critique-loading-indicator"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+            >
+              <motion.span
+                className="loading-spinner"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+              >
+                ⏳
+              </motion.span>
+              <span>Generazione valutazione critica...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Stima tempo rimanente - mostra sempre se disponibile e libro non completato */}
         {!progress.is_complete && progress.total_steps > 0 && (
@@ -278,13 +331,14 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
             onClick={async () => {
               try {
                 setIsResuming(true);
-                setError(null);
+                setFatalError(null);
                 await resumeBookGeneration(sessionId);
+                toast.success('Generazione ripresa con successo');
                 // Riavvia il polling
                 setIsPolling(true);
               } catch (e) {
                 const errorMsg = e instanceof Error ? e.message : 'Errore sconosciuto';
-                setError(`Errore nella ripresa: ${errorMsg}`);
+                setFatalError(`Errore nella ripresa: ${errorMsg}`);
                 setAlertModal({
                   isOpen: true,
                   title: 'Errore',
@@ -308,28 +362,49 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
       )}
 
       {progress.completed_chapters.length > 0 && (
-        <div className="completed-chapters">
-          <h3>Capitoli Completati ({progress.completed_chapters.length})</h3>
-          <div className="chapters-list">
-            {progress.completed_chapters.map((chapter, index) => (
-              <div key={index} className="chapter-item">
-                <div className="chapter-header">
-                  <h4>{chapter.title}</h4>
-                  {chapter.page_count > 0 && (
-                    <span className="chapter-pages">{chapter.page_count} pagine</span>
-                  )}
-                </div>
-                <p className="chapter-preview">
-                  {chapter.content.substring(0, 200)}...
-                </p>
-              </div>
-            ))}
+        <FadeIn>
+          <div className="completed-chapters">
+            <h3>Capitoli Completati ({progress.completed_chapters.length})</h3>
+            <div className="chapters-list">
+              <AnimatePresence mode="popLayout">
+                {progress.completed_chapters.map((chapter, index) => (
+                  <motion.div
+                    key={`${chapter.title}-${index}`}
+                    className="chapter-item"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ 
+                      duration: 0.4,
+                      delay: index * 0.05
+                    }}
+                    layout
+                  >
+                    <div className="chapter-header">
+                      <h4>{chapter.title}</h4>
+                      {chapter.page_count > 0 && (
+                        <span className="chapter-pages">{chapter.page_count} pagine</span>
+                      )}
+                    </div>
+                    <p className="chapter-preview">
+                      {chapter.content.substring(0, 200)}...
+                    </p>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </FadeIn>
       )}
 
-      {progress.is_complete && (
-        <div className="completion-message">
+      <AnimatePresence>
+        {progress.is_complete && (
+          <motion.div
+            className="completion-message"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
           {hasCritique ? (
             <>
               <h3>🎉 Scrittura Completata!</h3>
@@ -411,8 +486,9 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
               )}
             </div>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AlertModal
         isOpen={alertModal.isOpen}

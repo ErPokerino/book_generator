@@ -23,10 +23,10 @@
   margin: 0 auto;
   padding: 2.5rem 2rem;
   animation: fadeIn 0.4s ease-out forwards;
-  width: 100%; /* Assicura che occupi tutto lo spazio disponibile */
-  min-height: 400px; /* Assicura altezza minima */
-  overflow-y: visible; /* Permette scroll del contenuto */
-  overflow-x: hidden; /* Previene scroll orizzontale */
+  width: 100%;
+  min-height: 400px;
+  overflow-y: visible;
+  overflow-x: hidden;
 }
 
 .dynamic-form-layout .step-indicator-wrapper {
@@ -89,12 +89,12 @@
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  width: 100%; /* Assicura che il form occupi tutto lo spazio */
-  min-width: 0; /* Previene overflow */
-  opacity: 1 !important; /* Forza visibilità */
-  visibility: visible !important; /* Forza visibilità */
-  position: relative; /* Assicura posizionamento normale */
-  z-index: 1; /* Assicura che sia sopra altri elementi */
+  width: 100%;
+  min-width: 0;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative;
+  z-index: 1;
 }
 
 /* Form Fields Sections */
@@ -130,8 +130,8 @@
 
 .advanced-toggle:hover {
   background: var(--surface-hover, #f1f5f9);
-  border-color: var(--accent, #e94560);
-  color: var(--accent, #e94560);
+  border-color: var(--accent, #c9485b);
+  color: var(--accent, #c9485b);
 }
 
 .advanced-toggle span:first-child {
@@ -271,7 +271,7 @@
 
 .llm-model-chip.selected:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(233, 69, 96, 0.18);
+  box-shadow: 0 6px 18px rgba(201, 72, 91, 0.18);
 }
 
 @media (max-width: 520px) {
@@ -343,6 +343,7 @@
     background-color var(--transition-fast),
     transform var(--transition-fast),
     box-shadow var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(201, 72, 91, 0.2);
 }
 
 .submit-button:hover:not(:disabled) {
@@ -579,6 +580,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(201, 72, 91, 0.2);
   }
 
 .start-writing-button:hover:not(:disabled) {

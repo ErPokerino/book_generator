@@ -202,8 +202,8 @@ export default function Dashboard({ stats }: DashboardProps) {
                 />
                 <defs>
                   <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#e94560" />
-                    <stop offset="100%" stopColor="#e94560" stopOpacity={0.7} />
+                    <stop offset="0%" stopColor="#c9485b" />
+                    <stop offset="100%" stopColor="#c9485b" stopOpacity={0.7} />
                   </linearGradient>
                 </defs>
               </BarChart>

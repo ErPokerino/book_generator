@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getLibrary, 
   LibraryEntry, 
@@ -11,6 +12,7 @@ import BookCard from './BookCard';
 import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
 import { SkeletonCard } from './Skeleton';
+import { useToast } from '../hooks/useToast';
 import './LibraryView.css';
 
 interface LibraryViewProps {
@@ -19,12 +21,12 @@ interface LibraryViewProps {
 }
 
 export default function LibraryView({ onReadBook, onNavigateToNewBook }: LibraryViewProps) {
+  const toast = useToast();
   const [books, setBooks] = useState<LibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
@@ -62,7 +64,6 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       } else {
         setLoadingMore(true);
       }
-      setError(null);
       const filtersToUse = { ...(currentFilters ?? filtersRef.current) };
       
       // Per il primo caricamento o refresh, reset paginazione
@@ -106,7 +107,7 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       setHasMore(libraryResponse.has_more ?? false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
-      setError(errorMessage);
+      toast.error(errorMessage);
       console.error('Errore nel caricamento libreria:', err);
       // Assicuriamoci di avere valori default anche in caso di errore
       if (!append) {
@@ -247,17 +248,6 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
     );
   }
 
-  if (error) {
-    return (
-      <div className="library-view">
-        <div className="error-message">
-          <p>Errore: {error}</p>
-          <button onClick={loadLibrary}>Riprova</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="library-view">
       <FilterBar
@@ -282,19 +272,42 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
         </div>
       ) : (
         <>
-          <div className="books-grid">
-            {books.map(book => (
-              <BookCard
-                key={book.session_id}
-                book={book}
-                onDelete={handleDelete}
-                onContinue={handleContinue}
-                onResume={handleResume}
-                onRead={book.status === 'complete' ? onReadBook : undefined}
-                onShowCritique={handleShowCritique}
-              />
-            ))}
-          </div>
+          <motion.div 
+            className="books-grid"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: {
+                transition: {
+                  staggerChildren: 0.05
+                }
+              }
+            }}
+          >
+            <AnimatePresence mode="popLayout">
+              {books.map(book => (
+                <motion.div
+                  key={book.session_id}
+                  variants={{
+                    hidden: { opacity: 0, y: 20 },
+                    visible: { opacity: 1, y: 0 }
+                  }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  layout
+                >
+                  <BookCard
+                    book={book}
+                    onDelete={handleDelete}
+                    onContinue={handleContinue}
+                    onResume={handleResume}
+                    onRead={book.status === 'complete' ? onReadBook : undefined}
+                    onShowCritique={handleShowCritique}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
           
           {/* Elemento sentinella per infinite scroll */}
           <div ref={loadMoreRef} className="load-more-sentinel">

@@ -8,16 +8,18 @@
   align-items: center;
   padding: 1rem 2.5rem;
   background: var(--primary-gradient);
-  border-bottom: none;
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 
     0 4px 20px rgba(26, 26, 46, 0.2),
     0 1px 0 rgba(255, 255, 255, 0.05) inset;
   position: sticky;
   top: 0;
   z-index: 100;
-  gap: 2rem; /* Spaziatura tra elementi per evitare sovrapposizioni */
-  min-width: 0; /* Permette restringimento flex items */
-  width: 100%; /* Assicura larghezza completa */
+  gap: 2rem;
+  min-width: 0;
+  width: 100%;
 }
 
 /* Brand */
@@ -37,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  white-space: nowrap; /* Previene wrapping del testo */
+  white-space: nowrap;
 }
 
 /* Navigation Links Container */
@@ -52,8 +54,8 @@
 .nav-link {
   padding: 0.65rem 1.5rem;
   background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-full);
   color: rgba(255, 255, 255, 0.9);
@@ -151,8 +153,8 @@
 
 .nav-user-badge {
   padding: 0.25rem 0.5rem;
-  background: rgba(233, 69, 96, 0.3);
-  border: 1px solid rgba(233, 69, 96, 0.5);
+  background: rgba(201, 72, 91, 0.3);
+  border: 1px solid rgba(201, 72, 91, 0.5);
   border-radius: var(--radius-sm);
   color: white;
   font-size: 0.75rem;

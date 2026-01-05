@@ -58,16 +58,23 @@ cd backend
 uv sync
 
 # Avvia il server
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8000
 ```
 
 Il backend sarà disponibile su `http://localhost:8000`
 
-> **Note per Windows PowerShell**: Se usi PowerShell, esegui i comandi separatamente invece di usare `&&`:
+> Nota: durante la generazione di PDF/cover il backend può scrivere file in `backend/books/` e `backend/sessions/`.
+> Se usi `--reload` e watchi tutta `backend/`, queste scritture possono triggerare reload e interrompere richieste in corso (nel browser appare “Failed to fetch”).
+> Per test “lunghi” puoi anche avviare senza `--reload`.
+
+> **Note per Windows PowerShell**: Se usi PowerShell, usa `;` invece di `&&` per concatenare comandi, oppure eseguili separatamente:
 > ```powershell
+> # Opzione 1: Usa ; come separatore
+> cd backend; uv run uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8000
+> 
+> # Opzione 2: Esegui i comandi separatamente
 > cd backend
-> uv sync
-> uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+> uv run uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8000
 > ```
 
 ### 3. Frontend (React)
@@ -82,6 +89,11 @@ npm run dev
 ```
 
 Il frontend sarà disponibile su `http://localhost:5173`
+
+> **Note per Windows PowerShell**: Usa `;` invece di `&&` per concatenare comandi:
+> ```powershell
+> cd frontend; npm run dev
+> ```
 
 ### 4. MongoDB Locale (Opzionale)
 

@@ -132,7 +132,7 @@
 .section-title-input:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
+  box-shadow: 0 0 0 3px rgba(201, 72, 91, 0.1);
 }
 
 .section-description-input {
@@ -152,7 +152,7 @@
 .section-description-input:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
+  box-shadow: 0 0 0 3px rgba(201, 72, 91, 0.1);
 }
 
 .outline-editor-footer {

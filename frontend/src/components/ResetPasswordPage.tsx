@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { resetPassword } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './ForgotPasswordPage.css'; // Riusa gli stessi stili
 
 interface ResetPasswordPageProps {
@@ -13,21 +14,20 @@ export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const toast = useToast();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     // Validazione
     if (password.length < 6) {
-      setError('La password deve avere almeno 6 caratteri');
+      toast.error('La password deve avere almeno 6 caratteri');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Le password non coincidono');
+      toast.error('Le password non coincidono');
       return;
     }
 
@@ -35,9 +35,10 @@ export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess 
 
     try {
       await resetPassword(token, password);
+      toast.success('Password aggiornata con successo!');
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel reset della password');
+      toast.error(err instanceof Error ? err.message : 'Errore nel reset della password');
     } finally {
       setIsLoading(false);
     }
@@ -52,8 +53,6 @@ export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess 
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-
           <p className="auth-description">
             Inserisci la tua nuova password.
           </p>

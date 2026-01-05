@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import toast from 'react-hot-toast';
 import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, SessionRestoreResponse } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
@@ -20,9 +21,9 @@ const SESSION_STORAGE_KEY = 'current_book_session_id';
 
 export default function DynamicForm() {
   const { user } = useAuth();
+  const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState<SubmissionResponse | null>(null);
@@ -185,7 +186,6 @@ export default function DynamicForm() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      setError(null);
       
       // Timeout di 30 secondi per la chiamata API
       const timeoutPromise = new Promise<never>((_, reject) => 
@@ -219,7 +219,7 @@ export default function DynamicForm() {
       setFormData(initialData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della configurazione';
-      setError(errorMessage);
+      toast.error(errorMessage);
       console.error('Errore nel caricamento config:', err);
     } finally {
       // Sempre disabilita il loading, anche in caso di errore
@@ -243,7 +243,6 @@ export default function DynamicForm() {
     setValidatedDraft(null);
     setOutline(null);
     setIsStartingWriting(false);
-    setError(null);
     
     // Rimuovi sessionId da localStorage
     localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -318,7 +317,6 @@ export default function DynamicForm() {
 
     console.log('[DynamicForm] Inizio submit form');
     setIsSubmitting(true);
-    setError(null);
     setSubmitted(null);
     setQuestions(null);
 
@@ -384,13 +382,12 @@ export default function DynamicForm() {
         setIsGeneratingQuestions(false);
         const errorMessage = err instanceof Error ? err.message : 'Errore nella generazione delle domande';
         toast.error(errorMessage);
-        setError(errorMessage);
         // Non rilanciare l'errore qui, così l'utente vede il messaggio
       }
     } catch (err) {
       console.error('[DynamicForm] Errore nell\'invio del form:', err);
       const errorMessage = err instanceof Error ? err.message : 'Errore nell\'invio del form';
-      setError(errorMessage);
+      toast.error(errorMessage);
       setIsGeneratingQuestions(false);
     } finally {
       console.log('[DynamicForm] Submit completato, reset isSubmitting');
@@ -654,10 +651,10 @@ export default function DynamicForm() {
     return <div className="loading">Caricamento configurazione...</div>;
   }
 
-  if (error && !config) {
+  if (!config && !loading) {
     return (
       <div className="error-container">
-        <p>Errore: {error}</p>
+        <p>Impossibile caricare la configurazione. Verifica che il backend sia in esecuzione.</p>
         <button onClick={loadConfig}>Riprova</button>
       </div>
     );
@@ -782,8 +779,6 @@ export default function DynamicForm() {
             <h2>Struttura del libro pronta!</h2>
             <p>{submitted.message}</p>
             
-            {error && <div className="error-banner">{error}</div>}
-            
             <div className="submission-summary">
           <div className="summary-section">
             <div className="summary-section-header">
@@ -902,9 +897,10 @@ export default function DynamicForm() {
                 const response = await startBookGeneration({ session_id: sessionId });
                 console.log('[DEBUG] Risposta:', response);
                 setCurrentStep('writing');
+                toast.success('Scrittura del libro avviata con successo!');
               } catch (err) {
                 console.error('[DEBUG] Errore:', err);
-                setError(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
+                toast.error(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
               } finally {
                 setIsStartingWriting(false);
               }
@@ -990,9 +986,7 @@ export default function DynamicForm() {
           <h1>NarrAI</h1>
           <p className="subtitle">La tua storia, generata con l'AI</p>
           
-          {error && <div className="error-banner">{error}</div>}
-          
-          {!config && !loading && !error && (
+          {!config && !loading && (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
               <p>Caricamento configurazione in corso...</p>
             </div>

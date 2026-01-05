@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { forgotPassword } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './ForgotPasswordPage.css';
 
 interface ForgotPasswordPageProps {
@@ -13,15 +14,14 @@ const isDevelopment = import.meta.env.DEV;
 
 export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToReset }: ForgotPasswordPageProps) {
   const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState('');
+  const toast = useToast();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
     setIsLoading(true);
 
     try {
@@ -29,6 +29,7 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
       const response = await forgotPassword(email);
       console.log('[ForgotPassword] Risposta:', response);
       setIsSubmitted(true);
+      toast.success('Email inviata! Controlla la tua casella di posta.');
       
       // In dev mode, il backend restituisce il token nella risposta
       if (isDevelopment && response.token) {
@@ -36,7 +37,7 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
       }
     } catch (err) {
       console.error('[ForgotPassword] Errore:', err);
-      setError(err instanceof Error ? err.message : 'Errore nell\'invio della richiesta');
+      toast.error(err instanceof Error ? err.message : 'Errore nell\'invio della richiesta');
     } finally {
       setIsLoading(false);
     }
@@ -126,8 +127,6 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-
           <p className="auth-description">
             Inserisci la tua email e {isDevelopment 
               ? 'riceverai un token per reimpostare la password.' 

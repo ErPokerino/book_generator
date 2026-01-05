@@ -3,6 +3,7 @@ import { getLibraryStats, getAdvancedStats, getUsersStats, LibraryStats, Advance
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
 import { SkeletonBox, SkeletonText, SkeletonChart } from './Skeleton';
+import { useToast } from '../hooks/useToast';
 import {
   LineChart,
   Line,
@@ -16,17 +17,16 @@ import {
 import './AnalyticsView.css';
 
 export default function AnalyticsView() {
+  const toast = useToast();
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [advancedStats, setAdvancedStats] = useState<AdvancedStats | null>(null);
   const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
         setLoading(true);
-        setError(null);
         const [statsData, advancedData, usersData] = await Promise.all([
           getLibraryStats(),
           getAdvancedStats(),
@@ -36,14 +36,14 @@ export default function AnalyticsView() {
         setAdvancedStats(advancedData);
         setUsersStats(usersData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Errore nel caricamento delle statistiche');
+        toast.error(err instanceof Error ? err.message : 'Errore nel caricamento delle statistiche');
       } finally {
         setLoading(false);
       }
     };
 
     loadStats();
-  }, []);
+  }, [toast]);
 
   // Formatta date per i grafici temporali
   const formatBooksOverTimeData = () => {
