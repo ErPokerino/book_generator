@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import toast, { Toast } from 'react-hot-toast';
 
 interface ToastOptions {
@@ -6,7 +7,7 @@ interface ToastOptions {
 }
 
 export const useToast = () => {
-  return {
+  return useMemo(() => ({
     success: (message: string, options?: ToastOptions) => {
       return toast.success(message, {
         duration: options?.duration ?? 3000,
@@ -114,5 +115,5 @@ export const useToast = () => {
         }
       );
     },
-  };
+  }), []); // Array vuoto = stesso oggetto per tutta la vita del componente
 };

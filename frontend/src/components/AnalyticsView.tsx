@@ -43,7 +43,8 @@ export default function AnalyticsView() {
     };
 
     loadStats();
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Esegui solo al mount
 
   // Formatta date per i grafici temporali
   const formatBooksOverTimeData = () => {
