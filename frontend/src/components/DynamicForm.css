@@ -227,6 +227,59 @@
   box-sizing: border-box;
 }
 
+.llm-model-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.llm-model-chip {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition:
+    transform var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.llm-model-chip:hover {
+  border-color: var(--text-muted);
+  transform: translateY(-1px);
+}
+
+.llm-model-chip:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.llm-model-chip.selected {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.llm-model-chip.selected:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(233, 69, 96, 0.18);
+}
+
+@media (max-width: 520px) {
+  .llm-model-chips {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-field select,
 .form-field input[type="text"] {
   min-height: 3rem;

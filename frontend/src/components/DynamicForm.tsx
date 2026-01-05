@@ -270,6 +270,29 @@ export default function DynamicForm() {
     }
   };
 
+  // FE-only: nel form "Nuovo libro" mostriamo solo Gemini 3.
+  // Se per qualche motivo (restore/legacy) è selezionato un 2.5, forziamo un Gemini 3.
+  useEffect(() => {
+    if (currentStep !== 'form') return;
+    if (!config?.fields) return;
+
+    const current = formData.llm_model;
+    if (!current) return;
+    if (current.startsWith('gemini-3-')) return;
+
+    const llmField = config.fields.find(f => f.id === 'llm_model');
+    const options = llmField?.options ?? [];
+    const preferred =
+      options.find(o => String(o.value) === 'gemini-3-flash')?.value ??
+      options.find(o => String(o.value).startsWith('gemini-3-'))?.value ??
+      'gemini-3-flash';
+
+    const next = String(preferred);
+    if (next === current) return;
+
+    setFormData(prev => ({ ...prev, llm_model: next }));
+  }, [currentStep, config, formData.llm_model]);
+
   const validateForm = (): boolean => {
     if (!config) return false;
     
@@ -480,6 +503,77 @@ export default function DynamicForm() {
     const fieldValue = formData[field.id] || '';
 
     if (field.type === 'select') {
+      // Modello LLM: UI a chip (solo Gemini 3)
+      if (field.id === 'llm_model') {
+        const options = (field.options ?? []).filter(opt => {
+          const value = String(opt.value ?? '');
+          return value.startsWith('gemini-3-');
+        });
+
+        // Fallback: se non ci sono opzioni (config inattesa), usa select classico.
+        if (options.length === 0) {
+          return (
+            <div key={field.id} className="form-field">
+              <label htmlFor={field.id}>
+                {field.label}
+                {field.required && <span className="required"> *</span>}
+                {renderInfoIcon(field.description)}
+              </label>
+              <select
+                id={field.id}
+                value={fieldValue}
+                onChange={(e) => handleChange(field.id, e.target.value)}
+                className={fieldError ? 'error' : ''}
+              >
+                {field.options?.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label || opt.value}
+                  </option>
+                ))}
+              </select>
+              {fieldError && <span className="error-message">{fieldError}</span>}
+            </div>
+          );
+        }
+
+        const labelId = `${field.id}-label`;
+
+        return (
+          <div key={field.id} className="form-field">
+            <label id={labelId}>
+              {field.label}
+              {field.required && <span className="required"> *</span>}
+              {renderInfoIcon(field.description)}
+            </label>
+
+            <div
+              className={`llm-model-chips ${fieldError ? 'error' : ''}`}
+              role="radiogroup"
+              aria-labelledby={labelId}
+            >
+              {options.map((opt) => {
+                const value = String(opt.value ?? '');
+                const selected = value === fieldValue;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`llm-model-chip ${selected ? 'selected' : ''}`}
+                    onClick={() => handleChange(field.id, value)}
+                    aria-pressed={selected}
+                    title={value}
+                  >
+                    {opt.label || value}
+                  </button>
+                );
+              })}
+            </div>
+
+            {fieldError && <span className="error-message">{fieldError}</span>}
+          </div>
+        );
+      }
+
       return (
         <div key={field.id} className="form-field">
           <label htmlFor={field.id}>
@@ -894,7 +988,7 @@ export default function DynamicForm() {
       <div className="dynamic-form-main-content">
         <div className="dynamic-form-container">
           <h1>NarrAI</h1>
-          <p className="subtitle">La tua storia, generata dall'AI</p>
+          <p className="subtitle">La tua storia, generata con l'AI</p>
           
           {error && <div className="error-banner">{error}</div>}
           
