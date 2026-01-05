@@ -92,17 +92,6 @@ export default function AnalyticsView() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="analytics-view">
-        <div className="error-message">
-          <p>Errore: {error}</p>
-          <button onClick={() => window.location.reload()}>Ricarica</button>
-        </div>
-      </div>
-    );
-  }
-
   if (!stats) {
     return (
       <div className="analytics-view">
