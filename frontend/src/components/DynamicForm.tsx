@@ -504,6 +504,82 @@ export default function DynamicForm() {
     const fieldValue = formData[field.id] || '';
 
     if (field.type === 'select') {
+      // Stile Copertina: UI a card
+      if (field.id === 'cover_style') {
+        const coverStyleConfig: Record<string, { name: string; icon: string; description: string }> = {
+          'illustrato': {
+            name: 'Illustrato',
+            icon: '🎨',
+            description: 'Disegni artistici e pittorici'
+          },
+          'fotografico': {
+            name: 'Fotografico',
+            icon: '📷',
+            description: 'Foto reali o rielaborate'
+          },
+          'tipografico': {
+            name: 'Tipografico',
+            icon: 'Aa',
+            description: 'Focus su testo e composizione'
+          },
+          'simbolico': {
+            name: 'Simbolico',
+            icon: '🔷',
+            description: 'Immagine metaforica e concettuale'
+          },
+          'cartoon': {
+            name: 'Cartoon',
+            icon: '✏️',
+            description: 'Illustrazione stilizzata e vivace'
+          }
+        };
+
+        const labelId = `${field.id}-label`;
+
+        return (
+          <div key={field.id} className="form-field">
+            <label id={labelId}>
+              {field.label}
+              {field.required && <span className="required"> *</span>}
+              {renderInfoIcon(field.description)}
+            </label>
+
+            <div
+              className={`cover-style-cards ${fieldError ? 'error' : ''}`}
+              role="radiogroup"
+              aria-labelledby={labelId}
+            >
+              {field.options?.map((opt) => {
+                const value = String(opt.value ?? '');
+                const selected = value === fieldValue;
+                const styleConfig = coverStyleConfig[value];
+
+                if (!styleConfig) {
+                  return null; // Skip unknown styles
+                }
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`cover-style-card ${selected ? 'selected' : ''}`}
+                    onClick={() => handleChange(field.id, value)}
+                    aria-pressed={selected}
+                    title={styleConfig.description}
+                  >
+                    <span className="cover-style-icon">{styleConfig.icon}</span>
+                    <span className="cover-style-name">{styleConfig.name}</span>
+                    <span className="cover-style-description">{styleConfig.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {fieldError && <span className="error-message">{fieldError}</span>}
+          </div>
+        );
+      }
+
       // Modello LLM: UI a chip (solo Gemini 3)
       if (field.id === 'llm_model') {
         const options = (field.options ?? []).filter(opt => {
@@ -589,7 +665,6 @@ export default function DynamicForm() {
                     className={`llm-model-chip ${modeClass} ${selected ? 'selected' : ''}`}
                     onClick={() => handleChange(field.id, value)}
                     aria-pressed={selected}
-                    title={value}
                   >
                     <span className="mode-icon">{modeIcon}</span>
                     <span className="mode-name">{modeName}</span>
