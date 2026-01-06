@@ -44,6 +44,8 @@ def load_config() -> ConfigResponse:
                 for opt in field_data["options"]
             ]
         
+        mode_availability = field_data.get("mode_availability")
+        
         field = FieldConfig(
             id=field_data["id"],
             label=field_data["label"],
@@ -52,6 +54,7 @@ def load_config() -> ConfigResponse:
             options=options,
             placeholder=field_data.get("placeholder"),
             description=field_data.get("description"),
+            mode_availability=mode_availability,
         )
         fields.append(field)
     

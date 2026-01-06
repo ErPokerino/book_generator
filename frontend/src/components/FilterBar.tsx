@@ -115,6 +115,7 @@ export default function FilterBar({ onFiltersChange, availableModels, availableG
           <option value="title">Titolo</option>
           <option value="score">Voto</option>
           <option value="cost">Costo</option>
+          <option value="total_pages">Pagine</option>
         </select>
       </div>
 

@@ -170,8 +170,9 @@ async def generate_outline(
         draft_title,
     )
     
-    # Mappa il modello
-    gemini_model = map_model_name(form_data.llm_model)
+    # Usa sempre il modello PRO per la generazione della struttura, indipendentemente dalla modalità selezionata
+    gemini_model = "gemini-3-pro-preview"
+    print(f"[OUTLINE_GENERATOR] Usando modello PRO (gemini-3-pro-preview) per generazione struttura, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
     
     # Crea il prompt
     system_prompt = SystemMessage(content=agent_context)

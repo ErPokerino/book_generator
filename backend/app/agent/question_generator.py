@@ -183,19 +183,9 @@ async def generate_questions(
 Genera domande pertinenti in formato JSON come specificato nel contesto. Rispondi SOLO con il JSON, senza testo aggiuntivo."""
 
     # Inizializza il modello Gemini
-    # Mappa i nomi dei modelli al formato corretto per Gemini API
-    # Nomi corretti dalla documentazione ufficiale: https://ai.google.dev/gemini-api/docs/models
-    model_name = form_data.llm_model or ""  # Default a stringa vuota se None
-    if model_name and "gemini-2.5-flash" in model_name:
-        gemini_model = "gemini-2.5-flash"  # Modello stabile
-    elif model_name and "gemini-2.5-pro" in model_name:
-        gemini_model = "gemini-2.5-pro"  # Modello stabile
-    elif model_name and "gemini-3-flash" in model_name:
-        gemini_model = "gemini-3-flash-preview"  # Modello in preview
-    elif model_name and "gemini-3-pro" in model_name:
-        gemini_model = "gemini-3-pro-preview"  # Modello in preview
-    else:
-        gemini_model = "gemini-2.5-flash"  # default: modello stabile
+    # Usa sempre il modello PRO per la generazione delle domande, indipendentemente dalla modalità selezionata
+    gemini_model = "gemini-3-pro-preview"  # Default: Gemini 3 Pro
+    print(f"[QUESTION_GENERATOR] Usando modello PRO (gemini-3-pro-preview) per generazione domande, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
     
     temperature = get_temperature_for_agent("question_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(

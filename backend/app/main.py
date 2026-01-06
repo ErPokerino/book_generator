@@ -966,6 +966,38 @@ def calculate_page_count(content: str) -> int:
         return 0
 
 
+def get_fallback_seconds_for_model(model_name: str, app_config: dict) -> float:
+    """
+    Ottiene il fallback in secondi per un modello specifico.
+    
+    Args:
+        model_name: Nome del modello (es. "gemini-3-ultra", "gemini-3-flash")
+        app_config: Configurazione dell'app
+    
+    Returns:
+        Fallback in secondi per il modello specificato
+    """
+    time_config = app_config.get("time_estimation", {})
+    fallback_by_model = time_config.get("fallback_by_model", {})
+    
+    # Normalizza il nome del modello per matching
+    model_lower = model_name.lower() if model_name else ""
+    
+    # Cerca match esatto o parziale
+    if "ultra" in model_lower:
+        return fallback_by_model.get("gemini-3-ultra", fallback_by_model.get("default", 45))
+    elif "3-pro" in model_lower or "3-pro-preview" in model_lower:
+        return fallback_by_model.get("gemini-3-pro", fallback_by_model.get("default", 45))
+    elif "3-flash" in model_lower or "3-flash-preview" in model_lower:
+        return fallback_by_model.get("gemini-3-flash", fallback_by_model.get("default", 45))
+    elif "2.5-pro" in model_lower:
+        return fallback_by_model.get("gemini-2.5-pro", fallback_by_model.get("default", 45))
+    elif "2.5-flash" in model_lower:
+        return fallback_by_model.get("gemini-2.5-flash", fallback_by_model.get("default", 45))
+    else:
+        return fallback_by_model.get("default", time_config.get("fallback_seconds_per_chapter", 45))
+
+
 async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
     """
     Calcola la stima del tempo rimanente per completare il libro.
@@ -996,6 +1028,10 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         session_store = get_session_store()
         session = await get_session_async(session_store, session_id)
         
+        # Ottieni il modello della sessione corrente
+        current_model = session.form_data.llm_model if session and session.form_data else None
+        print(f"[CALCULATE_ESTIMATED_TIME] Modello sessione corrente: {current_model}")
+        
         remaining_chapters = total_steps - current_step
         print(f"[CALCULATE_ESTIMATED_TIME] Capitoli rimanenti: {remaining_chapters}")
         if remaining_chapters <= 0:
@@ -1005,29 +1041,34 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         if not session:
             print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Sessione non trovata, uso stima conservativa")
             # Anche se la sessione non esiste, restituiamo una stima conservativa
-            estimated_minutes = (remaining_chapters * fallback_seconds_per_chapter) / 60
+            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+            estimated_minutes = (remaining_chapters * fallback_seconds) / 60
             return round(estimated_minutes, 1), "low"
         
         # Se non ci sono ancora capitoli completati, usa stima iniziale basata su dati storici o conservativa
         if current_step == 0:
             print(f"[CALCULATE_ESTIMATED_TIME] current_step == 0, uso stima iniziale")
-            # All'inizio, usa media globale o stima conservativa
+            # All'inizio, usa media storica filtrata per modello o stima conservativa
             all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
             all_timings = []
             
             for s in all_sessions.values():
-                if s.chapter_timings and len(s.chapter_timings) > 0:
+                # Filtra per modello: confronta form_data.llm_model
+                if (s.chapter_timings and len(s.chapter_timings) > 0 and 
+                    s.form_data and s.form_data.llm_model == current_model):
                     all_timings.extend(s.chapter_timings)
             
-            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici da {len(all_sessions)} sessioni")
+            matching_sessions_count = len([s for s in all_sessions.values() if s.form_data and s.form_data.llm_model == current_model])
+            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici per modello '{current_model}' da {matching_sessions_count} sessioni")
             if all_timings:
                 avg_time_seconds = sum(all_timings) / len(all_timings)
                 confidence = "medium"
-                print(f"[CALCULATE_ESTIMATED_TIME] Media storica: {avg_time_seconds:.1f} secondi per capitolo")
+                print(f"[CALCULATE_ESTIMATED_TIME] Media storica per modello '{current_model}': {avg_time_seconds:.1f} secondi per capitolo")
             else:
-                avg_time_seconds = fallback_seconds_per_chapter
+                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+                avg_time_seconds = fallback_seconds
                 confidence = "low"
-                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico, uso stima conservativa: {avg_time_seconds} secondi")
+                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico per modello '{current_model}', uso fallback: {avg_time_seconds} secondi")
             
             estimated_seconds = remaining_chapters * avg_time_seconds
             estimated_minutes = estimated_seconds / 60
@@ -1048,6 +1089,14 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         print(f"[CALCULATE_ESTIMATED_TIME] chapter_timings nella sessione corrente: {session.chapter_timings}")
         print(f"[CALCULATE_ESTIMATED_TIME] current_step={current_step}, quindi abbiamo completato {current_step} capitoli")
         
+        # Logging dettagliato per Ultra
+        if current_model and "ultra" in current_model.lower():
+            print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Timings sessione corrente: {session.chapter_timings}")
+            if session.chapter_timings:
+                avg_ultra = sum(session.chapter_timings) / len(session.chapter_timings)
+                print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Media timings: {avg_ultra:.1f}s, Numero capitoli: {len(session.chapter_timings)}")
+                print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Timings individuali: {[f'{t:.1f}s' for t in session.chapter_timings]}")
+        
         # Se abbiamo almeno 1 capitolo completato, proviamo a usare i tempi della sessione corrente
         if use_session_avg and session.chapter_timings and len(session.chapter_timings) > 0:
             # Abbiamo tempi nella sessione corrente
@@ -1061,36 +1110,42 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         elif current_step > 0:
             # Abbiamo completato almeno 1 capitolo ma non abbiamo ancora chapter_timings
             # Questo può succedere se il timing non è stato ancora salvato
-            # In questo caso, usiamo dati storici o stima conservativa
-            print(f"[CALCULATE_ESTIMATED_TIME] current_step > 0 ma chapter_timings vuoto, cerco dati storici")
+            # In questo caso, usiamo dati storici filtrati per modello o stima conservativa
+            print(f"[CALCULATE_ESTIMATED_TIME] current_step > 0 ma chapter_timings vuoto, cerco dati storici per modello '{current_model}'")
             all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
             all_timings = []
             
             for s in all_sessions.values():
-                if s.chapter_timings and len(s.chapter_timings) > 0:
+                # Filtra per modello: confronta form_data.llm_model
+                if (s.chapter_timings and len(s.chapter_timings) > 0 and 
+                    s.form_data and s.form_data.llm_model == current_model):
                     all_timings.extend(s.chapter_timings)
             
-            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici")
+            matching_sessions_count = len([s for s in all_sessions.values() if s.form_data and s.form_data.llm_model == current_model])
+            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici per modello '{current_model}' da {matching_sessions_count} sessioni")
             if all_timings:
                 avg_time_seconds = sum(all_timings) / len(all_timings)
                 confidence = "medium"
-                print(f"[CALCULATE_ESTIMATED_TIME] Usando media storica: {avg_time_seconds:.1f} sec, confidence: medium")
+                print(f"[CALCULATE_ESTIMATED_TIME] Usando media storica per modello '{current_model}': {avg_time_seconds:.1f} sec, confidence: medium")
             else:
-                avg_time_seconds = fallback_seconds_per_chapter
+                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+                avg_time_seconds = fallback_seconds
                 confidence = "low"
-                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico, uso stima conservativa: {avg_time_seconds} sec, confidence: low")
+                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico per modello '{current_model}', uso fallback: {avg_time_seconds} sec, confidence: low")
         else:
             # current_step == 0 ma siamo già passati per il caso speciale sopra
             # Questo non dovrebbe mai succedere, ma per sicurezza usiamo stima conservativa
-            print(f"[CALCULATE_ESTIMATED_TIME] Caso non previsto, uso stima conservativa")
-            avg_time_seconds = fallback_seconds_per_chapter
+            print(f"[CALCULATE_ESTIMATED_TIME] Caso non previsto, uso stima conservativa per modello '{current_model}'")
+            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+            avg_time_seconds = fallback_seconds
             confidence = "low"
         
         # Assicuriamoci di avere sempre un valore
         if avg_time_seconds is None or avg_time_seconds <= 0:
-            avg_time_seconds = fallback_seconds_per_chapter
+            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+            avg_time_seconds = fallback_seconds
             confidence = "low"
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: avg_time_seconds era None o <= 0, uso fallback: {avg_time_seconds}")
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: avg_time_seconds era None o <= 0, uso fallback per modello '{current_model}': {avg_time_seconds}")
         
         estimated_seconds = remaining_chapters * avg_time_seconds
         estimated_minutes = estimated_seconds / 60
@@ -1098,8 +1153,9 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         
         # GARANZIA FINALE: se remaining_chapters > 0, restituiamo sempre un valore valido
         if remaining_chapters > 0 and (result[0] is None or result[0] <= 0):
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Risultato non valido ({result[0]}), uso fallback finale")
-            estimated_minutes = (remaining_chapters * fallback_seconds_per_chapter) / 60
+            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Risultato non valido ({result[0]}), uso fallback finale per modello '{current_model}'")
+            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
+            estimated_minutes = (remaining_chapters * fallback_seconds) / 60
             result = round(estimated_minutes, 1), "low"
         
         print(f"[CALCULATE_ESTIMATED_TIME] Risultato finale: {result[0]} minuti, confidence: {result[1]}")
@@ -1114,13 +1170,16 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         try:
             remaining_chapters = total_steps - current_step
             if remaining_chapters > 0:
-                # Leggi il fallback dalla configurazione
+                # Leggi il fallback dalla configurazione per il modello corrente
                 app_config = get_app_config()
-                time_config = app_config.get("time_estimation", {})
-                fallback_seconds = time_config.get("fallback_seconds_per_chapter", 45)
+                # Prova a recuperare la sessione per ottenere il modello
+                session_store = get_session_store()
+                session = await get_session_async(session_store, session_id)
+                current_model = session.form_data.llm_model if session and session.form_data else None
+                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
                 # Stima conservativa
                 estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-                print(f"[CALCULATE_ESTIMATED_TIME] Fallback: stima conservativa {estimated_minutes:.1f} minuti")
+                print(f"[CALCULATE_ESTIMATED_TIME] Fallback: stima conservativa {estimated_minutes:.1f} minuti per modello '{current_model}'")
                 return round(estimated_minutes, 1), "low"
         except Exception as fallback_error:
             print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nel fallback: {fallback_error}")
@@ -1132,12 +1191,15 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
             total_steps_int = int(total_steps) if not isinstance(total_steps, int) else total_steps
             remaining_chapters = total_steps_int - current_step_int
             if remaining_chapters > 0:
-                # Leggi il fallback dalla configurazione
+                # Leggi il fallback dalla configurazione per il modello corrente
                 app_config = get_app_config()
-                time_config = app_config.get("time_estimation", {})
-                fallback_seconds = time_config.get("fallback_seconds_per_chapter", 45)
+                # Prova a recuperare la sessione per ottenere il modello
+                session_store = get_session_store()
+                session = await get_session_async(session_store, session_id)
+                current_model = session.form_data.llm_model if session and session.form_data else None
+                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
                 estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-                print(f"[CALCULATE_ESTIMATED_TIME] Ultimo fallback: {estimated_minutes:.1f} minuti")
+                print(f"[CALCULATE_ESTIMATED_TIME] Ultimo fallback: {estimated_minutes:.1f} minuti per modello '{current_model}'")
                 return round(estimated_minutes, 1), "low"
         except Exception as fallback_err:
             print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nell'ultimo fallback: {fallback_err}")
@@ -1813,24 +1875,24 @@ async def download_book_pdf_endpoint(
         
         print(f"[BOOK PDF] Verifica copertina - cover_image_path nella sessione: {session.cover_image_path}")
         
-        if session.cover_image_path and Path(session.cover_image_path).exists():
+        if session.cover_image_path:
             try:
-                cover_path = Path(session.cover_image_path)
-                print(f"[BOOK PDF] Caricamento immagine copertina: {cover_path.absolute()}")
-                print(f"[BOOK PDF] File esiste: {cover_path.exists()}")
-                print(f"[BOOK PDF] Dimensione file: {cover_path.stat().st_size} bytes")
+                storage_service = get_storage_service()
+                print(f"[BOOK PDF] Caricamento copertina da: {session.cover_image_path}")
+                image_bytes = storage_service.download_file(session.cover_image_path)
+                print(f"[BOOK PDF] Immagine copertina caricata: {len(image_bytes)} bytes")
                 
-                # Leggi dimensioni originali dell'immagine con PIL
-                with PILImage.open(session.cover_image_path) as img:
+                # Leggi dimensioni originali dell'immagine con PIL da bytes
+                with PILImage.open(BytesIO(image_bytes)) as img:
                     cover_image_width, cover_image_height = img.size
                     print(f"[BOOK PDF] Dimensioni originali immagine: {cover_image_width} x {cover_image_height}")
                     print(f"[BOOK PDF] Proporzioni: {cover_image_width / cover_image_height:.3f}")
                 
-                # Determina MIME type dal suffisso
-                suffix = cover_path.suffix.lower()
-                if suffix == '.png':
+                # Determina MIME type dal path
+                cover_path_str = session.cover_image_path.lower()
+                if '.png' in cover_path_str:
                     cover_image_mime = 'image/png'
-                elif suffix in ['.jpg', '.jpeg']:
+                elif '.jpg' in cover_path_str or '.jpeg' in cover_path_str:
                     cover_image_mime = 'image/jpeg'
                 else:
                     cover_image_mime = 'image/png'  # Default
@@ -1855,18 +1917,10 @@ async def download_book_pdf_endpoint(
                     cover_image_style = "width: 100%; height: auto;"
                     print(f"[BOOK PDF] Immagine più larga di A4, uso width: 100%, height: auto")
                 
-                # xhtml2pdf potrebbe non supportare base64, quindi usiamo il path del file
-                # Convertiamo il path in formato assoluto per xhtml2pdf
-                cover_image_path_for_html = str(cover_path.absolute())
-                print(f"[BOOK PDF] Path assoluto copertina per HTML: {cover_image_path_for_html}")
-                
-                # Anche proviamo base64 come fallback
-                with open(session.cover_image_path, 'rb') as f:
-                    image_bytes = f.read()
-                    cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
+                # Converti i bytes in base64 per l'HTML
+                cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
                 print(f"[BOOK PDF] Immagine copertina caricata, MIME: {cover_image_mime}")
                 print(f"[BOOK PDF] Base64 generato: {len(cover_image_data)} caratteri")
-                print(f"[BOOK PDF] Path file disponibile: {cover_image_path_for_html}")
             except Exception as e:
                 print(f"[BOOK PDF] Errore nel caricamento copertina: {e}")
                 import traceback
@@ -1909,47 +1963,14 @@ async def download_book_pdf_endpoint(
         image_style = cover_image_style or "width: 100%; height: auto;"
         container_style = "width: 595.276pt; height: 841.890pt; margin: 0; padding: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;"
         
-        # xhtml2pdf su Windows: prova prima con path relativo, poi file://, poi base64
-        if cover_image_path_for_html:
-            cover_path_obj = Path(cover_image_path_for_html)
-            # Prova con path relativo dalla directory di lavoro
-            try:
-                # Calcola path relativo dalla directory backend
-                backend_dir = Path(__file__).parent.parent
-                try:
-                    rel_path = cover_path_obj.relative_to(backend_dir)
-                    cover_src = str(rel_path).replace('\\', '/')
-                    print(f"[BOOK PDF] Usando path relativo per copertina: {cover_src}")
-                except ValueError:
-                    # Se non è possibile path relativo, usa path assoluto con file://
-                    # Su Windows, xhtml2pdf potrebbe richiedere formato file:///C:/path
-                    abs_path = str(cover_path_obj.absolute()).replace('\\', '/')
-                    cover_src = f"file:///{abs_path}"
-                    print(f"[BOOK PDF] Usando path assoluto per copertina: {cover_src}")
-                
-                cover_section = f'''    <!-- Copertina -->
-    <div class="cover-page" style="{container_style}">
-        <img src="{cover_src}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
-    </div>
-    <div style="page-break-after: always;"></div>'''
-                print(f"[BOOK PDF] Copertina aggiunta con path: {cover_src}, stile: {image_style}")
-            except Exception as e:
-                print(f"[BOOK PDF] Errore nel setup path copertina: {e}, uso base64")
-                if cover_image_data and cover_image_mime:
-                    cover_section = f'''    <!-- Copertina -->
-    <div class="cover-page" style="{container_style}">
-        <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
-    </div>
-    <div style="page-break-after: always;"></div>'''
-                    print(f"[BOOK PDF] Copertina aggiunta con base64 (fallback dopo errore path), stile: {image_style}")
-        elif cover_image_data and cover_image_mime:
-            # Fallback a base64 se il path non è disponibile
+        # Usa base64 per la copertina (funziona sia per file locali che GCS)
+        if cover_image_data and cover_image_mime:
             cover_section = f'''    <!-- Copertina -->
     <div class="cover-page" style="{container_style}">
         <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
     </div>
     <div style="page-break-after: always;"></div>'''
-            print(f"[BOOK PDF] Copertina aggiunta con base64 (solo base64 disponibile), stile: {image_style}")
+            print(f"[BOOK PDF] Copertina aggiunta con base64, stile: {image_style}")
         
         html_content = f'''<!DOCTYPE html>
 <html lang="it">
@@ -3361,7 +3382,7 @@ async def get_library_endpoint(
     - llm_model: filtro per modello LLM
     - genre: filtro per genere
     - search: ricerca in titolo/autore
-    - sort_by: ordinamento (created_at, title, score, cost, updated_at)
+    - sort_by: ordinamento (created_at, title, score, cost, total_pages, updated_at)
     - sort_order: ordine (asc, desc)
     - skip: numero di libri da saltare (per paginazione, default: 0)
     - limit: numero massimo di libri da restituire (per paginazione, default: 20)
@@ -3513,6 +3534,17 @@ async def get_library_endpoint(
             else:  # Ascendente: costi bassi prima, None alla fine
                 filtered_entries.sort(
                     key=lambda e: (e.estimated_cost is None, e.estimated_cost or float('inf'))
+                )
+        elif sort_by == "total_pages":
+            # Per le pagine, i valori None vengono sempre messi alla fine
+            # Usa una tupla per garantire che None sia sempre dopo i valori numerici
+            if reverse_order:  # Discendente: più pagine prima, None alla fine
+                filtered_entries.sort(
+                    key=lambda e: (e.total_pages is None, -(e.total_pages or 0))
+                )
+            else:  # Ascendente: meno pagine prima, None alla fine
+                filtered_entries.sort(
+                    key=lambda e: (e.total_pages is None, e.total_pages or float('inf'))
                 )
         elif sort_by == "updated_at":
             filtered_entries.sort(key=lambda e: e.updated_at, reverse=reverse_order)

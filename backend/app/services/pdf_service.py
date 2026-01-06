@@ -241,24 +241,26 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
     # Prepara immagine copertina
     cover_image_data = None
     cover_image_mime = None
-    cover_image_path_for_html = None
     cover_image_width = None
     cover_image_height = None
     cover_image_style = None
     
-    if session.cover_image_path and Path(session.cover_image_path).exists():
+    if session.cover_image_path:
         try:
-            cover_path = Path(session.cover_image_path)
+            storage_service = get_storage_service()
+            print(f"[BOOK PDF] Caricamento copertina da: {session.cover_image_path}")
+            image_bytes = storage_service.download_file(session.cover_image_path)
+            print(f"[BOOK PDF] Immagine copertina caricata: {len(image_bytes)} bytes")
             
-            # Leggi dimensioni originali dell'immagine con PIL
-            with PILImage.open(session.cover_image_path) as img:
+            # Leggi dimensioni originali dell'immagine con PIL da bytes
+            with PILImage.open(BytesIO(image_bytes)) as img:
                 cover_image_width, cover_image_height = img.size
             
-            # Determina MIME type dal suffisso
-            suffix = cover_path.suffix.lower()
-            if suffix == '.png':
+            # Determina MIME type dal path
+            cover_path_str = session.cover_image_path.lower()
+            if '.png' in cover_path_str:
                 cover_image_mime = 'image/png'
-            elif suffix in ['.jpg', '.jpeg']:
+            elif '.jpg' in cover_path_str or '.jpeg' in cover_path_str:
                 cover_image_mime = 'image/jpeg'
             else:
                 cover_image_mime = 'image/png'  # Default
@@ -276,15 +278,14 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
             else:
                 cover_image_style = "width: 100%; height: auto;"
             
-            # Converti il path in formato assoluto per xhtml2pdf
-            cover_image_path_for_html = str(cover_path.absolute())
-            
-            # Anche proviamo base64 come fallback
-            with open(session.cover_image_path, 'rb') as f:
-                image_bytes = f.read()
-                cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
+            # Converti i bytes in base64 per l'HTML
+            cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
+            print(f"[BOOK PDF] Immagine copertina caricata, MIME: {cover_image_mime}")
+            print(f"[BOOK PDF] Base64 generato: {len(cover_image_data)} caratteri")
         except Exception as e:
             print(f"[BOOK PDF] Errore nel caricamento copertina: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Ordina i capitoli per section_index
     sorted_chapters = sorted(session.book_chapters, key=lambda x: x.get('section_index', 0))
@@ -320,38 +321,14 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
     image_style = cover_image_style or "width: 100%; height: auto;"
     container_style = "width: 595.276pt; height: 841.890pt; margin: 0; padding: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;"
     
-    # xhtml2pdf su Windows: prova prima con path relativo, poi file://, poi base64
-    if cover_image_path_for_html:
-        cover_path_obj = Path(cover_image_path_for_html)
-        try:
-            # Calcola path relativo dalla directory backend
-            backend_dir = Path(__file__).parent.parent.parent
-            try:
-                rel_path = cover_path_obj.relative_to(backend_dir)
-                cover_src = str(rel_path).replace('\\', '/')
-            except ValueError:
-                # Se non è possibile path relativo, usa path assoluto con file://
-                abs_path = str(cover_path_obj.absolute()).replace('\\', '/')
-                cover_src = f"file:///{abs_path}"
-            
-            cover_section = f'''    <!-- Copertina -->
-    <div class="cover-page" style="{container_style}">
-        <img src="{cover_src}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
-    </div>
-    <div style="page-break-after: always;"></div>'''
-        except Exception as e:
-            if cover_image_data and cover_image_mime:
-                cover_section = f'''    <!-- Copertina -->
-    <div class="cover-page" style="{container_style}">
-        <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
-    </div>
-    <div style="page-break-after: always;"></div>'''
-    elif cover_image_data and cover_image_mime:
+    # Usa base64 per la copertina (funziona sia per file locali che GCS)
+    if cover_image_data and cover_image_mime:
         cover_section = f'''    <!-- Copertina -->
     <div class="cover-page" style="{container_style}">
         <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
     </div>
     <div style="page-break-after: always;"></div>'''
+        print(f"[BOOK PDF] Copertina aggiunta con base64, stile: {image_style}")
     
     html_content = f'''<!DOCTYPE html>
 <html lang="it">

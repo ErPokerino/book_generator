@@ -209,8 +209,9 @@ async def generate_draft(
     formatted_form_data = format_form_data_for_draft(form_data)
     formatted_answers = format_question_answers(question_answers)
     
-    # Mappa il modello
-    gemini_model = map_model_name(form_data.llm_model)
+    # Usa sempre il modello PRO per la generazione della bozza, indipendentemente dalla modalità selezionata
+    gemini_model = "gemini-3-pro-preview"
+    print(f"[DRAFT_GENERATOR] Usando modello PRO (gemini-3-pro-preview) per generazione bozza, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
     
     # Crea il prompt
     if previous_draft and user_feedback:

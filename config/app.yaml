@@ -23,12 +23,24 @@ validation:
 frontend:
   polling_interval: 2000
   polling_interval_critique: 5000  # più lento quando in attesa critica
+  # Placeholder: disponibilità residue per modalità (verrà collegato all'utente in seguito)
+  mode_availability_defaults:
+    flash: 10
+    pro: 5
+    ultra: 1
 
 # Metriche e stima tempo
 time_estimation:
   min_chapters_for_reliable_avg: 3
   use_session_avg_if_available: true
-  fallback_seconds_per_chapter: 45  # Tempo medio per capitolo quando non ci sono dati storici
+  fallback_seconds_per_chapter: 45  # Tempo medio per capitolo quando non ci sono dati storici (retrocompatibilità)
+  fallback_by_model:  # Fallback per-modello
+    gemini-3-flash: 35
+    gemini-3-pro: 50
+    gemini-3-ultra: 100
+    gemini-2.5-flash: 35
+    gemini-2.5-pro: 50
+    default: 45  # Fallback se modello non specificato
 
 # Configurazione modelli LLM
 llm_models:

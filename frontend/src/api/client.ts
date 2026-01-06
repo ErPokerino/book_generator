@@ -87,6 +87,11 @@ export interface FieldConfig {
   options?: FieldOption[];
   placeholder?: string;
   description?: string;
+  mode_availability?: {
+    flash?: number;
+    pro?: number;
+    ultra?: number;
+  } | Record<string, number>;
 }
 
 export interface ConfigResponse {
@@ -761,16 +766,15 @@ export interface AppConfig {
   frontend: {
     polling_interval?: number;
     polling_interval_critique?: number;
+    mode_availability_defaults?: {
+      flash?: number;
+      pro?: number;
+      ultra?: number;
+    };
   };
 }
 
-let cachedAppConfig: AppConfig | null = null;
-
 export async function getAppConfig(): Promise<AppConfig> {
-  if (cachedAppConfig) {
-    return cachedAppConfig;
-  }
-  
   const response = await fetch(`${API_BASE}/config/app`);
   if (!response.ok) {
     // Fallback a valori di default se l'endpoint fallisce
@@ -787,12 +791,17 @@ export async function getAppConfig(): Promise<AppConfig> {
       frontend: {
         polling_interval: 2000,
         polling_interval_critique: 5000,
+        mode_availability_defaults: {
+          flash: 10,
+          pro: 5,
+          ultra: 1,
+        },
       },
     };
   }
   
-  cachedAppConfig = await response.json();
-  return cachedAppConfig;
+  const data: AppConfig = await response.json();
+  return data;
 }
 
 // Library interfaces and API functions

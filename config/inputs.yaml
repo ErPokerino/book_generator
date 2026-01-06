@@ -3,13 +3,18 @@ llm_models:
   - "gemini-2.5-pro"
   - "gemini-3-flash"
   - "gemini-3-pro"
+  - "gemini-3-ultra"
 
 fields:
   - id: llm_model
-    label: "Modello LLM"
+    label: "Modalità"
     type: select
     required: false
-    description: "Seleziona il modello di intelligenza artificiale Gemini da utilizzare per la generazione del romanzo"
+    description: "Scegli la modalità di generazione: Flash per velocità, Pro per qualità, Ultra per libri estesi"
+    mode_availability:
+      flash: 10
+      pro: 3
+      ultra: 1
     options:
       - value: "gemini-2.5-flash"
         label: "Gemini 2.5 Flash"
@@ -19,6 +24,8 @@ fields:
         label: "Gemini 3 Flash (consigliato)"
       - value: "gemini-3-pro"
         label: "Gemini 3 Pro"
+      - value: "gemini-3-ultra"
+        label: "Gemini 3 Ultra (Sperimentale - Capitoli Estesi)"
 
   - id: plot
     label: "Trama"

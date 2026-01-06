@@ -1,6 +1,6 @@
 from typing import Literal, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class FieldOption(BaseModel):
@@ -9,6 +9,8 @@ class FieldOption(BaseModel):
 
 
 class FieldConfig(BaseModel):
+    model_config = ConfigDict(exclude_none=False)
+    
     id: str
     label: str
     type: Literal["select", "text"]
@@ -16,9 +18,12 @@ class FieldConfig(BaseModel):
     options: Optional[list[FieldOption]] = None
     placeholder: Optional[str] = None
     description: Optional[str] = None
+    mode_availability: Optional[Dict[str, int]] = None
 
 
 class ConfigResponse(BaseModel):
+    model_config = ConfigDict(exclude_none=False)
+    
     llm_models: list[str]
     fields: list[FieldConfig]
 

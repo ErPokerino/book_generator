@@ -221,6 +221,9 @@ def format_writer_context(
     outline_text: str,
     previous_chapters: List[Dict[str, Any]],
     current_section: Dict[str, str],
+    is_long_form_part1: bool = False,
+    is_long_form_part2: bool = False,
+    part1_text: Optional[str] = None,
 ) -> str:
     """
     Formatta tutto il contesto per la scrittura di un capitolo.
@@ -296,19 +299,46 @@ def format_writer_context(
     lines.append(f"**Descrizione**:")
     lines.append(current_section['description'])
     lines.append("\n")
-    lines.append("**Istruzioni**:")
-    lines.append("- Scrivi questa sezione seguendo la descrizione fornita.")
-    lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
-    lines.append("- Elabora tutti i temi e sviluppi narrativi indicati nella descrizione.")
-    lines.append("- **Stratificazione**: Arricchisci la narrazione con:")
-    lines.append("  * Descrizioni sensoriali dettagliate (cosa si vede, sente, percepisce)")
-    lines.append("  * Dialoghi sviluppati che rivelano carattere e relazioni")
-    lines.append("  * Riflessioni interiori dei personaggi")
-    lines.append("  * Scene intermedie che approfondiscono atmosfere e temi")
-    lines.append("  * Dettagli ambientali che creano contesto narrativo")
-    lines.append("  * Sviluppi graduali che richiedono tempo narrativo per maturare")
-    lines.append("- Non avere fretta: sviluppa ogni elemento con la profondità necessaria per creare un'esperienza immersiva.")
-    lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
+    
+    # Istruzioni specifiche per modalità Long Form
+    if is_long_form_part1:
+        lines.append("**Istruzioni (Modalità Estesa - Parte 1 di 2)**:")
+        lines.append("- Scrivi SOLO la prima parte (circa 50-60%) di questa sezione.")
+        lines.append("- Mantieni un ritmo lento e dettagliato: esplora descrizioni sensoriali, dialoghi estesi, riflessioni interiori.")
+        lines.append("- **VINCOLO CRITICO**: NON concludere la sezione. NON risolvere tutti gli eventi descritti nell'outline.")
+        lines.append("- Fermati a un punto intermedio logico nell'azione, prima di completare tutti gli eventi previsti.")
+        lines.append("- L'obiettivo è creare volume e profondità narrativa, non arrivare alla fine.")
+        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
+        lines.append("- Elabora i primi elementi narrativi indicati nella descrizione con grande dettaglio.")
+        lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
+    elif is_long_form_part2:
+        lines.append("**Istruzioni (Modalità Estesa - Parte 2 di 2)**:")
+        lines.append("- Ecco la prima parte della sezione che hai appena scritto:")
+        lines.append("\n[INIZIO PARTE 1]")
+        lines.append(part1_text or "")
+        lines.append("[FINE PARTE 1]\n")
+        lines.append("- **OBIETTIVO**: Continua la narrazione ESATTAMENTE da dove si è interrotta la Parte 1.")
+        lines.append("- Mantieni lo stesso stile, ritmo e livello di dettaglio della prima parte.")
+        lines.append("- NON riassumere ciò che è già accaduto nella Parte 1. Continua l'azione come se fosse un flusso unico.")
+        lines.append("- Completa gli eventi descritti nell'outline della sezione che non sono stati ancora narrati.")
+        lines.append("- Porta la sezione a una conclusione naturale, rispettando la descrizione dell'outline.")
+        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti e con la Parte 1 appena scritta.")
+        lines.append("- Inizia direttamente continuando la narrazione, senza titoli o numerazioni.")
+    else:
+        # Istruzioni standard
+        lines.append("**Istruzioni**:")
+        lines.append("- Scrivi questa sezione seguendo la descrizione fornita.")
+        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
+        lines.append("- Elabora tutti i temi e sviluppi narrativi indicati nella descrizione.")
+        lines.append("- **Stratificazione**: Arricchisci la narrazione con:")
+        lines.append("  * Descrizioni sensoriali dettagliate (cosa si vede, sente, percepisce)")
+        lines.append("  * Dialoghi sviluppati che rivelano carattere e relazioni")
+        lines.append("  * Riflessioni interiori dei personaggi")
+        lines.append("  * Scene intermedie che approfondiscono atmosfere e temi")
+        lines.append("  * Dettagli ambientali che creano contesto narrativo")
+        lines.append("  * Sviluppi graduali che richiedono tempo narrativo per maturare")
+        lines.append("- Non avere fretta: sviluppa ogni elemento con la profondità necessaria per creare un'esperienza immersiva.")
+        lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
     
     return "\n".join(lines)
 
@@ -323,6 +353,9 @@ def map_model_name(model_name: str) -> str:
         return "gemini-3-flash-preview"
     elif "gemini-3-pro" in model_name.lower():
         return "gemini-3-pro-preview"
+    elif "gemini-3-ultra" in model_name.lower():
+        # Gemini 3 Ultra usa Gemini 3 Pro come motore sottostante
+        return "gemini-3-pro-preview"
     else:
         return "gemini-2.5-flash"  # default
 
@@ -332,7 +365,7 @@ def get_max_output_tokens(model_name: str) -> int:
     Determina il max_output_tokens in base al modello.
     
     Args:
-        model_name: Nome del modello Gemini (dopo mappatura)
+        model_name: Nome del modello Gemini (dopo mappatura o originale)
     
     Returns:
         Numero massimo di token di output
@@ -344,56 +377,36 @@ def get_max_output_tokens(model_name: str) -> int:
     if "gemini-2.5-flash" in model_name.lower():
         return tokens_config.get("gemini_2_5_flash", 8192)
     
+    # Gemini 3 Ultra usa il limite massimo (mappato a Pro)
+    if "gemini-3-ultra" in model_name.lower():
+        return tokens_config.get("default", 65536)
+    
     # Tutti gli altri modelli (Pro 2.5, Flash 3, Pro 3) usano il default
     return tokens_config.get("default", 65536)
 
 
-async def generate_chapter(
-    form_data: SubmissionRequest,
-    question_answers: List[QuestionAnswer],
-    validated_draft: str,
-    draft_title: Optional[str],
-    outline_text: str,
-    previous_chapters: List[Dict[str, Any]],
-    current_section: Dict[str, str],
+async def _generate_chapter_part(
+    agent_context: str,
+    formatted_context: str,
+    gemini_model: str,
     api_key: str,
+    current_section_title: str,
 ) -> str:
     """
-    Genera il testo di un singolo capitolo/sezione usando il contesto completo.
+    Helper per generare una parte di un capitolo (usato per modalità Long Form).
     
     Args:
-        form_data: Dati del form iniziale
-        question_answers: Risposte alle domande preliminari
-        validated_draft: Bozza estesa validata
-        draft_title: Titolo del romanzo
-        outline_text: Struttura completa del romanzo
-        previous_chapters: Lista di capitoli già scritti (per autoregressione)
-        current_section: Dizionario con 'title' e 'description' della sezione corrente
+        agent_context: Contesto dell'agente scrittore
+        formatted_context: Contesto formattato con tutte le informazioni
+        gemini_model: Nome del modello Gemini (dopo mappatura)
         api_key: API key per Gemini
+        current_section_title: Titolo della sezione corrente (per logging)
     
     Returns:
-        Testo del capitolo generato
+        Testo generato per la parte del capitolo
     """
-    # Carica il contesto dell'agente
-    agent_context = load_writer_agent_context()
-    
-    # Formatta il contesto completo
-    formatted_context = format_writer_context(
-        form_data=form_data,
-        question_answers=question_answers,
-        validated_draft=validated_draft,
-        draft_title=draft_title,
-        outline_text=outline_text,
-        previous_chapters=previous_chapters,
-        current_section=current_section,
-    )
-    
-    # Mappa il modello
-    gemini_model = map_model_name(form_data.llm_model)
-    
-    # Determina max_output_tokens in base al modello
+    # Determina max_output_tokens
     max_tokens = get_max_output_tokens(gemini_model)
-    print(f"[WRITER] Modello: {gemini_model}, max_output_tokens: {max_tokens}")
     
     # Crea il prompt
     system_prompt = SystemMessage(content=agent_context)
@@ -414,32 +427,198 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
         max_output_tokens=max_tokens,
     )
     
-    # Genera il capitolo
-    try:
-        response = await llm.ainvoke([system_prompt, user_prompt])
-        chapter_text = _coerce_llm_content_to_text(response.content).strip()
+    # Genera la parte del capitolo
+    response = await llm.ainvoke([system_prompt, user_prompt])
+    part_text = _coerce_llm_content_to_text(response.content).strip()
+    
+    # Validazione base
+    if not part_text or len(part_text.strip()) < 20:
+        raise ValueError(
+            f"Parte del capitolo generata vuota o troppo corta per '{current_section_title}': "
+            f"{len(part_text) if part_text else 0} caratteri"
+        )
+    
+    return part_text
+
+
+async def generate_chapter(
+    form_data: SubmissionRequest,
+    question_answers: List[QuestionAnswer],
+    validated_draft: str,
+    draft_title: Optional[str],
+    outline_text: str,
+    previous_chapters: List[Dict[str, Any]],
+    current_section: Dict[str, str],
+    api_key: str,
+) -> str:
+    """
+    Genera il testo di un singolo capitolo/sezione usando il contesto completo.
+    
+    Supporta due modalità:
+    - Standard: 1 chiamata singola (comportamento normale)
+    - Long Form (gemini-3-ultra): 2 chiamate sequenziali per capitoli più estesi
+    
+    Args:
+        form_data: Dati del form iniziale
+        question_answers: Risposte alle domande preliminari
+        validated_draft: Bozza estesa validata
+        draft_title: Titolo del romanzo
+        outline_text: Struttura completa del romanzo
+        previous_chapters: Lista di capitoli già scritti (per autoregressione)
+        current_section: Dizionario con 'title' e 'description' della sezione corrente
+        api_key: API key per Gemini
+    
+    Returns:
+        Testo del capitolo generato
+    """
+    # Carica il contesto dell'agente
+    agent_context = load_writer_agent_context()
+    
+    # Determina se siamo in modalità Long Form
+    is_long_form = form_data.llm_model.lower() == "gemini-3-ultra"
+    
+    # Mappa il modello (gemini-3-ultra -> gemini-3-pro-preview)
+    gemini_model = map_model_name(form_data.llm_model)
+    
+    print(f"[WRITER] Modello originale: {form_data.llm_model}, mappato a: {gemini_model}, Long Form: {is_long_form}")
+    
+    if is_long_form:
+        # MODALITÀ LONG FORM: 2 chiamate sequenziali
+        print(f"[WRITER] Modalità Long Form attivata per '{current_section['title']}' - Generazione in 2 step")
         
-        # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
+        # STEP 1: Prima parte (50-60%)
+        print(f"[WRITER] Step 1/2: Generazione prima parte...")
+        formatted_context_part1 = format_writer_context(
+            form_data=form_data,
+            question_answers=question_answers,
+            validated_draft=validated_draft,
+            draft_title=draft_title,
+            outline_text=outline_text,
+            previous_chapters=previous_chapters,
+            current_section=current_section,
+            is_long_form_part1=True,
+        )
+        
+        try:
+            part1_text = await _generate_chapter_part(
+                agent_context=agent_context,
+                formatted_context=formatted_context_part1,
+                gemini_model=gemini_model,
+                api_key=api_key,
+                current_section_title=current_section['title'],
+            )
+            print(f"[WRITER] Step 1/2 completato: {len(part1_text)} caratteri")
+        except Exception as e:
+            raise Exception(f"Errore nella generazione della prima parte del capitolo '{current_section['title']}': {str(e)}")
+        
+        # STEP 2: Seconda parte (completamento)
+        print(f"[WRITER] Step 2/2: Generazione seconda parte...")
+        formatted_context_part2 = format_writer_context(
+            form_data=form_data,
+            question_answers=question_answers,
+            validated_draft=validated_draft,
+            draft_title=draft_title,
+            outline_text=outline_text,
+            previous_chapters=previous_chapters,
+            current_section=current_section,
+            is_long_form_part2=True,
+            part1_text=part1_text,
+        )
+        
+        try:
+            part2_text = await _generate_chapter_part(
+                agent_context=agent_context,
+                formatted_context=formatted_context_part2,
+                gemini_model=gemini_model,
+                api_key=api_key,
+                current_section_title=current_section['title'],
+            )
+            print(f"[WRITER] Step 2/2 completato: {len(part2_text)} caratteri")
+        except Exception as e:
+            raise Exception(f"Errore nella generazione della seconda parte del capitolo '{current_section['title']}': {str(e)}")
+        
+        # Unione delle due parti
+        chapter_text = f"{part1_text}\n\n{part2_text}".strip()
+        
+        # Validazione finale
         import re
         alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
-        # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
         is_effectively_empty = (alnum_count < 20)
-
+        
         app_config = get_app_config()
         min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
         
         if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
             raise ValueError(
-                f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
+                f"Capitolo Long Form generato vuoto o troppo corto per '{current_section['title']}': "
                 f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
                 f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
             )
         
-        print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
+        print(f"[WRITER] Capitolo Long Form '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri totali (Parte 1: {len(part1_text)}, Parte 2: {len(part2_text)})")
         return chapter_text
+    
+    else:
+        # MODALITÀ STANDARD: 1 chiamata singola
+        formatted_context = format_writer_context(
+            form_data=form_data,
+            question_answers=question_answers,
+            validated_draft=validated_draft,
+            draft_title=draft_title,
+            outline_text=outline_text,
+            previous_chapters=previous_chapters,
+            current_section=current_section,
+        )
         
-    except Exception as e:
-        raise Exception(f"Errore nella generazione del capitolo '{current_section['title']}': {str(e)}")
+        # Determina max_output_tokens in base al modello
+        max_tokens = get_max_output_tokens(gemini_model)
+        print(f"[WRITER] Modello: {gemini_model}, max_output_tokens: {max_tokens}")
+        
+        # Crea il prompt
+        system_prompt = SystemMessage(content=agent_context)
+        user_prompt_content = f"""Scrivi la sezione del romanzo indicata di seguito.
+
+{formatted_context}
+
+Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia direttamente con la narrazione."""
+        
+        user_prompt = HumanMessage(content=user_prompt_content)
+        
+        # Inizializza il modello Gemini
+        temperature = get_temperature_for_agent("writer_generator", gemini_model)
+        llm = ChatGoogleGenerativeAI(
+            model=gemini_model,
+            google_api_key=api_key,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+        
+        # Genera il capitolo
+        try:
+            response = await llm.ainvoke([system_prompt, user_prompt])
+            chapter_text = _coerce_llm_content_to_text(response.content).strip()
+            
+            # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
+            import re
+            alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
+            # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
+            is_effectively_empty = (alnum_count < 20)
+
+            app_config = get_app_config()
+            min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
+            
+            if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
+                raise ValueError(
+                    f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
+                    f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
+                    f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
+                )
+            
+            print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
+            return chapter_text
+            
+        except Exception as e:
+            raise Exception(f"Errore nella generazione del capitolo '{current_section['title']}': {str(e)}")
 
 
 async def generate_full_book(
@@ -560,6 +739,12 @@ async def generate_full_book(
                     session = await get_session_async(session_store, session_id, user_id=None)
                     if session and session.chapter_timings:
                         print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
+                        # Logging dettagliato per Ultra
+                        if form_data.llm_model.lower() == "gemini-3-ultra":
+                            last_timing = session.chapter_timings[-1]
+                            print(f"[WRITER] [ULTRA] Timing capitolo '{section['title']}' salvato: {last_timing:.1f} secondi")
+                            print(f"[WRITER] [ULTRA] Questo timing include entrambe le chiamate API (part1 + part2)")
+                            print(f"[WRITER] [ULTRA] Totale timings salvati: {len(session.chapter_timings)}")
                     break
                 else:
                     # Contenuto ancora vuoto o troppo corto

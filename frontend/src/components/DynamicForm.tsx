@@ -1,8 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import toast from 'react-hot-toast';
-import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, SessionRestoreResponse } from '../api/client';
+import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
@@ -23,6 +22,7 @@ export default function DynamicForm() {
   const { user } = useAuth();
   const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
+  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -192,12 +192,16 @@ export default function DynamicForm() {
         setTimeout(() => reject(new Error('Timeout: impossibile caricare la configurazione. Verifica che il backend sia in esecuzione.')), 30000)
       );
       
-      const data = await Promise.race([
-        fetchConfig(),
-        timeoutPromise,
+      const [data, appCfg] = await Promise.all([
+        Promise.race([
+          fetchConfig(),
+          timeoutPromise,
+        ]),
+        getAppConfig().catch(() => null),
       ]);
       
       setConfig(data);
+      setAppConfig(appCfg);
       
       // Inizializza formData con valori vuoti
       const initialData: Record<string, string> = {};
@@ -551,16 +555,45 @@ export default function DynamicForm() {
               {options.map((opt) => {
                 const value = String(opt.value ?? '');
                 const selected = value === fieldValue;
+                
+                // Estrai modalità dal value
+                let modeName = '';
+                let modeClass = '';
+                let modeIcon = '';
+                let availability = 0; // Default: 0 se non configurato
+                
+                // Leggi disponibilità dalla configurazione app (config/app.yaml via /api/config/app)
+                const modeAvailability = appConfig?.frontend?.mode_availability_defaults || {};
+                
+                if (value.includes('flash')) {
+                  modeName = 'Flash';
+                  modeClass = 'mode-flash';
+                  modeIcon = '⚡️'; // Fulmine con variante emoji più carina
+                  availability = modeAvailability.flash ?? 0; // Nessun fallback, usa 0 se non configurato
+                } else if (value.includes('ultra')) {
+                  modeName = 'Ultra';
+                  modeClass = 'mode-ultra';
+                  modeIcon = '🔥'; // Fiamma
+                  availability = modeAvailability.ultra ?? 0; // Nessun fallback, usa 0 se non configurato
+                } else if (value.includes('pro')) {
+                  modeName = 'Pro';
+                  modeClass = 'mode-pro';
+                  modeIcon = '⭐️'; // Stella con variante emoji più carina
+                  availability = modeAvailability.pro ?? 0; // Nessun fallback, usa 0 se non configurato
+                }
+                
                 return (
                   <button
                     key={value}
                     type="button"
-                    className={`llm-model-chip ${selected ? 'selected' : ''}`}
+                    className={`llm-model-chip ${modeClass} ${selected ? 'selected' : ''}`}
                     onClick={() => handleChange(field.id, value)}
                     aria-pressed={selected}
                     title={value}
                   >
-                    {opt.label || value}
+                    <span className="mode-icon">{modeIcon}</span>
+                    <span className="mode-name">{modeName}</span>
+                    <span className="mode-availability">{availability} disponibili</span>
                   </button>
                 );
               })}
@@ -891,7 +924,6 @@ export default function DynamicForm() {
               }
               
               try {
-                setError(null);
                 setIsStartingWriting(true);
                 console.log('[DEBUG] Chiamata startBookGeneration...');
                 const response = await startBookGeneration({ session_id: sessionId });
@@ -1020,7 +1052,7 @@ export default function DynamicForm() {
                       aria-expanded={showAdvanced}
                     >
                       <span>{showAdvanced ? '▼' : '▶'}</span>
-                      <span>Opzioni Avanzate ({advancedFields.length})</span>
+                      <span>Opzioni Avanzate</span>
                     </button>
                     
                     {showAdvanced && (
