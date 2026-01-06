@@ -216,6 +216,16 @@ a:hover {
   }
 }
 
+/* Versione ottimizzata solo-opacity per evitare layout shift */
+@keyframes fadeInOpacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;

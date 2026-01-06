@@ -17,6 +17,7 @@ import './DynamicForm.css';
 const OutlineEditor = lazy(() => import('./OutlineEditor'));
 
 const SESSION_STORAGE_KEY = 'current_book_session_id';
+const FORM_DATA_STORAGE_KEY = 'dynamicForm.formData';
 
 export default function DynamicForm() {
   const { user } = useAuth();
@@ -51,10 +52,24 @@ export default function DynamicForm() {
       if (saved === 'true') {
         setShowAdvanced(true);
       }
+      
+      // Ripristina formData da localStorage (solo se non c'è una sessione attiva)
+      const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
+      if (savedFormData) {
+        try {
+          const parsed = JSON.parse(savedFormData);
+          if (parsed && typeof parsed === 'object') {
+            setFormData(parsed);
+          }
+        } catch (err) {
+          console.warn('[DynamicForm] Errore nel parsing formData salvato:', err);
+        }
+      }
     } catch (err) {
       // Ignora errori localStorage
     }
   }, []);
+
 
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {
@@ -87,6 +102,12 @@ export default function DynamicForm() {
           }
         });
         setFormData(formDataObj);
+        // Salva anche in localStorage per persistenza
+        try {
+          localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(formDataObj));
+        } catch (err) {
+          console.warn('[DynamicForm] Errore nel salvataggio formData dopo restore:', err);
+        }
         
         // Ripristina questions se presenti
         if (restoreData.questions) {
@@ -203,24 +224,27 @@ export default function DynamicForm() {
       setConfig(data);
       setAppConfig(appCfg);
       
-      // Inizializza formData con valori vuoti
-      const initialData: Record<string, string> = {};
-      data.fields.forEach(field => {
-        initialData[field.id] = '';
-      });
-      
-      // Imposta default per llm_model se esiste
-      const llmModelField = data.fields.find(f => f.id === 'llm_model');
-      if (llmModelField && llmModelField.type === 'select') {
-        initialData['llm_model'] = 'gemini-3-flash';
+      // Inizializza formData con valori vuoti (solo se non c'è già formData salvato)
+      const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
+      if (!savedFormData) {
+        const initialData: Record<string, string> = {};
+        data.fields.forEach(field => {
+          initialData[field.id] = '';
+        });
+        
+        // Imposta default per llm_model se esiste
+        const llmModelField = data.fields.find(f => f.id === 'llm_model');
+        if (llmModelField && llmModelField.type === 'select') {
+          initialData['llm_model'] = 'gemini-3-flash';
+        }
+        
+        // Imposta default per user_name con il nome dell'utente loggato se disponibile
+        if (user?.name) {
+          initialData['user_name'] = user.name;
+        }
+        
+        setFormData(initialData);
       }
-      
-      // Imposta default per user_name con il nome dell'utente loggato se disponibile
-      if (user?.name) {
-        initialData['user_name'] = user.name;
-      }
-      
-      setFormData(initialData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della configurazione';
       toast.error(errorMessage);
@@ -234,6 +258,12 @@ export default function DynamicForm() {
   const handleResetToForm = () => {
     // Reset di tutti gli stati per tornare al form iniziale
     setFormData({});
+    // Rimuovi formData salvato da localStorage
+    try {
+      localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+    } catch (err) {
+      // Ignora errori
+    }
     setValidationErrors({});
     setSubmitted(null);
     setIsSubmitting(false);
@@ -262,7 +292,16 @@ export default function DynamicForm() {
   };
 
   const handleChange = (fieldId: string, value: string) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [fieldId]: value };
+      // Salva in localStorage con debounce
+      try {
+        localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('[DynamicForm] Errore nel salvataggio formData:', err);
+      }
+      return updated;
+    });
     // Rimuovi errore di validazione quando l'utente modifica il campo
     if (validationErrors[fieldId]) {
       setValidationErrors(prev => {
@@ -463,14 +502,9 @@ export default function DynamicForm() {
     setSubmitted(null);
   };
 
-  const renderInfoIcon = (description?: string) => {
-    if (!description) return null;
-    
-    return (
-      <span className="info-icon" title={description}>
-        ℹ️
-      </span>
-    );
+  const renderInfoIcon = () => {
+    // Icone di informazione rimosse su richiesta
+    return null;
   };
 
   // Lista campi Base (ordine desiderato)
@@ -541,7 +575,7 @@ export default function DynamicForm() {
             <label id={labelId}>
               {field.label}
               {field.required && <span className="required"> *</span>}
-              {renderInfoIcon(field.description)}
+              {renderInfoIcon()}
             </label>
 
             <div
@@ -563,7 +597,14 @@ export default function DynamicForm() {
                     key={value}
                     type="button"
                     className={`cover-style-card ${selected ? 'selected' : ''}`}
-                    onClick={() => handleChange(field.id, value)}
+                    onClick={() => {
+                      // Se già selezionata, deseleziona; altrimenti seleziona
+                      if (selected) {
+                        handleChange(field.id, '');
+                      } else {
+                        handleChange(field.id, value);
+                      }
+                    }}
                     aria-pressed={selected}
                     title={styleConfig.description}
                   >
@@ -594,7 +635,7 @@ export default function DynamicForm() {
               <label htmlFor={field.id}>
                 {field.label}
                 {field.required && <span className="required"> *</span>}
-                {renderInfoIcon(field.description)}
+                {renderInfoIcon()}
               </label>
               <select
                 id={field.id}
@@ -620,8 +661,12 @@ export default function DynamicForm() {
             <label id={labelId}>
               {field.label}
               {field.required && <span className="required"> *</span>}
-              {renderInfoIcon(field.description)}
+              {renderInfoIcon()}
             </label>
+            
+            <p className="mode-description">
+              Flash: velocità | Pro: qualità | Ultra: libri estesi
+            </p>
 
             <div
               className={`llm-model-chips ${fieldError ? 'error' : ''}`}
@@ -681,18 +726,18 @@ export default function DynamicForm() {
 
       return (
         <div key={field.id} className="form-field">
-          <label htmlFor={field.id}>
-            {field.label}
-            {field.required && <span className="required"> *</span>}
-            {renderInfoIcon(field.description)}
-          </label>
-          <select
-            id={field.id}
-            value={fieldValue}
-            onChange={(e) => handleChange(field.id, e.target.value)}
-            className={fieldError ? 'error' : ''}
-          >
-            {field.id !== 'llm_model' && <option value="">-- Seleziona --</option>}
+              <label htmlFor={field.id}>
+                {field.label}
+                {field.required && <span className="required"> *</span>}
+                {renderInfoIcon()}
+              </label>
+              <select
+                id={field.id}
+                value={fieldValue}
+                onChange={(e) => handleChange(field.id, e.target.value)}
+                className={fieldError ? 'error' : ''}
+              >
+                {field.id !== 'llm_model' && <option value="">-- Seleziona --</option>}
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label || opt.value}
@@ -719,7 +764,7 @@ export default function DynamicForm() {
                 <>
                   {field.label}
                   {field.required && <span className="required"> *</span>}
-                  {renderInfoIcon(field.description)}
+                  {renderInfoIcon()}
                 </>
               }
               placeholder={field.placeholder}
@@ -736,7 +781,7 @@ export default function DynamicForm() {
           <label htmlFor={field.id}>
             {field.label}
             {field.required && <span className="required"> *</span>}
-            {renderInfoIcon(field.description)}
+            {renderInfoIcon()}
           </label>
           <input
             type="text"
@@ -754,10 +799,6 @@ export default function DynamicForm() {
     return null;
   };
 
-
-  if (loading) {
-    return <div className="loading">Caricamento configurazione...</div>;
-  }
 
   if (!config && !loading) {
     return (
@@ -1020,6 +1061,12 @@ export default function DynamicForm() {
           <button onClick={() => {
             setSubmitted(null);
             setFormData({});
+            // Rimuovi formData salvato da localStorage
+            try {
+              localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+            } catch (err) {
+              // Ignora errori
+            }
             setValidationErrors({});
             setQuestions(null);
             setSessionId(null);
@@ -1093,13 +1140,18 @@ export default function DynamicForm() {
           <h1>NarrAI</h1>
           <p className="subtitle">La tua storia, generata con l'AI</p>
           
-          {!config && !loading && (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <p>Caricamento configurazione in corso...</p>
+          {loading ? (
+            <div className="form-loading-skeleton" role="status" aria-label="Caricamento configurazione">
+              <div className="skeleton-line" style={{ width: '60%', height: '1.5rem', marginBottom: '1rem' }} />
+              <div className="skeleton-line" style={{ width: '80%', height: '1rem', marginBottom: '2rem' }} />
+              <div className="skeleton-line" style={{ width: '100%', height: '3rem', marginBottom: '1.5rem' }} />
+              <div className="skeleton-line" style={{ width: '100%', height: '3rem', marginBottom: '1.5rem' }} />
+              <div className="skeleton-line" style={{ width: '90%', height: '3rem', marginBottom: '1.5rem' }} />
+              <div className="skeleton-line" style={{ width: '70%', height: '8rem', marginBottom: '2rem' }} />
+              <div className="skeleton-line" style={{ width: '50%', height: '3rem', marginBottom: '1.5rem' }} />
+              <div className="skeleton-line" style={{ width: '40%', height: '3.5rem', marginBottom: '2rem' }} />
             </div>
-          )}
-          
-          {config && config.fields && config.fields.length > 0 ? (() => {
+          ) : config && config.fields && config.fields.length > 0 ? (() => {
             const { baseFields, advancedFields } = getGroupedFields();
             
             return (
