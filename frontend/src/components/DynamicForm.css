@@ -244,26 +244,26 @@
   padding: 1.25rem 1rem;
   min-height: 110px;
   border-radius: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
   position: relative;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: 'Outfit', sans-serif;
-  /* Glassmorphism effect */
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Glassmorphism effect - blur massimo e saturazione elevata */
+  backdrop-filter: blur(40px) saturate(250%);
+  -webkit-backdrop-filter: blur(40px) saturate(250%);
 }
 
-/* Effetto glass overlay */
+/* Effetto glass overlay - più marcato */
 .llm-model-chip::before {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(
     135deg, 
-    rgba(255,255,255,0.25) 0%, 
-    rgba(255,255,255,0.1) 50%, 
+    rgba(255,255,255,0.35) 0%, 
+    rgba(255,255,255,0.15) 50%, 
     transparent 70%
   );
   pointer-events: none;
@@ -371,19 +371,19 @@
   transform: rotate(45deg) translateX(100%);
 }
 
-/* Flash (Velocità) - Blu elettrico con effetto energia/velocità */
+/* Flash (Velocità) - Blu elettrico con effetto energia/velocità - colori vividi, vetro intenso */
 .llm-model-chip.mode-flash {
   background: linear-gradient(
     135deg, 
-    rgba(2, 132, 199, 0.4) 0%, 
-    rgba(14, 165, 233, 0.35) 50%, 
-    rgba(56, 189, 248, 0.3) 100%
+    rgba(2, 132, 199, 0.25) 0%, 
+    rgba(14, 165, 233, 0.2) 50%, 
+    rgba(56, 189, 248, 0.15) 100%
   );
-  border-color: rgba(56, 189, 248, 0.5);
+  border-color: rgba(56, 189, 248, 0.7);
   color: white;
   box-shadow: 
-    0 8px 32px rgba(14, 165, 233, 0.2),
-    inset 0 1px 0 rgba(255,255,255,0.3),
+    0 4px 16px rgba(14, 165, 233, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.4),
     inset 0 -1px 0 rgba(0,0,0,0.1);
 }
 
@@ -391,15 +391,15 @@
   transform: translateY(-4px);
   background: linear-gradient(
     135deg, 
-    rgba(2, 132, 199, 0.5) 0%, 
-    rgba(14, 165, 233, 0.45) 50%, 
-    rgba(56, 189, 248, 0.4) 100%
+    rgba(2, 132, 199, 0.3) 0%, 
+    rgba(14, 165, 233, 0.25) 50%, 
+    rgba(56, 189, 248, 0.2) 100%
   );
-  border-color: rgba(56, 189, 248, 0.7);
+  border-color: rgba(56, 189, 248, 0.9);
   box-shadow: 
-    0 12px 40px rgba(14, 165, 233, 0.3),
-    0 0 60px rgba(56, 189, 248, 0.2),
-    inset 0 1px 0 rgba(255,255,255,0.4);
+    0 6px 20px rgba(14, 165, 233, 0.2),
+    0 0 30px rgba(56, 189, 248, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.5);
 }
 
 .llm-model-chip.mode-flash:hover .mode-icon {
@@ -435,32 +435,32 @@
 .llm-model-chip.mode-flash.selected {
   background: linear-gradient(
     135deg, 
-    rgba(3, 105, 161, 0.75) 0%, 
-    rgba(2, 132, 199, 0.7) 50%, 
-    rgba(14, 165, 233, 0.65) 100%
+    rgba(3, 105, 161, 0.55) 0%, 
+    rgba(2, 132, 199, 0.5) 50%, 
+    rgba(14, 165, 233, 0.45) 100%
   );
-  border-color: rgba(255, 255, 255, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.95);
   box-shadow: 
-    0 0 0 2px rgba(255,255,255,0.5),
-    0 12px 40px rgba(14, 165, 233, 0.5),
-    0 0 80px rgba(56, 189, 248, 0.4),
-    inset 0 1px 0 rgba(255,255,255,0.6);
-  transform: translateY(-2px) scale(1.02);
+    0 0 0 3px rgba(56, 189, 248, 0.6),
+    0 8px 24px rgba(14, 165, 233, 0.4),
+    0 0 50px rgba(56, 189, 248, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.8);
+  transform: translateY(-2px) scale(1.03);
 }
 
-/* Pro (Professionalità) - Viola elegante con sfumature premium */
+/* Pro (Professionalità) - Viola elegante con sfumature premium - colori vividi, vetro intenso */
 .llm-model-chip.mode-pro {
   background: linear-gradient(
     135deg, 
-    rgba(109, 40, 217, 0.4) 0%, 
-    rgba(124, 58, 237, 0.35) 50%, 
-    rgba(139, 92, 246, 0.3) 100%
+    rgba(109, 40, 217, 0.25) 0%, 
+    rgba(124, 58, 237, 0.2) 50%, 
+    rgba(139, 92, 246, 0.15) 100%
   );
-  border-color: rgba(139, 92, 246, 0.5);
+  border-color: rgba(139, 92, 246, 0.7);
   color: white;
   box-shadow: 
-    0 8px 32px rgba(124, 58, 237, 0.2),
-    inset 0 1px 0 rgba(255,255,255,0.3),
+    0 4px 16px rgba(124, 58, 237, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.4),
     inset 0 -1px 0 rgba(0,0,0,0.1);
 }
 
@@ -468,15 +468,15 @@
   transform: translateY(-4px);
   background: linear-gradient(
     135deg, 
-    rgba(109, 40, 217, 0.5) 0%, 
-    rgba(124, 58, 237, 0.45) 50%, 
-    rgba(139, 92, 246, 0.4) 100%
+    rgba(109, 40, 217, 0.3) 0%, 
+    rgba(124, 58, 237, 0.25) 50%, 
+    rgba(139, 92, 246, 0.2) 100%
   );
-  border-color: rgba(139, 92, 246, 0.7);
+  border-color: rgba(139, 92, 246, 0.9);
   box-shadow: 
-    0 12px 40px rgba(124, 58, 237, 0.3),
-    0 0 60px rgba(139, 92, 246, 0.2),
-    inset 0 1px 0 rgba(255,255,255,0.4);
+    0 6px 20px rgba(124, 58, 237, 0.2),
+    0 0 30px rgba(139, 92, 246, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.5);
 }
 
 .llm-model-chip.mode-pro:hover .mode-icon {
@@ -514,32 +514,32 @@
 .llm-model-chip.mode-pro.selected {
   background: linear-gradient(
     135deg, 
-    rgba(91, 33, 182, 0.75) 0%, 
-    rgba(109, 40, 217, 0.7) 50%, 
-    rgba(124, 58, 237, 0.65) 100%
+    rgba(91, 33, 182, 0.55) 0%, 
+    rgba(109, 40, 217, 0.5) 50%, 
+    rgba(124, 58, 237, 0.45) 100%
   );
-  border-color: rgba(255, 255, 255, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.95);
   box-shadow: 
-    0 0 0 2px rgba(255,255,255,0.5),
-    0 12px 40px rgba(124, 58, 237, 0.5),
-    0 0 80px rgba(139, 92, 246, 0.4),
-    inset 0 1px 0 rgba(255,255,255,0.6);
-  transform: translateY(-2px) scale(1.02);
+    0 0 0 3px rgba(139, 92, 246, 0.6),
+    0 8px 24px rgba(124, 58, 237, 0.4),
+    0 0 50px rgba(139, 92, 246, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.8);
+  transform: translateY(-2px) scale(1.03);
 }
 
-/* Ultra (Potenza) - Rosso fuoco con effetto energia intensa */
+/* Ultra (Potenza) - Rosso fuoco con effetto energia intensa - colori vividi, vetro intenso */
 .llm-model-chip.mode-ultra {
   background: linear-gradient(
     135deg, 
-    rgba(185, 28, 28, 0.4) 0%, 
-    rgba(220, 38, 38, 0.35) 40%, 
-    rgba(249, 115, 22, 0.3) 100%
+    rgba(185, 28, 28, 0.25) 0%, 
+    rgba(220, 38, 38, 0.2) 40%, 
+    rgba(249, 115, 22, 0.15) 100%
   );
-  border-color: rgba(249, 115, 22, 0.5);
+  border-color: rgba(249, 115, 22, 0.7);
   color: white;
   box-shadow: 
-    0 8px 32px rgba(220, 38, 38, 0.25),
-    inset 0 1px 0 rgba(255,255,255,0.3),
+    0 4px 16px rgba(220, 38, 38, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.4),
     inset 0 -1px 0 rgba(0,0,0,0.1);
 }
 
@@ -547,15 +547,15 @@
   transform: translateY(-4px);
   background: linear-gradient(
     135deg, 
-    rgba(185, 28, 28, 0.5) 0%, 
-    rgba(220, 38, 38, 0.45) 40%, 
-    rgba(249, 115, 22, 0.4) 100%
+    rgba(185, 28, 28, 0.3) 0%, 
+    rgba(220, 38, 38, 0.25) 40%, 
+    rgba(249, 115, 22, 0.2) 100%
   );
-  border-color: rgba(249, 115, 22, 0.7);
+  border-color: rgba(249, 115, 22, 0.9);
   box-shadow: 
-    0 12px 40px rgba(220, 38, 38, 0.35),
-    0 0 60px rgba(249, 115, 22, 0.25),
-    inset 0 1px 0 rgba(255,255,255,0.4);
+    0 6px 20px rgba(220, 38, 38, 0.2),
+    0 0 30px rgba(249, 115, 22, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.5);
 }
 
 .llm-model-chip.mode-ultra:hover .mode-icon {
@@ -593,17 +593,17 @@
 .llm-model-chip.mode-ultra.selected {
   background: linear-gradient(
     135deg, 
-    rgba(153, 27, 27, 0.75) 0%, 
-    rgba(185, 28, 28, 0.7) 40%, 
-    rgba(220, 38, 38, 0.65) 100%
+    rgba(153, 27, 27, 0.55) 0%, 
+    rgba(185, 28, 28, 0.5) 40%, 
+    rgba(220, 38, 38, 0.45) 100%
   );
-  border-color: rgba(255, 255, 255, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.95);
   box-shadow: 
-    0 0 0 2px rgba(255,255,255,0.5),
-    0 12px 40px rgba(220, 38, 38, 0.55),
-    0 0 80px rgba(249, 115, 22, 0.4),
-    inset 0 1px 0 rgba(255,255,255,0.6);
-  transform: translateY(-2px) scale(1.02);
+    0 0 0 3px rgba(249, 115, 22, 0.6),
+    0 8px 24px rgba(220, 38, 38, 0.4),
+    0 0 50px rgba(249, 115, 22, 0.35),
+    inset 0 1px 0 rgba(255,255,255,0.8);
+  transform: translateY(-2px) scale(1.03);
 }
 
 @media (max-width: 520px) {
