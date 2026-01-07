@@ -125,7 +125,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
         <h2>Generazione Bozza Estesa</h2>
         <p>Sto generando la bozza estesa della trama...</p>
         <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Questo potrebbe richiedere alcuni secondi
+          Questo richiederà circa un minuto
         </p>
       </div>
     );
@@ -137,7 +137,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
         <h2>Generazione Struttura del Libro</h2>
         <p>Sto generando la struttura del libro...</p>
         <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Questo potrebbe richiedere alcuni secondi
+          Questo richiederà circa un minuto
         </p>
       </div>
     );

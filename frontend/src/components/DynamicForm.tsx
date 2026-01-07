@@ -11,6 +11,7 @@ import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
 import AlertModal from './AlertModal';
 import PlotTextarea from './PlotTextarea';
+import { FlashIcon, ProIcon, UltraIcon } from './ui/icons/ModeIcons';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -676,7 +677,7 @@ export default function DynamicForm() {
                 // Estrai modalità dal value
                 let modeName = '';
                 let modeClass = '';
-                let modeIcon = '';
+                let ModeIconComponent: React.ComponentType<{ className?: string; size?: number }> | null = null;
                 let modeDescription = '';
                 let availability = 0; // Default: 0 se non configurato
                 
@@ -686,19 +687,19 @@ export default function DynamicForm() {
                 if (value.includes('flash')) {
                   modeName = 'Flash';
                   modeClass = 'mode-flash';
-                  modeIcon = '⚡️'; // Fulmine con variante emoji più carina
+                  ModeIconComponent = FlashIcon;
                   modeDescription = 'Velocità';
                   availability = modeAvailability.flash ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('ultra')) {
                   modeName = 'Ultra';
                   modeClass = 'mode-ultra';
-                  modeIcon = '🔥'; // Fiamma
+                  ModeIconComponent = UltraIcon;
                   modeDescription = 'Estensione';
                   availability = modeAvailability.ultra ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('pro')) {
                   modeName = 'Pro';
                   modeClass = 'mode-pro';
-                  modeIcon = '⭐️'; // Stella con variante emoji più carina
+                  ModeIconComponent = ProIcon;
                   modeDescription = 'Qualità';
                   availability = modeAvailability.pro ?? 0; // Nessun fallback, usa 0 se non configurato
                 }
@@ -711,7 +712,11 @@ export default function DynamicForm() {
                     onClick={() => handleChange(field.id, value)}
                     aria-pressed={selected}
                   >
-                    <span className="mode-icon">{modeIcon}</span>
+                    {ModeIconComponent && (
+                      <span className="mode-icon">
+                        <ModeIconComponent className="mode-icon-svg" size={32} />
+                      </span>
+                    )}
                     <span className="mode-name">{modeName}</span>
                     <span className="mode-description">{modeDescription}</span>
                     <span className="mode-availability">{availability} disponibili</span>
@@ -822,7 +827,7 @@ export default function DynamicForm() {
             <h2>Generazione Struttura del Libro</h2>
             <p>Sto generando la struttura del libro...</p>
             <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-              Questo potrebbe richiedere alcuni secondi
+              Questo richiederà circa un minuto
             </p>
           </div>
         </div>

@@ -78,20 +78,45 @@ export function parseOutlineSections(outlineText: string): OutlineSection[] {
     sections.push(currentSection);
   }
   
-  // Filtra solo le sezioni di livello 2 o 3 (capitoli, non parti)
-  // Se ci sono parti (livello 2), prendiamo i capitoli (livello 3)
-  // Altrimenti prendiamo le sezioni di livello 2
-  const hasParts = sections.some(s => 
-    s.level === 2 && (s.title.includes('Parte') || s.title.includes('Part'))
+  // Filtra solo le sezioni di livello 2 o 3 (capitoli, non contenitori strutturali)
+  // Keyword che identificano contenitori strutturali (livello 2 che contengono capitoli)
+  const structuralKeywords = [
+    'parte', 'part', 'atto', 'act',
+    'introduzione', 'introduction',
+    'conclusione', 'conclusion', 
+    'prologo', 'prologue',
+    'epilogo', 'epilogue',
+    'sezione', 'section'
+  ];
+  
+  // Verifica se ci sono contenitori strutturali di livello 2
+  const structuralContainers = sections.filter(s =>
+    s.level === 2 && structuralKeywords.some(kw => s.title.toLowerCase().includes(kw))
   );
+  const structuralContainerCount = structuralContainers.length;
+  
+  // Verifica se ci sono capitoli espliciti di livello 2 (parola "Capitolo" o "Chapter")
+  const explicitChaptersLevel2 = sections.filter(s =>
+    s.level === 2 && (s.title.toLowerCase().includes('capitolo') || s.title.toLowerCase().includes('chapter'))
+  );
+  const hasExplicitChaptersLevel2 = explicitChaptersLevel2.length > 0;
+  
+  // Verifica se ci sono sezioni di livello 3
+  const hasLevel3Sections = sections.some(s => s.level === 3);
   
   let filteredSections: Array<{ title: string; description: string; level: number }>;
   
-  if (hasParts) {
+  // Logica migliorata: se ci sono sezioni di livello 3 E contenitori strutturali di livello 2, usa livello 3
+  // OPPURE se non ci sono capitoli espliciti di livello 2, usa livello 3 se disponibile
+  if ((structuralContainerCount > 0 && hasLevel3Sections) ||
+      (!hasExplicitChaptersLevel2 && hasLevel3Sections)) {
     // Prendi solo i capitoli (livello 3)
     filteredSections = sections.filter(s => s.level === 3);
-  } else {
+  } else if (hasExplicitChaptersLevel2) {
     // Prendi le sezioni di livello 2 (capitoli diretti)
+    filteredSections = sections.filter(s => s.level === 2);
+  } else {
+    // Fallback: prova con livello 2
     filteredSections = sections.filter(s => s.level === 2);
   }
   

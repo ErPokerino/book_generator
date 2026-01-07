@@ -132,23 +132,74 @@ def parse_outline_sections(outline_text: str) -> List[Dict[str, str]]:
         sections.append(current_section)
     
     # Log per debug
+    level2_sections = [s for s in sections if s['level'] == 2]
+    level3_sections = [s for s in sections if s['level'] == 3]
     print(f"[PARSE OUTLINE] Trovate {len(sections)} sezioni totali (prima del filtro)")
-    for i, s in enumerate(sections[:5]):  # Mostra prime 5 per debug
-        print(f"[PARSE OUTLINE] Sezione {i+1}: livello {s['level']}, titolo: {s['title'][:50]}...")
+    print(f"[PARSE OUTLINE] - Sezioni livello 2: {len(level2_sections)}")
+    print(f"[PARSE OUTLINE] - Sezioni livello 3: {len(level3_sections)}")
     
-    # Filtra solo le sezioni di livello 2 o 3 (capitoli, non parti)
-    # Se ci sono parti (livello 2), prendiamo i capitoli (livello 3)
-    # Altrimenti prendiamo le sezioni di livello 2
-    has_parts = any(s['level'] == 2 for s in sections if 'Parte' in s['title'] or 'Part' in s['title'] or 'Part I' in s['title'] or 'Part II' in s['title'])
+    # Mostra esempi di sezioni di livello 2 e 3
+    if level2_sections:
+        print(f"[PARSE OUTLINE] Esempi livello 2 (primi 3):")
+        for i, s in enumerate(level2_sections[:3]):
+            print(f"[PARSE OUTLINE]   {i+1}. {s['title'][:60]}")
+    if level3_sections:
+        print(f"[PARSE OUTLINE] Esempi livello 3 (primi 3):")
+        for i, s in enumerate(level3_sections[:3]):
+            print(f"[PARSE OUTLINE]   {i+1}. {s['title'][:60]}")
     
-    if has_parts:
+    # Filtra solo le sezioni di livello 2 o 3 (capitoli, non contenitori strutturali)
+    # Keyword che identificano contenitori strutturali (livello 2 che contengono capitoli)
+    structural_keywords = [
+        'Parte', 'Part', 'Atto', 'Act', 
+        'Introduzione', 'Introduction', 
+        'Conclusione', 'Conclusion',
+        'Prologo', 'Prologue', 
+        'Epilogo', 'Epilogue',
+        'Sezione', 'Section'
+    ]
+    
+    # Verifica se ci sono contenitori strutturali di livello 2
+    structural_containers = [
+        s for s in sections 
+        if s['level'] == 2 and any(keyword.lower() in s['title'].lower() for keyword in structural_keywords)
+    ]
+    structural_container_count = len(structural_containers)
+    
+    # Verifica se ci sono capitoli espliciti di livello 2 (parola "Capitolo" o "Chapter")
+    explicit_chapters_level2 = [
+        s for s in sections 
+        if s['level'] == 2 and ('capitolo' in s['title'].lower() or 'chapter' in s['title'].lower())
+    ]
+    has_explicit_chapters_level2 = len(explicit_chapters_level2) > 0
+    
+    # Verifica se ci sono sezioni di livello 3
+    has_level3_sections = len(level3_sections) > 0
+    
+    # Debug: stampa risultati del rilevamento
+    print(f"[PARSE OUTLINE] Rilevamento:")
+    print(f"[PARSE OUTLINE] - Contenitori strutturali (livello 2): {structural_container_count}")
+    if structural_containers:
+        for s in structural_containers[:3]:
+            print(f"[PARSE OUTLINE]   * {s['title'][:60]}")
+    print(f"[PARSE OUTLINE] - Capitoli espliciti (livello 2): {len(explicit_chapters_level2)}")
+    print(f"[PARSE OUTLINE] - Sezioni livello 3: {has_level3_sections}")
+    
+    # Logica migliorata: se ci sono sezioni di livello 3 E contenitori strutturali di livello 2, usa livello 3
+    # OPPURE se non ci sono capitoli espliciti di livello 2, usa livello 3 se disponibile
+    if (structural_container_count > 0 and has_level3_sections) or \
+       (not has_explicit_chapters_level2 and has_level3_sections):
         # Prendi solo i capitoli (livello 3)
         filtered_sections = [s for s in sections if s['level'] == 3]
-        print(f"[PARSE OUTLINE] Struttura con Parti: filtrate {len(filtered_sections)} sezioni di livello 3")
-    else:
+        print(f"[PARSE OUTLINE] DECISIONE: Struttura con contenitori + capitoli livello 3 -> filtrate {len(filtered_sections)} sezioni di livello 3")
+    elif has_explicit_chapters_level2:
         # Prendi le sezioni di livello 2 (capitoli diretti)
         filtered_sections = [s for s in sections if s['level'] == 2]
-        print(f"[PARSE OUTLINE] Struttura diretta: filtrate {len(filtered_sections)} sezioni di livello 2")
+        print(f"[PARSE OUTLINE] DECISIONE: Capitoli espliciti livello 2 -> filtrate {len(filtered_sections)} sezioni di livello 2")
+    else:
+        # Fallback: prova con livello 2
+        filtered_sections = [s for s in sections if s['level'] == 2]
+        print(f"[PARSE OUTLINE] DECISIONE: Fallback -> filtrate {len(filtered_sections)} sezioni di livello 2")
     
     # Se dopo il filtro non ci sono sezioni, prova a prendere tutte le sezioni di livello 2 o 3
     if len(filtered_sections) == 0:
@@ -304,10 +355,10 @@ def format_writer_context(
     if is_long_form_part1:
         lines.append("**Istruzioni (Modalità Estesa - Parte 1 di 2)**:")
         lines.append("- Scrivi SOLO la prima parte (circa 50-60%) di questa sezione.")
-        lines.append("- Mantieni un ritmo lento e dettagliato: esplora descrizioni sensoriali, dialoghi estesi, riflessioni interiori.")
+        # lines.append("- Mantieni un ritmo lento e dettagliato: esplora descrizioni sensoriali, dialoghi estesi, riflessioni interiori.")
         lines.append("- **VINCOLO CRITICO**: NON concludere la sezione. NON risolvere tutti gli eventi descritti nell'outline.")
         lines.append("- Fermati a un punto intermedio logico nell'azione, prima di completare tutti gli eventi previsti.")
-        lines.append("- L'obiettivo è creare volume e profondità narrativa, non arrivare alla fine.")
+        lines.append("- L'obiettivo è creare profondità narrativa, non arrivare alla fine.")
         lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
         lines.append("- Elabora i primi elementi narrativi indicati nella descrizione con grande dettaglio.")
         lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
