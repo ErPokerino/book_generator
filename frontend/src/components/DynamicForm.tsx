@@ -663,10 +663,6 @@ export default function DynamicForm() {
               {field.required && <span className="required"> *</span>}
               {renderInfoIcon()}
             </label>
-            
-            <p className="mode-description">
-              Flash: velocità | Pro: qualità | Ultra: libri estesi
-            </p>
 
             <div
               className={`llm-model-chips ${fieldError ? 'error' : ''}`}
@@ -681,6 +677,7 @@ export default function DynamicForm() {
                 let modeName = '';
                 let modeClass = '';
                 let modeIcon = '';
+                let modeDescription = '';
                 let availability = 0; // Default: 0 se non configurato
                 
                 // Leggi disponibilità dalla configurazione app (config/app.yaml via /api/config/app)
@@ -690,16 +687,19 @@ export default function DynamicForm() {
                   modeName = 'Flash';
                   modeClass = 'mode-flash';
                   modeIcon = '⚡️'; // Fulmine con variante emoji più carina
+                  modeDescription = 'Velocità';
                   availability = modeAvailability.flash ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('ultra')) {
                   modeName = 'Ultra';
                   modeClass = 'mode-ultra';
                   modeIcon = '🔥'; // Fiamma
+                  modeDescription = 'Estensione';
                   availability = modeAvailability.ultra ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('pro')) {
                   modeName = 'Pro';
                   modeClass = 'mode-pro';
                   modeIcon = '⭐️'; // Stella con variante emoji più carina
+                  modeDescription = 'Qualità';
                   availability = modeAvailability.pro ?? 0; // Nessun fallback, usa 0 se non configurato
                 }
                 
@@ -713,6 +713,7 @@ export default function DynamicForm() {
                   >
                     <span className="mode-icon">{modeIcon}</span>
                     <span className="mode-name">{modeName}</span>
+                    <span className="mode-description">{modeDescription}</span>
                     <span className="mode-availability">{availability} disponibili</span>
                   </button>
                 );

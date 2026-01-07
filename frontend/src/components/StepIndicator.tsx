@@ -1,18 +1,19 @@
 import React from 'react';
 import './StepIndicator.css';
+import { SetupIcon, QuestionsIcon, DraftIcon, StructureIcon, WritingIcon, CheckmarkIcon } from './ui/icons/StepIcons';
 
 interface StepConfig {
   id: string;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
 }
 
 const STEPS: StepConfig[] = [
-  { id: 'form', label: 'Setup', icon: '📝' },
-  { id: 'questions', label: 'Domande', icon: '❓' },
-  { id: 'draft', label: 'Bozza', icon: '📄' },
-  { id: 'summary', label: 'Struttura', icon: '📋' },
-  { id: 'writing', label: 'Scrittura', icon: '✍️' },
+  { id: 'form', label: 'Setup', icon: SetupIcon },
+  { id: 'questions', label: 'Domande', icon: QuestionsIcon },
+  { id: 'draft', label: 'Bozza', icon: DraftIcon },
+  { id: 'summary', label: 'Struttura', icon: StructureIcon },
+  { id: 'writing', label: 'Scrittura', icon: WritingIcon },
 ];
 
 interface StepIndicatorProps {
@@ -40,9 +41,9 @@ export default function StepIndicator({ currentStep, progress }: StepIndicatorPr
             <div className={`step-indicator-content ${status}`}>
               <div className="step-indicator-icon">
                 {status === 'completed' ? (
-                  <span className="step-checkmark">✓</span>
+                  <CheckmarkIcon className="step-checkmark" size={16} />
                 ) : (
-                  <span className="step-icon">{step.icon}</span>
+                  <step.icon className="step-icon" size={18} />
                 )}
               </div>
               <div className="step-indicator-text">
