@@ -14,6 +14,28 @@
   overflow-x: hidden; /* Previene scroll orizzontale */
 }
 
+/* Touch Target Optimization for Mobile */
+@media (max-width: 768px) {
+  /* Assicura che tutti i bottoni abbiano almeno 44px di touch target */
+  button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Bottoni piccoli devono avere almeno 44px */
+  button:not(.nav-menu-toggle):not(.onboarding-dot) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Eccezioni per bottoni che devono rimanere piccoli (con padding sufficiente) */
+  .onboarding-dot,
+  .nav-menu-toggle {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 
 
 

@@ -12,6 +12,8 @@ import RegisterPage from './components/RegisterPage'
 import ForgotPasswordPage from './components/ForgotPasswordPage'
 import ResetPasswordPage from './components/ResetPasswordPage'
 import VerifyEmailPage from './components/VerifyEmailPage'
+import OnboardingCarousel from './components/Onboarding/OnboardingCarousel'
+import { useOnboarding } from './hooks/useOnboarding'
 import './App.css'
 
 import AnalyticsView from './components/AnalyticsView'
@@ -25,6 +27,7 @@ function AppContent() {
   const [resetToken, setResetToken] = useState<string | null>(null)
   const [verifyToken, setVerifyToken] = useState<string | null>(null)
   const { isAuthenticated, isLoading } = useAuth()
+  const { hasSeenCarousel, completeCarousel } = useOnboarding()
 
   // Controlla URL per token di verifica o reset all'avvio
   useEffect(() => {
@@ -149,6 +152,18 @@ function AppContent() {
             Caricamento...
           </div>
         </div>
+      </ErrorBoundary>
+    )
+  }
+
+  // Onboarding carousel (mostra al primo login)
+  if (isAuthenticated && !hasSeenCarousel) {
+    return (
+      <ErrorBoundary>
+        <OnboardingCarousel 
+          onComplete={completeCarousel}
+          onSkip={completeCarousel}
+        />
       </ErrorBoundary>
     )
   }
