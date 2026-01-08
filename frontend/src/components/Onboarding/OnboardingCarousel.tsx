@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { WelcomeIcon, CustomizeIcon, EditIcon, ModesIcon } from './onboardingIcons'
+import { WelcomeIcon, CustomizeIcon, EditIcon, ModesIcon, LibraryIcon } from './onboardingIcons'
 import './OnboardingCarousel.css'
 
 interface OnboardingScreen {
@@ -44,6 +44,12 @@ const screens: OnboardingScreen[] = [
       </ul>
     ),
     icon: <ModesIcon className="onboarding-icon-svg" size={80} />,
+  },
+  {
+    id: 'library',
+    title: 'Crea la tua libreria',
+    description: 'Tutti i libri generati vengono salvati nella tua libreria personale. Puoi rileggerli, esportarli e condividerli quando vuoi.',
+    icon: <LibraryIcon className="onboarding-icon-svg" size={80} />,
   },
 ]
 

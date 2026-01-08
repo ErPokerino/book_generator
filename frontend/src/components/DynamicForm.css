@@ -62,16 +62,19 @@
 @media (max-width: 968px) {
   .dynamic-form-layout {
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
+    padding: 1.5rem 1rem;
   }
   
   .dynamic-form-layout .step-indicator-wrapper {
     position: static;
     width: 100%;
+    order: -1; /* Assicura che sia sempre sopra */
   }
   
   .dynamic-form-layout .step-indicator {
     min-width: auto;
+    width: 100%;
   }
 }
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { BookOpen, PenLine, RefreshCw, Zap, Star, Rocket } from 'lucide-react'
+import { BookOpen, PenLine, RefreshCw, Zap, Star, Rocket, Library } from 'lucide-react'
 
 interface IconProps {
   className?: string
@@ -39,6 +39,16 @@ export const EditIcon: React.FC<IconProps> = ({ className = '', size = 80 }) => 
 export const ModesIcon: React.FC<IconProps> = ({ className = '', size = 80 }) => {
   return (
     <Rocket 
+      className={className}
+      size={size}
+      strokeWidth={1.5}
+    />
+  )
+}
+
+export const LibraryIcon: React.FC<IconProps> = ({ className = '', size = 80 }) => {
+  return (
+    <Library 
       className={className}
       size={size}
       strokeWidth={1.5}

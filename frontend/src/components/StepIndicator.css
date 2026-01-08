@@ -279,43 +279,142 @@
   }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* Mobile: Versione Orizzontale Compatta */
+@media (max-width: 968px) {
   .step-indicator {
-    min-width: auto;
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    min-width: 100%;
+    position: relative;
   }
   
+  .step-indicator::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+  
+  .step-indicator-item {
+    flex-direction: row;
+    align-items: center;
+    flex: 0 0 auto;
+    min-width: fit-content;
+    position: relative;
+  }
+  
+  .step-indicator-content {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 0;
+    width: auto;
+  }
+  
+  /* Icone più piccole su mobile */
   .step-indicator-icon {
     width: 2rem;
     height: 2rem;
+    margin-bottom: 0;
   }
   
   .step-icon,
   .step-checkmark {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
+  }
+  
+  /* Testo sotto l'icona, più compatto */
+  .step-indicator-text {
+    text-align: center;
+    gap: 0;
+    align-items: center;
   }
   
   .step-label {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    line-height: 1.2;
   }
   
+  /* Linea di connessione orizzontale invece di verticale */
   .step-indicator-line {
-    margin-left: 1rem;
-    height: 1.5rem;
+    width: 1.5rem;
+    height: 1.5px;
+    margin: 0;
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
+    position: absolute;
+    top: 1rem; /* Centrato verticalmente con l'icona */
+    left: calc(100% - 0.5rem);
+    transform: translateY(-50%);
   }
   
-  .step-indicator-content {
-    gap: var(--spacing-sm);
-    padding: var(--spacing-xs) 0;
+  .step-indicator-line::before {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--success) 0%, rgba(16, 185, 129, 0.6) 100%);
+    transition: width var(--transition-elegant);
+  }
+  
+  .step-indicator-line.completed {
+    width: 1.5rem;
+    height: 1.5px;
+    background: linear-gradient(90deg, var(--success) 0%, rgba(16, 185, 129, 0.8) 100%);
+  }
+  
+  .step-indicator-line.completed::before {
+    width: 100%;
+    height: 100%;
+    animation: lineFillHorizontal 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  @keyframes lineFillHorizontal {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+  
+  /* Nascondere progress detail su mobile per compattezza se necessario */
+  .step-progress-detail {
+    font-size: 0.65rem;
+    margin-top: 0.125rem;
+  }
+  
+  /* Aggiustamenti per stato corrente su mobile */
+  .step-indicator-content.current .step-indicator-icon {
+    animation: pulseElegantMobile 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulseElegantMobile {
+    0%, 100% {
+      box-shadow: 
+        0 0 0 3px var(--accent-light),
+        0 3px 8px var(--accent-glow),
+        0 0 0 1px rgba(201, 72, 91, 0.2) inset;
+    }
+    50% {
+      box-shadow: 
+        0 0 0 6px rgba(201, 72, 91, 0.08),
+        0 4px 12px var(--accent-glow),
+        0 0 0 1px rgba(201, 72, 91, 0.25) inset;
+    }
   }
 }
 
+/* Extra small devices - ancora più compatto */
 @media (max-width: 480px) {
   .step-indicator {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    gap: 0;
   }
   
   .step-indicator-icon {
@@ -325,11 +424,22 @@
   
   .step-icon,
   .step-checkmark {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
   }
   
   .step-label {
-    font-size: 0.8rem;
+    font-size: 0.65rem;
+  }
+  
+  .step-indicator-line {
+    width: 1rem;
+    margin-left: 0.15rem;
+    margin-right: 0.15rem;
+    left: calc(100% - 0.3rem);
+  }
+  
+  .step-progress-detail {
+    font-size: 0.6rem;
   }
 }

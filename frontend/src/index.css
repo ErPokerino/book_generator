@@ -93,6 +93,12 @@
   --spacing-2xl: 2.5rem;  /* 40px */
   --spacing-3xl: 3rem;    /* 48px */
 
+  /* Safe Area Insets - Per dispositivi con notch */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+
   /* Rendering */
   font-synthesis: none;
   text-rendering: optimizeLegibility;

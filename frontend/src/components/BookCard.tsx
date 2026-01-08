@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { MoreVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LibraryEntry, deleteBook, regenerateCover } from '../api/client';
 import ConfirmModal from './ConfirmModal';
-import AlertModal from './AlertModal';
 import ExportDropdown from './ExportDropdown';
 import './BookCard.css';
 
@@ -21,6 +21,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const [regenerating, setRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleRegenerateCover = async () => {
     setShowRegenerateConfirm(true);
@@ -31,16 +32,11 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     try {
       setRegenerating(true);
       await regenerateCover(book.session_id);
+      toast.success('Copertina rigenerata con successo');
       // Ricarica la pagina per vedere la nuova copertina
       window.location.reload();
     } catch (error) {
-      setAlertModal({
-        isOpen: true,
-        title: 'Errore',
-        message: `Errore nella rigenerazione della copertina: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`,
-        variant: 'error',
-      });
-    } finally {
+      toast.error(`Errore nella rigenerazione della copertina: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
       setRegenerating(false);
     }
   };
@@ -128,56 +124,80 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
       <div className="book-card-content">
         <div className="book-card-header">
           <h3 className="book-title">{stripMarkdownFormatting(book.title)}</h3>
-          <span className={getStatusClass(book.status)}>
-            {getStatusLabel(book.status)}
-          </span>
+          <div className="book-card-header-actions">
+            <span className={getStatusClass(book.status)}>
+              {getStatusLabel(book.status)}
+            </span>
+            <button
+              className={`book-card-toggle ${isExpanded ? 'expanded' : ''}`}
+              onClick={() => setIsExpanded(!isExpanded)}
+              aria-label={isExpanded ? 'Nascondi dettagli' : 'Mostra dettagli'}
+              aria-expanded={isExpanded}
+            >
+              <MoreVertical size={18} />
+            </button>
+          </div>
         </div>
         
-        <div className="book-card-info">
-          <p className="book-author">Autore: {book.author || 'N/A'}</p>
-          <p className="book-model">Modello: {book.llm_model}</p>
-          {book.genre && <p className="book-genre">Genere: {book.genre}</p>}
-          {book.total_pages && (
-            <p className="book-pages">Pagine: {book.total_pages}</p>
-          )}
-          {book.completed_chapters > 0 && (
-            <p className="book-chapters">
-              Capitoli: {book.completed_chapters}/{book.total_chapters}
+        <div className={`book-card-info ${isExpanded ? 'expanded' : 'compact'}`}>
+          {/* Info essenziali - sempre visibili */}
+          <div className="book-card-info-essential">
+            <p className="book-model">Modalità: {book.llm_model}</p>
+            {book.genre && <p className="book-genre">Genere: {book.genre}</p>}
+            {book.total_pages && (
+              <p className="book-pages">Pagine: {book.total_pages}</p>
+            )}
+            {book.critique_score != null && (
+              <p className="book-score">
+                Voto: <span 
+                  className="score-value" 
+                  style={{ color: getScoreColor(book.critique_score) }}
+                >
+                  {book.critique_score.toFixed(1)}/10
+                </span>
+              </p>
+            )}
+          </div>
+          
+          {/* Info dettagliate - visibili solo quando espanso */}
+          <div className={`book-card-info-details ${isExpanded ? 'expanded' : ''}`}>
+            <p className="book-author">Autore: {book.author || 'N/A'}</p>
+            {book.completed_chapters > 0 && (
+              <p className="book-chapters">
+                Capitoli: {book.completed_chapters}/{book.total_chapters}
+              </p>
+            )}
+            <p className="book-created-date">
+              Data generazione: {new Date(book.created_at).toLocaleDateString('it-IT', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric'
+              })}
             </p>
-          )}
-          {book.critique_score != null && (
-            <p className="book-score">
-              Voto: <span 
-                className="score-value" 
-                style={{ color: getScoreColor(book.critique_score) }}
-              >
-                {book.critique_score.toFixed(1)}/10
-              </span>
-            </p>
-          )}
-          {book.writing_time_minutes && (
-            <p className="book-time">
-              Tempo scrittura: {Math.round(book.writing_time_minutes)} min
-            </p>
-          )}
-          {book.total_pages && book.total_pages > 0 && (
-            <p className="book-reading-time">
-              Tempo lettura: {(() => {
-                const readingMinutes = Math.ceil(book.total_pages * 90 / 60); // 90 secondi per pagina
-                if (readingMinutes < 60) {
-                  return `${readingMinutes} min`;
-                }
-                const hours = Math.floor(readingMinutes / 60);
-                const mins = readingMinutes % 60;
-                return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
-              })()}
-            </p>
-          )}
-          {book.estimated_cost != null && (
-            <p className="book-cost">
-              Costo stimato: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
-            </p>
-          )}
+            {book.writing_time_minutes && (
+              <p className="book-time">
+                Tempo scrittura: {Math.round(book.writing_time_minutes)} min
+              </p>
+            )}
+            {book.total_pages && book.total_pages > 0 && (
+              <p className="book-reading-time">
+                Tempo lettura: {(() => {
+                  const readingMinutes = Math.ceil(book.total_pages * 90 / 60); // 90 secondi per pagina
+                  if (readingMinutes < 60) {
+                    return `${readingMinutes} min`;
+                  }
+                  const hours = Math.floor(readingMinutes / 60);
+                  const mins = readingMinutes % 60;
+                  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+                })()}
+              </p>
+            )}
+            {book.estimated_cost != null && (
+              <p className="book-cost">
+                Costo stimato: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="book-card-actions">

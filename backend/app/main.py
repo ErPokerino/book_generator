@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from io import BytesIO
 from datetime import datetime
 from collections import defaultdict
@@ -103,6 +103,51 @@ def get_model_abbreviation(model_name: str) -> str:
     else:
         # Fallback: usa le prime lettere del modello
         return model_name.replace("gemini-", "g").replace("-", "").replace("_", "")[:6]
+
+
+def llm_model_to_mode(model_name: Optional[str]) -> str:
+    """
+    Converte il nome del modello LLM in modalità (Flash, Pro, Ultra).
+    
+    Args:
+        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3-pro", "gemini-3-ultra")
+    
+    Returns:
+        Modalità corrispondente: "Flash", "Pro", "Ultra", o "Sconosciuto"
+    """
+    if not model_name:
+        return "Sconosciuto"
+    
+    model_lower = model_name.lower()
+    if "ultra" in model_lower:
+        return "Ultra"
+    elif "flash" in model_lower:
+        return "Flash"
+    elif "pro" in model_lower:
+        return "Pro"
+    else:
+        return "Sconosciuto"
+
+
+def mode_to_llm_models(mode: str) -> List[str]:
+    """
+    Converte una modalità in lista di modelli LLM corrispondenti.
+    
+    Args:
+        mode: Modalità ("Flash", "Pro", "Ultra")
+    
+    Returns:
+        Lista di nomi di modelli che appartengono a quella modalità
+    """
+    mode_lower = mode.lower()
+    if mode_lower == "flash":
+        return ["gemini-2.5-flash", "gemini-3-flash"]
+    elif mode_lower == "pro":
+        return ["gemini-2.5-pro", "gemini-3-pro"]
+    elif mode_lower == "ultra":
+        return ["gemini-3-ultra"]
+    else:
+        return []
 
 
 # Carica variabili d'ambiente dal file .env
@@ -966,6 +1011,141 @@ def calculate_page_count(content: str) -> int:
         return 0
 
 
+def get_generation_method(model_name: str) -> str:
+    """
+    Determina il metodo di generazione in base al modello.
+    
+    Args:
+        model_name: Nome del modello (es. "gemini-3-ultra", "gemini-3-flash")
+    
+    Returns:
+        'flash', 'pro', 'ultra', o 'default'
+    """
+    if not model_name:
+        return "default"
+    model_lower = model_name.lower()
+    if "ultra" in model_lower:
+        return "ultra"
+    elif "pro" in model_lower:
+        return "pro"
+    elif "flash" in model_lower:
+        return "flash"
+    return "default"
+
+
+def estimate_linear_params_from_history(sessions: list, method: str) -> Optional[tuple[float, float]]:
+    """
+    Stima i parametri a e b del modello lineare t(i) = a*i + b dai dati storici.
+    
+    Args:
+        sessions: Lista di sessioni con chapter_timings
+        method: Metodo di generazione ('flash', 'pro', 'ultra')
+    
+    Returns:
+        Tupla (a, b) o None se non ci sono abbastanza dati
+    """
+    # Raccogli tutti i punti (indice_capitolo, tempo_misurato)
+    data_points = []
+    
+    for session in sessions:
+        if not session.chapter_timings or len(session.chapter_timings) == 0:
+            continue
+        
+        # Verifica che il metodo della sessione corrisponda
+        session_method = get_generation_method(session.form_data.llm_model if session.form_data else None)
+        if session_method != method:
+            continue
+        
+        # Aggiungi coppie (indice_capitolo, tempo)
+        for idx, timing in enumerate(session.chapter_timings, start=1):
+            data_points.append((idx, timing))
+    
+    if len(data_points) < 2:
+        # Serve almeno 2 punti per regressione lineare
+        return None
+    
+    # Regressione lineare: y = ax + b
+    # Formula minimi quadrati:
+    # a = (n*Σ(xy) - Σ(x)*Σ(y)) / (n*Σ(x²) - (Σ(x))²)
+    # b = (Σ(y) - a*Σ(x)) / n
+    
+    n = len(data_points)
+    sum_x = sum(x for x, y in data_points)
+    sum_y = sum(y for x, y in data_points)
+    sum_xy = sum(x * y for x, y in data_points)
+    sum_x2 = sum(x * x for x, y in data_points)
+    
+    denominator = n * sum_x2 - sum_x * sum_x
+    if abs(denominator) < 1e-10:  # Evita divisione per zero
+        return None
+    
+    a = (n * sum_xy - sum_x * sum_y) / denominator
+    b = (sum_y - a * sum_x) / n
+    
+    # Verifica che i parametri siano ragionevoli
+    if a < 0 or b < 0:
+        return None
+    
+    return (a, b)
+
+
+def get_linear_params_for_method(method: str, app_config: dict) -> tuple[float, float]:
+    """
+    Ottiene i parametri a e b per un metodo di generazione.
+    
+    Priorità:
+    1. Configurazione esplicita
+    2. Valori default dalla configurazione
+    
+    Args:
+        method: Metodo di generazione ('flash', 'pro', 'ultra')
+        app_config: Configurazione dell'app
+    
+    Returns:
+        Tupla (a, b) sempre valida
+    """
+    time_config = app_config.get("time_estimation", {})
+    linear_params = time_config.get("linear_model_params", {})
+    
+    # 1. Prova configurazione esplicita
+    if method in linear_params:
+        method_params = linear_params[method]
+        a = method_params.get("a")
+        b = method_params.get("b")
+        if a is not None and b is not None and a >= 0 and b >= 0:
+            return (a, b)
+    
+    # 2. Usa valori default
+    default_params = linear_params.get("default", {})
+    a = default_params.get("a", 1.1)
+    b = default_params.get("b", 44.3)
+    return (a, b)
+
+
+def calculate_residual_time_linear(k: int, N: int, a: float, b: float) -> float:
+    """
+    Calcola tempo residuo usando formula chiusa del modello lineare.
+    
+    Formula: T_res(k, N) = a * ((N(N+1) - (k-1)k) / 2) + b * (N - k + 1)
+    
+    Args:
+        k: Primo capitolo ancora da processare (1-indexed)
+        N: Ultimo capitolo (totale)
+        a: Parametro moltiplicatore (s/capitolo)
+        b: Parametro tempo base (s)
+    
+    Returns:
+        Tempo residuo in secondi
+    """
+    if k > N or k < 1:
+        return 0.0
+    
+    # Formula chiusa: a * ((N(N+1) - (k-1)k) / 2) + b * (N - k + 1)
+    sum_term = (N * (N + 1) - (k - 1) * k) / 2
+    count_term = N - k + 1
+    return a * sum_term + b * count_term
+
+
 def get_fallback_seconds_for_model(model_name: str, app_config: dict) -> float:
     """
     Ottiene il fallback in secondi per un modello specifico.
@@ -1000,11 +1180,15 @@ def get_fallback_seconds_for_model(model_name: str, app_config: dict) -> float:
 
 async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
     """
-    Calcola la stima del tempo rimanente per completare il libro.
-    Restituisce (estimated_minutes, confidence) dove confidence è "high", "medium", o "low".
+    Calcola la stima del tempo rimanente per completare il libro usando modello lineare.
+    
+    Modello: t(i) = a*i + b dove i è l'indice del capitolo
+    Tempo residuo: T_res(k, N) = a * ((N(N+1) - (k-1)k) / 2) + b * (N - k + 1)
+    
+    Restituisce (estimated_minutes, None) dove confidence è None per retrocompatibilità.
     """
     try:
-        # FIX: Casting esplicito a int per evitare errori con stringhe
+        # Casting esplicito a int per evitare errori con stringhe
         try:
             current_step = int(current_step)
         except (ValueError, TypeError):
@@ -1017,13 +1201,20 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
             print(f"[CALCULATE_ESTIMATED_TIME] WARNING: total_steps non è un numero valido ({total_steps}), uso 0")
             total_steps = 0
         
-        print(f"[CALCULATE_ESTIMATED_TIME] Calcolo stima per session_id={session_id[:8]}..., current_step={current_step} (type: {type(current_step).__name__}), total_steps={total_steps} (type: {type(total_steps).__name__})")
+        print(f"[CALCULATE_ESTIMATED_TIME] Calcolo stima per session_id={session_id[:8]}..., current_step={current_step}, total_steps={total_steps}")
         
-        # Leggi il parametro di fallback dalla configurazione
+        # Verifica edge cases
+        if total_steps <= 0:
+            print(f"[CALCULATE_ESTIMATED_TIME] total_steps <= 0, restituisco None")
+            return None, None
+        
+        remaining_chapters = total_steps - current_step
+        if remaining_chapters <= 0:
+            print(f"[CALCULATE_ESTIMATED_TIME] Nessun capitolo rimanente, restituisco None")
+            return None, None
+        
+        # Ottieni configurazione e sessione
         app_config = get_app_config()
-        time_config = app_config.get("time_estimation", {})
-        fallback_seconds_per_chapter = time_config.get("fallback_seconds_per_chapter", 45)
-        
         from app.agent.session_store import get_session_store
         session_store = get_session_store()
         session = await get_session_async(session_store, session_id)
@@ -1032,181 +1223,60 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         current_model = session.form_data.llm_model if session and session.form_data else None
         print(f"[CALCULATE_ESTIMATED_TIME] Modello sessione corrente: {current_model}")
         
-        remaining_chapters = total_steps - current_step
-        print(f"[CALCULATE_ESTIMATED_TIME] Capitoli rimanenti: {remaining_chapters}")
-        if remaining_chapters <= 0:
-            print(f"[CALCULATE_ESTIMATED_TIME] Nessun capitolo rimanente, restituisco None")
-            return None, None
+        # Determina il metodo di generazione
+        method = get_generation_method(current_model)
+        print(f"[CALCULATE_ESTIMATED_TIME] Metodo determinato: {method}")
         
-        if not session:
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Sessione non trovata, uso stima conservativa")
-            # Anche se la sessione non esiste, restituiamo una stima conservativa
-            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-            estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-            return round(estimated_minutes, 1), "low"
+        # Ottieni parametri a e b per il metodo
+        a, b = get_linear_params_for_method(method, app_config)
+        print(f"[CALCULATE_ESTIMATED_TIME] Parametri modello lineare: a={a:.2f} s/cap, b={b:.2f} s")
         
-        # Se non ci sono ancora capitoli completati, usa stima iniziale basata su dati storici o conservativa
-        if current_step == 0:
-            print(f"[CALCULATE_ESTIMATED_TIME] current_step == 0, uso stima iniziale")
-            # All'inizio, usa media storica filtrata per modello o stima conservativa
-            all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
-            all_timings = []
-            
-            for s in all_sessions.values():
-                # Filtra per modello: confronta form_data.llm_model
-                if (s.chapter_timings and len(s.chapter_timings) > 0 and 
-                    s.form_data and s.form_data.llm_model == current_model):
-                    all_timings.extend(s.chapter_timings)
-            
-            matching_sessions_count = len([s for s in all_sessions.values() if s.form_data and s.form_data.llm_model == current_model])
-            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici per modello '{current_model}' da {matching_sessions_count} sessioni")
-            if all_timings:
-                avg_time_seconds = sum(all_timings) / len(all_timings)
-                confidence = "medium"
-                print(f"[CALCULATE_ESTIMATED_TIME] Media storica per modello '{current_model}': {avg_time_seconds:.1f} secondi per capitolo")
-            else:
-                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-                avg_time_seconds = fallback_seconds
-                confidence = "low"
-                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico per modello '{current_model}', uso fallback: {avg_time_seconds} secondi")
-            
-            estimated_seconds = remaining_chapters * avg_time_seconds
-            estimated_minutes = estimated_seconds / 60
-            result = round(estimated_minutes, 1), confidence
-            print(f"[CALCULATE_ESTIMATED_TIME] Risultato: {result[0]} minuti, confidence: {result[1]}")
-            return result
+        # Calcola k: primo capitolo ancora da processare (1-indexed)
+        k = current_step + 1
+        N = total_steps
         
-        # Usa la configurazione già letta all'inizio della funzione
-        time_config = app_config.get("time_estimation", {})
-        min_chapters_for_avg = time_config.get("min_chapters_for_reliable_avg", 3)
-        use_session_avg = time_config.get("use_session_avg_if_available", True)
+        print(f"[CALCULATE_ESTIMATED_TIME] Calcolo tempo residuo: k={k}, N={N}")
         
-        avg_time_seconds = None
-        confidence = "low"
-        
-        # Se abbiamo capitoli completati in questa sessione, usa la loro media
-        # Anche con 1 capitolo possiamo fare una stima (anche se meno affidabile)
-        print(f"[CALCULATE_ESTIMATED_TIME] chapter_timings nella sessione corrente: {session.chapter_timings}")
-        print(f"[CALCULATE_ESTIMATED_TIME] current_step={current_step}, quindi abbiamo completato {current_step} capitoli")
-        
-        # Logging dettagliato per Ultra
-        if current_model and "ultra" in current_model.lower():
-            print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Timings sessione corrente: {session.chapter_timings}")
-            if session.chapter_timings:
-                avg_ultra = sum(session.chapter_timings) / len(session.chapter_timings)
-                print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Media timings: {avg_ultra:.1f}s, Numero capitoli: {len(session.chapter_timings)}")
-                print(f"[CALCULATE_ESTIMATED_TIME] [ULTRA] Timings individuali: {[f'{t:.1f}s' for t in session.chapter_timings]}")
-        
-        # Se abbiamo almeno 1 capitolo completato, proviamo a usare i tempi della sessione corrente
-        if use_session_avg and session.chapter_timings and len(session.chapter_timings) > 0:
-            # Abbiamo tempi nella sessione corrente
-            avg_time_seconds = sum(session.chapter_timings) / len(session.chapter_timings)
-            if len(session.chapter_timings) >= min_chapters_for_avg:
-                confidence = "high"
-                print(f"[CALCULATE_ESTIMATED_TIME] Usando media sessione corrente ({len(session.chapter_timings)} capitoli): {avg_time_seconds:.1f} sec, confidence: high")
-            else:
-                confidence = "medium"  # Abbiamo almeno 1 capitolo, stima media
-                print(f"[CALCULATE_ESTIMATED_TIME] Usando media sessione corrente ({len(session.chapter_timings)} capitoli): {avg_time_seconds:.1f} sec, confidence: medium")
-        elif current_step > 0:
-            # Abbiamo completato almeno 1 capitolo ma non abbiamo ancora chapter_timings
-            # Questo può succedere se il timing non è stato ancora salvato
-            # In questo caso, usiamo dati storici filtrati per modello o stima conservativa
-            print(f"[CALCULATE_ESTIMATED_TIME] current_step > 0 ma chapter_timings vuoto, cerco dati storici per modello '{current_model}'")
-            all_sessions = session_store._sessions if hasattr(session_store, '_sessions') else {}
-            all_timings = []
-            
-            for s in all_sessions.values():
-                # Filtra per modello: confronta form_data.llm_model
-                if (s.chapter_timings and len(s.chapter_timings) > 0 and 
-                    s.form_data and s.form_data.llm_model == current_model):
-                    all_timings.extend(s.chapter_timings)
-            
-            matching_sessions_count = len([s for s in all_sessions.values() if s.form_data and s.form_data.llm_model == current_model])
-            print(f"[CALCULATE_ESTIMATED_TIME] Trovati {len(all_timings)} tempi storici per modello '{current_model}' da {matching_sessions_count} sessioni")
-            if all_timings:
-                avg_time_seconds = sum(all_timings) / len(all_timings)
-                confidence = "medium"
-                print(f"[CALCULATE_ESTIMATED_TIME] Usando media storica per modello '{current_model}': {avg_time_seconds:.1f} sec, confidence: medium")
-            else:
-                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-                avg_time_seconds = fallback_seconds
-                confidence = "low"
-                print(f"[CALCULATE_ESTIMATED_TIME] Nessun dato storico per modello '{current_model}', uso fallback: {avg_time_seconds} sec, confidence: low")
-        else:
-            # current_step == 0 ma siamo già passati per il caso speciale sopra
-            # Questo non dovrebbe mai succedere, ma per sicurezza usiamo stima conservativa
-            print(f"[CALCULATE_ESTIMATED_TIME] Caso non previsto, uso stima conservativa per modello '{current_model}'")
-            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-            avg_time_seconds = fallback_seconds
-            confidence = "low"
-        
-        # Assicuriamoci di avere sempre un valore
-        if avg_time_seconds is None or avg_time_seconds <= 0:
-            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-            avg_time_seconds = fallback_seconds
-            confidence = "low"
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: avg_time_seconds era None o <= 0, uso fallback per modello '{current_model}': {avg_time_seconds}")
-        
-        estimated_seconds = remaining_chapters * avg_time_seconds
+        # Calcola tempo residuo usando formula chiusa
+        estimated_seconds = calculate_residual_time_linear(k, N, a, b)
         estimated_minutes = estimated_seconds / 60
-        result = round(estimated_minutes, 1), confidence
         
-        # GARANZIA FINALE: se remaining_chapters > 0, restituiamo sempre un valore valido
-        if remaining_chapters > 0 and (result[0] is None or result[0] <= 0):
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: Risultato non valido ({result[0]}), uso fallback finale per modello '{current_model}'")
-            fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-            estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-            result = round(estimated_minutes, 1), "low"
+        result = round(estimated_minutes, 1), None  # confidence = None per retrocompatibilità
         
-        print(f"[CALCULATE_ESTIMATED_TIME] Risultato finale: {result[0]} minuti, confidence: {result[1]}")
+        print(f"[CALCULATE_ESTIMATED_TIME] Risultato finale: {result[0]} minuti")
         return result
         
     except Exception as e:
         print(f"[CALCULATE_ESTIMATED_TIME] ERRORE nel calcolo stima tempo: {e}")
         import traceback
         traceback.print_exc()
-        # In caso di errore, restituiamo comunque una stima conservativa invece di None
-        # Questo assicura che l'utente veda sempre una stima
-        try:
-            remaining_chapters = total_steps - current_step
-            if remaining_chapters > 0:
-                # Leggi il fallback dalla configurazione per il modello corrente
-                app_config = get_app_config()
-                # Prova a recuperare la sessione per ottenere il modello
-                session_store = get_session_store()
-                session = await get_session_async(session_store, session_id)
-                current_model = session.form_data.llm_model if session and session.form_data else None
-                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-                # Stima conservativa
-                estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-                print(f"[CALCULATE_ESTIMATED_TIME] Fallback: stima conservativa {estimated_minutes:.1f} minuti per modello '{current_model}'")
-                return round(estimated_minutes, 1), "low"
-        except Exception as fallback_error:
-            print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nel fallback: {fallback_error}")
         
-        # Ultimo fallback: se siamo arrivati qui e remaining_chapters > 0, restituiamo comunque una stima
+        # Fallback: usa modello lineare con parametri default
         try:
-            # I valori dovrebbero già essere int grazie al casting all'inizio, ma per sicurezza...
             current_step_int = int(current_step) if not isinstance(current_step, int) else current_step
             total_steps_int = int(total_steps) if not isinstance(total_steps, int) else total_steps
             remaining_chapters = total_steps_int - current_step_int
+            
             if remaining_chapters > 0:
-                # Leggi il fallback dalla configurazione per il modello corrente
                 app_config = get_app_config()
-                # Prova a recuperare la sessione per ottenere il modello
+                from app.agent.session_store import get_session_store
                 session_store = get_session_store()
                 session = await get_session_async(session_store, session_id)
                 current_model = session.form_data.llm_model if session and session.form_data else None
-                fallback_seconds = get_fallback_seconds_for_model(current_model, app_config)
-                estimated_minutes = (remaining_chapters * fallback_seconds) / 60
-                print(f"[CALCULATE_ESTIMATED_TIME] Ultimo fallback: {estimated_minutes:.1f} minuti per modello '{current_model}'")
-                return round(estimated_minutes, 1), "low"
+                method = get_generation_method(current_model)
+                
+                # Usa solo parametri default (senza session_store per evitare loop)
+                a, b = get_linear_params_for_method(method, app_config)
+                k = current_step_int + 1
+                estimated_seconds = calculate_residual_time_linear(k, total_steps_int, a, b)
+                estimated_minutes = estimated_seconds / 60
+                print(f"[CALCULATE_ESTIMATED_TIME] Fallback: {estimated_minutes:.1f} minuti")
+                return round(estimated_minutes, 1), None
         except Exception as fallback_err:
-            print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nell'ultimo fallback: {fallback_err}")
+            print(f"[CALCULATE_ESTIMATED_TIME] ERRORE anche nel fallback: {fallback_err}")
             import traceback
             traceback.print_exc()
         
-        # Solo se remaining_chapters <= 0 restituiamo None
         return None, None
 
 
@@ -1431,11 +1501,16 @@ def session_to_library_entry(session, skip_cost_calculation: bool = False) -> "L
             # Aggiorna il dict in-place (verrà salvato al prossimo save_session)
             session.writing_progress["estimated_cost"] = estimated_cost
     
+    # Converti il modello in modalità per la visualizzazione
+    original_model = session.form_data.llm_model if session.form_data else None
+    mode = llm_model_to_mode(original_model)
+    print(f"[SESSION_TO_LIBRARY_ENTRY] Modello originale: {original_model}, Modalità convertita: {mode}")
+    
     return LibraryEntry(
         session_id=session.session_id,
         title=session.current_title or "Romanzo",
         author=session.form_data.user_name or "Autore",
-        llm_model=session.form_data.llm_model,
+        llm_model=mode,  # Ora contiene la modalità invece del nome del modello
         genre=session.form_data.genre,
         created_at=session.created_at,
         updated_at=session.updated_at,
@@ -1564,10 +1639,10 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
     time_list = [e.writing_time_minutes for e in entries if e.writing_time_minutes is not None and e.writing_time_minutes > 0]
     average_writing_time_minutes = sum(time_list) / len(time_list) if time_list else 0.0
     
-    # Distribuzione per modello
-    books_by_model = defaultdict(int)
+    # Distribuzione per modalità (e.llm_model ora contiene la modalità, non il modello)
+    books_by_mode = defaultdict(int)
     for e in entries:
-        books_by_model[e.llm_model] += 1
+        books_by_mode[e.llm_model] += 1  # llm_model ora contiene la modalità
     
     # Distribuzione per genere
     books_by_genre = defaultdict(int)
@@ -1591,32 +1666,32 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
             else:
                 score_distribution["8-10"] += 1
     
-    # Calcola voto medio per modello
-    model_scores = defaultdict(list)
+    # Calcola voto medio per modalità (e.llm_model ora contiene la modalità)
+    mode_scores = defaultdict(list)
     for e in completed:
         if e.critique_score is not None:
-            model_scores[e.llm_model].append(e.critique_score)
+            mode_scores[e.llm_model].append(e.critique_score)  # llm_model ora contiene la modalità
     
     average_score_by_model = {}
-    for model, scores_list in model_scores.items():
+    for mode, scores_list in mode_scores.items():
         if scores_list:
-            average_score_by_model[model] = round(sum(scores_list) / len(scores_list), 2)
+            average_score_by_model[mode] = round(sum(scores_list) / len(scores_list), 2)
     
-    # Calcola tempo medio di generazione per modello (solo libri completati con tempo valido)
-    model_times = defaultdict(list)
+    # Calcola tempo medio di generazione per modalità (solo libri completati con tempo valido)
+    mode_times = defaultdict(list)
     for e in completed:
         if e.writing_time_minutes is not None and e.writing_time_minutes > 0:
-            model_times[e.llm_model].append(e.writing_time_minutes)
+            mode_times[e.llm_model].append(e.writing_time_minutes)  # llm_model ora contiene la modalità
     
     average_writing_time_by_model = {}
-    for model, times_list in model_times.items():
+    for mode, times_list in mode_times.items():
         if times_list:
-            average_writing_time_by_model[model] = round(sum(times_list) / len(times_list), 1)
+            average_writing_time_by_model[mode] = round(sum(times_list) / len(times_list), 1)
     
-    # Calcola tempo medio per pagina per modello (MEDIA PESATA):
+    # Calcola tempo medio per pagina per modalità (MEDIA PESATA):
     # (somma tempi) / (somma pagine) sui libri completati con tempo e pagine valide
-    model_time_sum_minutes = defaultdict(float)
-    model_pages_sum_for_time = defaultdict(float)
+    mode_time_sum_minutes = defaultdict(float)
+    mode_pages_sum_for_time = defaultdict(float)
     for e in completed:
         if (
             e.writing_time_minutes is not None
@@ -1624,49 +1699,49 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
             and e.total_pages is not None
             and e.total_pages > 0
         ):
-            model_time_sum_minutes[e.llm_model] += float(e.writing_time_minutes)
-            model_pages_sum_for_time[e.llm_model] += float(e.total_pages)
+            mode_time_sum_minutes[e.llm_model] += float(e.writing_time_minutes)  # llm_model ora contiene la modalità
+            mode_pages_sum_for_time[e.llm_model] += float(e.total_pages)
 
     average_time_per_page_by_model = {}
-    for model in set(list(model_time_sum_minutes.keys()) + list(model_pages_sum_for_time.keys())):
-        pages_sum = model_pages_sum_for_time.get(model, 0.0)
+    for mode in set(list(mode_time_sum_minutes.keys()) + list(mode_pages_sum_for_time.keys())):
+        pages_sum = mode_pages_sum_for_time.get(mode, 0.0)
         if pages_sum > 0:
-            average_time_per_page_by_model[model] = round(model_time_sum_minutes.get(model, 0.0) / pages_sum, 2)
+            average_time_per_page_by_model[mode] = round(mode_time_sum_minutes.get(mode, 0.0) / pages_sum, 2)
     
-    # Calcola pagine medie per modello (solo libri completati con pagine valide)
-    model_pages = defaultdict(list)
+    # Calcola pagine medie per modalità (solo libri completati con pagine valide)
+    mode_pages = defaultdict(list)
     for e in completed:
         if e.total_pages is not None and e.total_pages > 0:
-            model_pages[e.llm_model].append(e.total_pages)
+            mode_pages[e.llm_model].append(e.total_pages)  # llm_model ora contiene la modalità
     
     average_pages_by_model = {}
-    for model, pages_list in model_pages.items():
+    for mode, pages_list in mode_pages.items():
         if pages_list:
-            average_pages_by_model[model] = round(sum(pages_list) / len(pages_list), 1)
+            average_pages_by_model[mode] = round(sum(pages_list) / len(pages_list), 1)
     
-    # Calcola costo medio per libro per modello (solo libri completati con costo valido)
-    model_costs = defaultdict(list)
+    # Calcola costo medio per libro per modalità (solo libri completati con costo valido)
+    mode_costs = defaultdict(list)
     for e in completed:
         if e.estimated_cost is not None and e.estimated_cost > 0:
-            model_costs[e.llm_model].append(e.estimated_cost)
+            mode_costs[e.llm_model].append(e.estimated_cost)  # llm_model ora contiene la modalità
     
     average_cost_by_model = {}
-    for model, costs_list in model_costs.items():
+    for mode, costs_list in mode_costs.items():
         if costs_list:
-            average_cost_by_model[model] = round(sum(costs_list) / len(costs_list), 4)
+            average_cost_by_model[mode] = round(sum(costs_list) / len(costs_list), 4)
     
-    # Calcola costo medio per pagina per modello (solo libri completati con costo e pagine valide)
-    model_costs_per_page = defaultdict(list)
+    # Calcola costo medio per pagina per modalità (solo libri completati con costo e pagine valide)
+    mode_costs_per_page = defaultdict(list)
     for e in completed:
         if (e.estimated_cost is not None and e.estimated_cost > 0 and
             e.total_pages is not None and e.total_pages > 0):
             cost_per_page = e.estimated_cost / e.total_pages
-            model_costs_per_page[e.llm_model].append(cost_per_page)
+            mode_costs_per_page[e.llm_model].append(cost_per_page)  # llm_model ora contiene la modalità
     
     average_cost_per_page_by_model = {}
-    for model, costs_per_page_list in model_costs_per_page.items():
+    for mode, costs_per_page_list in mode_costs_per_page.items():
         if costs_per_page_list:
-            average_cost_per_page_by_model[model] = round(sum(costs_per_page_list) / len(costs_per_page_list), 4)
+            average_cost_per_page_by_model[mode] = round(sum(costs_per_page_list) / len(costs_per_page_list), 4)
     
     return LibraryStats(
         total_books=len(entries),
@@ -1675,7 +1750,7 @@ def calculate_library_stats(entries: list["LibraryEntry"]) -> "LibraryStats":
         average_score=round(average_score, 2) if average_score else None,
         average_pages=round(average_pages, 1),
         average_writing_time_minutes=round(average_writing_time_minutes, 1),
-        books_by_model=dict(books_by_model),
+        books_by_model=dict(books_by_mode),  # Ora contiene modalità invece di modelli
         books_by_genre=dict(books_by_genre),
         score_distribution=dict(score_distribution),
         average_score_by_model=average_score_by_model,
@@ -1723,8 +1798,8 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
     for date_str, scores in sorted(score_by_date.items()):
         score_trend_over_time[date_str] = round(sum(scores) / len(scores), 2)
     
-    # Calcola confronto dettagliato per ogni modello
-    model_comparison_data = defaultdict(lambda: {
+    # Calcola confronto dettagliato per ogni modalità (entry.llm_model ora contiene la modalità)
+    mode_comparison_data = defaultdict(lambda: {
         'total': 0,
         'completed': 0,
         'scores': [],
@@ -1738,41 +1813,41 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
     })
     
     for entry in entries:
-        model = entry.llm_model
-        model_comparison_data[model]['total'] += 1
+        mode = entry.llm_model  # llm_model ora contiene la modalità
+        mode_comparison_data[mode]['total'] += 1
         if entry.status == "complete":
-            model_comparison_data[model]['completed'] += 1
+            mode_comparison_data[mode]['completed'] += 1
             
             if entry.critique_score is not None:
-                model_comparison_data[model]['scores'].append(entry.critique_score)
-                # Distribuzione voti per modello
+                mode_comparison_data[mode]['scores'].append(entry.critique_score)
+                # Distribuzione voti per modalità
                 score = entry.critique_score
                 if score < 2:
-                    model_comparison_data[model]['score_distribution']["0-2"] += 1
+                    mode_comparison_data[mode]['score_distribution']["0-2"] += 1
                 elif score < 4:
-                    model_comparison_data[model]['score_distribution']["2-4"] += 1
+                    mode_comparison_data[mode]['score_distribution']["2-4"] += 1
                 elif score < 6:
-                    model_comparison_data[model]['score_distribution']["4-6"] += 1
+                    mode_comparison_data[mode]['score_distribution']["4-6"] += 1
                 elif score < 8:
-                    model_comparison_data[model]['score_distribution']["6-8"] += 1
+                    mode_comparison_data[mode]['score_distribution']["6-8"] += 1
                 else:
-                    model_comparison_data[model]['score_distribution']["8-10"] += 1
+                    mode_comparison_data[mode]['score_distribution']["8-10"] += 1
             
             if entry.total_pages is not None and entry.total_pages > 0:
-                model_comparison_data[model]['pages'].append(entry.total_pages)
+                mode_comparison_data[mode]['pages'].append(entry.total_pages)
             
             if entry.estimated_cost is not None and entry.estimated_cost > 0:
-                model_comparison_data[model]['costs'].append(entry.estimated_cost)
+                mode_comparison_data[mode]['costs'].append(entry.estimated_cost)
             
             if entry.writing_time_minutes is not None and entry.writing_time_minutes > 0:
-                model_comparison_data[model]['writing_times'].append(entry.writing_time_minutes)
+                mode_comparison_data[mode]['writing_times'].append(entry.writing_time_minutes)
                 if entry.total_pages is not None and entry.total_pages > 0:
-                    model_comparison_data[model]['time_sum_minutes_for_pages'] += float(entry.writing_time_minutes)
-                    model_comparison_data[model]['pages_sum_for_time'] += float(entry.total_pages)
+                    mode_comparison_data[mode]['time_sum_minutes_for_pages'] += float(entry.writing_time_minutes)
+                    mode_comparison_data[mode]['pages_sum_for_time'] += float(entry.total_pages)
     
-    # Crea lista ModelComparisonEntry
+    # Crea lista ModelComparisonEntry (ora contiene modalità invece di modelli)
     model_comparison = []
-    for model, data in sorted(model_comparison_data.items()):
+    for mode, data in sorted(mode_comparison_data.items()):
         avg_score = None
         if data['scores']:
             avg_score = round(sum(data['scores']) / len(data['scores']), 2)
@@ -1795,7 +1870,7 @@ def calculate_advanced_stats(entries: list["LibraryEntry"]) -> "AdvancedStats":
             avg_time_per_page = round(float(data.get('time_sum_minutes_for_pages', 0.0) or 0.0) / pages_sum, 2)
         
         model_comparison.append(ModelComparisonEntry(
-            model=model,
+            model=mode,  # Ora contiene la modalità invece del modello
             total_books=data['total'],
             completed_books=data['completed'],
             average_score=avg_score,
@@ -2968,7 +3043,7 @@ async def restore_session_endpoint(
                 else:
                     critique = session.literary_critique
             
-            # Calcola stima tempo rimanente (stessa logica di get_book_progress_endpoint)
+            # Calcola stima tempo rimanente usando modello lineare
             estimated_time_minutes = None
             estimated_time_confidence = None
             if not is_complete:
@@ -2976,15 +3051,23 @@ async def restore_session_endpoint(
                 total_steps = progress.get('total_steps', 0)
                 
                 if total_steps > 0 and current_step_idx < total_steps:
-                    remaining = total_steps - current_step_idx
-                    if session.chapter_timings and len(session.chapter_timings) > 0:
-                        avg_time = sum(session.chapter_timings) / len(session.chapter_timings)
-                        estimated_time_minutes = (remaining * avg_time) / 60.0
-                        estimated_time_confidence = "high" if len(session.chapter_timings) >= 3 else "medium"
-                    else:
-                        # Fallback: stima basata su tempo medio atteso
-                        estimated_time_minutes = remaining * 2.0  # 2 minuti per capitolo
-                        estimated_time_confidence = "low"
+                    # Usa la stessa funzione calculate_estimated_time per coerenza
+                    try:
+                        estimated_time_minutes, estimated_time_confidence = await calculate_estimated_time(
+                            session_id, current_step_idx, total_steps
+                        )
+                    except Exception as e:
+                        print(f"[RESTORE_SESSION] Errore nel calcolo stima tempo: {e}")
+                        # Fallback semplice se calculate_estimated_time fallisce
+                        remaining = total_steps - current_step_idx
+                        app_config = get_app_config()
+                        current_model = session.form_data.llm_model if session.form_data else None
+                        method = get_generation_method(current_model)
+                        a, b = get_linear_params_for_method(method, app_config)
+                        k = current_step_idx + 1
+                        estimated_seconds = calculate_residual_time_linear(k, total_steps, a, b)
+                        estimated_time_minutes = estimated_seconds / 60
+                        estimated_time_confidence = None
             
             writing_progress = BookProgress(
                 session_id=session_id,
@@ -3364,7 +3447,8 @@ async def get_complete_book_endpoint(
 @app.get("/api/library", response_model=LibraryResponse)
 async def get_library_endpoint(
     status: Optional[str] = None,
-    llm_model: Optional[str] = None,
+    llm_model: Optional[str] = None,  # Retrocompatibilità: accetta ancora llm_model
+    mode: Optional[str] = None,  # Nuovo parametro per modalità (Flash, Pro, Ultra)
     genre: Optional[str] = None,
     search: Optional[str] = None,
     sort_by: Optional[str] = "created_at",
@@ -3379,7 +3463,8 @@ async def get_library_endpoint(
     
     Query parameters:
     - status: filtro per stato (draft, outline, writing, paused, complete, all)
-    - llm_model: filtro per modello LLM
+    - mode: filtro per modalità (Flash, Pro, Ultra) - preferito rispetto a llm_model
+    - llm_model: filtro per modello LLM (retrocompatibilità, deprecato)
     - genre: filtro per genere
     - search: ricerca in titolo/autore
     - sort_by: ordinamento (created_at, title, score, cost, total_pages, updated_at)
@@ -3392,15 +3477,57 @@ async def get_library_endpoint(
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
         
+        # Determina il filtro per modello: se mode è fornito, convertilo in lista di modelli
+        # Altrimenti usa llm_model per retrocompatibilità
+        filter_llm_model = None
+        if mode:
+            # Converti modalità in lista di modelli
+            models_for_mode = mode_to_llm_models(mode)
+            if models_for_mode:
+                # Per ora carichiamo tutte le sessioni e filtriamo dopo
+                # (potremmo ottimizzare con $in query in futuro)
+                filter_llm_model = None  # Filtriamo dopo
+            else:
+                filter_llm_model = None  # Modalità sconosciuta, nessun risultato
+        elif llm_model:
+            # Retrocompatibilità: se viene passato llm_model, convertilo in modalità
+            # e poi in lista di modelli
+            detected_mode = llm_model_to_mode(llm_model)
+            models_for_mode = mode_to_llm_models(detected_mode)
+            if models_for_mode:
+                filter_llm_model = None  # Filtriamo dopo
+            else:
+                filter_llm_model = llm_model  # Usa il modello originale se non riconosciuto
+        
         # Filtri vengono applicati nella query MongoDB (ottimizzazione performance)
         all_sessions = await get_all_sessions_async(
             session_store, 
             user_id=user_id, 
             fields=LIBRARY_ENTRY_FIELDS,
             status=status,
-            llm_model=llm_model,
+            llm_model=filter_llm_model,  # None se dobbiamo filtrare per modalità dopo
             genre=genre
         )
+        
+        # Filtra per modalità se necessario (dopo il caricamento)
+        if mode:
+            models_for_mode = mode_to_llm_models(mode)
+            if models_for_mode:
+                all_sessions = {
+                    sid: sess for sid, sess in all_sessions.items()
+                    if sess.form_data and sess.form_data.llm_model in models_for_mode
+                }
+            else:
+                all_sessions = {}  # Modalità sconosciuta, nessun risultato
+        elif llm_model and not filter_llm_model:
+            # Retrocompatibilità: filtra per modalità se llm_model era stato convertito
+            detected_mode = llm_model_to_mode(llm_model)
+            models_for_mode = mode_to_llm_models(detected_mode)
+            if models_for_mode:
+                all_sessions = {
+                    sid: sess for sid, sess in all_sessions.items()
+                    if sess.form_data and sess.form_data.llm_model in models_for_mode
+                }
         
         # Converti tutte le sessioni in LibraryEntry e identifica sessioni che necessitano backfill
         entries = []
@@ -4424,6 +4551,352 @@ async def cleanup_obsolete_books_endpoint():
         )
 
 
+def is_gemini_2_5(model_name: Optional[str]) -> bool:
+    """Verifica se un modello è una versione 2.5 di Gemini."""
+    if not model_name:
+        return False
+    return "gemini-2.5" in model_name.lower()
+
+
+@app.get("/api/admin/books/gemini-2.5/stats")
+async def get_gemini_2_5_stats_endpoint(
+    current_user = Depends(require_admin),
+):
+    """Restituisce statistiche sui libri generati con Gemini 2.5 (solo admin)."""
+    try:
+        from app.agent.session_store_helpers import get_all_sessions_async
+        session_store = get_session_store()
+        all_sessions = await get_all_sessions_async(session_store, user_id=None)
+        
+        # Filtra sessioni con modelli 2.5
+        gemini_2_5_sessions = {}
+        for session_id, session in all_sessions.items():
+            if session.form_data and is_gemini_2_5(session.form_data.llm_model):
+                gemini_2_5_sessions[session_id] = session
+        
+        # Raggruppa per modello
+        by_model = defaultdict(int)
+        by_status = defaultdict(int)
+        with_pdf = 0
+        with_cover = 0
+        books_list = []
+        
+        books_dir = Path(__file__).parent.parent / "books"
+        
+        for session_id, session in gemini_2_5_sessions.items():
+            model = session.form_data.llm_model
+            by_model[model] += 1
+            
+            # Converti in LibraryEntry per ottenere status
+            try:
+                entry = session_to_library_entry(session, skip_cost_calculation=True)
+                status = entry.status
+                by_status[status] += 1
+                
+                # Verifica PDF
+                has_pdf = False
+                if entry.pdf_filename:
+                    has_pdf = True
+                elif status == "complete" and books_dir.exists():
+                    # Cerca PDF locale
+                    date_prefix = session.created_at.strftime("%Y-%m-%d")
+                    model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                    title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    title_sanitized = title_sanitized.replace(" ", "_")
+                    if not title_sanitized:
+                        title_sanitized = f"Libro_{session.session_id[:8]}"
+                    expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                    expected_path = books_dir / expected_filename
+                    if expected_path.exists():
+                        has_pdf = True
+                    elif entry.pdf_path and entry.pdf_path.startswith("gs://"):
+                        has_pdf = True
+                
+                if has_pdf:
+                    with_pdf += 1
+                
+                # Verifica copertina
+                has_cover = False
+                if session.cover_image_path:
+                    if session.cover_image_path.startswith("gs://"):
+                        has_cover = True
+                    else:
+                        cover_path = Path(session.cover_image_path)
+                        if cover_path.exists():
+                            has_cover = True
+                
+                if has_cover:
+                    with_cover += 1
+                
+                books_list.append({
+                    "session_id": session_id,
+                    "title": entry.title,
+                    "model": model,
+                    "status": status,
+                    "has_pdf": has_pdf,
+                    "has_cover": has_cover,
+                    "created_at": session.created_at.isoformat(),
+                })
+            except Exception as e:
+                print(f"[GEMINI-2.5-STATS] Errore nel processare sessione {session_id}: {e}")
+                continue
+        
+        return {
+            "total_books": len(gemini_2_5_sessions),
+            "by_model": dict(by_model),
+            "by_status": dict(by_status),
+            "with_pdf": with_pdf,
+            "with_cover": with_cover,
+            "books": books_list,
+        }
+    
+    except Exception as e:
+        print(f"[GEMINI-2.5-STATS] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel calcolo delle statistiche Gemini 2.5: {str(e)}"
+        )
+
+
+@app.get("/api/admin/books/gemini-2.5/preview")
+async def preview_gemini_2_5_books_endpoint(
+    current_user = Depends(require_admin),
+):
+    """Restituisce lista dettagliata di tutti i libri Gemini 2.5 da eliminare (solo admin)."""
+    try:
+        from app.agent.session_store_helpers import get_all_sessions_async
+        session_store = get_session_store()
+        all_sessions = await get_all_sessions_async(session_store, user_id=None)
+        
+        # Filtra sessioni con modelli 2.5
+        gemini_2_5_books = []
+        books_dir = Path(__file__).parent.parent / "books"
+        
+        for session_id, session in all_sessions.items():
+            if session.form_data and is_gemini_2_5(session.form_data.llm_model):
+                try:
+                    entry = session_to_library_entry(session, skip_cost_calculation=True)
+                    
+                    # Verifica file associati
+                    pdf_path = None
+                    cover_path = None
+                    
+                    if entry.pdf_path:
+                        pdf_path = entry.pdf_path
+                    elif entry.status == "complete" and books_dir.exists():
+                        date_prefix = session.created_at.strftime("%Y-%m-%d")
+                        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                        title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                        title_sanitized = title_sanitized.replace(" ", "_")
+                        if not title_sanitized:
+                            title_sanitized = f"Libro_{session.session_id[:8]}"
+                        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                        expected_path = books_dir / expected_filename
+                        if expected_path.exists():
+                            pdf_path = str(expected_path)
+                    
+                    if session.cover_image_path:
+                        cover_path = session.cover_image_path
+                    
+                    gemini_2_5_books.append({
+                        "session_id": session_id,
+                        "title": entry.title,
+                        "author": entry.author,
+                        "model": session.form_data.llm_model,
+                        "status": entry.status,
+                        "created_at": session.created_at.isoformat(),
+                        "updated_at": session.updated_at.isoformat(),
+                        "pdf_path": pdf_path,
+                        "cover_path": cover_path,
+                        "has_pdf": pdf_path is not None,
+                        "has_cover": cover_path is not None,
+                    })
+                except Exception as e:
+                    print(f"[GEMINI-2.5-PREVIEW] Errore nel processare sessione {session_id}: {e}")
+                    continue
+        
+        return {
+            "total_books": len(gemini_2_5_books),
+            "books": gemini_2_5_books,
+        }
+    
+    except Exception as e:
+        print(f"[GEMINI-2.5-PREVIEW] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel preview dei libri Gemini 2.5: {str(e)}"
+        )
+
+
+@app.post("/api/admin/books/gemini-2.5/delete")
+async def delete_gemini_2_5_books_endpoint(
+    dry_run: bool = False,
+    model_filter: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    current_user = Depends(require_admin),
+):
+    """
+    Elimina tutti i libri generati con Gemini 2.5 (solo admin).
+    
+    Args:
+        dry_run: Se True, simula l'eliminazione senza eliminare realmente
+        model_filter: Filtra per modello specifico ("gemini-2.5-flash" o "gemini-2.5-pro")
+        status_filter: Filtra per stato specifico (draft, outline, writing, paused, complete)
+    """
+    try:
+        from app.agent.session_store_helpers import get_all_sessions_async, get_session_async
+        session_store = get_session_store()
+        all_sessions = await get_all_sessions_async(session_store, user_id=None)
+        
+        # Filtra sessioni con modelli 2.5
+        gemini_2_5_sessions = {}
+        for session_id, session in all_sessions.items():
+            if session.form_data and is_gemini_2_5(session.form_data.llm_model):
+                # Applica filtri opzionali
+                if model_filter and session.form_data.llm_model != model_filter:
+                    continue
+                if status_filter:
+                    entry = session_to_library_entry(session, skip_cost_calculation=True)
+                    if entry.status != status_filter:
+                        continue
+                gemini_2_5_sessions[session_id] = session
+        
+        deleted_sessions = 0
+        deleted_pdfs = 0
+        deleted_covers = 0
+        errors = []
+        details = []
+        
+        books_dir = Path(__file__).parent.parent / "books"
+        storage_service = get_storage_service()
+        
+        for session_id, session in gemini_2_5_sessions.items():
+            try:
+                entry = session_to_library_entry(session, skip_cost_calculation=True)
+                detail = {
+                    "session_id": session_id,
+                    "title": entry.title,
+                    "model": session.form_data.llm_model,
+                    "status": entry.status,
+                    "pdf_deleted": False,
+                    "cover_deleted": False,
+                    "session_deleted": False,
+                }
+                
+                if not dry_run:
+                    # Elimina PDF
+                    pdf_deleted = False
+                    try:
+                        if entry.pdf_path:
+                            if entry.pdf_path.startswith("gs://"):
+                                # Elimina da GCS
+                                try:
+                                    storage_service.delete_file(entry.pdf_path)
+                                    pdf_deleted = True
+                                except Exception as e:
+                                    errors.append(f"Errore eliminazione PDF GCS {entry.pdf_path}: {e}")
+                            else:
+                                # Elimina locale
+                                pdf_path = Path(entry.pdf_path)
+                                if pdf_path.exists():
+                                    pdf_path.unlink()
+                                    pdf_deleted = True
+                        elif entry.status == "complete" and books_dir.exists():
+                            # Cerca PDF locale
+                            date_prefix = session.created_at.strftime("%Y-%m-%d")
+                            model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+                            title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                            title_sanitized = title_sanitized.replace(" ", "_")
+                            if not title_sanitized:
+                                title_sanitized = f"Libro_{session.session_id[:8]}"
+                            expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+                            expected_path = books_dir / expected_filename
+                            
+                            if expected_path.exists():
+                                expected_path.unlink()
+                                pdf_deleted = True
+                            else:
+                                # Cerca qualsiasi PDF che potrebbe corrispondere
+                                for pdf_file in books_dir.glob("*.pdf"):
+                                    if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
+                                        pdf_file.unlink()
+                                        pdf_deleted = True
+                                        break
+                        
+                        if pdf_deleted:
+                            deleted_pdfs += 1
+                            detail["pdf_deleted"] = True
+                    except Exception as e:
+                        errors.append(f"Errore eliminazione PDF per {entry.title}: {e}")
+                    
+                    # Elimina copertina
+                    cover_deleted = False
+                    try:
+                        if session.cover_image_path:
+                            if session.cover_image_path.startswith("gs://"):
+                                # Elimina da GCS
+                                try:
+                                    storage_service.delete_file(session.cover_image_path)
+                                    cover_deleted = True
+                                except Exception as e:
+                                    errors.append(f"Errore eliminazione copertina GCS {session.cover_image_path}: {e}")
+                            else:
+                                # Elimina locale
+                                cover_path = Path(session.cover_image_path)
+                                if cover_path.exists():
+                                    cover_path.unlink()
+                                    cover_deleted = True
+                            
+                            if cover_deleted:
+                                deleted_covers += 1
+                                detail["cover_deleted"] = True
+                    except Exception as e:
+                        errors.append(f"Errore eliminazione copertina per {entry.title}: {e}")
+                    
+                    # Elimina sessione
+                    if await delete_session_async(session_store, session_id):
+                        deleted_sessions += 1
+                        detail["session_deleted"] = True
+                    else:
+                        errors.append(f"Errore eliminazione sessione {session_id}")
+                else:
+                    # Dry run: simula eliminazione
+                    detail["pdf_deleted"] = entry.pdf_path is not None or (entry.status == "complete" and books_dir.exists())
+                    detail["cover_deleted"] = session.cover_image_path is not None
+                    detail["session_deleted"] = True
+                
+                details.append(detail)
+            except Exception as e:
+                errors.append(f"Errore durante eliminazione {session_id}: {e}")
+                print(f"[GEMINI-2.5-DELETE] Errore eliminando {session_id}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "total_found": len(gemini_2_5_sessions),
+            "deleted_sessions": deleted_sessions if not dry_run else len(gemini_2_5_sessions),
+            "deleted_pdfs": deleted_pdfs if not dry_run else sum(1 for d in details if d["pdf_deleted"]),
+            "deleted_covers": deleted_covers if not dry_run else sum(1 for d in details if d["cover_deleted"]),
+            "errors": errors if errors else None,
+            "details": details,
+        }
+    
+    except Exception as e:
+        print(f"[GEMINI-2.5-DELETE] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'eliminazione dei libri Gemini 2.5: {str(e)}"
+        )
+
+
 @app.get("/api/library/pdf/{filename:path}")
 async def download_pdf_by_filename_endpoint(filename: str):
     """Scarica un PDF specifico per nome file."""
@@ -4589,11 +5062,19 @@ if os.path.exists(static_path):
             return FileResponse(favicon_path, media_type="image/svg+xml")
         raise HTTPException(status_code=404, detail="Favicon not found")
     
+    # Serve PWA manifest
+    @app.get("/manifest.webmanifest")
+    async def serve_manifest():
+        manifest_path = os.path.join(static_path, "manifest.webmanifest")
+        if os.path.exists(manifest_path):
+            return FileResponse(manifest_path, media_type="application/manifest+json")
+        raise HTTPException(status_code=404, detail="Manifest not found")
+    
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Skip if it's an API route or favicon
-        if full_path.startswith("api/") or full_path == "favicon.svg":
+        # Skip if it's an API route, favicon, or manifest
+        if full_path.startswith("api/") or full_path == "favicon.svg" or full_path == "manifest.webmanifest":
             raise HTTPException(status_code=404, detail="Not found")
         # Serve index.html for SPA routing
         index_path = os.path.join(static_path, "index.html")
