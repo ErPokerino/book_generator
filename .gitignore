@@ -24,6 +24,9 @@ yarn-error.log*
 frontend/dist/
 frontend/.vite/
 
+# Backend static (generated from frontend build)
+backend/static/
+
 # IDE
 .vscode/
 .idea/

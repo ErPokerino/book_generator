@@ -5322,11 +5322,43 @@ if os.path.exists(static_path):
             return FileResponse(manifest_path, media_type="application/manifest+json")
         raise HTTPException(status_code=404, detail="Manifest not found")
     
+    # Serve PWA icons
+    @app.get("/icon-192.png")
+    async def serve_icon_192():
+        icon_path = os.path.join(static_path, "icon-192.png")
+        if os.path.exists(icon_path):
+            return FileResponse(icon_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Icon not found")
+    
+    @app.get("/icon-512.png")
+    async def serve_icon_512():
+        icon_path = os.path.join(static_path, "icon-512.png")
+        if os.path.exists(icon_path):
+            return FileResponse(icon_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Icon not found")
+    
+    @app.get("/apple-touch-icon.png")
+    async def serve_apple_touch_icon():
+        icon_path = os.path.join(static_path, "apple-touch-icon.png")
+        if os.path.exists(icon_path):
+            return FileResponse(icon_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Icon not found")
+    
+    @app.get("/favicon.png")
+    async def serve_favicon_png():
+        icon_path = os.path.join(static_path, "favicon.png")
+        if os.path.exists(icon_path):
+            return FileResponse(icon_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Icon not found")
+    
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Skip if it's an API route, favicon, or manifest
-        if full_path.startswith("api/") or full_path == "favicon.svg" or full_path == "manifest.webmanifest":
+        # Skip if it's an API route, favicon, manifest, or PWA icons
+        if (full_path.startswith("api/") or 
+            full_path == "favicon.svg" or 
+            full_path == "manifest.webmanifest" or
+            full_path in ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "favicon.png"]):
             raise HTTPException(status_code=404, detail="Not found")
         # Serve index.html for SPA routing
         index_path = os.path.join(static_path, "index.html")
