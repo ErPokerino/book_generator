@@ -61,10 +61,11 @@
 
 /* Menu renderizzato come Portal (posizione fixed nel body) */
 .export-dropdown-menu-portal {
-  position: fixed;
+  position: fixed !important;
   z-index: 99999; /* Sopra tutto */
-  width: 140px; /* Larghezza fissa per evitare espansione */
-  max-width: 140px;
+  /* Rimuoviamo bottom/left/right per evitare conflitti - usa solo inline style */
+  bottom: auto !important;
+  right: auto !important;
 }
 
 @keyframes slideDown {

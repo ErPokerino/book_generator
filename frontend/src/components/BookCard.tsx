@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LibraryEntry, deleteBook, regenerateCover } from '../api/client';
@@ -22,6 +23,10 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleRegenerateCover = async () => {
     setShowRegenerateConfirm(true);
@@ -107,6 +112,59 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     }
   };
 
+  // Gestione menu dropdown
+  useEffect(() => {
+    const updateMenuPosition = () => {
+      if (toggleRef.current) {
+        const rect = toggleRef.current.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    };
+
+    if (isMenuOpen) {
+      updateMenuPosition();
+      window.addEventListener('scroll', updateMenuPosition, true);
+      window.addEventListener('resize', updateMenuPosition);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isToggleClick = toggleRef.current?.contains(target);
+      const isMenuClick = menuRef.current?.contains(target);
+      
+      if (!isToggleClick && !isMenuClick) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
+  const handleToggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleMenuAction = (action: () => void) => {
+    setIsMenuOpen(false);
+    action();
+  };
+
   const coverImageUrl = book.cover_image_path 
     ? `${API_BASE}/library/cover/${book.session_id}`
     : null;
@@ -129,10 +187,11 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               {getStatusLabel(book.status)}
             </span>
             <button
-              className={`book-card-toggle ${isExpanded ? 'expanded' : ''}`}
-              onClick={() => setIsExpanded(!isExpanded)}
-              aria-label={isExpanded ? 'Nascondi dettagli' : 'Mostra dettagli'}
-              aria-expanded={isExpanded}
+              ref={toggleRef}
+              className={`book-card-toggle ${isMenuOpen ? 'expanded' : ''}`}
+              onClick={handleToggleMenu}
+              aria-label="Menu opzioni"
+              aria-expanded={isMenuOpen}
             >
               <MoreVertical size={18} />
             </button>
@@ -199,9 +258,10 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               📝 Critica
             </button>
           )}
+          {/* Su mobile, nascondi Esporta e Rigenera Copertina - vanno nel menu */}
           {book.status === 'complete' && !book.cover_image_path && (
             <button 
-              className="action-btn regenerate-cover-btn" 
+              className="action-btn regenerate-cover-btn regenerate-cover-btn-desktop" 
               onClick={handleRegenerateCover}
               disabled={regenerating}
             >
@@ -214,7 +274,9 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             </button>
           )}
           {book.status === 'complete' && (
-            <ExportDropdown sessionId={book.session_id} />
+            <div className="export-dropdown-desktop">
+              <ExportDropdown sessionId={book.session_id} />
+            </div>
           )}
           {(book.status === 'writing' || book.status === 'paused') && onContinue && (
             <button className="action-btn continue-btn" onClick={() => onContinue(book.session_id)}>
@@ -259,6 +321,50 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         onConfirm={confirmRegenerateCover}
         onCancel={() => setShowRegenerateConfirm(false)}
       />
+
+      {/* Menu Dropdown */}
+      {isMenuOpen && createPortal(
+        <div
+          ref={menuRef}
+          className="book-card-menu"
+          style={{
+            position: 'fixed',
+            top: menuPosition.top,
+            right: menuPosition.right,
+          }}
+        >
+          {/* Sezione Dettagli */}
+          <div className="book-card-menu-section">
+            <button
+              className="book-card-menu-item"
+              onClick={() => handleMenuAction(() => setIsExpanded(!isExpanded))}
+            >
+              {isExpanded ? '👁️ Nascondi dettagli' : '👁️ Mostra dettagli'}
+            </button>
+          </div>
+
+          {/* Sezione Azioni (solo se complete) */}
+          {book.status === 'complete' && (
+            <div className="book-card-menu-section">
+              {book.status === 'complete' && !book.cover_image_path && (
+                <button
+                  className="book-card-menu-item book-card-menu-item-regenerate"
+                  onClick={() => handleMenuAction(handleRegenerateCover)}
+                  disabled={regenerating}
+                >
+                  {regenerating ? '⏳ Rigenerazione...' : '🖼️ Rigenera Copertina'}
+                </button>
+              )}
+              {book.status === 'complete' && (
+                <div className="book-card-menu-export">
+                  <ExportDropdown sessionId={book.session_id} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
     </div>
   );

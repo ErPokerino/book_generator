@@ -41,7 +41,7 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
         left = Math.max(8, Math.min(left, viewportWidth - menuWidth - 8));
         
         setMenuPosition({
-          top: rect.bottom + 8, // 8px di gap
+          top: rect.bottom + 8, // 8px di gap, menu si apre verso il basso
           left: left,
         });
       }

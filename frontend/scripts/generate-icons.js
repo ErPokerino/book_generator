@@ -5,7 +5,26 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const originalIcon = join(__dirname, '../public/app-icon-original.png');
+// Cerca l'icona originale in vari formati
+const { existsSync } = await import('fs');
+const possiblePaths = [
+  join(__dirname, '../public/app-icon-original.png'),
+  join(__dirname, '../public/app-icon-original.jpeg'),
+  join(__dirname, '../public/app-icon-original.jpg'),
+];
+
+let originalIcon = null;
+for (const path of possiblePaths) {
+  if (existsSync(path)) {
+    originalIcon = path;
+    break;
+  }
+}
+
+if (!originalIcon) {
+  console.error('❌ Nessuna icona originale trovata! Cerca app-icon-original.png, .jpeg o .jpg in public/');
+  process.exit(1);
+}
 
 const sizes = [
   { size: 192, name: 'icon-192.png' },
@@ -17,10 +36,18 @@ const sizes = [
 async function generateIcons() {
   console.log('Generazione icone da app-icon-original.png...\n');
   
+  // Prima carica l'immagine e rimuovi lo spazio bianco
+  const image = sharp(originalIcon);
+  
+  // Trim dello spazio bianco (rimuove padding bianco/trasparente)
+  const trimmed = await image
+    .trim({ threshold: 10 }) // Rimuove bordi con differenza < 10
+    .toBuffer();
+  
   for (const { size, name } of sizes) {
     const outputPath = join(__dirname, `../public/${name}`);
     
-    await sharp(originalIcon)
+    await sharp(trimmed)
       .resize(size, size, {
         fit: 'cover',
         position: 'center'
