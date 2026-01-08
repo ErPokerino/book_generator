@@ -4,11 +4,11 @@ import './FilterBar.css';
 
 interface FilterBarProps {
   onFiltersChange: (filters: LibraryFilters) => void;
-  availableModels: string[];
+  availableModes: string[];  // Modalità disponibili (Flash, Pro, Ultra)
   availableGenres: string[];
 }
 
-export default function FilterBar({ onFiltersChange, availableModels, availableGenres }: FilterBarProps) {
+export default function FilterBar({ onFiltersChange, availableModes, availableGenres }: FilterBarProps) {
   const [filters, setFilters] = useState<LibraryFilters>({
     status: 'all',
     sort_by: 'created_at',
@@ -65,15 +65,15 @@ export default function FilterBar({ onFiltersChange, availableModels, availableG
       </div>
 
       <div className="filter-group">
-        <label htmlFor="model-filter">Modello:</label>
+        <label htmlFor="mode-filter">Modalità:</label>
         <select
-          id="model-filter"
-          value={filters.llm_model || 'all'}
-          onChange={(e) => handleFilterChange('llm_model', e.target.value)}
+          id="mode-filter"
+          value={filters.mode || 'all'}
+          onChange={(e) => handleFilterChange('mode', e.target.value)}
         >
-          <option value="all">Tutti i modelli</option>
-          {availableModels.map(model => (
-            <option key={model} value={model}>{model}</option>
+          <option value="all">Tutte le modalità</option>
+          {availableModes.map(mode => (
+            <option key={mode} value={mode}>{mode}</option>
           ))}
         </select>
       </div>

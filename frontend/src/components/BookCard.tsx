@@ -167,13 +167,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
                 Capitoli: {book.completed_chapters}/{book.total_chapters}
               </p>
             )}
-            <p className="book-created-date">
-              Data generazione: {new Date(book.created_at).toLocaleDateString('it-IT', { 
-                day: '2-digit', 
-                month: '2-digit', 
-                year: 'numeric'
-              })}
-            </p>
             {book.writing_time_minutes && (
               <p className="book-time">
                 Tempo scrittura: {Math.round(book.writing_time_minutes)} min

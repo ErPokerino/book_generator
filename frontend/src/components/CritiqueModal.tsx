@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getBookCritique, LiteraryCritique } from '../api/client';
+import CritiqueAudioPlayer from './CritiqueAudioPlayer';
 import './CritiqueModal.css';
 
 interface CritiqueModalProps {
@@ -8,6 +9,19 @@ interface CritiqueModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Funzione per rimuovere formattazione markdown dal testo
+const stripMarkdownFormatting = (text: string): string => {
+  if (!text) return text;
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')  // ***bold italic***
+    .replace(/\*\*(.+?)\*\*/g, '$1')      // **bold**
+    .replace(/\*(.+?)\*/g, '$1')          // *italic*
+    .replace(/___(.+?)___/g, '$1')        // ___bold italic___
+    .replace(/__(.+?)__/g, '$1')          // __bold__
+    .replace(/_(.+?)_/g, '$1')            // _italic_
+    .replace(/`(.+?)`/g, '$1');           // `code`
+};
 
 // Funzione per calcolare il colore del voto (riutilizzata da WritingStep)
 const getScoreColor = (score: number): string => {
@@ -84,7 +98,7 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
         </div>
         
         <div className="critique-modal-body">
-          <p className="critique-modal-subtitle">{bookTitle}</p>
+          <p className="critique-modal-subtitle">{stripMarkdownFormatting(bookTitle)}</p>
           
           {loading && (
             <div className="critique-modal-loading">
@@ -109,6 +123,9 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
                   {critique.score.toFixed(1)}/10
                 </span>
               </div>
+              
+              {/* Player audio per ascoltare la critica */}
+              <CritiqueAudioPlayer sessionId={sessionId} />
               
               {critique.summary && (
                 <div className="critique-summary">

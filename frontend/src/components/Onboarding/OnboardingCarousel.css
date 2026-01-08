@@ -15,7 +15,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-xl);
+  padding: calc(var(--spacing-xl) + var(--safe-area-inset-top)) 
+           calc(var(--spacing-xl) + var(--safe-area-inset-right)) 
+           calc(var(--spacing-xl) + var(--safe-area-inset-bottom)) 
+           calc(var(--spacing-xl) + var(--safe-area-inset-left));
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -30,8 +33,8 @@
 
 .onboarding-skip {
   position: absolute;
-  top: var(--spacing-xl);
-  right: var(--spacing-xl);
+  top: calc(var(--spacing-xl) + var(--safe-area-inset-top));
+  right: calc(var(--spacing-xl) + var(--safe-area-inset-right));
   background: transparent;
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: rgba(255, 255, 255, 0.9);
@@ -175,7 +178,7 @@
 .onboarding-modes-list {
   list-style: none;
   padding-left: 0;
-  margin: 0.75rem 0 0 0;
+  margin: 0 0 0 0;
   text-align: left;
   display: inline-block;
   width: 100%;
@@ -322,8 +325,8 @@
   }
 
   .onboarding-skip {
-    top: var(--spacing-md);
-    right: var(--spacing-md);
+    top: calc(var(--spacing-md) + var(--safe-area-inset-top));
+    right: calc(var(--spacing-md) + var(--safe-area-inset-right));
     padding: 0.5rem 1rem;
     font-size: 0.8125rem;
     min-height: 44px;

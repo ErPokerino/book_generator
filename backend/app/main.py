@@ -56,11 +56,14 @@ from app.models import (
     BookResponse,
     Chapter,
     LiteraryCritique,
+    UsersStats,
     LibraryEntry,
     LibraryStats,
     LibraryResponse,
     PdfEntry,
     AdvancedStats,
+    UsersStats,
+    UserBookCount,
     ModelComparisonEntry,
 )
 from app.agent.question_generator import generate_questions
@@ -2354,6 +2357,219 @@ async def regenerate_book_critique_endpoint(
     return critique
 
 
+@app.post("/api/critique/audio/{session_id}")
+async def generate_critique_audio_endpoint(
+    session_id: str,
+    voice_name: Optional[str] = None,  # Default: it-IT-Standard-A (voce italiana femminile)
+    current_user = Depends(get_current_user_optional),
+):
+    """
+    Genera audio MP3 della critica letteraria usando Google Cloud Text-to-Speech.
+    Restituisce un file MP3 che può essere riprodotto nel browser.
+    """
+    try:
+        from google.cloud import texttospeech
+        
+        session_store = get_session_store()
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, session_id, user_id=user_id)
+        
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            )
+        
+        if not session.literary_critique:
+            raise HTTPException(status_code=404, detail="Critica non disponibile per questo libro")
+        
+        # Converti critica in LiteraryCritique se è un dict
+        critique = session.literary_critique
+        if isinstance(critique, dict):
+            critique = LiteraryCritique(**critique)
+        
+        # Costruisci testo completo per la sintesi vocale
+        text_parts = []
+        
+        if critique.summary:
+            text_parts.append(f"Sintesi: {critique.summary}")
+        
+        if critique.pros and len(critique.pros) > 0:
+            pros_text = ". ".join(critique.pros)
+            text_parts.append(f"Punti di forza: {pros_text}")
+        
+        if critique.cons and len(critique.cons) > 0:
+            cons_text = ". ".join(critique.cons)
+            text_parts.append(f"Punti di debolezza: {cons_text}")
+        
+        if not text_parts:
+            raise HTTPException(status_code=400, detail="Critica vuota, nessun contenuto da leggere")
+        
+        full_text = ". ".join(text_parts)
+        
+        # Limita la lunghezza del testo (Google TTS ha un limite di ~5000 caratteri per richiesta)
+        max_chars = 4500  # Lascia margine per sicurezza
+        if len(full_text) > max_chars:
+            full_text = full_text[:max_chars] + "..."
+            print(f"[CRITIQUE AUDIO] Testo troncato a {max_chars} caratteri", file=sys.stderr)
+        
+        # Configurazione voce italiana (default: femminile)
+        if not voice_name:
+            voice_name = "it-IT-Standard-A"  # Voce italiana femminile standard
+        
+        # Inizializza client Google Cloud Text-to-Speech
+        # Usa le credenziali da GOOGLE_APPLICATION_CREDENTIALS o da variabili d'ambiente
+        try:
+            # Correggi path credenziali se relativo (stessa logica di StorageService)
+            cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            
+            # Se non è impostata, prova a usare il file di credenziali di default
+            if not cred_path:
+                root_dir = Path(__file__).parent.parent.parent
+                default_cred_path = root_dir / "credentials" / "narrai-app-credentials.json"
+                if default_cred_path.exists():
+                    cred_path = str(default_cred_path)
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_path
+                    print(f"[CRITIQUE AUDIO] Usando credenziali di default: {cred_path}", file=sys.stderr)
+                else:
+                    print(f"[CRITIQUE AUDIO] WARNING: Nessuna credenziale trovata. Cerca GOOGLE_APPLICATION_CREDENTIALS o credentials/narrai-app-credentials.json", file=sys.stderr)
+            elif not Path(cred_path).is_absolute():
+                # Converti path relativo in assoluto rispetto alla root del progetto
+                root_dir = Path(__file__).parent.parent.parent
+                abs_cred_path = (root_dir / cred_path.lstrip("./")).resolve()
+                if abs_cred_path.exists():
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(abs_cred_path)
+                    print(f"[CRITIQUE AUDIO] Credenziali caricate da: {abs_cred_path}", file=sys.stderr)
+                else:
+                    print(f"[CRITIQUE AUDIO] WARNING: Path credenziali non trovato: {abs_cred_path}", file=sys.stderr)
+            else:
+                if Path(cred_path).exists():
+                    print(f"[CRITIQUE AUDIO] Credenziali caricate da: {cred_path}", file=sys.stderr)
+                else:
+                    print(f"[CRITIQUE AUDIO] WARNING: Path credenziali non trovato: {cred_path}", file=sys.stderr)
+            
+            client = texttospeech.TextToSpeechClient()
+            print(f"[CRITIQUE AUDIO] Client TTS inizializzato con successo", file=sys.stderr)
+        except Exception as e:
+            error_str = str(e)
+            print(f"[CRITIQUE AUDIO] Errore nell'inizializzazione client TTS: {error_str}", file=sys.stderr)
+            
+            # Gestisci errori specifici con messaggi user-friendly
+            if "SERVICE_DISABLED" in error_str or "has not been used" in error_str or "it is disabled" in error_str:
+                project_id = "274471015864"
+                import re
+                project_match = re.search(r'project[:\s]+(\d+)', error_str, re.IGNORECASE)
+                if project_match:
+                    project_id = project_match.group(1)
+                
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"L'API Text-to-Speech non è abilitata nel progetto Google Cloud. Per abilitarla, visita: https://console.cloud.google.com/apis/library/texttospeech.googleapis.com?project={project_id} e clicca su 'Abilita'. Dopo l'abilitazione, attendi alcuni minuti prima di riprovare."
+                )
+            elif "403" in error_str or "permission" in error_str.lower() or "forbidden" in error_str.lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permessi insufficienti per utilizzare il servizio Text-to-Speech. Verifica che il service account abbia il ruolo 'Cloud Text-to-Speech API User'."
+                )
+            elif "401" in error_str or "unauthorized" in error_str.lower() or "invalid credentials" in error_str.lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Credenziali Google Cloud non valide o scadute. Verifica il file di credenziali."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Errore nella configurazione del servizio di sintesi vocale. Verifica le credenziali Google Cloud."
+                )
+        
+        # Configura sintesi vocale
+        synthesis_input = texttospeech.SynthesisInput(text=full_text)
+        
+        # Seleziona voce italiana
+        voice = texttospeech.VoiceSelectionParams(
+            language_code="it-IT",
+            name=voice_name,
+            ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
+        )
+        
+        # Configurazione audio: MP3, velocità normale, tono normale
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3,
+            speaking_rate=1.0,  # Velocità normale (1.0 = 100%)
+            pitch=0.0,  # Tono normale
+            volume_gain_db=0.0,  # Volume normale
+        )
+        
+        # Genera audio
+        try:
+            response = client.synthesize_speech(
+                input=synthesis_input,
+                voice=voice,
+                audio_config=audio_config,
+            )
+            
+            print(f"[CRITIQUE AUDIO] Audio generato con successo per sessione {session_id} ({len(response.audio_content)} bytes)", file=sys.stderr)
+            
+        except Exception as e:
+            error_str = str(e)
+            print(f"[CRITIQUE AUDIO] Errore nella sintesi vocale: {error_str}", file=sys.stderr)
+            
+            # Gestisci errori specifici con messaggi user-friendly
+            if "SERVICE_DISABLED" in error_str or "has not been used" in error_str or "it is disabled" in error_str:
+                # Estrai project ID se presente
+                project_id = "274471015864"  # Default, può essere estratto dall'errore se necessario
+                if "project" in error_str.lower():
+                    import re
+                    project_match = re.search(r'project[:\s]+(\d+)', error_str, re.IGNORECASE)
+                    if project_match:
+                        project_id = project_match.group(1)
+                
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"L'API Text-to-Speech non è abilitata nel progetto Google Cloud. Per abilitarla, visita: https://console.cloud.google.com/apis/library/texttospeech.googleapis.com?project={project_id} e clicca su 'Abilita'. Dopo l'abilitazione, attendi alcuni minuti prima di riprovare."
+                )
+            elif "403" in error_str or "permission" in error_str.lower() or "forbidden" in error_str.lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permessi insufficienti per utilizzare il servizio Text-to-Speech. Verifica che il service account abbia il ruolo 'Cloud Text-to-Speech API User'."
+                )
+            elif "401" in error_str or "unauthorized" in error_str.lower() or "invalid credentials" in error_str.lower():
+                raise HTTPException(
+                    status_code=401,
+                    detail="Credenziali Google Cloud non valide o scadute. Verifica il file di credenziali e che sia configurato correttamente."
+                )
+            else:
+                # Per altri errori, mostra un messaggio generico ma utile
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Errore nella generazione dell'audio. Se il problema persiste, verifica la configurazione di Google Cloud Text-to-Speech."
+                )
+        
+        # Restituisci come file MP3
+        return Response(
+            content=response.audio_content,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": f'attachment; filename="critique_{session_id}.mp3"',
+                "Cache-Control": "public, max-age=3600",  # Cache per 1 ora
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[CRITIQUE AUDIO] Errore generico: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nella generazione audio: {str(e)}"
+        )
+
+
 @app.get("/health")
 async def health():
     """Endpoint di health check."""
@@ -3849,7 +4065,7 @@ async def get_advanced_stats_endpoint(
         )
 
 
-@app.get("/api/admin/users/stats")
+@app.get("/api/admin/users/stats", response_model=UsersStats)
 async def get_users_stats_endpoint(
     current_user = Depends(require_admin),
 ):
@@ -3859,6 +4075,9 @@ async def get_users_stats_endpoint(
         cache_key = "admin_users_stats"
         cached = get_cached_stats(cache_key)
         if cached is not None:
+            # Se la cache contiene un dict, convertilo in UsersStats
+            if isinstance(cached, dict):
+                return UsersStats(**cached)
             return cached
         
         from app.agent.session_store_helpers import get_all_sessions_async
@@ -3867,9 +4086,22 @@ async def get_users_stats_endpoint(
         user_store = get_user_store()
         session_store = get_session_store()
         
+        # Assicurati che user_store sia connesso
+        if user_store.client is None or user_store.users_collection is None:
+            await user_store.connect()
+        
         # Ottieni tutti gli utenti
-        all_users = await user_store.get_all_users(skip=0, limit=10000)  # Limite alto per ottenere tutti
-        total_users = len(all_users)
+        try:
+            all_users = await user_store.get_all_users(skip=0, limit=10000)  # Limite alto per ottenere tutti
+            total_users = len(all_users)
+        except Exception as e:
+            print(f"[USERS STATS] Errore nel recupero utenti: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nel recupero degli utenti: {str(e)}"
+            )
         
         # Conta libri per utente usando aggregazione MongoDB diretta con client dedicato
         books_per_user = defaultdict(int)
@@ -3884,11 +4116,11 @@ async def get_users_stats_endpoint(
                 sessions_collection = db["sessions"]
                 
                 pipeline = [
+                    {"$match": {"user_id": {"$ne": None, "$exists": True}}},  # Filtra prima per efficienza
                     {"$group": {
                         "_id": "$user_id",
                         "count": {"$sum": 1}
-                    }},
-                    {"$match": {"_id": {"$ne": None}}}  # Escludi sessioni senza user_id
+                    }}
                 ]
                 
                 async for result in sessions_collection.aggregate(pipeline):
@@ -3915,13 +4147,18 @@ async def get_users_stats_endpoint(
         # Crea lista utenti con conteggio libri
         users_with_books = []
         for user in all_users:
-            books_count = books_per_user.get(user.id, 0)
-            users_with_books.append({
-                "user_id": user.id,
-                "name": user.name,
-                "email": user.email,
-                "books_count": books_count,
-            })
+            try:
+                books_count = books_per_user.get(user.id, 0)
+                # Assicurati che tutti i valori siano serializzabili (stringhe, numeri, booleani)
+                users_with_books.append({
+                    "user_id": str(user.id) if user.id else "N/A",
+                    "name": str(user.name) if user.name else "N/A",
+                    "email": str(user.email) if user.email else "N/A",
+                    "books_count": int(books_count) if books_count else 0,
+                })
+            except Exception as e:
+                print(f"[USERS STATS] Errore nel processare utente {getattr(user, 'id', 'unknown')}: {e}", file=sys.stderr)
+                continue
         
         # Rimuovi entry "__unassigned__" se presente (non è un utente reale)
         if "__unassigned__" in books_per_user:
@@ -3931,12 +4168,27 @@ async def get_users_stats_endpoint(
         # Ordina per numero di libri (decrescente)
         users_with_books.sort(key=lambda x: x["books_count"], reverse=True)
         
-        result = {
-            "total_users": total_users,
-            "users_with_books": users_with_books,
-        }
-        # Salva in cache
-        set_cached_stats(cache_key, result)
+        # Crea oggetto UsersStats per serializzazione corretta
+        try:
+            result = UsersStats(
+                total_users=int(total_users),
+                users_with_books=[UserBookCount(**user) for user in users_with_books],
+            )
+        except Exception as e:
+            print(f"[USERS STATS] Errore nella creazione UsersStats: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella serializzazione dei dati: {str(e)}"
+            )
+        
+        # Salva in cache (converti in dict per la cache)
+        try:
+            set_cached_stats(cache_key, result.model_dump())
+        except Exception as e:
+            print(f"[USERS STATS] Errore nel salvare cache: {e}", file=sys.stderr)
+        
         return result
     
     except Exception as e:

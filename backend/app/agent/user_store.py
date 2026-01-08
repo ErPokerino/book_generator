@@ -96,13 +96,13 @@ class UserStore:
         return User(
             id=doc["_id"],
             email=doc["email"],
-            password_hash=doc["password_hash"],
-            name=doc["name"],
+            password_hash=doc.get("password_hash", ""),
+            name=doc.get("name", ""),
             role=doc.get("role", "user"),
             is_active=doc.get("is_active", True),
             is_verified=doc.get("is_verified", False),
-            created_at=doc["created_at"],
-            updated_at=doc["updated_at"],
+            created_at=doc.get("created_at", datetime.utcnow()),
+            updated_at=doc.get("updated_at", datetime.utcnow()),
             password_reset_token=doc.get("password_reset_token"),
             password_reset_expires=doc.get("password_reset_expires"),
             verification_token=doc.get("verification_token"),
@@ -239,6 +239,10 @@ class UserStore:
     
     async def get_all_users(self, skip: int = 0, limit: int = 100) -> list[User]:
         """Recupera tutti gli utenti (per admin)."""
+        # Assicurati che la connessione sia attiva
+        if self.client is None or self.users_collection is None:
+            await self.connect()
+        
         cursor = self.users_collection.find().skip(skip).limit(limit).sort("created_at", -1)
         users = []
         async for doc in cursor:

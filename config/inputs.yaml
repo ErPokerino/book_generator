@@ -31,8 +31,8 @@ fields:
     label: "Trama"
     type: text
     required: true
-    description: "Descrivi la trama principale del romanzo, gli eventi chiave e lo sviluppo narrativo"
-    placeholder: "Descrivi la trama del romanzo..."
+    description: "Descrivi la trama del tuo libro, gli eventi chiave e lo sviluppo narrativo"
+    placeholder: "Descrivi la trama del tuo libro..."
 
   - id: genre
     label: "Genere"
@@ -239,9 +239,9 @@ fields:
     placeholder: "Inserisci il tuo nome..."
 
   - id: author
-    label: "Autore di Riferimento (Stile)"
+    label: "Autore di Riferimento"
     type: text
     required: false
-    description: "Nome dell'autore da cui copiare lo stile narrativo"
-    placeholder: "Indica un autore da cui copiare lo stile (es: Italo Calvino, Haruki Murakami...)"
+    description: "Autore da cui prendere spunto per lo stile"
+    placeholder: "Autore da cui prendere spunto per lo stile (es: Italo Calvino, Haruki Murakami...)"
 

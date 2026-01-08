@@ -283,6 +283,20 @@ class LibraryEntry(BaseModel):
     estimated_cost: Optional[float] = None  # Costo stimato in EUR
 
 
+class UserBookCount(BaseModel):
+    """Conteggio libri per utente."""
+    user_id: str
+    name: str
+    email: str
+    books_count: int
+
+
+class UsersStats(BaseModel):
+    """Statistiche utenti per admin."""
+    total_users: int
+    users_with_books: list[UserBookCount]
+
+
 class LibraryStats(BaseModel):
     """Statistiche aggregate della libreria."""
     total_books: int

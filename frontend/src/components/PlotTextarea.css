@@ -25,9 +25,11 @@
   font-family: inherit;
   font-size: 1rem;
   line-height: 1.6;
-  resize: vertical;
+  resize: none;
   min-height: 120px;
-  transition: border-color var(--transition-fast, 0.15s ease);
+  max-height: 600px;
+  overflow-y: auto;
+  transition: border-color var(--transition-fast, 0.15s ease), height var(--transition-fast, 0.15s ease);
   background-color: var(--surface, #ffffff);
   color: var(--text-primary, #213547);
 }
@@ -206,8 +208,10 @@
   font-family: inherit;
   font-size: 1rem;
   line-height: 1.6;
-  resize: vertical;
-  transition: border-color var(--transition-fast, 0.15s ease);
+  resize: none;
+  max-height: calc(90vh - 200px);
+  overflow-y: auto;
+  transition: border-color var(--transition-fast, 0.15s ease), height var(--transition-fast, 0.15s ease);
   background-color: var(--surface, #ffffff);
   color: var(--text-primary, #213547);
 }

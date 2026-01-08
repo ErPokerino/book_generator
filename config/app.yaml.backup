@@ -1,0 +1,92 @@
+api_timeouts:
+  submit_form: 30000
+  generate_questions: 60000
+  submit_answers: 30000
+  generate_draft: 120000
+  generate_outline: 120000
+  download_pdf: 300000
+retry:
+  chapter_generation:
+    max_retries: 2
+    min_chapter_length: 50
+validation:
+  min_chapter_length: 50
+  words_per_page: 250
+  toc_chapters_per_page: 30
+frontend:
+  polling_interval: 2000
+  polling_interval_critique: 5000
+  mode_availability_defaults:
+    flash: 10
+    pro: 5
+    ultra: 1
+time_estimation:
+  min_chapters_for_reliable_avg: 3
+  use_session_avg_if_available: true
+  fallback_seconds_per_chapter: 45
+  fallback_by_model:
+    gemini-3-flash: 35
+    gemini-3-pro: 50
+    gemini-3-ultra: 100
+    gemini-2.5-flash: 35
+    gemini-2.5-pro: 50
+    default: 45
+  linear_model_params:
+    flash:
+      a: 0.1503
+      b: 25.7
+    pro:
+      a: 0.2707
+      b: 51.14
+    ultra:
+      a: 0.7271
+      b: 72.97
+    default:
+      a: 1.1
+      b: 44.3
+llm_models:
+  max_output_tokens:
+    gemini_2_5_flash: 8192
+    default: 65536
+cover_generation:
+  aspect_ratio: '2:3'
+temperature:
+  agents: null
+database:
+  type: mongodb
+  mongodb:
+    database_name: narrai
+    collection_sessions: sessions
+cost_estimation:
+  tokens_per_page: 350
+  currency: EUR
+  exchange_rate_usd_to_eur: 0.92
+  model_costs:
+    gemini-2.5-flash:
+      input_cost_per_million: 0.3
+      output_cost_per_million: 2.5
+    gemini-2.5-pro:
+      input_cost_per_million: 1.25
+      output_cost_per_million: 10.0
+    gemini-3-flash-preview:
+      input_cost_per_million: 0.5
+      output_cost_per_million: 3.0
+    gemini-3-pro-preview:
+      input_cost_per_million: 2.0
+      output_cost_per_million: 12.0
+    default:
+      input_cost_per_million: 1.0
+      output_cost_per_million: 3.0
+  image_generation_cost: 0.02
+  token_estimates:
+    draft:
+      input_base: 800
+      output_per_page: 12
+    outline:
+      input_base: 3000
+      output_base: 2000
+    chapter:
+      context_base: 8000
+    critique:
+      input_multiplier: 1.2
+      output_base: 1200

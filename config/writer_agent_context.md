@@ -23,7 +23,7 @@ Scrivere ogni sezione del romanzo (capitoli, introduzione, prologo, epilogo) in 
    - Temi centrali
    - Struttura temporale e ritmo
 
-3. **Configurazione Iniziale**: Le informazioni del form iniziale servono come contesto generale per:
+3. **Configurazione Iniziale**: Le informazioni del form iniziale presenti servono come contesto generale per:
    - Genere e sottogenere
    - Target audience
    - Stile narrativo di riferimento

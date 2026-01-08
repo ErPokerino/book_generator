@@ -13,6 +13,7 @@ import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
+import OnboardingTooltip from './Onboarding/OnboardingTooltip';
 import './LibraryView.css';
 
 interface LibraryViewProps {
@@ -225,8 +226,8 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
     );
   }
 
-  // Estrai modelli e generi disponibili dalla configurazione
-  const availableModels = config?.llm_models || [];
+  // Modalità disponibili (fisso, non più dalla configurazione)
+  const availableModes = ['Flash', 'Pro', 'Ultra'];
   const availableGenres = config?.fields
     .find(f => f.id === 'genre')
     ?.options?.map(opt => opt.value) || [];
@@ -236,7 +237,7 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       <div className="library-view">
         <FilterBar 
           onFiltersChange={handleFiltersChange}
-          availableModels={availableModels}
+          availableModes={availableModes}
           availableGenres={availableGenres}
         />
         <div className="books-grid">
@@ -252,7 +253,7 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
     <div className="library-view">
       <FilterBar
         onFiltersChange={handleFiltersChange}
-        availableModels={availableModels}
+        availableModes={availableModes}
         availableGenres={availableGenres}
       />
 
@@ -267,9 +268,15 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
       </div>
 
       {books.length === 0 && !loading ? (
-        <div className="empty-library">
-          <p>Nessun libro trovato con i filtri selezionati.</p>
-        </div>
+        <OnboardingTooltip
+          id="library-first"
+          message="I tuoi libri appariranno qui. Crea il tuo primo libro per iniziare!"
+          position="top"
+        >
+          <div className="empty-library">
+            <p>{totalBooks === 0 ? 'Nessun libro ancora. Crea il tuo primo libro!' : 'Nessun libro trovato con i filtri selezionati.'}</p>
+          </div>
+        </OnboardingTooltip>
       ) : (
         <>
           <motion.div 

@@ -1,0 +1,570 @@
+﻿session_id,title,method,model,created_at,chapter_number,chapter_title,time_seconds,time_minutes,pages,total_chapters,total_time_seconds,total_time_minutes
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,1,Capitolo 1: L'Ombra dello Zenit,70.67,1.18,5,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,2,Capitolo 2: La Scatola di Sardine,72.25,1.20,6,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,3,Capitolo 3: Geografia dell'Inferno,77.77,1.30,7,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,4,Capitolo 4: Accesso Negato,91.98,1.53,9,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,5,Capitolo 5: L'Aggiornamento,91.15,1.52,10,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,6,Capitolo 6: La Caccia al Fantasma,103.96,1.73,10,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,7,Capitolo 7: Fluidi Corporei,95.80,1.60,10,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,8,Capitolo 8: Frequenze Nocive,106.82,1.78,11,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,9,Capitolo 9: Il Vuoto Acustico,95.94,1.60,9,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,10,Capitolo 10: Risorse Disumane,108.48,1.81,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,11,Capitolo 11: Inchiostro e Carne,112.90,1.88,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,12,Capitolo 12: Archiviazione Definitiva,91.43,1.52,10,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,13,Capitolo 13: Il Codice di Marco,110.09,1.83,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,14,Capitolo 14: Spazio Negativo (Ore 16:00),99.93,1.67,11,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,15,Capitolo 15: La Convocazione,84.01,1.40,8,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,16,Capitolo 16: Il Corridoio Infinito,104.03,1.73,10,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,17,Capitolo 17: Al Cospetto del Mito,115.67,1.93,13,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,18,Capitolo 18: Il Volto del Potere,123.01,2.05,13,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,19,Capitolo 19: Sabotaggio,105.38,1.76,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,20,Capitolo 20: La Marea Nera,163.94,2.73,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,21,Capitolo 21: Discesa Libera,118.45,1.97,13,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,22,Capitolo 22: Aria Fresca,138.06,2.30,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,23,Capitolo 23: Il Turno di Notte,113.30,1.89,12,24,2499.48,41.66
+10f481f3...,Risorse Disumane,ultra,gemini-3-ultra,2026-01-07 17:43:18,24,Capitolo 24: Assimilazione,104.45,1.74,10,24,2499.48,41.66
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,1,Capitolo 1: Il Basso Continuo,41.20,0.69,4,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,2,Capitolo 2: Codici Binari e Relitti Umani,49.48,0.82,5,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,3,Capitolo 3: Sinergie Affettive,53.26,0.89,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,4,Capitolo 4: Il Town Hall Meeting,56.90,0.95,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,5,Capitolo 5: L'Installazione,57.05,0.95,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,6,Capitolo 6: Caffè e Algoritmi,66.50,1.11,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,7,Capitolo 7: La Convocazione,54.25,0.90,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,8,Capitolo 8: Il Glitch Umano,53.59,0.89,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,9,Capitolo 9: Nutrimento Liquido,59.14,0.99,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,10,Capitolo 10: Il Sorriso di Luca,55.90,0.93,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,11,Capitolo 11: L'Errore Fatale,69.03,1.15,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,12,Capitolo 12: Feedback Costruttivo (Midpoint),66.49,1.11,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,13,Capitolo 13: Il Santuario di Porcellana,66.52,1.11,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,14,Capitolo 14: L'Eterno Pomeriggio,61.40,1.02,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,15,Capitolo 15: Il Collasso di Guido,60.87,1.01,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,16,Capitolo 16: Smaltimento Rifiuti,69.30,1.16,8,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,17,Capitolo 17: Effetto Mandela Aziendale,66.12,1.10,7,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,18,Capitolo 18: Il Tentativo di Logout,93.16,1.55,9,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,19,Capitolo 19: La Pizza Organica,74.55,1.24,8,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,20,Capitolo 20: La Notte dei Neon,77.09,1.28,9,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,21,Capitolo 21: La Barricata di Vetro,72.30,1.21,8,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,22,Capitolo 22: L'Assimilazione di Vanessa,76.83,1.28,8,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,23,Capitolo 23: Performance Review Finale,82.50,1.37,10,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,24,Capitolo 24: Il Font Sbagliato,62.72,1.05,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,25,Capitolo 25: Employee of the Month,62.93,1.05,6,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,26,Capitolo 26: La Pinzatrice,47.25,0.79,4,27,1704.84,28.41
+58dcedb8...,**Il Protocollo Trasparenza**,pro,gemini-3-pro,2026-01-07 16:15:58,27,Capitolo 27: Skyline,48.52,0.81,4,27,1704.84,28.41
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,1,Capitolo 1: La Frequenza dell'Emicrania,22.06,0.37,4,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,2,Capitolo 2: Trasparenza Totale,30.23,0.50,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,3,Capitolo 3: Glitch nel Sistema,29.62,0.49,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,4,Capitolo 4: L'Assemblea Plenaria,28.08,0.47,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,5,Capitolo 5: Il Patto di Sangue (Login),29.74,0.50,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,6,Capitolo 6: Architettura Ostile,31.41,0.52,7,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,7,Capitolo 7: La Convocazione di Silvio,26.36,0.44,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,8,Capitolo 8: L'Impiegato del Mese,25.85,0.43,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,9,Capitolo 9: L'Errore di Elena,26.71,0.45,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,10,Capitolo 10: Assorbimento Risorse,30.05,0.50,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,11,Capitolo 11: Il Brainstorming Elettrico,34.08,0.57,8,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,12,Capitolo 12: Tentativo di Diserzione,29.42,0.49,7,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,13,Capitolo 13: Scale Non-Euclidee,29.77,0.50,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,14,Capitolo 14: Il Popolo del Controsoffitto,29.45,0.49,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,15,Capitolo 15: Ritorno alla Scrivania,29.20,0.49,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,16,Capitolo 16: I Demoni del Middle Management,31.48,0.52,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,17,Capitolo 17: Sabotaggio e Conseguenze,28.99,0.48,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,18,Capitolo 18: Il Tradimento di Silvio,26.49,0.44,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,19,Capitolo 19: Biomassa in Sala Mensa,28.38,0.47,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,20,Capitolo 20: Il Prepensionamento di un Amico,28.00,0.47,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,21,Capitolo 21: L'Arsenale di Cancelleria,26.27,0.44,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,22,Capitolo 22: La Segretaria Cerbero,35.63,0.59,7,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,23,Capitolo 23: Il Cavillo Burocratico,31.06,0.52,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,24,Capitolo 24: L'Ufficio del Direttore (Il Piano Inferiore),27.89,0.46,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,25,Capitolo 25: La Contro-Offerta,25.32,0.42,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,26,Capitolo 26: Lettera di Dimissioni,30.40,0.51,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,27,Capitolo 27: Crash di Sistema,30.64,0.51,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,28,Capitolo 28: Liquidazione Totale,34.12,0.57,6,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,29,Capitolo 29: Il Parcheggio,30.90,0.51,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,30,Capitolo 30: Open to Work,32.27,0.54,5,31,906.53,15.11
+69a9678f...,Risorse Disumane: L'Ultimo Trimestre,flash,gemini-3-flash,2026-01-07 14:44:16,31,Capitolo 31: Notifica Push,26.67,0.44,4,31,906.53,15.11
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,1,Capitolo 1: L'Aroma del Tempo,23.27,0.39,4,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,2,Capitolo 2: La Terra sotto le Unghie (Flashback I),24.37,0.41,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,3,Capitolo 3: L'Incursione del Caos,31.20,0.52,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,4,Capitolo 4: Il Codice del Greco,29.09,0.48,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,5,Capitolo 5: Tracce Invisibili,29.54,0.49,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,6,Capitolo 6: L'Allieva e il Maestro,29.93,0.50,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,7,Capitolo 7: L'Ombra del KGB a Quarto Oggiaro,29.11,0.49,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,8,Capitolo 8: L'Arte dell'Inchiostro (Flashback II),26.52,0.44,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,9,Capitolo 9: Il Corredo del Lupo,27.07,0.45,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,10,Capitolo 10: Il Rapimento di Mei,35.03,0.58,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,11,Capitolo 11: Infiltrazione nei Bassifondi,32.75,0.55,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,12,Capitolo 12: La Giungla e la Molecola (Flashback III),32.79,0.55,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,13,Capitolo 13: L'Allucinazione Chimica,31.63,0.53,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,14,Capitolo 14: L'Appuntamento con il Destino,28.98,0.48,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,15,Capitolo 15: La Luce di Leonardo,27.91,0.47,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,16,Capitolo 16: Il Tocco del Neurolettico,26.50,0.44,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,17,Capitolo 17: Il Rogo della Conoscenza,32.29,0.54,6,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,18,Capitolo 18: Debiti Estinti,30.10,0.50,5,19,561.67,9.36
+7502c2e5...,L’Alchimia del Lupo,flash,gemini-3-flash,2026-01-06 13:05:55,19,Capitolo 19: L'Ultimo Braulio,33.59,0.56,5,19,561.67,9.36
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,1,Capitolo 1: Polvere e Promesse Silenziose,44.04,0.73,7,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,2,Capitolo 2: I Sussurri dal Passato Dimenticato,44.40,0.74,8,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,3,Capitolo 3: Il Segreto Tra le Pagine Ingannevoli,45.25,0.75,8,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,4,Capitolo 4: L'Eco del Codice Perduto,47.35,0.79,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,5,Capitolo 5: Ombre Danzanti e Voci Silenziose,47.76,0.80,9,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,6,Capitolo 6: La Pergamena Ignorata,55.78,0.93,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,7,Capitolo 7: L'Eccentrico Libraio e lo Squarcio nella Realtà,57.79,0.96,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,8,Capitolo 8: La Scintilla Indiscutibile,47.90,0.80,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,9,Capitolo 9: Le Prime Lezioni Clandestine,56.49,0.94,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,10,Capitolo 10: La Lotta con l'Invisibile,65.60,1.09,14,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,11,Capitolo 11: Volti Nuovi e Vecchie Rivalità,59.66,0.99,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,12,Capitolo 12: Le Prime Prove e i Blocchi Mentali,62.10,1.03,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,13,Capitolo 13: Il Segno del Sabotaggio,52.41,0.87,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,14,Capitolo 14: Il Peso della Scelta,58.63,0.98,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,15,Capitolo 15: L'Addio al Mondo Che Era,50.28,0.84,9,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,16,Capitolo 16: Il Cuore Nascosto della Città,59.56,0.99,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,17,Capitolo 17: Nel Labirinto Etereo,74.43,1.24,13,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,18,Capitolo 18: Lo Specchio dell'Anima Frantumata,61.43,1.02,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,19,Capitolo 19: L'Unione Fa la Forza,65.08,1.08,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,20,Capitolo 20: L'Ombra Crescente dei Sabotaggi,63.28,1.05,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,21,Capitolo 21: Il Volto del Rinnegato,353.18,5.89,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,22,Capitolo 22: Un'Ombra sulla Vecchia Vita,69.39,1.16,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,23,Capitolo 23: Le Ferite di Maya,66.47,1.11,13,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,24,Capitolo 24: Il Fardello del Mentore,57.57,0.96,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,25,Capitolo 25: Il Buio Più Profondo: L'Assedio di Xylos,61.59,1.03,9,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,26,Capitolo 26: La Fiamma dell'Istinto,64.29,1.07,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,27,Capitolo 27: Il Vero Scopo della Prova,64.36,1.07,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,28,Capitolo 28: L'Alleato Inatteso,77.12,1.29,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,29,Capitolo 29: Verso il Cuore Pulsante del Vuoto,77.87,1.30,13,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,30,Capitolo 30: Il Duello delle Volontà,95.00,1.58,13,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,31,Capitolo 31: Il Vuoto che Si Manifesta,96.55,1.61,9,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,32,Capitolo 32: La Prova Eterna: Intelletto e Coraggio,77.76,1.30,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,33,Capitolo 33: Le Ceneri della Battaglia,102.78,1.71,12,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,34,Capitolo 34: Ritorno all'Equilibrio,85.08,1.42,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,35,Capitolo 35: I Nuovi Custodi,65.92,1.10,11,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,36,Capitolo 36: Gli Archivi Rivelati,75.25,1.25,10,37,2680.97,44.68
+f1029862...,Il Sussurro della Prova Eterna,ultra,gemini-3-ultra,2026-01-06 08:31:10,37,Capitolo 37: Le Voci della Città Eterna,71.58,1.19,9,37,2680.97,44.68
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,1,Capitolo 1: L'Odore della Terra Rossa,23.47,0.39,4,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,2,Capitolo 2: Il Principe e il Vagabondo,25.88,0.43,5,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,3,Capitolo 3: Il Punto di Rottura,31.34,0.52,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,4,Capitolo 4: Ombre negli Spogliatoi,30.75,0.51,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,5,Capitolo 5: L'Ultimatum di Arnaldo,29.96,0.50,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,6,Capitolo 6: Pietra e Silenzio,33.79,0.56,7,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,7,Capitolo 7: Allenamento Senza Palla,33.37,0.56,7,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,8,Capitolo 8: Lo Specchio Infranto,30.79,0.51,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,9,Capitolo 9: Il Ritmo del Cuore,26.16,0.44,5,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,10,Capitolo 10: La Lettera Bianca,31.50,0.53,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,11,Capitolo 11: Il Ritorno dell'Invisibile,33.60,0.56,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,12,Capitolo 12: L'Ombra del Debito,28.85,0.48,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,13,Capitolo 13: La Scalata (Il Secondo e Terzo Turno),33.22,0.55,7,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,14,Capitolo 14: Il Polso Incrinato,31.27,0.52,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,15,Capitolo 15: Incontri Notturni sul Centrale,43.57,0.73,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,16,Capitolo 16: La Notte Prima,30.32,0.51,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,17,Capitolo 17: Semifinale: Il Suono della Verità,29.35,0.49,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,18,Capitolo 18: Il Quinto Set,32.04,0.53,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,19,Capitolo 19: L'Abbraccio a Rete,29.91,0.50,6,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,20,Capitolo 20: La Caduta e l'Ascesa,28.63,0.48,5,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,21,Capitolo 21: L'Accademia del Fango,30.20,0.50,5,22,673.99,11.23
+d395fa94...,Il Peso della Corda,flash,gemini-3-flash,2026-01-05 17:13:40,22,Capitolo 22: Epilogo: Il Muro,26.01,0.43,4,22,673.99,11.23
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,1,Capitolo 1: La Fame del Ferro,25.89,0.43,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,2,Capitolo 2: Il Fantasma di un Avvocato,27.23,0.45,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,3,Capitolo 3: Il Prezzo del Silenzio,27.52,0.46,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,4,Capitolo 4: Il Viaggio verso il Nulla,29.48,0.49,6,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,5,Capitolo 5: Assemblea di Disperati,32.55,0.54,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,6,Capitolo 6: Fase Uno: L'Algoritmo della Scelta,26.99,0.45,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,7,Capitolo 7: Attrito Morale,30.45,0.51,6,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,8,Capitolo 8: L'Escalation Invisibile,33.14,0.55,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,9,Capitolo 9: Punto di Svolta: Sangue Reale,36.51,0.61,8,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,10,Capitolo 10: L'Alleanza del Dubbio,33.04,0.55,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,11,Capitolo 11: La Follia di Marcus,38.51,0.64,8,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,12,Capitolo 12: Il Segreto di Clara,30.66,0.51,6,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,13,Capitolo 13: Incursione nelle Viscere,31.10,0.52,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,14,Capitolo 14: L'Ultimo Atto di Clara,27.35,0.46,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,15,Capitolo 15: La Prova Finale: Lo Specchio dell'Anima,33.82,0.56,6,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,16,Capitolo 16: Elia vs Sara,37.45,0.62,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,17,Capitolo 17: Il Grande Hackeraggio,31.70,0.53,7,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,18,Capitolo 18: Il Crollo delle Mura,28.12,0.47,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,19,Capitolo 19: L'Ultimo Saluto,25.83,0.43,5,20,614.24,10.24
+f7895772...,**Il Verdetto del Silenzio**,flash,gemini-3-flash,2026-01-05 15:16:19,20,Capitolo 20: Il Verdetto del Silenzio (Epilogo),26.90,0.45,5,20,614.24,10.24
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,1,Capitolo 1: Il Grigio e la Polvere,23.45,0.39,4,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,2,Capitolo 2: Il Mercante di Segreti,25.55,0.43,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,3,Capitolo 3: La Donna degli Occhi Fondi,28.80,0.48,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,4,Capitolo 4: Il Nervo Scoperto,24.44,0.41,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,5,Capitolo 5: Tracce Digitali,31.40,0.52,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,6,Capitolo 6: Fantasmi del Matrimonio,27.90,0.47,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,7,Capitolo 7: L'Avvertimento,34.13,0.57,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,8,Capitolo 8: La Pista di Novara,29.08,0.48,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,9,Capitolo 9: Il Tablet della Discordia,31.55,0.53,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,10,Capitolo 10: Il Codice Spezzato,33.24,0.55,7,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,11,Capitolo 11: Il Padre Spirituale,31.32,0.52,7,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,12,Capitolo 12: Camminare nel Buio,29.36,0.49,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,13,Capitolo 13: La Trappola Scatta,34.51,0.58,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,14,Capitolo 14: L'Ombra di Giulia,29.84,0.50,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,15,Capitolo 15: Il Rifugio tra i Monti,31.00,0.52,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,16,Capitolo 16: La Rivelazione del Sabotaggio,34.36,0.57,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,17,Capitolo 17: La Donna dell'Ombra,32.90,0.55,7,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,18,Capitolo 18: Il Piano del Lupo,30.63,0.51,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,19,Capitolo 19: Ritorno a Milano,33.28,0.55,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,20,Capitolo 20: Il Ballo delle Ombre,31.07,0.52,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,21,Capitolo 21: Faccia a Faccia,32.59,0.54,7,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,22,Capitolo 22: L'Invio del Mondo,29.94,0.50,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,23,Capitolo 23: Il Crollo del Castello,28.18,0.47,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,24,Capitolo 24: La Nuova Legge,26.89,0.45,5,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,25,Capitolo 25: Un Caffè senza Ombre,30.13,0.50,6,26,783.32,13.06
+8013a3d2...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 14:00:47,26,Capitolo 26: Il Peso della Prova (Epilogo),27.77,0.46,5,26,783.32,13.06
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,1,Capitolo 1: L'Archivista dell'Invisibile,25.42,0.42,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,2,Capitolo 2: Il Fantasma Digitale,40.00,0.67,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,3,Capitolo 3: La Crepa di Leo,29.68,0.49,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,4,Capitolo 4: Il Lancio nel Vuoto,27.84,0.46,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,5,Capitolo 5: Oltre la Grata,34.55,0.58,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,6,Capitolo 6: La Logica di Sara,32.55,0.54,7,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,7,"Capitolo 7: L'Archivista di Giorno, il Ribelle di Notte",30.59,0.51,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,8,Capitolo 8: L'Ombra del Comandante,31.03,0.52,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,9,Capitolo 9: Il Tradimento di Leo (Parte 1: L'Attesa),28.81,0.48,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,10,Capitolo 10: Il Tradimento di Leo (Parte 2: La Scelta),28.74,0.48,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,11,Capitolo 11: Il Prezzo della Vendetta,32.38,0.54,7,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,12,Capitolo 12: La Filosofia del Sacrificio,33.32,0.56,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,13,Capitolo 13: L'Infiltrazione interrotta,38.32,0.64,8,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,14,Capitolo 14: Il Volto del Nuovo Ordine,31.34,0.52,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,15,Capitolo 15: Il Giorno Zero,25.95,0.43,4,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,16,Capitolo 16: Labirinti del Passato,27.87,0.46,5,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,17,Capitolo 17: L'Architetto delle Ombre,30.03,0.50,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,18,Capitolo 18: La Scelta di Elia,41.93,0.70,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,19,Capitolo 19: Il Risveglio di Ethendia,32.07,0.53,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,20,Capitolo 20: L'Ultimo Sguardo,28.88,0.48,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,21,Capitolo 21: Oltre l'Orizzonte,31.25,0.52,6,22,689.58,11.49
+d96ff43a...,**Il Peso della Prova**,flash,gemini-3-flash,2026-01-05 13:35:47,22,Capitolo 22: La Nuova Prova (Epilogo),27.00,0.45,5,22,689.58,11.49
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,1,Capitolo 1: La Pioggia di Milano,20.94,0.35,4,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,2,Capitolo 2: Il Volto del Fantasma,29.32,0.49,7,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,3,Capitolo 3: Il Silenzio di Clara,26.92,0.45,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,4,Capitolo 4: Nel Ventre della Balena,26.49,0.44,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,5,Capitolo 5: Il Patto di Thorne,26.15,0.44,5,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,6,Capitolo 6: Discesa nell'Asfissia,28.30,0.47,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,7,Capitolo 7: Sara e il Primo Test,31.98,0.53,7,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,8,Capitolo 8: Codici nel Buio,30.55,0.51,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,9,Capitolo 9: Il Riflesso dell'Arroganza,28.44,0.47,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,10,Capitolo 10: La Verità di Sara,29.90,0.50,7,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,11,Capitolo 11: Il Punto di Rottura,27.53,0.46,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,12,Capitolo 12: L'Alleato Inaspettato,29.86,0.50,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,13,Capitolo 13: La Scelta Impossibile,33.55,0.56,7,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,14,Capitolo 14: Il Tradimento del Cuore,27.96,0.47,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,15,Capitolo 15: Il Labirinto degli Inganni,32.23,0.54,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,16,Capitolo 16: Nel Cuore del Sistema,27.23,0.45,5,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,17,Capitolo 17: Il Sovraccarico del Dolore,30.79,0.51,6,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,18,Capitolo 18: Il Crollo di Aethelgard,27.21,0.45,5,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,19,Capitolo 19: Sei Mesi Dopo,24.27,0.40,5,20,570.51,9.51
+d589a4e3...,Il Peso della Prova,flash,gemini-3-flash,2026-01-05 13:18:12,20,Capitolo 20: Lo Specchio e la Pioggia,30.90,0.51,6,20,570.51,9.51
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,1,Capitolo 1: L'odore della terra arsa,19.35,0.32,4,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,2,Capitolo 2: Il fiele nel vino,22.86,0.38,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,3,Capitolo 3: La prole divisa,22.06,0.37,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,4,Capitolo 4: Il patto nell'ombra,22.33,0.37,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,5,Capitolo 5: L'ultimo rantolo dello scirocco,24.70,0.41,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,6,Capitolo 6: La parola ai morti,24.62,0.41,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,7,Capitolo 7: Il guscio vuoto,38.73,0.65,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,8,Capitolo 8: I predatori in azione,24.12,0.40,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,9,Capitolo 9: L'offensiva legale,25.59,0.43,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,10,Capitolo 10: La maschera del martire,24.68,0.41,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,11,Capitolo 11: Numeri rossi e vino rubato,24.61,0.41,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,12,Capitolo 12: La procura della discordia,28.18,0.47,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,13,Capitolo 13: Il ritorno del figlio prodigo,25.74,0.43,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,14,Capitolo 14: L'ombra del Patriarca,26.53,0.44,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,15,Capitolo 15: Il tradimento della madre,27.25,0.45,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,16,Capitolo 16: La festa di San Giovanni,26.21,0.44,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,17,Capitolo 17: La prova dell'inganno,32.23,0.54,7,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,18,Capitolo 18: Il santuario violato,26.94,0.45,5,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,19,Capitolo 19: L'ultimo atto di fede,28.15,0.47,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,20,Capitolo 20: La fuga dei corvi,29.35,0.49,6,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,21,Capitolo 21: Il pignoramento,39.65,0.66,7,22,605.10,10.08
+76b00b29...,**Il Sangue della Roba**,flash,gemini-3-flash,2026-01-04 17:32:26,22,Capitolo 22: La poltrona del vuoto (Epilogo),41.22,0.69,5,22,605.10,10.08
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,1,INTRODUZIONE: L’Ombra sulla Scalinata di Marmo,25.61,0.43,5,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,2,ATTO I: Il Miracolo del Fango (1886-1915),21.20,0.35,4,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,3,ATTO II: L’Impero della Polvere (1919-1935),24.97,0.42,5,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,4,ATTO III: L’Illusione e la Caduta (1936-1945),27.95,0.47,5,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,5,ATTO IV: Il Ritorno al Presente e il Crollo,23.32,0.39,4,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,6,ATTO V: L’Eredità delle Ombre,23.27,0.39,5,7,169.07,2.82
+96a238b2...,La Caduta del Gigante di Ferro,flash,gemini-3-flash,2026-01-04 15:46:37,7,CONCLUSIONE: L’Epilogo del Sangue e della Terra,22.75,0.38,4,7,169.07,2.82
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,1,Capitolo 1: L’Ombra dell’Aquila,21.35,0.36,4,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,2,Capitolo 2: Il Salotto delle Verità Nascoste,23.48,0.39,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,3,Capitolo 3: Lo Sciopero del Fumo,33.98,0.57,7,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,4,Capitolo 4: La Scelta di Alessandro,26.13,0.44,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,5,Capitolo 5: Il Canto dei Mille Campanili,23.37,0.39,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,6,Capitolo 6: Il Vecchio e la Polvere da Sparo,26.91,0.45,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,7,Capitolo 7: L'Illuso Trionfo,25.51,0.43,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,8,Capitolo 8: Il Ritorno dell'Inverno,23.83,0.40,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,9,Capitolo 9: I Portici di Torino,23.28,0.39,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,10,Capitolo 10: La Neve di Sebastopoli,21.85,0.36,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,11,Capitolo 11: Anime Divise,28.01,0.47,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,12,Capitolo 12: Accordi Segreti e Grida di Guerra,26.52,0.44,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,13,Capitolo 13: Solferino: La Terra che Beve,28.43,0.47,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,14,Capitolo 14: L'Ospedale del Pianto,27.97,0.47,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,15,Capitolo 15: Villafranca: Il Sogno Mutilato,27.81,0.46,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,16,Capitolo 13: Lo Scoglio di Quarto,26.13,0.44,5,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,17,Capitolo 17: Marsala e la Terra Arsa,28.54,0.48,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,18,Capitolo 18: Il Prezzo di Palermo,28.95,0.48,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,19,Capitolo 19: Risalita Verso il Volturno,31.79,0.53,7,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,20,Capitolo 20: L'Incontro a Teano,41.53,0.69,7,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,21,Capitolo 21: L'Ultimo Nemico,32.60,0.54,7,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,22,Capitolo 22: La Proclamazione,28.31,0.47,6,23,633.18,10.55
+c2a73195...,**Il Sangue della Terra: L'Alba di un'Italia**,flash,gemini-3-flash,2026-01-04 09:43:09,23,Epilogo: La Giubba e la Bandiera,26.90,0.45,5,23,633.18,10.55
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,1,Capitolo 1: L'Analista del Sabato,22.88,0.38,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,2,Capitolo 2: La Congrega dei Perdenti,24.28,0.40,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,3,Capitolo 3: La Chiamata di Milano,22.25,0.37,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,4,Capitolo 4: Il Metagame e la Maschera,25.02,0.42,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,5,Capitolo 5: L'RCQ di Milano: Il Primo Round,24.55,0.41,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,6,Capitolo 6: L'Intuizione di Elisa,26.89,0.45,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,7,Capitolo 7: Fratture Finanziarie,27.92,0.47,7,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,8,Capitolo 8: Ritorno alla Terra,28.81,0.48,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,9,Capitolo 9: Il Prezzo del Silenzio,29.74,0.50,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,10,Capitolo 10: Lille: La Torre di Babele,30.71,0.51,7,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,11,Capitolo 11: Maestro contro Allievo,26.92,0.45,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,12,Capitolo 12: Il Patto col Diavolo,33.31,0.56,8,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,13,Capitolo 13: Barcellona: Luci e Ombre,27.09,0.45,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,14,Capitolo 14: Lo Scontro col Titano,27.53,0.46,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,15,Capitolo 15: Il Naufragio,25.02,0.42,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,16,Capitolo 16: La Confessione di Vittorio,30.09,0.50,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,17,Capitolo 17: L'Ultima Spiaggia,28.30,0.47,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,18,Capitolo 18: Sin City,28.67,0.48,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,19,Capitolo 19: L'Arte del Bluff,29.73,0.50,6,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,20,Capitolo 20: Il Decider,32.73,0.55,7,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,21,Capitolo 21: Oltre la Bacheca,26.90,0.45,5,22,606.48,10.11
+6fbdeabc...,Il Settimo Turno: Ascesa al Trono del Multiverso,flash,gemini-3-flash,2026-01-03 23:57:06,22,Capitolo 22: Pesca Pure (Epilogo),27.15,0.45,5,22,606.48,10.11
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,1,Capitolo 1: L'Archeologia del Sé,20.15,0.34,4,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,2,Capitolo 2: Il Mercato del Sapere,23.98,0.40,5,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,3,Capitolo 3: Il Sigillo di Ceralacca,20.00,0.33,5,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,4,Capitolo 4: Il Confine del Blu,20.12,0.34,4,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,5,Capitolo 5: Il Convivio delle Maschere,26.16,0.44,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,6,Capitolo 6: L'Ultima Parola,20.92,0.35,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,7,Capitolo 7: Verità e Microscopi,27.97,0.47,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,8,Capitolo 8: Il Dilemma del Borgo (Libertà - Parte I),22.67,0.38,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,9,Capitolo 9: Il Tradimento del Pensiero (Libertà - Parte II),23.74,0.40,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,10,Capitolo 10: L'Assenza di Julian (Male - Parte I),29.22,0.49,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,11,Capitolo 11: Sangue sulla Carta (Male - Parte II),27.64,0.46,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,12,Capitolo 12: Il Cadavere che Cita,26.10,0.44,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,13,Capitolo 13: L'Armatura di Clara,25.43,0.42,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,14,Capitolo 14: Il Cuore di Silicio,28.24,0.47,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,15,Capitolo 15: Potere e Bellezza,26.42,0.44,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,16,Capitolo 16: La Caverna di Platone,27.73,0.46,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,17,Capitolo 17: Il Bivio Atroce,25.29,0.42,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,18,Capitolo 18: Il Paradosso della Pietà,24.90,0.41,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,19,Capitolo 19: L'Ultimo Duello,23.02,0.38,6,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,20,Capitolo 20: L'Alba sulle Scogliere,19.34,0.32,5,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,21,Capitolo 21: La Grande Dimissione,30.49,0.51,7,22,544.09,9.07
+440529cb...,Il Peso della Luce: L’ultimo Simposio,flash,gemini-3-flash,2026-01-03 11:15:32,22,Capitolo 22: La Ferita del Mondo,24.57,0.41,6,22,544.09,9.07
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,1,"Capitolo 1: Mani di Farina, Cuore di Pietra",20.54,0.34,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,2,Capitolo 2: L'Eresia del Grano,24.84,0.41,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,3,Capitolo 3: La Chiamata dal Nord,24.81,0.41,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,4,Capitolo 4: L'Ultimo Addio al Vesuvio,22.24,0.37,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,5,Capitolo 5: Il Grigio di Amsterdam,25.67,0.43,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,6,Capitolo 6: L'Orrore nel Piatto,27.77,0.46,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,7,Capitolo 7: Il Nemico Invisibile,31.03,0.52,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,8,Capitolo 8: La Ragazza dei Canali,29.94,0.50,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,9,Capitolo 9: Il Laboratorio Notturno,23.60,0.39,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,10,Capitolo 10: Lezione di Urbanistica,28.02,0.47,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,11,Capitolo 11: L'Oro di Jordaan,28.24,0.47,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,12,Capitolo 12: L'Ombra del Gigante,27.86,0.46,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,13,Capitolo 13: Voci da Casa,29.30,0.49,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,14,Capitolo 14: La Macchina del Sabotaggio,30.58,0.51,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,15,Capitolo 15: Il Grande Tradimento?,30.97,0.52,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,16,Capitolo 16: Notte di Tempesta e Fuoco,28.00,0.47,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,17,Capitolo 17: Cenere e Solidarietà,31.55,0.53,8,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,18,Capitolo 18: La Sfida è Lanciata,28.72,0.48,7,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,19,Capitolo 19: Sotto i Riflettori dell'Expo,27.34,0.46,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,20,Capitolo 20: L'Ospite Inatteso,19.22,0.32,4,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,21,Capitolo 21: Il Verdetto del Sangue,25.85,0.43,6,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,22,Capitolo 22: La Lettera Aperta,22.51,0.38,5,23,610.94,10.18
+8b453ff7...,**Il Segreto dell’Acqua: Un Cuore Partenopeo tra i Canali**,flash,gemini-3-flash,2026-01-02 17:42:31,23,Capitolo 23: Il Cerchio dell'Acqua (Scena Finale),22.36,0.37,5,23,610.94,10.18
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,1,Capitolo 1: La Geometria del Caldo,37.46,0.62,5,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,2,Capitolo 2: Il Suono della Terra,48.11,0.80,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,3,Capitolo 3: L'Elettricità dello Scirocco,50.04,0.83,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,4,Capitolo 4: Il Riflesso nel Vetro Scuro,46.21,0.77,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,5,Capitolo 5: La Dispersione,48.85,0.81,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,6,Capitolo 6: Restaurare il Presente (Roma),53.28,0.89,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,7,Capitolo 7: La Fame (Parigi),50.75,0.85,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,8,Capitolo 8: Neve su Vienna (Dicembre 1992),50.83,0.85,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,9,Capitolo 9: La Stanza 304,49.11,0.82,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,10,Capitolo 10: Il Risveglio e l'Oggetto,51.42,0.86,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,11,Capitolo 11: Le Crepe nel Muro,51.44,0.86,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,12,"Capitolo 12: La Smentita (Toscana, 1995)",57.99,0.97,8,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,13,Capitolo 13: La Cicatrice,52.30,0.87,8,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,14,Capitolo 14: L'Archivio Segreto (2002),51.50,0.86,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,15,Capitolo 15: La Diagnosi di Codardia,47.72,0.80,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,16,Capitolo 16: Il Metronomo (2004),54.02,0.90,8,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,17,Capitolo 17: Lo Specchio del Camerino,55.34,0.92,8,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,18,Capitolo 18: Erosione (2005-2009),48.84,0.81,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,19,Capitolo 19: L'Incontro a New York (2010),53.89,0.90,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,20,Capitolo 20: Corpi Imperfetti,52.16,0.87,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,21,Capitolo 21: La Rivelazione nel Buio,52.18,0.87,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,22,Capitolo 22: L'Addio Etico,46.92,0.78,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,23,Capitolo 23: Il Conto da Pagare (2011),52.83,0.88,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,24,Capitolo 24: La Devozione del Rimorso (2012-2015),48.41,0.81,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,25,Capitolo 25: La Polvere,48.07,0.80,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,26,Capitolo 26: Il Viaggio a Ritroso,48.45,0.81,7,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,27,Capitolo 27: Il Rudere (Climax),62.45,1.04,9,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,28,Capitolo 28: L'Argento Nero,46.25,0.77,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,29,Capitolo 29: La Domanda Senza Risposta,41.05,0.68,5,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,30,Capitolo 30: Stazione,43.56,0.73,6,31,1546.78,25.78
+22a4cf32...,L'Architettura dell'Invisibile,pro,gemini-3-pro,2025-12-31 17:21:16,31,Capitolo 31: Pulviscolo,45.35,0.76,4,31,1546.78,25.78
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,1,Capitolo 1: La Geometria della Nebbia,18.39,0.31,4,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,2,Capitolo 2: L'Invasione del Sud,22.96,0.38,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,3,Capitolo 3: Il Santuario di Carta,23.39,0.39,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,4,Capitolo 4: Dream a Little Dream of Me,21.76,0.36,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,5,Capitolo 5: Crepe nel Cristallo,23.19,0.39,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,6,Capitolo 6: L'Ultima Sigaretta sotto i Portici,23.33,0.39,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,7,"Capitolo 7: Binario 5, Ore 6:15",23.60,0.39,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,8,Capitolo 8: L'Inerzia del Diritto,21.83,0.36,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,9,Capitolo 9: La Precisione Svizzera,24.27,0.40,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,10,Capitolo 10: Il Matrimonio delle Convenienze,23.26,0.39,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,11,Capitolo 11: La Casa sul Lago,21.93,0.37,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,12,Capitolo 12: Quasi-Incontro I: La Bahnhofstrasse,24.71,0.41,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,13,Capitolo 13: Il Collezionista di Fantasmi,26.01,0.43,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,14,Capitolo 14: Quasi-Incontro II: L'Inaugurazione a Milano,23.38,0.39,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,15,Capitolo 15: Il Peso del Silenzio (Il Conflitto con la Figlia),24.67,0.41,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,16,Capitolo 16: Il Metro del Dolore,27.05,0.45,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,17,Capitolo 17: La Chiamata dal Passato,22.45,0.37,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,18,Capitolo 18: Il Portone di Via Alfieri,26.55,0.44,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,19,Capitolo 19: La Passeggiata dei Fantasmi,29.91,0.50,7,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,20,Capitolo 20: La Confessione della Viltà,28.87,0.48,7,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,21,Capitolo 21: La Misura di Ogni Cosa (Il Caffè),27.32,0.46,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,22,Capitolo 22: L'Ultimo Treno (Non è un Addio),22.33,0.37,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,23,Capitolo 23: Il Racconto a Chiara,28.16,0.47,6,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,24,Capitolo 24: I Colori Ritrovati,21.55,0.36,5,25,599.75,10.00
+eab6100a...,La Misura di Ogni Cosa,flash,gemini-3-flash,2025-12-31 11:23:12,25,Capitolo 25: La Luce Lontana (Epilogo),18.86,0.31,4,25,599.75,10.00
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,1,Capitolo 1: Riabilitazione Forzata,21.86,0.36,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,2,Capitolo 2: Il Sorriso di Bruno,24.70,0.41,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,3,Capitolo 3: Il Circolo della Sala Comune,25.25,0.42,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,4,Capitolo 4: Il Primo Biglietto,24.70,0.41,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,5,Capitolo 5: Il Contagio,28.07,0.47,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,6,Capitolo 6: Gli Occhi di un Commissario,22.80,0.38,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,7,Capitolo 7: Il Metodo Rossi,25.35,0.42,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,8,Capitolo 8: L'Oro del Cavaliere,22.38,0.37,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,9,Capitolo 9: Sussurri nei Corridoi,28.04,0.47,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,10,Capitolo 10: La Lettera Anonima,22.14,0.37,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,11,Capitolo 11: Prima del Buio,22.79,0.38,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,12,Capitolo 12: Sangue nel Magazzino,24.18,0.40,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,13,Capitolo 13: L'Arrivo di Bianchi,24.69,0.41,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,14,Capitolo 14: L'Interrogatorio di Adele,25.93,0.43,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,15,Capitolo 15: I Segreti di Clara,24.20,0.40,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,16,Capitolo 16: La Pista del Farmaco,25.11,0.42,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,17,Capitolo 17: L'Alibi di Ferro del Cavaliere,26.42,0.44,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,18,Capitolo 18: Il Passato non Muore Mai,22.46,0.37,5,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,19,Capitolo 19: L'Adunanza nel Salone,25.14,0.42,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,20,Capitolo 20: L'Ultima Scommessa di Arturo,26.17,0.44,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,21,Capitolo 21: Il Ritorno dell'Orologio,26.43,0.44,6,22,540.77,9.01
+fd829407...,L’Ultima Scommessa a Villa del Tramonto,flash,gemini-3-flash,2025-12-30 15:11:55,22,Capitolo 22: Oltre il Cancello,21.97,0.37,5,22,540.77,9.01
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,1,Capitolo 1: La Sala d'Aspetto di Dio,45.79,0.76,6,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,2,Capitolo 2: L'Angelo con le Scarpe Firmate,46.86,0.78,6,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,3,Capitolo 3: Una Notte da Venti Euro,55.75,0.93,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,4,Capitolo 4: Il Rituale del Martedì,50.32,0.84,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,5,Capitolo 5: Il Contagio,51.60,0.86,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,6,Capitolo 6: Strategia e Probabilità,51.16,0.85,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,7,Capitolo 7: La Borsa di Villa delle Magnolie,54.04,0.90,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,8,Capitolo 8: L'Osservatrice Silenziosa,59.78,1.00,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,9,Capitolo 9: Il Banchiere Ombra,59.27,0.99,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,10,Capitolo 10: L'Ultimo Pegno,51.44,0.86,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,11,Capitolo 11: La Scoperta,58.62,0.98,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,12,Capitolo 12: Terra Bruciata,56.74,0.95,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,13,Capitolo 13: Il Silenzio degli Innocenti,54.44,0.91,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,14,Capitolo 14: L'Errore Fatale,55.75,0.93,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,15,Capitolo 15: La Matematica della Vendetta,66.05,1.10,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,16,Capitolo 16: Notte di Pioggia e Insulina,63.74,1.06,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,17,Capitolo 17: La Scena del Crimine,55.86,0.93,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,18,Capitolo 18: Il Muro di Gomma,58.75,0.98,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,19,Capitolo 19: False Piste,62.72,1.05,8,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,20,Capitolo 20: Il Duello,66.72,1.11,9,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,21,Capitolo 21: La Crepa nel Muro,52.71,0.88,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,22,Capitolo 22: La Riunione in Sala Comune,59.13,0.99,9,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,23,Capitolo 23: La Confessione,53.43,0.89,7,24,1340.45,22.34
+161664fa...,L'Ultima Puntata a Villa delle Magnolie,pro,gemini-3-pro,2025-12-30 15:11:55,24,Capitolo 24: Un Nuovo Ordine,49.76,0.83,7,24,1340.45,22.34
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,1,Capitolo 1: Il Ritmo del Silenzio,22.96,0.38,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,2,Capitolo 2: La Scintilla di Ada,25.26,0.42,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,3,Capitolo 3: Il Contagio,24.58,0.41,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,4,Capitolo 4: Il Mercato delle Illusioni,24.00,0.40,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,5,Capitolo 5: Il Meccanismo del Ladro,21.81,0.36,4,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,6,Capitolo 6: Gli Occhi di Marta,22.78,0.38,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,7,Capitolo 7: L'Oro per la Carta,25.21,0.42,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,8,Capitolo 8: L'Ultima Delega,24.66,0.41,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,9,Capitolo 9: Il Crollo,25.17,0.42,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,10,Capitolo 10: L'Ispezione del Dottor Valli,26.70,0.45,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,11,Capitolo 11: Il Verdetto Silenzioso,23.17,0.39,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,12,Capitolo 12: Crisi nei Corridoi,21.09,0.35,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,13,Capitolo 13: Il Ricatto di Saverio,24.70,0.41,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,14,Capitolo 14: La Cena delle Ombre,25.45,0.42,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,15,Capitolo 15: La Tempesta e la Frana,25.15,0.42,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,16,Capitolo 16: Passi nella Notte,22.62,0.38,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,17,Capitolo 17: Il Sorriso di Vetro,25.92,0.43,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,18,Capitolo 18: La Prima Ricognizione,24.69,0.41,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,19,Capitolo 19: Interrogatorio I: Il Terrore di Marta,26.66,0.44,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,20,Capitolo 20: Interrogatorio II: La Cenere di Ada,26.17,0.44,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,21,Capitolo 21: Interrogatorio III: L'Onore del Colonnello,25.82,0.43,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,22,Capitolo 22: L'Adunata nel Salone,22.15,0.37,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,23,Capitolo 23: La Rivelazione della Complice Silenziosa,24.07,0.40,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,24,Capitolo 24: Il Peso del Giorno Dopo,24.88,0.41,6,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,25,Capitolo 25: Il Giardino d'Inverno,21.67,0.36,5,26,632.57,10.54
+b2d24e4a...,L'Ultima Scommessa a Villa dei Glicini,flash,gemini-3-flash,2025-12-30 15:11:55,26,Capitolo 26: La Ruota Gira (Epilogo),25.22,0.42,6,26,632.57,10.54
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,1,Capitolo 1: L'Anticamera del Tempo,20.18,0.34,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,2,Capitolo 2: I Quattro Pilastri,18.89,0.31,4,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,3,Capitolo 3: L'Arrivo dell'Ombra (Enzo),24.44,0.41,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,4,"Capitolo 4: Il Primo ""Dono""",26.04,0.43,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,5,Capitolo 5: Il Mercante di Speranza,26.67,0.44,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,6,Capitolo 6: L'Osservatorio di Marini,25.49,0.42,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,7,Capitolo 7: Il Silenzio dei Risparmi,27.63,0.46,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,8,Capitolo 8: L'Avvocato Scrupoloso,26.16,0.44,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,9,Capitolo 9: L'Inchiesta Interna,26.31,0.44,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,10,Capitolo 10: La Sentenza di Enzo,23.28,0.39,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,11,Capitolo 11: La Tempesta su Villa delle Ortensie,27.18,0.45,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,12,Capitolo 12: Il Cornetto Acustico del Destino,24.84,0.41,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,13,Capitolo 13: L'Arrivo del Maresciallo,26.27,0.44,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,14,Capitolo 14: L'Interrogatorio di Adele e del Colonnello,28.99,0.48,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,15,Capitolo 15: La Memoria di Marta,27.72,0.46,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,16,Capitolo 16: La Trappola della Logica,25.46,0.42,5,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,17,Capitolo 17: Il Colpo di Scena,27.94,0.47,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,18,Capitolo 18: Giustizia Amara,25.79,0.43,6,19,479.80,8.00
+04a17eed...,L'Ultimo Gratta e Vinci,flash,gemini-3-flash,2025-12-30 15:11:55,19,Capitolo 19: Epilogo: Cenere e Fortuna,20.51,0.34,4,19,479.80,8.00
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,1,Capitolo 1: Il Vetro di Porta Nuova,38.80,0.65,5,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,2,Capitolo 2: Il Mausoleo Silenzioso,43.47,0.72,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,3,Capitolo 3: Sprint Review,43.51,0.73,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,4,Capitolo 4: Il Pellegrinaggio,47.52,0.79,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,5,Capitolo 5: Macchie sulla Pelle,56.25,0.94,8,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,6,Capitolo 6: La Sentenza Burocratica,41.13,0.69,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,7,Capitolo 7: Il Tradimento,50.07,0.83,7,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,8,Capitolo 8: Il Sesto Psicologo,47.83,0.80,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,9,Capitolo 9: Obsolescenza Programmata,48.16,0.80,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,10,Capitolo 10: Neon e Carne,51.64,0.86,7,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,11,Capitolo 11: Il Letto di Milù (Il Delirio),49.78,0.83,7,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,12,Capitolo 12: L'Ultima Iniezione,57.49,0.96,8,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,13,Capitolo 13: Allucinazioni Urbane,54.56,0.91,8,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,14,Capitolo 14: La Cena Aziendale,55.13,0.92,7,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,15,Capitolo 15: Il Ritorno al Vuoto,43.55,0.73,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,16,Capitolo 16: Disillusione,47.06,0.78,6,17,815.20,13.59
+ddc1e966...,L'Entropia di Leopold,pro,gemini-3-pro,2025-12-30 15:11:55,17,Capitolo 17: Entropia (Parco Sempione),39.23,0.65,5,17,815.20,13.59
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,1,Capitolo 1: Il Tempo Sospeso,48.19,0.80,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,2,Capitolo 2: Il Sorriso del Serpente,47.84,0.80,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,3,Capitolo 3: Contagio,47.02,0.78,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,4,Capitolo 4: L'Economia Sommersa,43.82,0.73,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,5,Capitolo 5: L'Errore di Calcolo,50.65,0.84,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,6,Capitolo 6: L'Intervento della Direzione,49.35,0.82,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,7,Capitolo 7: Il Movente Nascosto,52.79,0.88,8,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,8,Capitolo 8: La Notte delle Ombre,49.55,0.83,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,9,Capitolo 9: Morte all'Alba,53.58,0.89,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,10,Capitolo 10: L'Indagine Superficiale,54.42,0.91,8,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,11,Capitolo 11: Colloqui - La Paura di Clelia,51.30,0.85,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,12,Capitolo 12: Colloqui - I Numeri di Molinari,43.72,0.73,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,13,Capitolo 13: La Deduzione del Farmaco,44.61,0.74,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,14,Capitolo 14: Il Confronto Informale,52.32,0.87,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,15,Capitolo 15: La Riunione in Biblioteca,50.62,0.84,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,16,Capitolo 16: L'Accusa,47.90,0.80,7,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,17,Capitolo 17: La Confessione dell'Ufficiale,43.56,0.73,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,18,Capitolo 18: L'Addio,41.95,0.70,6,19,915.45,15.26
+359e83d8...,**L'Ultima Scommessa di Villa Vesper**,pro,gemini-3-pro,2025-12-30 15:11:55,19,Capitolo 19: Epilogo - Il Vento nel Giardino,42.26,0.70,6,19,915.45,15.26
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,1,Capitolo 1: La Pietra Fredda di Minas Tirith,20.58,0.34,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,2,Capitolo 2: Polvere e Pergamene nei Grandi Smial,22.91,0.38,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,3,Capitolo 3: Il Cuore della Montagna si fa Muto,24.04,0.40,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,4,Capitolo 4: Il Vento dell’Est,22.80,0.38,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,5,Capitolo 5: L’Eremita di Minas Ithil,24.25,0.40,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,6,Capitolo 6: L’Ultima Partenza della Contea,25.80,0.43,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,7,Capitolo 7: Sangue a Osgiliath,23.74,0.40,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,8,Capitolo 8: I Guardiani che Diventano Legno,26.56,0.44,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,9,Capitolo 9: L'Arrivo del Cercatore,28.66,0.48,7,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,10,Capitolo 10: La Teoria dell'Ombra Sottile,26.03,0.43,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,11,Capitolo 11: Il Liberatore alle Porte,25.95,0.43,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,12,Capitolo 12: Il Prezzo della Sicurezza,26.19,0.44,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,13,Capitolo 13: Pellegrinaggio verso il Passato,29.85,0.50,7,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,14,Capitolo 14: Lo Scontro delle Tre Visioni,23.78,0.40,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,15,Capitolo 15: Il Sacrificio della Corona,26.72,0.45,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,16,Capitolo 16: Il Trattato dell’Uomo Libero,24.58,0.41,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,17,Capitolo 17: Le Porte Sigillate,24.99,0.42,5,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,18,Capitolo 18: L’Ultimo Capitolo del Libro Rosso,24.06,0.40,6,19,474.78,7.91
+787b091c...,**L’Eredità dell’Ombra Sottile**,flash,gemini-3-flash,2025-12-30 15:11:55,19,Capitolo 19: Il Tramonto del Re,23.30,0.39,5,19,474.78,7.91

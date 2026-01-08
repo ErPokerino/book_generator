@@ -643,6 +643,29 @@ export async function getBookCritique(sessionId: string): Promise<LiteraryCritiq
   }
 }
 
+export async function getCritiqueAudio(sessionId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/critique/audio/${sessionId}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nella generazione audio: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      const text = await response.text().catch(() => '');
+      if (text) {
+        errorMessage = `Errore: ${text.substring(0, 100)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return await response.blob();
+}
+
 export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`${API_BASE}/book/pdf/${sessionId}`);
   
@@ -809,7 +832,7 @@ export interface LibraryEntry {
   session_id: string;
   title: string;
   author: string;
-  llm_model: string;
+  llm_model: string;  // Ora contiene la modalità (Flash, Pro, Ultra) invece del nome del modello
   genre?: string;
   created_at: string;
   updated_at: string;
@@ -871,7 +894,8 @@ export interface LibraryResponse {
 
 export interface LibraryFilters {
   status?: string;
-  llm_model?: string;
+  mode?: string;  // Modalità (Flash, Pro, Ultra) - preferito rispetto a llm_model
+  llm_model?: string;  // Retrocompatibilità, deprecato
   genre?: string;
   search?: string;
   sort_by?: string;
@@ -894,7 +918,12 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
   
   if (filters) {
     if (filters.status) params.append('status', filters.status);
-    if (filters.llm_model) params.append('llm_model', filters.llm_model);
+    // Usa mode se disponibile, altrimenti llm_model per retrocompatibilità
+    if (filters.mode) {
+      params.append('mode', filters.mode);
+    } else if (filters.llm_model) {
+      params.append('llm_model', filters.llm_model);
+    }
     if (filters.genre) params.append('genre', filters.genre);
     if (filters.search) params.append('search', filters.search);
     if (filters.sort_by) params.append('sort_by', filters.sort_by);

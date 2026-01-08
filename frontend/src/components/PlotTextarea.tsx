@@ -70,6 +70,32 @@ export default function PlotTextarea({
   const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
   const charCount = value.length;
 
+  // Placeholder con esempio se non fornito
+  const defaultPlaceholder = "Descrivi la trama del tuo libro... (es: Un giovane mago scopre di avere poteri straordinari e deve salvare il mondo da un'antica minaccia oscura. Durante il suo viaggio, incontra alleati inaspettati e scopre segreti sul suo passato che cambieranno per sempre il suo destino.)";
+  const displayPlaceholder = placeholder || defaultPlaceholder;
+
+  // Auto-resize del textarea principale
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Reset height per calcolare correttamente scrollHeight
+      textareaRef.current.style.height = 'auto';
+      // Imposta l'altezza in base al contenuto
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${scrollHeight}px`;
+    }
+  }, [value]);
+
+  // Auto-resize del textarea espanso
+  useEffect(() => {
+    if (expandedTextareaRef.current && isExpanded) {
+      // Reset height per calcolare correttamente scrollHeight
+      expandedTextareaRef.current.style.height = 'auto';
+      // Imposta l'altezza in base al contenuto, con un minimo
+      const scrollHeight = expandedTextareaRef.current.scrollHeight;
+      expandedTextareaRef.current.style.height = `${Math.max(scrollHeight, 400)}px`;
+    }
+  }, [value, isExpanded]);
+
   const handleOpenExpanded = () => {
     setIsExpanded(true);
   };
@@ -132,7 +158,7 @@ export default function PlotTextarea({
             id={id}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
+            placeholder={displayPlaceholder}
             disabled={disabled}
             rows={6}
             className={`plot-textarea ${error ? 'error' : ''}`}
@@ -181,7 +207,7 @@ export default function PlotTextarea({
                 ref={expandedTextareaRef}
                 value={value}
                 onChange={(e) => handleExpandedChange(e.target.value)}
-                placeholder={placeholder}
+                placeholder={displayPlaceholder}
                 disabled={disabled}
                 className="plot-expanded-textarea"
               />
