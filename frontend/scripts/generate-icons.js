@@ -27,10 +27,13 @@ if (!originalIcon) {
 }
 
 const sizes = [
-  { size: 192, name: 'icon-192.png' },
-  { size: 512, name: 'icon-512.png' },
-  { size: 32, name: 'favicon.png' },
-  { size: 180, name: 'apple-touch-icon.png' },
+  { size: 192, name: 'icon-192.png', maskable: false },
+  { size: 512, name: 'icon-512.png', maskable: false },
+  { size: 192, name: 'icon-192-maskable.png', maskable: true },
+  { size: 512, name: 'icon-512-maskable.png', maskable: true },
+  { size: 32, name: 'favicon.png', maskable: false },
+  { size: 16, name: 'favicon-16.png', maskable: false },
+  { size: 180, name: 'apple-touch-icon.png', maskable: false },
 ];
 
 async function generateIcons() {
@@ -44,18 +47,54 @@ async function generateIcons() {
     .trim({ threshold: 10 }) // Rimuove bordi con differenza < 10
     .toBuffer();
   
-  for (const { size, name } of sizes) {
+  for (const { size, name, maskable } of sizes) {
     const outputPath = join(__dirname, `../public/${name}`);
     
-    await sharp(trimmed)
-      .resize(size, size, {
-        fit: 'cover',
-        position: 'center'
-      })
-      .png({ quality: 90 })
-      .toFile(outputPath);
+    if (maskable) {
+      // Per icone maskable: crea un canvas con safe zone del 20%
+      // Il contenuto dell'icona sarà ridotto all'80% e centrato
+      const safeZone = 0.2; // 20% padding
+      const contentSize = Math.floor(size * (1 - safeZone * 2));
+      
+      // Crea un canvas trasparente della dimensione finale
+      const canvas = sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }
+      });
+      
+      // Ridimensiona l'icona al 80% e posiziona al centro
+      const resized = await sharp(trimmed)
+        .resize(contentSize, contentSize, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .toBuffer();
+      
+      // Composizione: canvas + icona centrata
+      await canvas
+        .composite([{
+          input: resized,
+          left: Math.floor((size - contentSize) / 2),
+          top: Math.floor((size - contentSize) / 2)
+        }])
+        .png({ quality: 90 })
+        .toFile(outputPath);
+    } else {
+      // Per icone standard: usa tutto lo spazio disponibile
+      await sharp(trimmed)
+        .resize(size, size, {
+          fit: 'cover',
+          position: 'center'
+        })
+        .png({ quality: 90 })
+        .toFile(outputPath);
+    }
     
-    console.log(`✓ ${name} (${size}x${size})`);
+    console.log(`✓ ${name} (${size}x${size}${maskable ? ', maskable' : ''})`);
   }
   
   console.log('\n✅ Tutte le icone generate con successo!');

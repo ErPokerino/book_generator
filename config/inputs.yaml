@@ -243,5 +243,5 @@ fields:
     type: text
     required: false
     description: "Autore da cui prendere spunto per lo stile"
-    placeholder: "Autore da cui prendere spunto per lo stile (es: Italo Calvino, Haruki Murakami...)"
+    placeholder: "Autore di riferimento per lo stile"
 
