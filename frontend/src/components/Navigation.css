@@ -6,7 +6,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: calc(1rem + var(--safe-area-inset-top)) 2.5rem 1rem 2.5rem;
+  padding: 1rem 2.5rem;
+  padding-top: calc(1rem + var(--safe-area-inset-top));
   /* Gradiente blu continuo con l'area del titolo */
   background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #0f3460 100%);
   backdrop-filter: var(--glass-blur-light);
@@ -17,10 +18,13 @@
     0 1px 0 rgba(255, 255, 255, 0.05) inset;
   position: sticky;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   gap: 2rem;
   min-width: 0;
   width: 100%;
+  margin: 0;
 }
 
 /* Brand */
@@ -161,7 +165,8 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    position: relative;
+    position: sticky;
+    top: 0;
   }
 
   .nav-brand {

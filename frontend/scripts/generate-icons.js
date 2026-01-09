@@ -42,35 +42,41 @@ async function generateIcons() {
   // Prima carica l'immagine e rimuovi lo spazio bianco
   const image = sharp(originalIcon);
   
-  // Trim dello spazio bianco (rimuove padding bianco/trasparente)
-  const trimmed = await image
-    .trim({ threshold: 10 }) // Rimuove bordi con differenza < 10
+  // Trim più aggressivo dello spazio bianco
+  const processed = await image
+    .ensureAlpha() // Assicura canale alpha
+    .trim({ 
+      threshold: 20, // Soglia più alta per rimuovere più bianco
+      background: { r: 255, g: 255, b: 255, alpha: 1 }
+    })
     .toBuffer();
+  
+  // Colore di background blu scuro (coerente con l'header)
+  const bgColor = { r: 15, g: 52, b: 96, alpha: 1 }; // #0f3460
   
   for (const { size, name, maskable } of sizes) {
     const outputPath = join(__dirname, `../public/${name}`);
     
     if (maskable) {
       // Per icone maskable: crea un canvas con safe zone del 20%
-      // Il contenuto dell'icona sarà ridotto all'80% e centrato
-      const safeZone = 0.2; // 20% padding
+      const safeZone = 0.2;
       const contentSize = Math.floor(size * (1 - safeZone * 2));
       
-      // Crea un canvas trasparente della dimensione finale
+      // Crea un canvas con background blu scuro
       const canvas = sharp({
         create: {
           width: size,
           height: size,
           channels: 4,
-          background: { r: 0, g: 0, b: 0, alpha: 0 }
+          background: bgColor
         }
       });
       
       // Ridimensiona l'icona al 80% e posiziona al centro
-      const resized = await sharp(trimmed)
+      const resized = await sharp(processed)
         .resize(contentSize, contentSize, {
           fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 0 }
+          background: bgColor
         })
         .toBuffer();
       
@@ -84,12 +90,13 @@ async function generateIcons() {
         .png({ quality: 90 })
         .toFile(outputPath);
     } else {
-      // Per icone standard: usa tutto lo spazio disponibile
-      await sharp(trimmed)
+      // Per icone standard: usa background blu scuro
+      await sharp(processed)
         .resize(size, size, {
-          fit: 'cover',
-          position: 'center'
+          fit: 'contain',
+          background: bgColor
         })
+        .flatten({ background: bgColor }) // Rimuove trasparenza e riempie con blu
         .png({ quality: 90 })
         .toFile(outputPath);
     }
