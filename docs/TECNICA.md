@@ -85,6 +85,8 @@ L'applicazione adotta una **Clean Architecture** semplificata con separazione de
 - **LLM Integration**: 
   - `langchain-google-genai` 2.0.0+
   - `google-generativeai` 0.8.0+
+- **Text-to-Speech**: 
+  - `google-cloud-texttospeech` 2.16.0+ (audiobook critica)
 - **PDF Generation**: 
   - `xhtml2pdf` 0.2.11+
   - `reportlab` 4.0.0+
@@ -99,12 +101,15 @@ L'applicazione adotta una **Clean Architecture** semplificata con separazione de
 - **Framework**: React 18+
 - **Language**: TypeScript 5+
 - **Build Tool**: Vite 5+
+- **PWA**: vite-plugin-pwa 0.20+ (service worker, manifest)
 - **Styling**: CSS Modules + CSS Variables
 - **Charts**: Recharts 3+
 - **Notifications**: react-hot-toast 2+
+- **Icons**: lucide-react 0.400+ (icon library)
 - **Drag & Drop**: @dnd-kit/core, @dnd-kit/sortable 6+
 - **Markdown**: react-markdown 10+, remark-gfm 4+
 - **HTTP Client**: Fetch API nativo
+- **Image Processing**: sharp (Node.js, per generazione icone)
 
 ### Infrastruttura
 
@@ -442,12 +447,20 @@ GCS_BUCKET_NAME=your-bucket-name
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
 
+**Variabili Opzionali (Google Cloud Text-to-Speech)**:
+```env
+# TTS (per audiobook critica)
+# Se non configurato, usa fallback a credentials/narrai-app-credentials.json
+GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+```
+
 **Note**:
 - `GOOGLE_API_KEY`: Obbligatoria per chiamate LLM
 - `MONGODB_URI`: Opzionale, se non configurata usa FileSessionStore (JSON file)
 - `SESSION_SECRET`: Opzionale, default generato (cambiare in produzione)
 - `SMTP_*`: Opzionali, se non configurate email non vengono inviate (processo continua)
 - `GCS_*`: Opzionali, fallback a storage locale se non configurato
+- `GOOGLE_APPLICATION_CREDENTIALS`: Condiviso tra GCS e TTS, fallback a `credentials/narrai-app-credentials.json`
 
 ### Configurazione Modelli LLM
 
@@ -663,6 +676,174 @@ Persistenza file su Google Cloud Storage con fallback locale:
 
 **File**: `backend/app/services/storage_service.py`
 
+## PWA e Service Worker
+
+L'applicazione è configurata come Progressive Web App (PWA) installabile su dispositivi mobile e desktop.
+
+### Configurazione vite-plugin-pwa
+
+Il plugin `vite-plugin-pwa` gestisce automaticamente:
+- Generazione service worker
+- Caching risorse statiche
+- Manifest PWA
+- Auto-update del service worker
+
+**Configurazione** (`frontend/vite.config.ts`):
+```typescript
+VitePWA({
+  registerType: 'autoUpdate',
+  includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', ...],
+  manifest: {
+    name: 'NarrAI - Crea libri con AI',
+    short_name: 'NarrAI',
+    theme_color: '#0f3460',
+    background_color: '#0f3460',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  },
+})
+```
+
+### Generazione Icone
+
+Lo script `frontend/scripts/generate-icons.js` genera tutte le icone necessarie:
+
+**Icone Generate**:
+- `icon-192.png`, `icon-512.png`: Icone standard PWA
+- `icon-192-maskable.png`, `icon-512-maskable.png`: Icone maskable con safe zone 20% per Android adaptive icons
+- `apple-touch-icon.png`: Icona iOS (180x180)
+- `favicon.png`, `favicon-16.png`: Favicon browser
+
+**Processo**:
+1. Carica `app-icon-original.png` da `frontend/public/`
+2. Trim automatico spazio bianco (threshold: 20)
+3. Genera versioni standard con background blu (`#0f3460`)
+4. Genera versioni maskable con safe zone 20% (contenuto ridotto all'80% e centrato)
+5. Salva tutte le icone in `frontend/public/`
+
+**Libreria**: `sharp` (Node.js) per processing immagini
+
+**File**: `frontend/scripts/generate-icons.js`
+
+### Manifest e Meta Tags
+
+**Manifest** (`manifest.webmanifest`):
+- Generato automaticamente da vite-plugin-pwa
+- Include tutte le icone (standard + maskable)
+- Theme color e background color coerenti con header
+
+**Meta Tags** (`frontend/index.html`):
+- `viewport-fit=cover`: Supporto safe area (notch)
+- `theme-color`: Colore barra stato (`#0f3460`)
+- `apple-mobile-web-app-*`: Meta tags iOS
+
+**File**: `frontend/index.html`, `frontend/vite.config.ts`
+
+### Service Worker
+
+Il service worker viene generato automaticamente e gestisce:
+- **Precaching**: Risorse statiche (HTML, CSS, JS, immagini)
+- **Runtime Caching**: 
+  - Google Fonts (CacheFirst, 1 anno)
+  - API calls (NetworkFirst, 10s timeout)
+- **Auto-update**: Aggiornamento automatico quando nuova versione disponibile
+
+**File**: Generato in `frontend/dist/sw.js` durante build
+
+## Safe Area Support
+
+Supporto per dispositivi con notch e system bars (iPhone X+, Android moderni).
+
+### Viewport Meta Tag
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+```
+
+Il `viewport-fit=cover` permette all'app di estendersi fino ai bordi del dispositivo.
+
+### CSS Environment Variables
+
+Utilizzo di variabili CSS `env()` per safe area insets:
+
+```css
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+```
+
+**Uso**:
+- Header navigation: `padding-top: calc(1rem + var(--safe-area-inset-top))`
+- App container: `padding-bottom: var(--safe-area-inset-bottom)`
+
+**File**: `frontend/src/index.css`, `frontend/src/components/Navigation.css`, `frontend/src/App.css`
+
+## Google Cloud Text-to-Speech
+
+Integrazione con Google Cloud Text-to-Speech per generazione audiobook della critica letteraria.
+
+### Configurazione
+
+**Credenziali**:
+- Variabile d'ambiente: `GOOGLE_APPLICATION_CREDENTIALS` (path a JSON key)
+- Fallback: `credentials/narrai-app-credentials.json` (se variabile non configurata)
+
+**Endpoint**:
+- `POST /api/critique/audio/{session_id}`: Genera audio da testo critica
+
+### Processo Generazione
+
+1. Backend legge testo critica da `SessionData.literary_critique`
+2. Chiamata a Google Cloud TTS API con:
+   - **Voce**: Italiana (`it-IT-Wavenet-A` o equivalente)
+   - **Formato**: MP3
+   - **Velocità**: 1.0x (standard)
+   - **Pitch**: 0.0 (standard)
+3. Risposta: Blob audio binario
+4. Frontend riproduce audio con HTML5 Audio API
+
+### Gestione Errori
+
+**Errori Comuni**:
+- `SERVICE_DISABLED`: Servizio TTS non abilitato nel progetto GCP
+- `PERMISSION_DENIED`: Credenziali insufficienti
+- `credentials not found`: File credenziali non trovato
+
+**Fallback**: Se TTS non disponibile, pulsante "Ascolta" non viene mostrato
+
+**File**: 
+- Backend: `backend/app/main.py` (`generate_critique_audio_endpoint`)
+- Frontend: `frontend/src/components/CritiqueAudioPlayer.tsx`
+
+## Splash Screen
+
+Animazione di caricamento mostrata durante l'inizializzazione dell'applicazione.
+
+### Implementazione
+
+**HTML Inline** (`frontend/index.html`):
+- Splash screen definito direttamente in HTML con CSS inline
+- Mostra icona app e testo "NarrAI"
+- Background blu con gradiente coerente con header
+
+**Animazioni**:
+- **Pulse**: Icona scala delicatamente (1.0 → 1.05 → 1.0)
+- **FadeIn**: Testo appare con fade-in e slide-up
+
+**Rimozione**:
+- React rimuove splash screen dopo render iniziale
+- Transizione fade-out smooth (500ms)
+- Rimozione completa dal DOM dopo transizione
+
+**File**: `frontend/index.html`, `frontend/src/main.tsx`
+
 ## Pattern e Convenzioni
 
 ### Naming Conventions
@@ -761,3 +942,15 @@ def function_name(param: str) -> Optional[Dict[str, Any]]:
 - Migliora percezione di velocità
 - Animazione shimmer
 - Componenti riutilizzabili per diversi layout
+
+**Responsive Design**:
+- Media queries per breakpoint mobile/desktop
+- Step indicator: verticale (desktop) → orizzontale compatto (mobile)
+- Navigation: menu completo (desktop) → hamburger menu (mobile)
+- Touch targets: minimo 44px per tutti gli elementi interattivi su mobile
+
+**Mobile Optimization**:
+- Safe area support per dispositivi con notch
+- Hamburger menu con overlay e animazioni
+- Book card espandibile con menu dropdown su mobile
+- Step indicator compatto orizzontale su schermi piccoli

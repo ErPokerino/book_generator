@@ -603,6 +603,42 @@ Durante il ripristino, vengono caricati solo i dati necessari per lo step corren
 - Componenti controllano presenza dati esistenti prima di generare
 - `useEffect` condizionali: solo se dati mancanti
 
+## Onboarding
+
+Il sistema include un carousel interattivo per guidare i nuovi utenti attraverso le funzionalità principali dell'applicazione.
+
+### Carousel 5 Step
+
+Il carousel viene mostrato automaticamente al primo login di un utente e include 5 schermate informative:
+
+1. **Descrivi la tua storia**: Spiega come inserire trama, genere, stile narrativo e tutte le opzioni per creare il libro perfetto
+2. **Scegli la modalità**: Presenta le tre modalità di generazione (Flash: rapidità, Pro: qualità, Ultra: libri estesi)
+3. **Modifica in ogni momento**: Informa sulla possibilità di modificare trama e struttura durante il processo
+4. **Crea la tua libreria**: Presenta la sezione libreria per raccogliere e leggere i libri generati
+
+### Persistenza Stato
+
+Lo stato di completamento del carousel viene salvato in `localStorage`:
+
+```typescript
+const ONBOARDING_KEY = 'narrai_onboarding_carousel';
+localStorage.setItem(ONBOARDING_KEY, 'completed');
+```
+
+**Comportamento**:
+- Carousel mostrato solo se chiave non presente in `localStorage`
+- Una volta completato, non viene più mostrato
+- Reset disponibile per sviluppo (pulsante "Reset Onboarding" in navigazione)
+
+### Design e UX
+
+- **Background**: Gradiente blu continuo con header per coerenza visiva
+- **Icone**: SVG personalizzate per ogni step (lucide-react)
+- **Animazioni**: Transizioni smooth tra schermate
+- **Navigazione**: Dots indicator per step corrente, pulsanti Avanti/Indietro
+
+**File**: `frontend/src/components/Onboarding/OnboardingCarousel.tsx`, `frontend/src/hooks/useOnboarding.ts`
+
 ## Sistema Critica Letteraria
 
 ### Generazione Automatica
@@ -669,6 +705,36 @@ L'utente può rigenerare la critica manualmente:
 - Aggiornamento: Sostituisce critica esistente
 
 **File**: `backend/app/agent/literary_critic.py`
+
+### Audiobook Critica
+
+Il sistema supporta la lettura vocale della critica letteraria utilizzando Google Cloud Text-to-Speech.
+
+**Processo**:
+1. Utente apre modale critica e clicca pulsante "Ascolta"
+2. Frontend chiama `POST /api/critique/audio/{session_id}`
+3. Backend genera audio da testo critica usando Google Cloud TTS
+4. Risposta: Blob audio (MP3) con voce italiana naturale
+5. Frontend riproduce audio con controlli play/pause
+
+**Configurazione**:
+- **Voce**: Italiana (it-IT), voce naturale
+- **Formato**: MP3
+- **Velocità**: Standard (1.0x)
+- **Pitch**: Standard
+
+**Credenziali**:
+- Utilizza `GOOGLE_APPLICATION_CREDENTIALS` (variabile d'ambiente o file `credentials/narrai-app-credentials.json`)
+- Fallback automatico se variabile non configurata
+
+**Player Audio**:
+- Componente React dedicato (`CritiqueAudioPlayer.tsx`)
+- Controlli: Play/Pause, loading state, gestione errori
+- Cleanup automatico al unmount del componente
+
+**File**: 
+- Backend: `backend/app/main.py` (`generate_critique_audio_endpoint`)
+- Frontend: `frontend/src/components/CritiqueAudioPlayer.tsx`, `frontend/src/api/client.ts`
 
 ## Export Multiformato
 
@@ -741,6 +807,67 @@ Il form "Nuovo Libro" utilizza un pattern di **progressive disclosure** per semp
 - Submit invariato (tutti i campi vengono inviati se compilati)
 
 **File**: `frontend/src/components/DynamicForm.tsx`, `frontend/src/components/DynamicForm.css`
+
+### Mode Cards con Descrizioni Integrate
+
+Le card di selezione modalità (Flash, Pro, Ultra) includono descrizioni integrate direttamente nella card:
+
+**Caratteristiche**:
+- **Flash**: "rapidità" - Generazione veloce per test e prototipi
+- **Pro**: "qualità" - Generazione di alta qualità per libri finali
+- **Ultra**: "libri estesi" - Generazione estesa per libri più lunghi e dettagliati
+
+**Design**:
+- Icone SVG personalizzate per ogni modalità
+- Effetti glassmorphism con backdrop-filter
+- Animazioni hover e focus
+- Layout responsive per mobile
+
+**File**: `frontend/src/components/DynamicForm.tsx`, `frontend/src/components/ui/icons/ModeIcons.tsx`
+
+### Header e Navigazione
+
+L'header utilizza un design moderno con gradiente blu continuo:
+
+**Caratteristiche**:
+- **Background**: Gradiente blu (`#0f3460` → `#16213e` → `#0f3460`) per continuità visiva
+- **Sticky**: Header fisso in alto durante lo scroll
+- **Safe Area**: Supporto per dispositivi con notch (iPhone, Android)
+- **Mobile**: Hamburger menu per navigazione compatta
+- **Touch Targets**: Minimo 44px per ottimizzazione mobile
+
+**Navigazione Mobile**:
+- Menu hamburger che espande menu verticale
+- Overlay scuro per focus
+- Chiusura con ESC o click esterno
+- Animazioni smooth per apertura/chiusura
+
+**File**: `frontend/src/components/Navigation.tsx`, `frontend/src/components/Navigation.css`
+
+### Ottimizzazione Mobile
+
+L'applicazione è ottimizzata per dispositivi mobile con diverse migliorie:
+
+**Touch Targets**:
+- Tutti i bottoni hanno minimo 44px di altezza/larghezza (standard iOS/Android)
+- Padding aumentato per elementi interattivi
+- Tap highlight ottimizzato
+
+**Step Indicator Responsivo**:
+- **Desktop**: Layout verticale con icone e descrizioni
+- **Mobile**: Layout orizzontale compatto con solo icone e label brevi
+- Transizione automatica basata su media query
+
+**Book Card Espandibile**:
+- Dettagli essenziali sempre visibili (titolo, stato, autore)
+- Dettagli completi espandibili tramite icona `MoreVertical`
+- Menu dropdown su mobile con azioni (Mostra/Nascondi dettagli, Rigenera Copertina, Esporta)
+- Animazioni smooth per espansione/collasso
+
+**File**: 
+- `frontend/src/components/StepIndicator.tsx`, `frontend/src/components/StepIndicator.css`
+- `frontend/src/components/BookCard.tsx`, `frontend/src/components/BookCard.css`
+- `frontend/src/App.css` (touch targets globali)
 
 ### PlotTextarea (Textarea Migliorata)
 

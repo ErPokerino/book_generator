@@ -48,6 +48,10 @@ FRONTEND_URL=http://localhost:5173
 GCS_ENABLED=false
 GCS_BUCKET_NAME=your-bucket-name
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+
+# Opzionale (Google Cloud Text-to-Speech - per audiobook critica)
+# Se non configurato, usa il fallback a credentials/narrai-app-credentials.json
+GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
 
 ### 2. Backend (FastAPI)
@@ -161,13 +165,28 @@ scrittura-libro/
 - **Generazione Automatica**: Scrittura capitoli con processo autoregressivo per coerenza narrativa
 - **Export Multiformato**: PDF, EPUB, DOCX con layout professionale
 - **Critica Letteraria**: Valutazione automatica AI con score, punti di forza/debolezza
+- **Audiobook Critica**: Lettura vocale della critica letteraria con Google Cloud Text-to-Speech
 - **Calcolo Costi**: Stima automatica basata su token utilizzati e modelli LLM
 - **Statistiche Avanzate**: Analytics con grafici temporali e confronto modelli (admin-only)
 - **Autenticazione Utenti**: Registrazione, login, email verification, password reset
+- **Onboarding Interattivo**: Carousel guidato per nuovi utenti con 5 step informativi
 - **Ripristino Sessione**: Continuazione processi interrotti con stato persistito
 - **Copertina AI**: Generazione automatica immagini copertina con Gemini
+- **Ottimizzazione Mobile**: Interfaccia responsive con touch targets ottimizzati, hamburger menu, step indicator compatto
 
 Per dettagli completi, consulta [Documentazione Funzionale](docs/FUNZIONALE.md).
+
+## Progressive Web App (PWA)
+
+NarrAI è installabile come applicazione nativa su dispositivi mobile e desktop:
+
+- **Installazione**: Clicca "Aggiungi alla schermata Home" dal browser mobile o "Installa app" su desktop
+- **Offline**: Service worker per caching risorse statiche e funzionalità offline
+- **Icone**: Ottimizzate per tutti i contesti (circolari Android con safe zone, quadrate iOS)
+- **Splash Screen**: Animazione di caricamento con icona e branding
+- **Manifest**: Configurazione PWA completa con theme color e background color coerenti
+
+Le icone vengono generate automaticamente da `app-icon-original.png` usando lo script `frontend/scripts/generate-icons.js` che crea versioni standard e maskable per supporto completo su tutti i dispositivi.
 
 ## Interfaccia Utente
 
