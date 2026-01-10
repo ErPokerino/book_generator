@@ -339,6 +339,70 @@ class BookShareStore:
             print(f"[BookShareStore] ERRORE nell'aggiornamento condivisione: {e}", file=sys.stderr)
             raise
     
+    async def resend_share(
+        self,
+        book_session_id: str,
+        owner_id: str,
+        recipient_id: str,
+    ) -> Optional[BookShare]:
+        """
+        Ri-condivide un libro esistente (resetta a pending).
+        Solo l'owner può ri-condividere.
+        
+        Args:
+            book_session_id: ID sessione del libro
+            owner_id: ID utente proprietario
+            recipient_id: ID utente destinatario
+        
+        Returns:
+            BookShare aggiornata se trovata e ownership verificata, None altrimenti
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            # Recupera la condivisione esistente
+            doc = await self.shares_collection.find_one({
+                "book_session_id": book_session_id,
+                "recipient_id": recipient_id
+            })
+            
+            if not doc:
+                return None
+            
+            share = self._doc_to_share(doc)
+            
+            # Verifica che l'utente sia l'owner
+            if share.owner_id != owner_id:
+                print(f"[BookShareStore] ERRORE: Utente {owner_id} non è l'owner della condivisione", file=sys.stderr)
+                return None
+            
+            # Non permettere di ri-condividere se già accettata
+            if share.status == "accepted":
+                return None
+            
+            # Aggiorna a pending
+            result = await self.shares_collection.update_one(
+                {"_id": share.id},
+                {
+                    "$set": {
+                        "status": "pending",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                share.status = "pending"
+                share.updated_at = datetime.utcnow()
+                print(f"[BookShareStore] Condivisione {share.id} ri-inviata (resettata a pending) da owner {owner_id}", file=sys.stderr)
+                return share
+            
+            return None
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE nel ri-invio condivisione: {e}", file=sys.stderr)
+            raise
+    
     async def delete_book_share(
         self,
         share_id: str,

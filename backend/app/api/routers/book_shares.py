@@ -106,21 +106,64 @@ async def share_book(
                 detail=f"Devi avere una connessione accettata. Stato attuale: {connection.status}",
             )
         
-        # Verifica che non esista già una condivisione
+        # Verifica se esiste già una condivisione
         await book_share_store.connect()
-        existing_share = await book_share_store.check_share_exists(
-            book_session_id=session_id,
-            owner_id=current_user.id,
-            recipient_id=target_user.id,
-        )
+        existing_share = await book_share_store.get_book_share(session_id, target_user.id)
         
+        book_title = session.current_title or "Libro"
+        
+        # Se esiste già una condivisione, gestisci in base allo stato
         if existing_share:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Libro già condiviso con questo utente",
-            )
+            # Verifica che sia dello stesso owner
+            if existing_share.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Libro già condiviso con questo utente",
+                )
+            
+            # Se la condivisione è già accettata, non permettere di ri-condividere
+            if existing_share.status == "accepted":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Libro già condiviso e accettato da questo utente",
+                )
+            
+            # Se la condivisione è in stato "declined" o "pending", permettere di ri-condividere
+            # Aggiorna lo stato a "pending" e crea una nuova notifica
+            if existing_share.status in ["declined", "pending"]:
+                # Usa il nuovo metodo resend_share per permettere all'owner di ri-condividere
+                share = await book_share_store.resend_share(
+                    book_session_id=session_id,
+                    owner_id=current_user.id,
+                    recipient_id=target_user.id,
+                )
+                
+                if not share:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Errore nel ri-condivisione del libro",
+                    )
+                
+                # Crea una nuova notifica per il destinatario
+                await notification_store.connect()
+                await notification_store.create_notification(
+                    user_id=target_user.id,
+                    type="book_shared",
+                    title="Libro condiviso nuovamente",
+                    message=f"{current_user.name} ha condiviso nuovamente con te il libro '{book_title}'",
+                    data={
+                        "from_user_id": current_user.id,
+                        "from_user_name": current_user.name,
+                        "book_session_id": session_id,
+                        "book_title": book_title,
+                        "share_id": share.id,
+                    },
+                )
+                
+                print(f"[BOOK SHARES API] Libro ri-condiviso: {session_id} da {current_user.id} a {target_user.id} (stato aggiornato da {existing_share.status} a pending)", file=sys.stderr)
+                return share
         
-        # Crea condivisione PENDING
+        # Se non esiste condivisione, crea nuova condivisione PENDING
         share = await book_share_store.create_book_share(
             book_session_id=session_id,
             owner_id=current_user.id,
@@ -130,7 +173,6 @@ async def share_book(
         
         # Crea notifica per il destinatario
         await notification_store.connect()
-        book_title = session.current_title or "Libro"
         await notification_store.create_notification(
             user_id=target_user.id,
             type="book_shared",

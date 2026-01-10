@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, UserPlus, Search, Users } from 'lucide-react';
-import { shareBook, searchUser, getConnections, UserSearchResponse } from '../api/client';
+import { shareBook, searchUser, getConnections, UserSearchResponse, User } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import './ShareBookModal.css';
@@ -27,6 +27,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
   const [sharing, setSharing] = useState(false);
   const [connections, setConnections] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showConnections, setShowConnections] = useState(false);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   
   // Rimuovi asterischi markdown dal titolo
   const cleanBookTitle = useMemo(() => stripMarkdownBold(bookTitle), [bookTitle]);
@@ -51,6 +52,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
       setSearchResult(null);
       setConnections([]);
       setShowConnections(false);
+      setSelectedConnectionId(null);
       return;
     }
 
@@ -173,11 +175,30 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
     }
   };
 
-  const handleSelectConnection = (connectionEmail: string, connectionName: string) => {
+  const handleSelectConnection = (connectionEmail: string, connectionName: string, connectionId: string) => {
     setEmail(connectionEmail);
     setShowConnections(false);
-    // Ricerca automatica
-    handleSearch();
+    setSelectedConnectionId(connectionId);
+    
+    // Crea direttamente il risultato senza chiamare l'API, dato che la connessione è già accettata
+    const userSearchResult: UserSearchResponse = {
+      found: true,
+      user: {
+        id: connectionId,
+        email: connectionEmail,
+        name: connectionName,
+        role: 'user', // Default, non abbiamo questa info dalla connessione
+        is_active: true, // Default, assumiamo attivo se connesso
+        is_verified: true, // Default, assumiamo verificato se connesso
+        created_at: '', // Non necessario per la condivisione
+      },
+      is_connected: true, // È una connessione accettata, quindi è connesso
+      has_pending_request: false, // Non c'è richiesta pendente, è accettata
+      pending_request_from_me: false, // Non necessario per condivisione
+      connection_id: connectionId,
+    };
+    
+    setSearchResult(userSearchResult);
   };
 
   if (!isOpen) return null;
@@ -261,7 +282,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
                     <button
                       key={conn.email}
                       className="suggestion-item"
-                      onClick={() => handleSelectConnection(conn.email, conn.name)}
+                      onClick={() => handleSelectConnection(conn.email, conn.name, conn.id)}
                     >
                       <div className="suggestion-info">
                         <span className="suggestion-name">{conn.name}</span>
