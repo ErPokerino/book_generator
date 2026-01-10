@@ -11,6 +11,7 @@ import FilterBar from './FilterBar';
 import BookCard from './BookCard';
 import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
+import ShareBookModal from './ShareBookModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
 import './LibraryView.css';

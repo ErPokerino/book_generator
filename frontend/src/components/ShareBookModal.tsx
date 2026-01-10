@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, UserPlus, Search, Users } from 'lucide-react';
 import { shareBook, searchUser, getConnections, UserSearchResponse } from '../api/client';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../contexts/AuthContext';
 import './ShareBookModal.css';
 
 interface ShareBookModalProps {
@@ -12,14 +13,36 @@ interface ShareBookModalProps {
   onSuccess?: () => void; // Callback dopo condivisione riuscita
 }
 
+// Funzione helper per rimuovere asterischi markdown dal titolo
+function stripMarkdownBold(text: string): string {
+  return text.replace(/\*\*/g, '');
+}
+
 export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, onSuccess }: ShareBookModalProps) {
   const toast = useToast();
+  const { user: currentUser } = useAuth();
   const [email, setEmail] = useState('');
   const [searchResult, setSearchResult] = useState<UserSearchResponse | null>(null);
   const [searching, setSearching] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [connections, setConnections] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [showConnections, setShowConnections] = useState(false);
+  
+  // Rimuovi asterischi markdown dal titolo
+  const cleanBookTitle = useMemo(() => stripMarkdownBold(bookTitle), [bookTitle]);
+  
+  // Filtra connessioni in base al testo inserito per autocompletamento
+  const filteredConnections = useMemo(() => {
+    if (!email.trim()) {
+      return connections;
+    }
+    
+    const searchTerm = email.trim().toLowerCase();
+    return connections.filter(conn => 
+      conn.email.toLowerCase().includes(searchTerm) || 
+      conn.name.toLowerCase().includes(searchTerm)
+    );
+  }, [connections, email]);
 
   // Carica connessioni accettate quando il modal si apre
   useEffect(() => {
@@ -34,16 +57,51 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
     const loadConnections = async () => {
       try {
         const response = await getConnections('accepted', 50, 0);
-        // Estrai info utente dalle connessioni
-        const connectionsList = response.connections.map(conn => {
-          // Determina l'altro utente (non current_user)
-          // Per ora mostriamo solo ID, ma potremmo migliorare con un endpoint che restituisce info utente
-          return {
-            id: conn.from_user_id || conn.to_user_id,
-            name: conn.from_user_name || conn.to_user_name || conn.from_user_email || conn.to_user_email || 'Utente',
-            email: conn.from_user_email || conn.to_user_email || '',
-          };
-        }).filter(conn => conn.email); // Solo connessioni con email
+        const currentUserEmail = currentUser?.email?.toLowerCase();
+        
+        if (!currentUserEmail) {
+          setConnections([]);
+          return;
+        }
+        
+        // Estrai info utente dalle connessioni, escludendo l'utente corrente
+        const connectionsMap = new Map<string, { id: string; name: string; email: string }>();
+        
+        response.connections.forEach(conn => {
+          // Determina quale utente è l'altro (non current_user)
+          const fromEmail = conn.from_user_email?.toLowerCase();
+          const toEmail = conn.to_user_email?.toLowerCase();
+          
+          let otherUser: { id: string; name: string; email: string } | null = null;
+          
+          // Se from_user è l'utente corrente, prendi to_user
+          if (fromEmail === currentUserEmail && toEmail && toEmail !== currentUserEmail) {
+            otherUser = {
+              id: conn.to_user_id,
+              name: conn.to_user_name || conn.to_user_email || 'Utente',
+              email: conn.to_user_email || '',
+            };
+          }
+          // Se to_user è l'utente corrente, prendi from_user
+          else if (toEmail === currentUserEmail && fromEmail && fromEmail !== currentUserEmail) {
+            otherUser = {
+              id: conn.from_user_id,
+              name: conn.from_user_name || conn.from_user_email || 'Utente',
+              email: conn.from_user_email || '',
+            };
+          }
+          
+          // Aggiungi alla mappa solo se è un utente valido e diverso da se stesso
+          if (otherUser && otherUser.email && otherUser.email.toLowerCase() !== currentUserEmail) {
+            // Usa email come chiave per evitare duplicati
+            if (!connectionsMap.has(otherUser.email.toLowerCase())) {
+              connectionsMap.set(otherUser.email.toLowerCase(), otherUser);
+            }
+          }
+        });
+        
+        // Converti la mappa in array
+        const connectionsList = Array.from(connectionsMap.values());
         setConnections(connectionsList);
       } catch (error) {
         console.error('Errore nel caricamento connessioni:', error);
@@ -51,7 +109,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
     };
 
     loadConnections();
-  }, [isOpen]);
+  }, [isOpen, currentUser?.email]);
 
   // Gestione ESC
   useEffect(() => {
@@ -100,7 +158,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
     try {
       setSharing(true);
       await shareBook(sessionId, searchResult.user.email);
-      toast.success(`Libro "${bookTitle}" condiviso con ${searchResult.user.name}`);
+      toast.success(`Libro "${cleanBookTitle}" condiviso con ${searchResult.user.name}`);
       onClose();
       if (onSuccess) {
         onSuccess();
@@ -133,7 +191,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
 
         <div className="share-book-modal-body">
           <div className="share-book-info">
-            <p className="share-book-title">📖 {bookTitle}</p>
+            <p className="share-book-title">📖 {cleanBookTitle}</p>
             <p className="share-book-hint">Condividi questo libro con un utente connesso</p>
           </div>
 
@@ -145,14 +203,27 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
                 placeholder="Cerca utente per email..."
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
+                  const newValue = e.target.value;
+                  setEmail(newValue);
                   setSearchResult(null);
-                  if (e.target.value.trim()) {
-                    setShowConnections(false);
+                  // Mostra suggerimenti mentre l'utente digita se ci sono connessioni filtrate
+                  if (newValue.trim()) {
+                    const searchTerm = newValue.trim().toLowerCase();
+                    const filtered = connections.filter(conn => 
+                      conn.email.toLowerCase().includes(searchTerm) || 
+                      conn.name.toLowerCase().includes(searchTerm)
+                    );
+                    setShowConnections(filtered.length > 0);
+                  } else {
+                    setShowConnections(connections.length > 0);
                   }
                 }}
                 onFocus={() => {
-                  if (connections.length > 0 && email.trim() === '') {
+                  // Mostra suggerimenti quando l'input riceve focus
+                  const hasConnections = email.trim() 
+                    ? filteredConnections.length > 0 
+                    : connections.length > 0;
+                  if (hasConnections && !searchResult) {
                     setShowConnections(true);
                   }
                 }}
@@ -173,15 +244,17 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
               </button>
             </div>
 
-            {/* Lista connessioni suggerite */}
-            {showConnections && connections.length > 0 && email.trim() === '' && (
+            {/* Lista connessioni suggerite - mostra durante la digitazione per autocompletamento */}
+            {showConnections && filteredConnections.length > 0 && (
               <div className="share-book-connections-suggestions">
                 <div className="suggestions-header">
                   <Users size={16} />
-                  <span>Le tue connessioni</span>
+                  <span>
+                    {email.trim() ? `${filteredConnections.length} connessione${filteredConnections.length !== 1 ? 'i' : ''} trovata${filteredConnections.length !== 1 ? 'e' : ''}` : 'Le tue connessioni'}
+                  </span>
                 </div>
                 <div className="suggestions-list">
-                  {connections.map((conn) => (
+                  {filteredConnections.map((conn) => (
                     <button
                       key={conn.id}
                       className="suggestion-item"
