@@ -31,7 +31,7 @@ steps:
       - '--memory=2Gi'
       - '--cpu=2'
       - '--timeout=3600'
-      - '--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest'
+      - '--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest,OPENAI_API_KEY=openai-api-key:latest'
       - '--set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=narrai-books-483022,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=marcello.gomitoni@gmail.com,FRONTEND_URL=https://narrai-274471015864.europe-west1.run.app'
 
 images:
