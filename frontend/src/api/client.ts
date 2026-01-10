@@ -847,6 +847,9 @@ export interface LibraryEntry {
   cover_image_path?: string;
   writing_time_minutes?: number;
   estimated_cost?: number;
+  is_shared?: boolean;  // True se è un libro condiviso (per destinatario)
+  shared_by_id?: string;  // ID utente che ha condiviso (per destinatario)
+  shared_by_name?: string;  // Nome utente che ha condiviso (per destinatario)
 }
 
 export interface LibraryStats {
@@ -1330,6 +1333,552 @@ export async function resetPassword(token: string, newPassword: string): Promise
 
   if (!response.ok) {
     let errorDetail = 'Errore nel reset password';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+// ===== Notifications API =====
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'connection_request' | 'connection_accepted' | 'book_shared' | 'book_share_accepted' | 'system';
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationResponse {
+  notifications: Notification[];
+  unread_count: number;
+  total: number;
+  has_more: boolean;
+}
+
+export interface UnreadCountResponse {
+  unread_count: number;
+}
+
+export interface NotificationMarkReadResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface NotificationMarkAllReadResponse {
+  success: boolean;
+  message: string;
+  updated_count: number;
+}
+
+export interface NotificationDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function getNotifications(
+  limit?: number,
+  skip?: number,
+  unreadOnly?: boolean
+): Promise<NotificationResponse> {
+  const params = new URLSearchParams();
+  if (limit !== undefined) params.append('limit', limit.toString());
+  if (skip !== undefined) params.append('skip', skip.toString());
+  if (unreadOnly !== undefined) params.append('unread_only', unreadOnly.toString());
+
+  const url = `${API_BASE}/notifications${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero delle notifiche';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getUnreadCount(): Promise<UnreadCountResponse> {
+  const response = await fetch(`${API_BASE}/notifications/unread-count`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero del conteggio notifiche';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function markNotificationRead(notificationId: string): Promise<NotificationMarkReadResponse> {
+  const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+    method: 'PATCH',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel marcare la notifica come letta';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function markAllNotificationsRead(): Promise<NotificationMarkAllReadResponse> {
+  const response = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: 'PATCH',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel marcare tutte le notifiche come lette';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function deleteNotification(notificationId: string): Promise<NotificationDeleteResponse> {
+  const response = await fetch(`${API_BASE}/notifications/${notificationId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'eliminazione della notifica';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+// ===== Book Shares API =====
+
+export interface BookShare {
+  id: string;
+  book_session_id: string;
+  owner_id: string;
+  recipient_id: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+  updated_at: string;
+  owner_name?: string;
+  recipient_name?: string;
+  book_title?: string;
+}
+
+export interface BookShareResponse {
+  shares: BookShare[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface BookShareActionResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function shareBook(sessionId: string, recipientEmail: string): Promise<BookShare> {
+  const response = await fetch(`${API_BASE}/books/${sessionId}/share`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ recipient_email: recipientEmail }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nella condivisione del libro';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getSharedBooks(
+  status?: 'pending' | 'accepted' | 'declined',
+  limit?: number,
+  skip?: number
+): Promise<BookShareResponse> {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (limit !== undefined) params.append('limit', limit.toString());
+  if (skip !== undefined) params.append('skip', skip.toString());
+
+  const url = `${API_BASE}/books/shares${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero dei libri condivisi';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getSentShares(
+  status?: 'pending' | 'accepted' | 'declined',
+  limit?: number,
+  skip?: number
+): Promise<BookShareResponse> {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (limit !== undefined) params.append('limit', limit.toString());
+  if (skip !== undefined) params.append('skip', skip.toString());
+
+  const url = `${API_BASE}/books/shares/sent${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero dei libri condivisi con altri';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function acceptBookShare(shareId: string): Promise<BookShare> {
+  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ action: 'accept' }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'accettazione della condivisione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function declineBookShare(shareId: string): Promise<BookShare> {
+  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ action: 'decline' }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel rifiuto della condivisione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function revokeBookShare(shareId: string): Promise<BookShareActionResponse> {
+  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nella revoca della condivisione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getBookShares(sessionId: string): Promise<BookShareResponse> {
+  const response = await fetch(`${API_BASE}/books/${sessionId}/shares`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero delle condivisioni del libro';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+// ===== Connections API =====
+
+export interface Connection {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  status: 'pending' | 'accepted';
+  created_at: string;
+  updated_at: string;
+  from_user_name?: string;
+  to_user_name?: string;
+  from_user_email?: string;
+  to_user_email?: string;
+}
+
+export interface ConnectionRequest {
+  email: string;
+}
+
+export interface ConnectionResponse {
+  connections: Connection[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface UserSearchResponse {
+  found: boolean;
+  user?: User;
+  is_connected: boolean;
+  has_pending_request: boolean;
+  pending_request_from_me: boolean;
+  connection_id?: string;
+}
+
+export interface ConnectionActionResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function searchUser(email: string): Promise<UserSearchResponse> {
+  const params = new URLSearchParams({ email });
+  const response = await fetch(`${API_BASE}/connections/search?${params.toString()}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nella ricerca utente';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getConnections(
+  status?: 'pending' | 'accepted',
+  limit?: number,
+  skip?: number
+): Promise<ConnectionResponse> {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  if (limit !== undefined) params.append('limit', limit.toString());
+  if (skip !== undefined) params.append('skip', skip.toString());
+
+  const url = `${API_BASE}/connections${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero delle connessioni';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getPendingRequests(incomingOnly?: boolean): Promise<ConnectionResponse> {
+  const params = new URLSearchParams();
+  if (incomingOnly !== undefined) params.append('incoming_only', incomingOnly.toString());
+
+  const url = `${API_BASE}/connections/pending${params.toString() ? '?' + params.toString() : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero delle richieste pendenti';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function sendConnectionRequest(email: string): Promise<Connection> {
+  const response = await fetch(`${API_BASE}/connections`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'invio della richiesta di connessione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function acceptConnection(connectionId: string): Promise<Connection> {
+  const response = await fetch(`${API_BASE}/connections/${connectionId}/accept`, {
+    method: 'PATCH',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'accettazione della connessione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function deleteConnection(connectionId: string): Promise<ConnectionActionResponse> {
+  const response = await fetch(`${API_BASE}/connections/${connectionId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'eliminazione della connessione';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getPendingConnectionsCount(): Promise<{ pending_count: number }> {
+  const response = await fetch(`${API_BASE}/connections/pending-count`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero del conteggio richieste pendenti';
     try {
       const error = await response.json();
       errorDetail = error.detail || errorDetail;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { NotificationProvider } from './contexts/NotificationContext'
 import DynamicForm from './components/DynamicForm'
 import Navigation from './components/Navigation'
 import LibraryView from './components/LibraryView'
@@ -17,11 +18,12 @@ import { useOnboarding } from './hooks/useOnboarding'
 import './App.css'
 
 import AnalyticsView from './components/AnalyticsView'
+import ConnectionsView from './components/ConnectionsView'
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'
 
 function AppContent() {
-  const [currentView, setCurrentView] = useState<'library' | 'newBook' | 'benchmark' | 'analytics'>('newBook')
+  const [currentView, setCurrentView] = useState<'library' | 'newBook' | 'benchmark' | 'analytics' | 'connections'>('newBook')
   const [readingBookId, setReadingBookId] = useState<string | null>(null)
   const [authView, setAuthView] = useState<AuthView | null>(null)
   const [resetToken, setResetToken] = useState<string | null>(null)
@@ -225,6 +227,8 @@ function AppContent() {
             <BenchmarkView />
           ) : currentView === 'analytics' ? (
             <AnalyticsView />
+          ) : currentView === 'connections' ? (
+            <ConnectionsView />
           ) : (
             <DynamicForm />
           )}
@@ -237,7 +241,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   )
 }

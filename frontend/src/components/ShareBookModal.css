@@ -1,0 +1,323 @@
+.share-book-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.share-book-modal-content {
+  background-color: var(--surface, #fff);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+  overflow: hidden;
+}
+
+.share-book-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-light, #e0e0e0);
+}
+
+.share-book-modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary, #213547);
+}
+
+.share-book-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm, 4px);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.share-book-modal-close:hover {
+  background-color: var(--bg-secondary, #f5f5f5);
+  color: var(--text-primary, #213547);
+}
+
+.share-book-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.share-book-info {
+  margin-bottom: 1.5rem;
+}
+
+.share-book-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #213547);
+  margin: 0 0 0.5rem 0;
+}
+
+.share-book-hint {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #666);
+  margin: 0;
+}
+
+.share-book-search-section {
+  margin-top: 1rem;
+}
+
+.share-book-search-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.share-book-search-input {
+  flex: 1;
+  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+  border: 1px solid var(--border-light, #ddd);
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9375rem;
+  transition: border-color 0.2s;
+}
+
+.share-book-search-input:focus {
+  outline: none;
+  border-color: var(--primary, #646cff);
+}
+
+.share-book-search-bar .search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary, #666);
+  pointer-events: none;
+}
+
+.share-book-search-button {
+  padding: 0.75rem 1.25rem;
+  background-color: var(--primary, #646cff);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.share-book-search-button:hover:not(:disabled) {
+  background-color: var(--primary-hover, #535bf2);
+}
+
+.share-book-search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-book-connections-suggestions {
+  margin-top: 1rem;
+  border: 1px solid var(--border-light, #ddd);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background-color: var(--bg-secondary, #f9f9f9);
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--surface, #fff);
+  border-bottom: 1px solid var(--border-light, #ddd);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.suggestions-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light, #ddd);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-align: left;
+}
+
+.suggestion-item:hover {
+  background-color: var(--surface, #fff);
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.suggestion-name {
+  font-weight: 500;
+  color: var(--text-primary, #213547);
+  font-size: 0.9375rem;
+}
+
+.suggestion-email {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #666);
+}
+
+.share-book-search-result {
+  margin-top: 1rem;
+}
+
+.share-book-user-card {
+  padding: 1rem;
+  border: 1px solid var(--border-light, #ddd);
+  border-radius: var(--radius-md, 8px);
+  background-color: var(--surface, #fff);
+}
+
+.share-book-user-info h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  color: var(--text-primary, #213547);
+}
+
+.share-book-user-email {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+}
+
+.share-book-user-status {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.status-badge {
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.status-badge.connected {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-badge.error {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.share-book-no-results {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-secondary, #666);
+}
+
+.share-book-no-results p {
+  margin: 0.5rem 0;
+}
+
+.no-results-hint {
+  font-size: 0.875rem;
+}
+
+.share-book-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-light, #e0e0e0);
+  background-color: var(--bg-secondary, #f9f9f9);
+}
+
+.share-book-modal-button {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.share-book-modal-cancel {
+  background-color: transparent;
+  color: var(--text-secondary, #666);
+  border: 1px solid var(--border-light, #ddd);
+}
+
+.share-book-modal-cancel:hover:not(:disabled) {
+  background-color: var(--bg-secondary, #f5f5f5);
+}
+
+.share-book-modal-confirm {
+  background-color: var(--primary, #646cff);
+  color: white;
+}
+
+.share-book-modal-confirm:hover:not(:disabled) {
+  background-color: var(--primary-hover, #535bf2);
+}
+
+.share-book-modal-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .share-book-modal-content {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .share-book-modal-header {
+    padding: 1rem;
+  }
+
+  .share-book-modal-body {
+    padding: 1rem;
+  }
+
+  .share-book-modal-footer {
+    padding: 0.75rem 1rem;
+    flex-direction: column-reverse;
+  }
+
+  .share-book-modal-button {
+    width: 100%;
+  }
+}

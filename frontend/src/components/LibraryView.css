@@ -80,6 +80,24 @@
   font-weight: 600;
 }
 
+/* Shared Section Header */
+.shared-section-header {
+  margin-top: 3rem;
+  padding-top: 2.5rem;
+  border-top: 2px solid var(--border-light, #e0e0e0);
+}
+
+.shared-section-subtitle {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+}
+
+.shared-books-grid {
+  margin-top: 1rem;
+}
+
 /* Empty State */
 .empty-library {
   padding: 4rem 2rem;

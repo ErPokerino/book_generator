@@ -281,6 +281,9 @@ class LibraryEntry(BaseModel):
     cover_url: Optional[str] = None  # URL firmato temporaneo per accesso copertina
     writing_time_minutes: Optional[float] = None
     estimated_cost: Optional[float] = None  # Costo stimato in EUR
+    is_shared: bool = False  # True se è un libro condiviso (per destinatario)
+    shared_by_id: Optional[str] = None  # ID utente che ha condiviso (per destinatario)
+    shared_by_name: Optional[str] = None  # Nome utente che ha condiviso (per destinatario)
 
 
 class UserBookCount(BaseModel):
@@ -405,4 +408,94 @@ class ResetPasswordRequest(BaseModel):
     """Richiesta reset password con token."""
     token: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8)
+
+
+# Modelli per le notifiche
+class Notification(BaseModel):
+    """Modello per una notifica."""
+    id: str  # UUID
+    user_id: str  # destinatario
+    type: Literal["connection_request", "connection_accepted", "book_shared", "book_share_accepted", "system"]
+    title: str
+    message: str
+    data: Optional[Dict[str, Any]] = None  # dati extra (es: from_user_id, book_id)
+    is_read: bool = False
+    created_at: datetime
+
+
+class NotificationResponse(BaseModel):
+    """Risposta con lista notifiche."""
+    notifications: list[Notification]
+    unread_count: int
+    total: int
+    has_more: bool = False
+
+
+# Modelli per le connessioni tra utenti
+class Connection(BaseModel):
+    """Modello per una connessione tra utenti."""
+    id: str  # UUID
+    from_user_id: str  # Chi invia la richiesta
+    to_user_id: str  # Chi riceve la richiesta
+    status: Literal["pending", "accepted"]
+    created_at: datetime
+    updated_at: datetime
+    from_user_name: Optional[str] = None  # Nome utente mittente (per frontend)
+    to_user_name: Optional[str] = None  # Nome utente destinatario (per frontend)
+    from_user_email: Optional[str] = None  # Email utente mittente (per frontend)
+    to_user_email: Optional[str] = None  # Email utente destinatario (per frontend)
+
+
+class ConnectionRequest(BaseModel):
+    """Richiesta invio connessione."""
+    email: str = Field(..., min_length=1, description="Email dell'utente da connettere")
+
+
+class ConnectionResponse(BaseModel):
+    """Risposta con lista connessioni."""
+    connections: list[Connection]
+    total: int
+    has_more: bool = False
+
+
+class UserSearchResponse(BaseModel):
+    """Risposta ricerca utente."""
+    found: bool
+    user: Optional["UserResponse"] = None
+    is_connected: bool = False
+    has_pending_request: bool = False
+    pending_request_from_me: bool = False
+    connection_id: Optional[str] = None  # ID della connessione se esiste
+
+
+# Modelli per condivisione libri
+class BookShare(BaseModel):
+    """Modello per una condivisione di libro."""
+    id: str  # UUID
+    book_session_id: str  # ID sessione libro condiviso
+    owner_id: str  # Proprietario originale
+    recipient_id: str  # Destinatario
+    status: Literal["pending", "accepted", "declined"]
+    created_at: datetime
+    updated_at: datetime
+    owner_name: Optional[str] = None  # Nome proprietario (per frontend)
+    recipient_name: Optional[str] = None  # Nome destinatario (per frontend)
+    book_title: Optional[str] = None  # Titolo libro (per frontend)
+
+
+class BookShareRequest(BaseModel):
+    """Richiesta condivisione libro."""
+    recipient_email: str = Field(..., min_length=1, description="Email del destinatario")
+
+
+class BookShareResponse(BaseModel):
+    """Risposta con lista condivisioni."""
+    shares: list[BookShare]
+    total: int
+    has_more: bool = False
+
+
+class BookShareActionRequest(BaseModel):
+    """Richiesta azione su condivisione (accept/decline)."""
+    action: Literal["accept", "decline"]
 
