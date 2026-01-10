@@ -249,6 +249,68 @@
   font-family: 'Outfit', sans-serif;
 }
 
+/* Book Share Actions */
+.notification-book-share-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-light, #e5e7eb);
+}
+
+.notification-accept-button,
+.notification-decline-button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 0.375rem);
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+  flex: 1;
+  justify-content: center;
+}
+
+.notification-accept-button {
+  background: var(--success, #10b981);
+  color: white;
+  border-color: var(--success, #10b981);
+}
+
+.notification-accept-button:hover:not(:disabled) {
+  background: var(--success-hover, #059669);
+  border-color: var(--success-hover, #059669);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.notification-accept-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.notification-decline-button {
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  border-color: var(--border-light, #e5e7eb);
+}
+
+.notification-decline-button:hover:not(:disabled) {
+  background: var(--background-tertiary, #f3f4f6);
+  border-color: var(--border, #d1d5db);
+  color: var(--text-primary, #1f2937);
+}
+
+.notification-accept-button:disabled,
+.notification-decline-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .notification-dropdown {

@@ -182,6 +182,24 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
     };
   }, [hasMore, loadingMore, loading, refreshing, loadMoreBooks]);
 
+  // Listener per evento custom di refresh libreria (es: dopo accettazione condivisione)
+  useEffect(() => {
+    const handleLibraryRefresh = () => {
+      // Ricarica la libreria quando viene emesso l'evento library-refresh
+      // Usa filtersRef.current direttamente per evitare problemi di dependency
+      if (!isLoadingRef.current) {
+        loadLibrary(filtersRef.current, true, false);
+      }
+    };
+
+    window.addEventListener('library-refresh', handleLibraryRefresh);
+
+    return () => {
+      window.removeEventListener('library-refresh', handleLibraryRefresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Dependency array vuoto perché usiamo refs che non cambiano
+
   const handleDelete = (sessionId: string) => {
     setBooks(prev => prev.filter(book => book.session_id !== sessionId));
   };

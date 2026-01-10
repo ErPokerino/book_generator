@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Check, CheckCheck, X } from 'lucide-react';
+import { Bell, Check, CheckCheck, X, CheckCircle, XCircle } from 'lucide-react';
 import { useNotifications } from '../contexts/NotificationContext';
+import { acceptBookShare, declineBookShare } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import './NotificationBell.css';
 
 export default function NotificationBell() {
@@ -13,10 +15,13 @@ export default function NotificationBell() {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    refreshNotifications,
   } = useNotifications();
 
+  const toastHook = useToast();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [processingShares, setProcessingShares] = useState<Set<string>>(new Set());
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +105,59 @@ export default function NotificationBell() {
     }
   };
 
+  const handleAcceptBookShare = async (shareId: string, notificationId: string) => {
+    if (processingShares.has(shareId)) return;
+
+    try {
+      setProcessingShares(prev => new Set(prev).add(shareId));
+      await acceptBookShare(shareId);
+      toastHook.success('Libro aggiunto alla libreria');
+      
+      // Marca notifica come letta (aggiorna stato locale e server)
+      await markAsRead(notificationId);
+      
+      // Aggiorna notifiche per avere lo stato più recente dal server
+      await refreshNotifications();
+      
+      // Emetti evento custom per aggiornare la libreria
+      window.dispatchEvent(new CustomEvent('library-refresh'));
+    } catch (error) {
+      console.error('Errore nell\'accettazione condivisione:', error);
+      toastHook.error(error instanceof Error ? error.message : 'Errore nell\'accettazione della condivisione');
+    } finally {
+      setProcessingShares(prev => {
+        const next = new Set(prev);
+        next.delete(shareId);
+        return next;
+      });
+    }
+  };
+
+  const handleDeclineBookShare = async (shareId: string, notificationId: string) => {
+    if (processingShares.has(shareId)) return;
+
+    try {
+      setProcessingShares(prev => new Set(prev).add(shareId));
+      await declineBookShare(shareId);
+      toastHook.success('Condivisione rifiutata');
+      
+      // Rimuovi notifica dalla lista (non serve marcare come letta prima di eliminare)
+      await deleteNotification(notificationId);
+      
+      // Aggiorna notifiche per aggiornare conteggio non lette
+      await refreshNotifications();
+    } catch (error) {
+      console.error('Errore nel rifiuto condivisione:', error);
+      toastHook.error(error instanceof Error ? error.message : 'Errore nel rifiuto della condivisione');
+    } finally {
+      setProcessingShares(prev => {
+        const next = new Set(prev);
+        next.delete(shareId);
+        return next;
+      });
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -162,38 +220,71 @@ export default function NotificationBell() {
               ) : notifications.length === 0 ? (
                 <div className="notification-empty">Nessuna notifica</div>
               ) : (
-                notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
-                  >
-                    <div className="notification-item-content">
-                      <div className="notification-item-header">
-                        <h4 className="notification-title">{notification.title}</h4>
-                        <div className="notification-item-actions">
-                          {!notification.is_read && (
+                notifications.map((notification) => {
+                  const isBookShared = notification.type === 'book_shared';
+                  const shareId = notification.data?.share_id as string | undefined;
+                  const isProcessing = shareId ? processingShares.has(shareId) : false;
+
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`notification-item ${!notification.is_read ? 'unread' : ''}`}
+                    >
+                      <div className="notification-item-content">
+                        <div className="notification-item-header">
+                          <h4 className="notification-title">{notification.title}</h4>
+                          <div className="notification-item-actions">
+                            {!notification.is_read && (
+                              <button
+                                className="notification-action-button"
+                                onClick={() => handleMarkAsRead(notification.id)}
+                                title="Segna come letta"
+                                disabled={isProcessing}
+                              >
+                                <Check size={14} />
+                              </button>
+                            )}
                             <button
                               className="notification-action-button"
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              title="Segna come letta"
+                              onClick={() => handleDelete(notification.id)}
+                              title="Elimina"
+                              disabled={isProcessing}
                             >
-                              <Check size={14} />
+                              <X size={14} />
                             </button>
-                          )}
-                          <button
-                            className="notification-action-button"
-                            onClick={() => handleDelete(notification.id)}
-                            title="Elimina"
-                          >
-                            <X size={14} />
-                          </button>
+                          </div>
                         </div>
+                        <p className="notification-message">{notification.message}</p>
+                        
+                        {/* Pulsanti Accetta/Rifiuta per notifiche book_shared */}
+                        {isBookShared && shareId && !notification.is_read && (
+                          <div className="notification-book-share-actions">
+                            <button
+                              className="notification-accept-button"
+                              onClick={() => handleAcceptBookShare(shareId, notification.id)}
+                              disabled={isProcessing}
+                              title="Accetta e aggiungi alla libreria"
+                            >
+                              <CheckCircle size={16} />
+                              <span>Accetta</span>
+                            </button>
+                            <button
+                              className="notification-decline-button"
+                              onClick={() => handleDeclineBookShare(shareId, notification.id)}
+                              disabled={isProcessing}
+                              title="Rifiuta condivisione"
+                            >
+                              <XCircle size={16} />
+                              <span>Rifiuta</span>
+                            </button>
+                          </div>
+                        )}
+                        
+                        <span className="notification-time">{formatDate(notification.created_at)}</span>
                       </div>
-                      <p className="notification-message">{notification.message}</p>
-                      <span className="notification-time">{formatDate(notification.created_at)}</span>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>,
