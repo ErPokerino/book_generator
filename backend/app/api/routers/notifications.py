@@ -97,6 +97,8 @@ async def get_unread_count(
         return {"unread_count": count}
     except Exception as e:
         print(f"[NOTIFICATIONS API] ERRORE nel recupero conteggio: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Errore nel recupero del conteggio: {str(e)}",

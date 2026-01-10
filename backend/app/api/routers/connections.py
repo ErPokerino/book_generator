@@ -224,6 +224,8 @@ async def get_pending_connections_count(
         return {"pending_count": len(pending_requests)}
     except Exception as e:
         print(f"[CONNECTIONS API] ERRORE nel recupero conteggio richieste pendenti: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Errore nel recupero del conteggio: {str(e)}",

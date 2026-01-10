@@ -9,8 +9,11 @@
 5. [Gestione Sessioni](#gestione-sessioni)
 6. [Sistema Critica Letteraria](#sistema-critica-letteraria)
 7. [Export Multiformato](#export-multiformato)
-8. [Statistiche e Analytics](#statistiche-e-analytics)
-9. [Validazioni e Regole](#validazioni-e-regole)
+8. [Condivisione Libri tra Utenti](#condivisione-libri-tra-utenti)
+9. [Sistema di Connessioni e Social](#sistema-di-connessioni-e-social)
+10. [Sistema di Notifiche](#sistema-di-notifiche)
+11. [Statistiche e Analytics](#statistiche-e-analytics)
+12. [Validazioni e Regole](#validazioni-e-regole)
 
 ## Flusso Generazione Libro
 
@@ -116,7 +119,7 @@ L'applicazione implementa un sistema completo di autenticazione utenti con regis
 1. Utente richiede reset password (`POST /api/auth/forgot-password` con email)
 2. Generazione token reset (32 caratteri, scadenza 1h)
 3. Salvataggio token in UserStore
-4. Invio email con link reset
+4. Invio email con link reset (asincrono, non blocca richiesta)
 5. Utente clicca link e inserisce nuova password
 6. Chiamata `POST /api/auth/reset-password` con token e nuova password
 7. Validazione token e scadenza
@@ -124,9 +127,15 @@ L'applicazione implementa un sistema completo di autenticazione utenti con regis
 9. Aggiornamento password in UserStore
 10. Invalidazione token
 
+**Invio Email Asincrono**:
+- Invio email con `asyncio.to_thread` per non bloccare richiesta HTTP
+- Best-effort: se invio email fallisce, processo continua comunque
+- Log warning se invio fallisce (non blocca utente)
+- Utilizzo `asyncio.create_task` per esecuzione in background
+
 **Scadenza Token**: 1 ora
 
-**File**: `backend/app/api/routers/auth.py` (`forgot_password`, `reset_password`)
+**File**: `backend/app/api/routers/auth.py` (`forgot_password`, `reset_password`), `backend/app/services/email_service.py` (`send_password_reset_email`)
 
 #### Logout
 
@@ -228,12 +237,31 @@ Il sistema utilizza SMTP per invio email (verifica e password reset):
 - `FRONTEND_URL`: URL frontend per link email (default: `http://localhost:5173`)
 
 **Tipo Email**:
-- Email verifica: HTML + testo, link con token
-- Email password reset: HTML + testo, link con token
+- **Email verifica**: HTML + testo, link con token (`send_verification_email`)
+  - Link: `{FRONTEND_URL}/verify?token={token}`
+  - Scadenza token: 24 ore (configurabile)
+- **Email password reset**: HTML + testo, link con token (`send_password_reset_email`)
+  - Link: `{FRONTEND_URL}/reset-password?token={token}`
+  - Scadenza token: 1 ora (configurabile)
+  - Invio asincrono: usa `asyncio.to_thread` per non bloccare richiesta (best-effort)
+- **Email connection request**: Notifica richiesta connessione (`send_connection_request_email`)
+  - Link: `{FRONTEND_URL}/connections`
+  - Inviata al destinatario quando riceve richiesta connessione
+  - Contiene: nome mittente, nome destinatario, link a pagina connessioni
+- **Email referral**: Invito a registrarsi (`send_referral_email`)
+  - Link: `{FRONTEND_URL}/register?ref={token}`
+  - Descrizione app: "Scrivi i tuoi libri con l'AI" (aggiornata)
+  - Token univoco per tracking registrazione
+  - Contiene: nome mittente, nome destinatario, descrizione app, link registrazione
+
+**URL Frontend**:
+- Configurabile via variabile d'ambiente `FRONTEND_URL`
+- Default: `http://localhost:5173` (sviluppo)
+- Produzione: `https://narrai-274471015864.europe-west1.run.app`
 
 **Fallback**: Se credenziali SMTP non configurate, email non vengono inviate ma il processo continua (utile per sviluppo).
 
-**File**: `backend/app/services/email_service.py`
+**File**: `backend/app/services/email_service.py`, `backend/app/api/routers/auth.py` (password reset asincrono)
 
 ### Step 2: Questions (Domande Preliminari)
 
@@ -842,7 +870,15 @@ L'header utilizza un design moderno con gradiente blu continuo:
 - Chiusura con ESC o click esterno
 - Animazioni smooth per apertura/chiusura
 
-**File**: `frontend/src/components/Navigation.tsx`, `frontend/src/components/Navigation.css`
+**Notifiche in Navigazione**:
+- Icona bell (NotificationBell) con badge conteggio non lette
+- Badge mostra `unread_count` (aggiornato ogni 30s tramite polling)
+- Dropdown con lista notifiche (più recenti prima)
+- Mark as read individuale o "tutte come lette"
+- Click su notifica: marca come letta e naviga a contenuto (libro condiviso, connessione, ecc.)
+- Integrazione NotificationContext per stato globale
+
+**File**: `frontend/src/components/Navigation.tsx`, `frontend/src/components/Navigation.css`, `frontend/src/components/NotificationBell.tsx`
 
 ### Ottimizzazione Mobile
 
@@ -953,12 +989,57 @@ La sezione Libreria offre strumenti avanzati per gestione libri:
 
 **Azioni**:
 - Leggi libro (visualizzazione completa)
+- Condividi libro (ShareBookModal per ricerca utente e condivisione)
 - Elimina libro (con conferma)
 - Riprendi scrittura (se in pausa)
 - Export (PDF, EPUB, DOCX)
 - Rigenera copertina
 
-**File**: `frontend/src/components/LibraryView.tsx`, `frontend/src/components/FilterBar.tsx`, `frontend/src/components/BookCard.tsx`
+**Condivisione Libri**:
+- Pulsante "Condividi" nelle azioni libro (LibraryView/BookCard)
+- Apertura ShareBookModal: ricerca utente per email con autocompletamento
+- Autocompletamento basato su connessioni esistenti (filtraggio durante digitazione)
+- Filtro titolo libro: rimozione asterischi markdown (`stripMarkdownBold`)
+- Toast notification con titolo pulito dopo condivisione riuscita
+- Requisito: utente deve avere connessione accettata con destinatario
+
+**File**: `frontend/src/components/LibraryView.tsx`, `frontend/src/components/FilterBar.tsx`, `frontend/src/components/BookCard.tsx`, `frontend/src/components/ShareBookModal.tsx`
+
+### ConnectionsView
+
+Componente per gestione connessioni tra utenti e inviti referral.
+
+**4 Tab Principali**:
+1. **Cerca**: Ricerca utente per email e invio richiesta connessione
+   - Input email con ricerca utente (`POST /api/auth/users/search`)
+   - Visualizza: nome, email, stato connessione
+   - Pulsante "Invia richiesta" se non connesso
+2. **Pendenti**: Lista richieste in arrivo (destinate a current_user)
+   - Visualizza: nome mittente, email, data richiesta
+   - Azioni: Accetta/Rifiuta per ogni richiesta
+   - Chiamata `POST /api/connections/{connection_id}/action` con action `accept`/`decline`
+3. **Connessioni**: Lista connessioni accettate (stato "accepted")
+   - Visualizza: nome utente, email, data connessione
+   - Filtro duplicati: evita mostrare se stesso (verifica email e ID)
+   - Connessioni disponibili per autocompletamento ShareBookModal
+4. **Invita**: Invio inviti referral a email esterne
+   - Form invio inviti con email destinatario
+   - Limite 10 inviti/giorno (verifica backend)
+   - Lista "Inviti Inviati": mostra solo ultimo invito per email (filtro duplicati)
+   - Statistiche: card con total_sent, total_registered, pending (conteggio unico per email)
+   - Statistiche calcolate su inviti unici (backend usa pipeline MongoDB)
+
+**Statistiche Referral**:
+- Card con metriche: total_sent (inviti unici inviati), total_registered (inviti unici registrati), pending (inviti unici in attesa)
+- Conteggio unico per email: backend raggruppa per email e prende ultimo invito
+- Visualizzazione: numero grande con label descrittiva (INVITI INVIATI, REGISTRATI, IN ATTESA)
+
+**Filtro Duplicati**:
+- Lista "Inviti Inviati": Map con email lowercase come chiave
+- Mantiene solo ultimo invito per email (confronto `created_at`)
+- Ordinamento: più recenti prima
+
+**File**: `frontend/src/components/ConnectionsView.tsx`
 
 ### DOCX
 
@@ -988,6 +1069,201 @@ POST /api/book/export/{session_id}?format=pdf|epub|docx
 ```
 
 **Response**: File binario con headers appropriati per download.
+
+## Condivisione Libri tra Utenti
+
+Il sistema permette agli utenti di condividere libri con altri utenti connessi.
+
+### Flusso Condivisione
+
+**Processo**:
+1. Utente seleziona libro da condividere (pulsante "Condividi" in LibraryView/BookCard)
+2. Apertura `ShareBookModal`: ricerca utente per email o selezione da connessioni esistenti
+3. Autocompletamento: filtraggio connessioni esistenti durante digitazione email
+4. Ricerca utente: chiamata `POST /api/auth/users/search` con email
+5. Verifica connessione: backend verifica che esista connessione accettata tra owner e recipient
+6. Creazione condivisione: `POST /api/books/{session_id}/share` crea BookShare con status "pending"
+7. Notifica automatica: creazione notifica tipo `book_shared` al recipient
+8. Success: toast notification e chiusura modale
+
+**Requisiti**:
+- Utente deve avere connessione accettata con destinatario (verifica backend)
+- Non può condividere libro con se stesso
+- Non può condividere stesso libro due volte con stesso utente (compound unique index)
+
+**Status Condivisione**:
+- `pending`: Condivisione creata, in attesa accettazione recipient
+- `accepted`: Recipient ha accettato la condivisione
+- `declined`: Recipient ha rifiutato la condivisione
+
+### ShareBookModal
+
+**Caratteristiche**:
+- Ricerca utente per email con autocompletamento basato su connessioni esistenti
+- Lista connessioni filtrata durante digitazione (`filteredConnections` con `useMemo`)
+- Filtro titolo libro: rimozione asterischi markdown (`stripMarkdownBold`) per visualizzazione pulita
+- Toast notification con titolo pulito dopo condivisione riuscita
+- Gestione ESC per chiudere modale
+
+**Componenti Frontend**:
+- `ShareBookModal.tsx`: Componente modale per ricerca e condivisione
+- `LibraryView.tsx`: Pulsante "Condividi" in azioni libro
+- Autocompletamento: filtro connessioni basato su email e nome utente
+
+**Filtro Duplicati**:
+- Map con email lowercase come chiave per evitare duplicati
+- Verifica che utente corrente non compaia nelle connessioni (controllo email e ID)
+- Key prop: usa `conn.email` per unicità React
+
+**File**: `frontend/src/components/ShareBookModal.tsx`, `frontend/src/components/LibraryView.tsx`, `backend/app/api/routers/book_shares.py`
+
+### Gestione Condivisioni Ricevute
+
+**Frontend**:
+- Lista libri condivisi accessibile tramite notifiche
+- Notifica tipo `book_shared` contiene: `from_user_id`, `from_user_name`, `book_session_id`, `book_title`, `share_id`
+- Click notifica: navigazione a libro condiviso
+- Accettazione/rifiuto condivisione: `POST /api/books/{share_id}/action` con action `accept`/`decline`
+
+## Sistema di Connessioni e Social
+
+Il sistema permette agli utenti di connettersi tra loro per condividere libri e interagire.
+
+### Richieste di Connessione
+
+**Processo**:
+1. Utente ricerca altro utente per email (tab "Cerca" in ConnectionsView)
+2. Chiamata `POST /api/auth/users/search` con email
+3. Verifica utente esistente e stato connessione
+4. Invio richiesta connessione: `POST /api/connections/request` crea Connection con status "pending"
+5. Email di notifica: EmailService invia email al destinatario con link a `/connections`
+6. Notifica automatica: creazione notifica tipo `connection_request` al destinatario
+7. Risposta: toast notification e aggiornamento UI
+
+**Validazioni**:
+- Email formato valido
+- Utente destinatario deve esistere
+- Non può inviare richiesta a se stesso
+- Non può inviare richiesta duplicata (compound unique index)
+
+**Status Connessione**:
+- `pending`: Richiesta inviata, in attesa accettazione destinatario
+- `accepted`: Connessione accettata, utenti possono condividere libri
+- `declined`: Richiesta rifiutata (stato non persistito, richiesta eliminata)
+
+### Gestione Connessioni
+
+**ConnectionsView - Tab "Pendenti"**:
+- Lista richieste in arrivo (destinato a current_user)
+- Azioni: Accetta/Rifiuta per ogni richiesta
+- Chiamata `POST /api/connections/{connection_id}/action` con action `accept`/`decline`
+- Se accettata: creazione notifica tipo `connection_accepted` al mittente
+- Aggiornamento UI dopo azione
+
+**ConnectionsView - Tab "Connessioni"**:
+- Lista connessioni accettate (stato "accepted")
+- Visualizza: nome utente, email, data connessione
+- Filtro duplicati: evita mostrare se stesso nelle connessioni
+- Verifica sia email che ID per evitare duplicati
+- Autocompletamento: connessioni disponibili per ShareBookModal
+
+**Filtro Duplicati**:
+- Map con email lowercase come chiave per unicità
+- Verifica che utente corrente non compaia (controllo email e ID)
+- Mantiene solo connessioni con altro utente (`from_user_id !== current_user_id && to_user_id !== current_user_id`)
+
+### Inviti Referral
+
+**ConnectionsView - Tab "Invita"**:
+- Form invio inviti a email esterne (non registrate)
+- Chiamata `POST /api/referrals` con email destinatario
+- Verifica limite giornaliero: max 10 inviti/giorno (configurabile)
+- Creazione Referral con status "pending" e token univoco
+- Email referral: EmailService invia email con link registrazione `{FRONTEND_URL}/register?ref={token}`
+- Descrizione app: "Scrivi i tuoi libri con l'AI" (aggiornata)
+
+**Lista "Inviti Inviati"**:
+- Mostra solo ultimo invito per email (filtro duplicati lato frontend)
+- Map con email lowercase come chiave, mantiene solo ultimo per data creazione
+- Ordinamento: più recenti prima
+- Visualizza: email, data invito, stato (pending/registered)
+
+**Statistiche Referral**:
+- Card con metriche: total_sent, total_registered, pending
+- Conteggio unico per email: backend usa pipeline MongoDB che raggruppa per email e prende ultimo invito
+- Statistiche calcolate su inviti unici (non duplicati)
+
+**Tracking Registrazione**:
+- Al momento registrazione con token referral (`/api/auth/register?ref={token}`)
+- Verifica token e email corrispondente
+- Aggiornamento Referral: `status = "registered"`, `registered_at`, `invited_user_id`
+- Tracking non blocca registrazione se fallisce (best-effort)
+
+**File**: `frontend/src/components/ConnectionsView.tsx`, `backend/app/api/routers/connections.py`, `backend/app/api/routers/referrals.py`, `backend/app/agent/referral_store.py`
+
+## Sistema di Notifiche
+
+Il sistema gestisce notifiche in-app per eventi sociali (condivisioni libri, connessioni, ecc.).
+
+### Tipi Notifiche
+
+**Tipi Supportati**:
+- `connection_request`: Richiesta connessione ricevuta
+  - Dati: `from_user_id`, `from_user_name`, `connection_id`
+  - Creata quando: utente riceve richiesta connessione
+- `connection_accepted`: Richiesta connessione accettata
+  - Dati: `from_user_id`, `from_user_name`, `connection_id`
+  - Creata quando: richiesta connessione viene accettata
+- `book_shared`: Libro condiviso da altro utente
+  - Dati: `from_user_id`, `from_user_name`, `book_session_id`, `book_title`, `share_id`
+  - Creata quando: libro viene condiviso con utente
+- `book_share_accepted`: Condivisione libro accettata
+  - Dati: `from_user_id`, `from_user_name`, `book_session_id`, `book_title`, `share_id`
+  - Creata quando: condivisione libro viene accettata
+- `system`: Notifiche di sistema
+
+### Notifica Bell
+
+**Componente NotificationBell**:
+- Badge con conteggio non lette (`unread_count`)
+- Polling automatico ogni 30 secondi per aggiornare conteggio (`/api/notifications/unread-count`)
+- Dropdown con lista notifiche (più recenti prima)
+- Visualizza: tipo, titolo, messaggio, data creazione
+- Mark as read individuale: click su notifica marca come letta (`PATCH /api/notifications/{id}/read`)
+- Mark all as read: pulsante "Tutte come lette" (`PATCH /api/notifications/read-all`)
+
+**Polling Automatico**:
+- NotificationContext gestisce stato globale notifiche
+- Polling ogni 30 secondi per conteggio non lette (`getUnreadCount()`)
+- Polling solo quando utente autenticato
+- Cleanup automatico quando utente disconnesso (reset state e clear interval)
+
+**Context Provider**:
+- NotificationProvider avvolge applicazione e gestisce stato globale
+- Hook `useNotifications()` fornisce: `unreadCount`, `notifications`, `fetchNotifications`, `markAsRead`, `markAllAsRead`
+- Stato sincronizzato tra componenti (NotificationBell, NotificationPanel, ecc.)
+
+### Gestione Notifiche
+
+**Creazione Automatica**:
+- BookShareStore crea notifica quando libro condiviso (tipo: `book_shared`)
+- ConnectionStore crea notifica quando richiesta connessione inviata (tipo: `connection_request`)
+- ConnectionStore crea notifica quando connessione accettata (tipo: `connection_accepted`)
+- BookShareStore crea notifica quando condivisione accettata (tipo: `book_share_accepted`)
+
+**Endpoint API**:
+- `GET /api/notifications`: Recupera notifiche (limit, skip, unread_only)
+- `GET /api/notifications/unread-count`: Conteggio non lette (per badge, polling ottimizzato)
+- `PATCH /api/notifications/{id}/read`: Marca notifica come letta
+- `PATCH /api/notifications/read-all`: Marca tutte le notifiche come lette
+
+**Frontend**:
+- Integrazione in Navigation component: icona bell con badge
+- Dropdown con lista notifiche (più recenti prima)
+- Click su notifica: marca come letta e naviga a contenuto (es: libro condiviso, connessione)
+- Toast notification per azioni (mark as read, mark all as read)
+
+**File**: `frontend/src/components/NotificationBell.tsx`, `frontend/src/contexts/NotificationContext.tsx`, `backend/app/api/routers/notifications.py`, `backend/app/agent/notification_store.py`
 
 ## Statistiche e Analytics
 

@@ -58,8 +58,9 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
       try {
         const response = await getConnections('accepted', 50, 0);
         const currentUserEmail = currentUser?.email?.toLowerCase();
+        const currentUserId = currentUser?.id;
         
-        if (!currentUserEmail) {
+        if (!currentUserEmail || !currentUserId) {
           setConnections([]);
           return;
         }
@@ -75,7 +76,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
           let otherUser: { id: string; name: string; email: string } | null = null;
           
           // Se from_user è l'utente corrente, prendi to_user
-          if (fromEmail === currentUserEmail && toEmail && toEmail !== currentUserEmail) {
+          if (fromEmail === currentUserEmail && toEmail && toEmail !== currentUserEmail && conn.to_user_id !== currentUserId) {
             otherUser = {
               id: conn.to_user_id,
               name: conn.to_user_name || conn.to_user_email || 'Utente',
@@ -83,7 +84,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
             };
           }
           // Se to_user è l'utente corrente, prendi from_user
-          else if (toEmail === currentUserEmail && fromEmail && fromEmail !== currentUserEmail) {
+          else if (toEmail === currentUserEmail && fromEmail && fromEmail !== currentUserEmail && conn.from_user_id !== currentUserId) {
             otherUser = {
               id: conn.from_user_id,
               name: conn.from_user_name || conn.from_user_email || 'Utente',
@@ -91,8 +92,10 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
             };
           }
           
-          // Aggiungi alla mappa solo se è un utente valido e diverso da se stesso
-          if (otherUser && otherUser.email && otherUser.email.toLowerCase() !== currentUserEmail) {
+          // Aggiungi alla mappa solo se è un utente valido e diverso da se stesso (per email e ID)
+          if (otherUser && otherUser.email && otherUser.id && 
+              otherUser.email.toLowerCase() !== currentUserEmail && 
+              otherUser.id !== currentUserId) {
             // Usa email come chiave per evitare duplicati
             if (!connectionsMap.has(otherUser.email.toLowerCase())) {
               connectionsMap.set(otherUser.email.toLowerCase(), otherUser);
@@ -256,7 +259,7 @@ export default function ShareBookModal({ isOpen, sessionId, bookTitle, onClose, 
                 <div className="suggestions-list">
                   {filteredConnections.map((conn) => (
                     <button
-                      key={conn.id}
+                      key={conn.email}
                       className="suggestion-item"
                       onClick={() => handleSelectConnection(conn.email, conn.name)}
                     >

@@ -169,6 +169,10 @@ scrittura-libro/
 - **Calcolo Costi**: Stima automatica basata su token utilizzati e modelli LLM
 - **Statistiche Avanzate**: Analytics con grafici temporali e confronto modelli (admin-only)
 - **Autenticazione Utenti**: Registrazione, login, email verification, password reset
+- **Condivisione Libri**: Condivisione libri tra utenti connessi con notifiche in-app
+- **Sistema di Connessioni**: Connessioni tra utenti e richieste di amicizia con email di notifica
+- **Notifiche In-App**: Sistema notifiche in-app con polling automatico per condivisioni e connessioni
+- **Sistema Referral**: Inviti esterni con tracking e statistiche (conteggio unico per email)
 - **Onboarding Interattivo**: Carousel guidato per nuovi utenti con 5 step informativi
 - **Ripristino Sessione**: Continuazione processi interrotti con stato persistito
 - **Copertina AI**: Generazione automatica immagini copertina con Gemini

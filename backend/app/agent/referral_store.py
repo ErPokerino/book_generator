@@ -244,13 +244,28 @@ class ReferralStore:
     async def get_referral_stats(self, referrer_id: str) -> Dict[str, int]:
         """
         Recupera statistiche referral per un utente.
+        Conta solo gli inviti unici per email (prendendo l'ultimo invito per email).
         
         Returns:
             Dict con total_sent, total_registered, pending
         """
         try:
+            # Pipeline per ottenere solo l'ultimo referral per ogni email
+            # (l'email è già salvata in lowercase nel database)
             pipeline = [
                 {"$match": {"referrer_id": referrer_id}},
+                # Ordina per data creazione decrescente (più recente prima)
+                {"$sort": {"created_at": -1}},
+                # Raggruppa per email e prendi solo il primo (più recente)
+                {
+                    "$group": {
+                        "_id": "$invited_email",
+                        "latest_referral": {"$first": "$$ROOT"}
+                    }
+                },
+                # Sostituisci la root con l'ultimo referral
+                {"$replaceRoot": {"newRoot": "$latest_referral"}},
+                # Ora raggruppa per status per contare
                 {
                     "$group": {
                         "_id": "$status",
@@ -267,6 +282,7 @@ class ReferralStore:
                 "pending": 0,
             }
             
+            # Conta gli inviti unici per status
             for result in results:
                 status_key = result["_id"]
                 count = result["count"]
@@ -281,6 +297,8 @@ class ReferralStore:
             
         except Exception as e:
             print(f"[ReferralStore] ERRORE get_referral_stats: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
             return {"total_sent": 0, "total_registered": 0, "pending": 0}
     
     async def check_daily_limit(self, referrer_id: str, max_per_day: int = 10) -> bool:

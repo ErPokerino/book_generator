@@ -432,7 +432,7 @@ NarrAI - Il tuo assistente per la scrittura
                             <div style="background-color: #f9fafb; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 8px;">
                                 <h3 style="color: #1f2937; margin: 0 0 10px 0; font-size: 18px;">✨ Cosa puoi fare con NarrAI:</h3>
                                 <ul style="color: #4b5563; font-size: 15px; line-height: 1.8; margin: 10px 0; padding-left: 20px;">
-                                    <li>Genera bozze e strutture narrative con l'AI</li>
+                                    <li>Scrivi i tuoi libri con l'AI</li>
                                     <li>Ricevi feedback critico professionale sui tuoi scritti</li>
                                     <li>Esporta i tuoi libri in PDF, EPUB, DOCX</li>
                                     <li>Condividi e collabora con altri autori</li>
@@ -488,7 +488,7 @@ NarrAI - Il tuo assistente per la scrittura
 {sender_name} ti ha invitato a provare NarrAI, una piattaforma innovativa che utilizza l'intelligenza artificiale per aiutarti a scrivere e pubblicare i tuoi libri.
 
 Cosa puoi fare con NarrAI:
-✨ Genera bozze e strutture narrative con l'AI
+✨ Scrivi i tuoi libri con l'AI
 ✨ Ricevi feedback critico professionale sui tuoi scritti
 ✨ Esporta i tuoi libri in PDF, EPUB, DOCX
 ✨ Condividi e collabora con altri autori

@@ -59,7 +59,26 @@ export default function ConnectionsView() {
     try {
       setLoadingReferrals(true);
       const data = await getReferrals(50, 0);
-      setReferrals(data);
+      
+      // Filtra per mostrare solo l'ultimo invito per email (raggruppa per email e prendi quello più recente)
+      const referralsMap = new Map<string, Referral>();
+      
+      data.forEach(referral => {
+        const email = referral.invited_email.toLowerCase();
+        const existing = referralsMap.get(email);
+        
+        // Se non esiste o questo è più recente, usa questo
+        if (!existing || new Date(referral.created_at) > new Date(existing.created_at)) {
+          referralsMap.set(email, referral);
+        }
+      });
+      
+      // Converti la mappa in array e ordina per data (più recente prima)
+      const uniqueReferrals = Array.from(referralsMap.values()).sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      setReferrals(uniqueReferrals);
     } catch (error) {
       toast.error(`Errore nel caricamento inviti: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     } finally {

@@ -28,7 +28,12 @@ graph TB
         Router[API Routers]
         Services[Business Services]
         Agents[AI Agents]
-        SessionStore[Session Store Interface]
+        SessionStore[Session Store]
+        UserStore[User Store]
+        BookShareStore[BookShare Store]
+        ConnectionStore[Connection Store]
+        NotificationStore[Notification Store]
+        ReferralStore[Referral Store]
     end
     
     subgraph Storage["Persistenza"]
@@ -38,6 +43,7 @@ graph TB
     
     subgraph External["Servizi Esterni"]
         Gemini[Google Gemini API]
+        EmailService[Email Service SMTP]
     end
     
     UI --> API_Client
@@ -46,8 +52,19 @@ graph TB
     Services --> Agents
     Agents --> Gemini
     Services --> SessionStore
+    Services --> UserStore
+    Services --> BookShareStore
+    Services --> ConnectionStore
+    Services --> NotificationStore
+    Services --> ReferralStore
+    Services --> EmailService
     SessionStore --> MongoDB
     SessionStore --> FileStore
+    UserStore --> MongoDB
+    BookShareStore --> MongoDB
+    ConnectionStore --> MongoDB
+    NotificationStore --> MongoDB
+    ReferralStore --> MongoDB
     
     style Client fill:#e1f5ff
     style Server fill:#fff4e1
@@ -647,15 +664,263 @@ Il sistema utilizza SMTP per invio email:
 - Credenziali: `SMTP_USER`, `SMTP_PASSWORD` (env vars)
 
 **Email Inviate**:
-- Email verifica: Link con token, HTML + testo
-- Email password reset: Link con token, HTML + testo
+- **Email verifica**: Link con token verifica, HTML + testo (`send_verification_email`)
+  - Link: `{FRONTEND_URL}/verify?token={token}`
+  - Scadenza token: 24 ore (configurabile)
+- **Email password reset**: Link con token reset, HTML + testo (`send_password_reset_email`)
+  - Link: `{FRONTEND_URL}/reset-password?token={token}`
+  - Scadenza token: 1 ora (configurabile)
+  - Invio asincrono: usa `asyncio.to_thread` per non bloccare richiesta (best-effort)
+- **Email connection request**: Notifica richiesta connessione (`send_connection_request_email`)
+  - Link: `{FRONTEND_URL}/connections`
+  - Inviata al destinatario quando riceve richiesta connessione
+- **Email referral**: Invito a registrarsi (`send_referral_email`)
+  - Link: `{FRONTEND_URL}/register?ref={token}`
+  - Descrizione app: "Scrivi i tuoi libri con l'AI" (aggiornata)
+  - Token univoco per tracking registrazione
+
+**URL Frontend**:
+- Configurabile via variabile d'ambiente `FRONTEND_URL`
+- Default: `http://localhost:5173` (sviluppo)
+- Produzione: `https://narrai-274471015864.europe-west1.run.app`
 
 **Fallback**:
-- Se credenziali non configurate, email non vengono inviate
+- Se credenziali SMTP non configurate, email non vengono inviate
 - Processo continua comunque (utile per sviluppo)
 - Log warning quando credenziali mancanti
+- Email password reset: invio asincrono non blocca richiesta anche se fallisce (best-effort)
 
-**File**: `backend/app/services/email_service.py`
+**File**: `backend/app/services/email_service.py`, `backend/app/api/routers/auth.py` (password reset asincrono)
+
+### Sistema di Condivisione Libri
+
+Il sistema permette agli utenti di condividere libri con altri utenti connessi.
+
+**Architettura BookShareStore**:
+- Pattern similar a SessionStore (factory + interface)
+- Persistenza in MongoDB (collection `book_shares`)
+- Implementazione: MongoBookShareStore (async)
+
+**Struttura BookShare**:
+```python
+class BookShare:
+    id: str  # UUID
+    book_session_id: str  # ID sessione libro condiviso
+    owner_id: str  # Proprietario originale
+    recipient_id: str  # Destinatario
+    status: Literal["pending", "accepted", "declined"]
+    created_at: datetime
+    updated_at: datetime
+    owner_name: Optional[str]  # Nome proprietario (per frontend)
+    recipient_name: Optional[str]  # Nome destinatario (per frontend)
+    book_title: Optional[str]  # Titolo libro (per frontend)
+```
+
+**Indici MongoDB**:
+- Index su `book_session_id`, `owner_id`, `recipient_id`, `status`, `created_at`
+- Compound unique index: `(book_session_id, recipient_id)` per evitare condivisioni duplicate
+- Compound index per query frequenti: `(owner_id, recipient_id, status)`
+
+**Endpoint API**:
+- `POST /api/books/{session_id}/share`: Condividi libro con utente (richiede connessione accettata)
+- `GET /api/books/shared`: Recupera libri condivisi (ricevuti/inviati)
+- `POST /api/books/{share_id}/action`: Accetta/rifiuta condivisione (accept/decline)
+
+**Validazioni**:
+- Richiede connessione accettata tra owner e recipient
+- Verifica ownership libro (owner_id deve corrispondere a current_user)
+- Previene condivisioni duplicate (compound unique index)
+
+**Integrazione con NotificationStore**:
+- Creazione notifica automatica al recipient quando libro condiviso
+- Tipo notifica: `book_shared`
+- Dati notifica: `from_user_id`, `from_user_name`, `book_session_id`, `book_title`, `share_id`
+
+**Frontend**:
+- Componente `ShareBookModal` per ricerca utente e condivisione
+- Autocompletamento email basato su connessioni esistenti
+- Filtro titolo libro: rimozione asterischi markdown (`stripMarkdownBold`)
+- Pulsante "Condividi" in LibraryView/BookCard
+
+**File**: `backend/app/agent/book_share_store.py`, `backend/app/api/routers/book_shares.py`, `frontend/src/components/ShareBookModal.tsx`
+
+### Sistema di Connessioni tra Utenti
+
+Il sistema permette agli utenti di connettersi tra loro per condividere libri e interagire.
+
+**Architettura ConnectionStore**:
+- Pattern similar a SessionStore (factory + interface)
+- Persistenza in MongoDB (collection `connections`)
+- Implementazione: MongoConnectionStore (async)
+
+**Struttura Connection**:
+```python
+class Connection:
+    id: str  # UUID
+    from_user_id: str  # Chi invia la richiesta
+    to_user_id: str  # Chi riceve la richiesta
+    status: Literal["pending", "accepted"]
+    created_at: datetime
+    updated_at: datetime
+    from_user_name: Optional[str]  # Nome utente mittente (per frontend)
+    to_user_name: Optional[str]  # Nome utente destinatario (per frontend)
+    from_user_email: Optional[str]  # Email utente mittente (per frontend)
+    to_user_email: Optional[str]  # Email utente destinatario (per frontend)
+```
+
+**Indici MongoDB**:
+- Index su `from_user_id`, `to_user_id`, `status`, `created_at`
+- Compound unique index: `(from_user_id, to_user_id)` per evitare connessioni duplicate
+
+**Endpoint API**:
+- `POST /api/connections/request`: Invia richiesta connessione (cerca utente per email e crea richiesta)
+- `GET /api/connections`: Recupera connessioni (accepted/pending, in arrivo/in uscita)
+- `GET /api/connections/pending`: Recupera richieste pendenti (in arrivo)
+- `GET /api/connections/pending-count`: Conteggio richieste pendenti (per badge)
+- `POST /api/connections/{connection_id}/action`: Accetta/rifiuta richiesta (accept/decline)
+
+**Email di Richiesta Connessione**:
+- EmailService.send_connection_request_email invia notifica email al destinatario
+- Link alla pagina `/connections` per accettare/rifiutare
+- HTML + testo plain
+
+**Frontend**:
+- Componente `ConnectionsView` con 4 tab:
+  - **Cerca**: Ricerca utente per email e invio richiesta connessione
+  - **Pendenti**: Lista richieste in arrivo (accetta/rifiuta)
+  - **Connessioni**: Lista connessioni accettate
+  - **Invita**: Invio inviti referral a email esterne
+- Filtro duplicati: evita mostrare se stesso nelle connessioni (verifica email e ID)
+- Autocompletamento email nelle connessioni esistenti (ShareBookModal)
+
+**File**: `backend/app/agent/connection_store.py`, `backend/app/api/routers/connections.py`, `frontend/src/components/ConnectionsView.tsx`
+
+### Sistema di Notifiche
+
+Il sistema gestisce notifiche in-app per eventi sociali (condivisioni libri, connessioni, ecc.).
+
+**Architettura NotificationStore**:
+- Pattern similar a SessionStore (factory + interface)
+- Persistenza in MongoDB (collection `notifications`)
+- Implementazione: MongoNotificationStore (async)
+
+**Struttura Notification**:
+```python
+class Notification:
+    id: str  # UUID
+    user_id: str  # destinatario
+    type: Literal["connection_request", "connection_accepted", "book_shared", "book_share_accepted", "system"]
+    title: str
+    message: str
+    data: Optional[Dict[str, Any]] = None  # dati extra (es: from_user_id, book_session_id, share_id)
+    is_read: bool = False
+    created_at: datetime
+```
+
+**Tipi Notifiche**:
+- `connection_request`: Richiesta connessione ricevuta
+- `connection_accepted`: Richiesta connessione accettata
+- `book_shared`: Libro condiviso da altro utente
+- `book_share_accepted`: Condivisione libro accettata
+- `system`: Notifiche di sistema
+
+**Indici MongoDB**:
+- Index su `user_id`, `type`, `is_read`, `created_at`
+- Compound index per query frequenti: `(user_id, is_read, created_at)`
+
+**Endpoint API**:
+- `GET /api/notifications`: Recupera notifiche (limit, skip, unread_only)
+- `GET /api/notifications/unread-count`: Conteggio notifiche non lette (per badge, polling ottimizzato)
+- `PATCH /api/notifications/{id}/read`: Marca notifica come letta
+- `PATCH /api/notifications/read-all`: Marca tutte le notifiche come lette
+
+**Polling Automatico Frontend**:
+- NotificationContext gestisce stato globale notifiche
+- Polling automatico ogni 30 secondi per conteggio non lette (`/api/notifications/unread-count`)
+- Cleanup automatico quando utente disconnesso
+- Polling solo quando utente autenticato
+
+**Frontend**:
+- Componente `NotificationBell` con badge conteggio non lette
+- Dropdown con lista notifiche (più recenti prima)
+- Mark as read individuale o "tutte come lette"
+- Integrazione in Navigation component
+
+**Creazione Automatica Notifiche**:
+- BookShareStore crea notifica quando libro condiviso (tipo: `book_shared`)
+- ConnectionStore crea notifica quando richiesta connessione inviata (tipo: `connection_request`)
+- ConnectionStore crea notifica quando connessione accettata (tipo: `connection_accepted`)
+
+**File**: `backend/app/agent/notification_store.py`, `backend/app/api/routers/notifications.py`, `frontend/src/contexts/NotificationContext.tsx`, `frontend/src/components/NotificationBell.tsx`
+
+### Sistema Referral
+
+Il sistema gestisce inviti esterni a nuovi utenti con tracking e statistiche.
+
+**Architettura ReferralStore**:
+- Pattern similar a SessionStore (factory + interface)
+- Persistenza in MongoDB (collection `referrals`)
+- Implementazione: MongoReferralStore (async)
+
+**Struttura Referral**:
+```python
+class Referral:
+    id: str  # UUID
+    referrer_id: str  # Chi ha invitato (ID utente)
+    invited_email: str  # Email invitato (lowercase, salvato già normalizzato)
+    status: Literal["pending", "registered", "expired"]  # Stato invito
+    token: str  # Token univoco per tracking
+    created_at: datetime
+    registered_at: Optional[datetime]  # Quando si è registrato
+    invited_user_id: Optional[str]  # ID utente dopo registrazione
+    referrer_name: Optional[str]  # Nome di chi ha invitato (per frontend)
+```
+
+**Indici MongoDB**:
+- Index su `referrer_id`, `invited_email`, `status`, `token`, `created_at`
+- Compound unique index: `(referrer_id, invited_email)` per evitare inviti duplicate
+- Index unico su `token` per lookup rapido
+
+**Endpoint API**:
+- `POST /api/referrals`: Crea invito referral (verifica limite giornaliero, normalizza email)
+- `GET /api/referrals`: Recupera inviti inviati (limit, skip, paginazione)
+- `GET /api/referrals/stats`: Statistiche referral (total_sent, total_registered, pending)
+
+**Statistiche Uniche per Email**:
+- Pipeline MongoDB che raggruppa per `invited_email` e prende solo l'ultimo invito (più recente)
+- Conta solo inviti unici: se stessa persona invitata più volte, conta come 1
+- Processo:
+  1. Match per `referrer_id`
+  2. Sort per `created_at` decrescente (più recente prima)
+  3. Group per `invited_email` e prendi `$first` (più recente)
+  4. ReplaceRoot con ultimo referral
+  5. Group per `status` e conta
+- Statistiche finali: `total_sent` (tutti gli inviti unici), `total_registered` (inviti unici registrati), `pending` (inviti unici in attesa)
+
+**Email Referral**:
+- EmailService.send_referral_email invia email con link registrazione
+- Link: `{FRONTEND_URL}/register?ref={token}`
+- Descrizione app: "Scrivi i tuoi libri con l'AI" (aggiornata)
+- HTML + testo plain
+
+**Limite Giornaliero**:
+- Max 10 inviti/giorno per utente (configurabile)
+- Verifica tramite `check_daily_limit()` prima di creare invito
+- Conta inviti creati nelle ultime 24 ore
+
+**Tracking Registrazione**:
+- Al momento registrazione con token referral (`/api/auth/register?ref={token}`)
+- Verifica token e email corrispondente
+- Aggiornamento referral: `status = "registered"`, `registered_at`, `invited_user_id`
+- Tracking non blocca registrazione se fallisce (best-effort)
+
+**Frontend**:
+- Componente `ConnectionsView` tab "Invita": form invio inviti
+- Lista "Inviti Inviati": mostra solo ultimo invito per email (filtro duplicati lato frontend)
+- Statistiche: card con total_sent, total_registered, pending (conteggio unico per email)
+- Filtro duplicati: Map con email lowercase come chiave, mantiene solo ultimo per data creazione
+
+**File**: `backend/app/agent/referral_store.py`, `backend/app/api/routers/referrals.py`, `frontend/src/components/ConnectionsView.tsx`
 
 ### Storage Service (GCS)
 

@@ -2,6 +2,7 @@
 import os
 import sys
 import secrets
+import asyncio
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, Response, Depends, Cookie
@@ -477,7 +478,22 @@ async def forgot_password(request: ForgotPasswordRequest):
     # Salva token nel database
     await user_store.set_reset_token(request.email, token, expires_hours=24)
     
-    # TODO: Invia email con token (implementare quando SMTP configurato)
+    # Invia email di reset password (best-effort, non blocca se fallisce)
+    try:
+        email_service = get_email_service()
+        # Usa asyncio.to_thread per eseguire in background senza bloccare
+        asyncio.create_task(
+            asyncio.to_thread(
+                email_service.send_password_reset_email,
+                to_email=user.email,
+                token=token,
+                user_name=user.name,
+            )
+        )
+    except Exception as email_error:
+        # Log errore ma non bloccare la richiesta
+        print(f"[AUTH] WARNING: Errore invio email reset (non bloccante): {email_error}", file=sys.stderr)
+    
     # In dev mode, restituisci il token nella risposta (per testing)
     is_dev = os.getenv("ENVIRONMENT") != "production"
     
