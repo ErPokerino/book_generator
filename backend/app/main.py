@@ -1952,8 +1952,8 @@ async def download_book_pdf_endpoint(
     try:
         print(f"[BOOK PDF] Richiesta PDF libro completo per sessione: {session_id}")
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             raise HTTPException(
@@ -2233,8 +2233,8 @@ async def export_book_endpoint(
     try:
         print(f"[BOOK EXPORT] Richiesta export {format} per sessione: {session_id}")
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             raise HTTPException(
@@ -2390,16 +2390,26 @@ async def regenerate_book_critique_endpoint(
     Utile per test e per rigenerare in caso di errore.
     """
     session_store = get_session_store()
-    user_id = current_user.id if current_user else None
-    session = await get_session_async(session_store, session_id, user_id=user_id)
+    # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+    session = await get_session_async(session_store, session_id, user_id=None)
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
     
+    # Verifica accesso: ownership o condivisione accettata
     if current_user and session.user_id and session.user_id != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="Accesso negato: questa sessione appartiene a un altro utente"
+        from app.agent.book_share_store import get_book_share_store
+        book_share_store = get_book_share_store()
+        await book_share_store.connect()
+        has_access = await book_share_store.check_user_has_access(
+            book_session_id=session_id,
+            user_id=current_user.id,
+            owner_id=session.user_id,
         )
+        if not has_access:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
+            )
 
     if not session.writing_progress or not session.writing_progress.get("is_complete"):
         raise HTTPException(status_code=400, detail="Il libro non è ancora completo.")
@@ -2454,17 +2464,27 @@ async def generate_critique_audio_endpoint(
         from google.cloud import texttospeech
         
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
         
+        # Verifica accesso: ownership o condivisione accettata
         if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            from app.agent.book_share_store import get_book_share_store
+            book_share_store = get_book_share_store()
+            await book_share_store.connect()
+            has_access = await book_share_store.check_user_has_access(
+                book_session_id=session_id,
+                user_id=current_user.id,
+                owner_id=session.user_id,
             )
+            if not has_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
+                )
         
         if not session.literary_critique:
             raise HTTPException(status_code=404, detail="Critica non disponibile per questo libro")
@@ -3422,8 +3442,8 @@ async def get_book_progress_endpoint(
     """Recupera lo stato di avanzamento della scrittura del libro."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             raise HTTPException(
@@ -3636,8 +3656,8 @@ async def get_complete_book_endpoint(
     try:
         print(f"[GET BOOK] Richiesta libro completo per sessione: {session_id}")
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             print(f"[GET BOOK] Sessione {session_id} non trovata")
@@ -4535,8 +4555,8 @@ async def get_cover_image_endpoint(
     """Restituisce l'immagine della copertina per una sessione."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
+        session = await get_session_async(session_store, session_id, user_id=None)
         
         if not session:
             raise HTTPException(
@@ -4544,11 +4564,21 @@ async def get_cover_image_endpoint(
                 detail=f"Sessione {session_id} non trovata"
             )
         
+        # Verifica accesso: ownership o condivisione accettata
         if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            from app.agent.book_share_store import get_book_share_store
+            book_share_store = get_book_share_store()
+            await book_share_store.connect()
+            has_access = await book_share_store.check_user_has_access(
+                book_session_id=session_id,
+                user_id=current_user.id,
+                owner_id=session.user_id,
             )
+            if not has_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
+                )
         
         if not session.cover_image_path:
             raise HTTPException(
