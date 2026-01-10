@@ -1,13 +1,14 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { register as registerApi } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './RegisterPage.css';
 
 interface RegisterPageProps {
   onNavigateToLogin?: () => void;
+  referralToken?: string;  // Token referral dall'URL (?ref=xxx)
 }
 
-export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
+export default function RegisterPage({ onNavigateToLogin, referralToken }: RegisterPageProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +19,18 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const toast = useToast();
+  
+  // Se c'è un referral token nell'URL, leggerlo anche da lì (backup)
+  useEffect(() => {
+    if (!referralToken) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get('ref');
+      if (ref) {
+        // Il token referral sarà usato durante la registrazione
+        // Non serve salvarlo in state separato, lo passeremo direttamente
+      }
+    }
+  }, [referralToken]);
 
   const validateForm = (): boolean => {
     if (password.length < 8) {
@@ -43,7 +56,24 @@ export default function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
     setIsLoading(true);
 
     try {
-      const result = await registerApi({ email, password, name });
+      // Leggi referral token da prop o da URL (priorità alla prop)
+      const urlParams = new URLSearchParams(window.location.search);
+      const refToken = referralToken || urlParams.get('ref') || undefined;
+      
+      // Se c'è un ref_token, pulisci l'URL dopo averlo letto
+      if (refToken && !referralToken) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('ref');
+        window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
+      }
+      
+      const result = await registerApi({ 
+        email, 
+        password, 
+        name,
+        ref_token: refToken,  // Passa il referral token per tracking
+      });
+      
       if (result.requires_verification) {
         setRegisteredEmail(result.email);
         setRegistrationSuccess(true);

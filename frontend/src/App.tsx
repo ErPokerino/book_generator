@@ -28,10 +28,11 @@ function AppContent() {
   const [authView, setAuthView] = useState<AuthView | null>(null)
   const [resetToken, setResetToken] = useState<string | null>(null)
   const [verifyToken, setVerifyToken] = useState<string | null>(null)
+  const [referralToken, setReferralToken] = useState<string | null>(null)
   const { isAuthenticated, isLoading } = useAuth()
   const { hasSeenCarousel, completeCarousel } = useOnboarding()
 
-  // Controlla URL per token di verifica o reset all'avvio
+  // Controlla URL per token di verifica, reset o referral all'avvio
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const path = window.location.pathname;
@@ -55,6 +56,16 @@ function AppContent() {
         setAuthView('reset-password');
         // Pulisci l'URL
         window.history.replaceState({}, document.title, '/');
+      }
+    }
+    
+    // Gestisci /register?ref=xxx (referral token)
+    if (path === '/register' || path.includes('register')) {
+      const ref = urlParams.get('ref');
+      if (ref) {
+        setReferralToken(ref);
+        setAuthView('register');
+        // Non pulire l'URL qui, lo farà RegisterPage dopo la registrazione
       }
     }
   }, []);
@@ -94,7 +105,13 @@ function AppContent() {
     if (authView === 'register') {
       return (
         <ErrorBoundary>
-          <RegisterPage onNavigateToLogin={() => setAuthView('login')} />
+          <RegisterPage 
+            onNavigateToLogin={() => {
+              setReferralToken(null);
+              setAuthView('login');
+            }}
+            referralToken={referralToken || undefined}
+          />
         </ErrorBoundary>
       )
     }

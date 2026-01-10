@@ -29,7 +29,7 @@ from app.core.config import (
     get_tokens_per_page, get_model_pricing, get_image_generation_cost,
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
-from app.api.routers import config, submission, questions, draft, outline, auth, notifications, connections, book_shares
+from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals
 from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
     ConfigResponse,
@@ -208,7 +208,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(config.router)
+app.include_router(config_router.router)
 app.include_router(submission.router)
 app.include_router(questions.router)
 app.include_router(draft.router)
@@ -217,6 +217,7 @@ app.include_router(auth.router)
 app.include_router(notifications.router)
 app.include_router(connections.router)
 app.include_router(book_shares.router)
+app.include_router(referrals.router)
 
 
 # ============================================================================
@@ -276,6 +277,18 @@ async def startup_db():
         connection_store = get_connection_store()
         await connection_store.connect()
         print("[STARTUP] MongoDB (connections) connesso con successo")
+        
+        # Inizializza anche BookShareStore
+        from app.agent.book_share_store import get_book_share_store
+        book_share_store = get_book_share_store()
+        await book_share_store.connect()
+        print("[STARTUP] MongoDB (book_shares) connesso con successo")
+        
+        # Inizializza anche ReferralStore
+        from app.agent.referral_store import get_referral_store
+        referral_store = get_referral_store()
+        await referral_store.connect()
+        print("[STARTUP] MongoDB (referrals) connesso con successo")
     except Exception as e:
         print(f"[STARTUP] Avviso: MongoDB non disponibile: {e}")
 
@@ -312,6 +325,12 @@ async def shutdown_db():
         book_share_store = get_book_share_store()
         await book_share_store.disconnect()
         print("[SHUTDOWN] MongoDB (book_shares) disconnesso")
+        
+        # Chiudi anche ReferralStore
+        from app.agent.referral_store import get_referral_store
+        referral_store = get_referral_store()
+        await referral_store.disconnect()
+        print("[SHUTDOWN] MongoDB (referrals) disconnesso")
     except Exception as e:
         print(f"[SHUTDOWN] Errore nella disconnessione MongoDB: {e}")
 
@@ -2396,13 +2415,22 @@ async def regenerate_book_critique_endpoint(
         await update_critique_status_async(session_store, session_id, "failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Errore nel generare il PDF per la critica: {e}")
 
-    api_key = os.getenv("GOOGLE_API_KEY")
+    # La funzione generate_literary_critique_from_pdf gestisce automaticamente
+    # quale API key usare in base al provider configurato (Gemini o OpenAI)
+    from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
+    critic_cfg = get_literary_critic_config()
+    model_name = normalize_critic_model_name(critic_cfg.get("default_model", "gemini-3-pro-preview"))
+    provider = detect_critic_provider(model_name)
+    print(f"[REGENERATE_CRITIQUE] Endpoint chiamato per sessione {session_id}", file=sys.stderr)
+    print(f"[REGENERATE_CRITIQUE] Configurazione critico: modello={model_name}, provider={provider.upper()}", file=sys.stderr)
+    
+    api_key = None  # Passiamo None, la funzione leggerà da env appropriato
     try:
         critique = await generate_literary_critique_from_pdf(
             title=session.current_title or "Romanzo",
             author=session.form_data.user_name or "Autore",
             pdf_bytes=bytes(pdf_bytes),
-            api_key=api_key,
+            api_key=api_key,  # None = auto-detect da env
         )
     except Exception as e:
         await update_critique_status_async(session_store, session_id, "failed", error=str(e))
@@ -3076,11 +3104,12 @@ async def background_resume_book_generation(
                 except Exception as e:
                     raise RuntimeError(f"Impossibile generare/recuperare PDF per critica: {e}")
 
+                # La funzione gestisce automaticamente quale API key usare (Gemini o OpenAI)
                 critique = await generate_literary_critique_from_pdf(
                     title=session.current_title or "Romanzo",
                     author=session.form_data.user_name or "Autore",
                     pdf_bytes=bytes(pdf_bytes),
-                    api_key=api_key,
+                    api_key=None,  # None = auto-detect da env in base al provider configurato
                 )
 
                 await update_critique_async(session_store, session_id, critique)
@@ -5429,13 +5458,8 @@ async def analyze_external_pdf(
                 detail="Il file PDF è vuoto"
             )
         
-        # Verifica che l'API key sia configurata
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        # La funzione generate_literary_critique_from_pdf gestisce automaticamente
+        # quale API key usare in base al provider configurato (Gemini o OpenAI)
         
         # Usa titolo e autore forniti, altrimenti usa valori di default
         book_title = title or (file.filename and file.filename.replace(".pdf", "") or "Libro")
@@ -5446,13 +5470,14 @@ async def analyze_external_pdf(
         
         # Genera la critica usando la funzione esistente
         # Questa operazione può richiedere diversi minuti per PDF grandi
+        # La funzione gestisce automaticamente provider (Gemini: PDF diretto, OpenAI: estrazione testo)
         try:
             print(f"[EXTERNAL PDF CRITIQUE] Avvio analisi con modello critico...")
             critique_dict = await generate_literary_critique_from_pdf(
                 title=book_title,
                 author=book_author,
                 pdf_bytes=pdf_bytes,
-                api_key=api_key,
+                api_key=None,  # None = auto-detect da env in base al provider configurato
             )
             print(f"[EXTERNAL PDF CRITIQUE] Analisi modello completata")
         except Exception as critique_error:

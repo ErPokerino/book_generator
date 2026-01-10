@@ -3,6 +3,27 @@ import { analyzeExternalPdf, LiteraryCritique } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './BenchmarkView.css';
 
+// Calcola colore del voto su scala graduata: rosso (basso) → giallo (medio) → verde (alto)
+const getScoreColor = (score: number): string => {
+  const normalizedScore = Math.max(0, Math.min(10, score));
+  
+  if (normalizedScore <= 5) {
+    // Rosso (220, 53, 38) → Giallo (255, 193, 7) per 0-5
+    const ratio = normalizedScore / 5;
+    const r = Math.round(220 + (255 - 220) * ratio); // 220 → 255
+    const g = Math.round(53 + (193 - 53) * ratio);   // 53 → 193
+    const b = Math.round(38 - (38 - 7) * ratio);     // 38 → 7
+    return `rgb(${r}, ${g}, ${b})`;
+  } else {
+    // Giallo (255, 193, 7) → Verde (34, 197, 94) per 5-10
+    const ratio = (normalizedScore - 5) / 5;
+    const r = Math.round(255 - (255 - 34) * ratio);  // 255 → 34
+    const g = Math.round(193 + (197 - 193) * ratio); // 193 → 197
+    const b = Math.round(7 + (94 - 7) * ratio);      // 7 → 94
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+};
+
 export default function BenchmarkView() {
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -211,7 +232,9 @@ export default function BenchmarkView() {
             <h3 className="result-title">Risultato Valutazione</h3>
             
             <div className="score-section">
-              <div className="score-value">{critique.score.toFixed(1)}</div>
+              <div className="score-value" style={{ color: getScoreColor(critique.score) }}>
+                {critique.score.toFixed(1)}
+              </div>
               <div className="score-label">/ 10</div>
             </div>
 

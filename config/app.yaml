@@ -74,6 +74,22 @@ cost_estimation:
     gemini-3-pro-preview:
       input_cost_per_million: 2.0
       output_cost_per_million: 12.0
+    # OpenAI GPT 5.2 models (per agente critico)
+    gpt-5.2:
+      input_cost_per_million: 1.75
+      output_cost_per_million: 14.0
+    gpt-5.2-pro:
+      input_cost_per_million: 21.0
+      output_cost_per_million: 168.0
+    gpt-5.2-chat-latest:
+      input_cost_per_million: 1.75
+      output_cost_per_million: 14.0
+    gpt-4o:
+      input_cost_per_million: 2.50
+      output_cost_per_million: 10.0
+    gpt-4o-mini:
+      input_cost_per_million: 0.15
+      output_cost_per_million: 0.60
     default:
       input_cost_per_million: 1.0
       output_cost_per_million: 3.0

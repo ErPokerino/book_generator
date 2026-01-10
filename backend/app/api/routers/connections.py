@@ -1,5 +1,6 @@
 """Router per connessioni tra utenti."""
 import sys
+import asyncio
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from app.models import (
@@ -14,6 +15,7 @@ from app.agent.connection_store import get_connection_store
 from app.agent.notification_store import get_notification_store
 from app.agent.user_store import get_user_store
 from app.middleware.auth import get_current_user
+from app.services.email_service import get_email_service
 
 
 router = APIRouter(prefix="/api/connections", tags=["connections"])
@@ -349,7 +351,7 @@ async def send_connection_request(
             status="pending",
         )
         
-        # Crea notifica per il destinatario
+        # Crea notifica per il destinatario (in-app)
         await notification_store.connect()
         await notification_store.create_notification(
             user_id=target_user.id,
@@ -362,6 +364,22 @@ async def send_connection_request(
                 "connection_id": connection.id,
             },
         )
+        
+        # Invia email di notifica (best-effort, non blocca se fallisce)
+        try:
+            email_service = get_email_service()
+            # Usa asyncio.to_thread per eseguire in background senza bloccare
+            asyncio.create_task(
+                asyncio.to_thread(
+                    email_service.send_connection_request_email,
+                    to_email=target_user.email,
+                    recipient_name=target_user.name,
+                    sender_name=current_user.name,
+                )
+            )
+        except Exception as email_error:
+            # Log errore ma non bloccare la richiesta
+            print(f"[CONNECTIONS API] WARNING: Errore invio email (non bloccante): {email_error}", file=sys.stderr)
         
         print(f"[CONNECTIONS API] Richiesta di connessione inviata: {current_user.id} -> {target_user.id}", file=sys.stderr)
         

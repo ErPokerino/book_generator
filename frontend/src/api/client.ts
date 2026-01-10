@@ -18,6 +18,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
+  ref_token?: string;  // Token referral opzionale per tracking inviti
 }
 
 export interface ForgotPasswordRequest {
@@ -1681,6 +1682,90 @@ export async function getBookShares(sessionId: string): Promise<BookShareRespons
 
   if (!response.ok) {
     let errorDetail = 'Errore nel recupero delle condivisioni del libro';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+// ===== Referral API Functions =====
+
+export interface Referral {
+  id: string;
+  referrer_id: string;
+  invited_email: string;
+  status: 'pending' | 'registered' | 'expired';
+  token: string;
+  created_at: string;
+  registered_at?: string;
+  invited_user_id?: string;
+  referrer_name?: string;
+}
+
+export interface ReferralStats {
+  total_sent: number;
+  total_registered: number;
+  pending: number;
+}
+
+export async function sendReferral(email: string): Promise<Referral> {
+  const response = await fetch(`${API_BASE}/referrals`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nell\'invio dell\'invito';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getReferrals(limit: number = 50, skip: number = 0): Promise<Referral[]> {
+  const response = await fetch(`${API_BASE}/referrals?limit=${limit}&skip=${skip}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero degli inviti';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getReferralStats(): Promise<ReferralStats> {
+  const response = await fetch(`${API_BASE}/referrals/stats`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore nel recupero delle statistiche referral';
     try {
       const error = await response.json();
       errorDetail = error.detail || errorDetail;

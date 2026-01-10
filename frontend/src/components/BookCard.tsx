@@ -97,18 +97,18 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     const normalizedScore = Math.max(0, Math.min(10, score));
     
     if (normalizedScore <= 5) {
-      // Rosso → Giallo (0-5)
+      // Rosso (220, 53, 38) → Giallo (255, 193, 7) per 0-5
       const ratio = normalizedScore / 5;
-      const r = 220;
-      const g = Math.round(53 + (180 - 53) * ratio);
-      const b = Math.round(38 + (35 - 38) * ratio);
+      const r = Math.round(220 + (255 - 220) * ratio); // 220 → 255
+      const g = Math.round(53 + (193 - 53) * ratio);   // 53 → 193
+      const b = Math.round(38 - (38 - 7) * ratio);     // 38 → 7
       return `rgb(${r}, ${g}, ${b})`;
     } else {
-      // Giallo → Verde (5-10)
+      // Giallo (255, 193, 7) → Verde (34, 197, 94) per 5-10
       const ratio = (normalizedScore - 5) / 5;
-      const r = Math.round(220 - (220 - 16) * ratio);
-      const g = Math.round(180 - (180 - 185) * ratio);
-      const b = Math.round(35 + (129 - 35) * ratio);
+      const r = Math.round(255 - (255 - 34) * ratio);  // 255 → 34
+      const g = Math.round(193 + (197 - 193) * ratio); // 193 → 197
+      const b = Math.round(7 + (94 - 7) * ratio);      // 7 → 94
       return `rgb(${r}, ${g}, ${b})`;
     }
   };

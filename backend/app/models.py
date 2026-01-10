@@ -391,6 +391,7 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=1)
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=1)
+    ref_token: Optional[str] = Field(None, description="Token referral opzionale per tracking inviti")
 
 
 class LoginRequest(BaseModel):
@@ -498,4 +499,30 @@ class BookShareResponse(BaseModel):
 class BookShareActionRequest(BaseModel):
     """Richiesta azione su condivisione (accept/decline)."""
     action: Literal["accept", "decline"]
+
+
+# Modelli per sistema referral (inviti esterni)
+class Referral(BaseModel):
+    """Modello per un referral/invito esterno."""
+    id: str  # UUID
+    referrer_id: str  # Chi ha invitato (ID utente)
+    invited_email: str  # Email invitato (lowercase)
+    status: Literal["pending", "registered", "expired"]  # Stato invito
+    token: str  # Token univoco per tracking
+    created_at: datetime
+    registered_at: Optional[datetime] = None  # Quando si è registrato
+    invited_user_id: Optional[str] = None  # ID utente dopo registrazione
+    referrer_name: Optional[str] = None  # Nome di chi ha invitato (per frontend)
+
+
+class ReferralRequest(BaseModel):
+    """Richiesta invio referral."""
+    email: str = Field(..., min_length=1, description="Email del destinatario da invitare")
+
+
+class ReferralStats(BaseModel):
+    """Statistiche referral per utente."""
+    total_sent: int  # Inviti inviati
+    total_registered: int  # Utenti registrati tramite invito
+    pending: int  # Inviti in attesa
 

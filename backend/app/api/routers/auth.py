@@ -79,7 +79,7 @@ def create_reset_token() -> str:
 
 @router.post("/register")
 async def register(request: RegisterRequest):
-    """Registrazione nuovo utente con invio email di verifica."""
+    """Registrazione nuovo utente con invio email di verifica e tracking referral."""
     user_store = get_user_store()
     email_service = get_email_service()
     
@@ -103,6 +103,35 @@ async def register(request: RegisterRequest):
             role="user"
         )
         print(f"[AUTH] Utente registrato (non verificato): {user.email}", file=sys.stderr)
+        
+        # Tracking referral (se presente token)
+        if request.ref_token:
+            try:
+                from app.agent.referral_store import get_referral_store
+                referral_store = get_referral_store()
+                await referral_store.connect()
+                
+                # Cerca referral per token
+                referral = await referral_store.get_referral_by_token(request.ref_token)
+                
+                if referral and referral.status == "pending":
+                    # Verifica che l'email corrisponda
+                    if referral.invited_email.lower().strip() == request.email.lower().strip():
+                        # Marca referral come registrato
+                        await referral_store.mark_registered(request.ref_token, user.id)
+                        print(f"[AUTH] Referral tracciato: token {request.ref_token[:8]}... -> utente {user.id}", file=sys.stderr)
+                    else:
+                        print(f"[AUTH] WARNING: Email referral ({referral.invited_email}) non corrisponde a email registrazione ({request.email})", file=sys.stderr)
+                elif referral:
+                    print(f"[AUTH] WARNING: Referral token {request.ref_token[:8]}... già processato o expired (status: {referral.status})", file=sys.stderr)
+                else:
+                    print(f"[AUTH] WARNING: Referral token {request.ref_token[:8]}... non trovato", file=sys.stderr)
+                    
+            except Exception as referral_error:
+                # Errore nel tracking referral non blocca la registrazione
+                print(f"[AUTH] WARNING: Errore tracking referral (non bloccante): {referral_error}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
         
         # Genera token di verifica
         verification_token = secrets.token_urlsafe(32)
