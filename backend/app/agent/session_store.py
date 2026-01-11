@@ -38,6 +38,9 @@ class SessionData:
         self.chapter_timings: list[float] = []  # Tempo in secondi per ogni capitolo completato
         self.chapter_start_time: Optional[datetime] = None  # Timestamp inizio capitolo corrente
         self.generated_questions: Optional[list[Dict[str, Any]]] = None  # Domande generate per questa sessione
+        self.questions_progress: Optional[Dict[str, Any]] = None  # Stato avanzamento generazione domande
+        self.draft_progress: Optional[Dict[str, Any]] = None  # Stato avanzamento generazione bozza
+        self.outline_progress: Optional[Dict[str, Any]] = None  # Stato avanzamento generazione outline
         self.created_at: datetime = datetime.now()  # Timestamp creazione sessione
         self.updated_at: datetime = datetime.now()  # Timestamp ultima modifica
     
@@ -87,6 +90,9 @@ class SessionData:
             "chapter_timings": self.chapter_timings,
             "chapter_start_time": self.chapter_start_time.isoformat() if self.chapter_start_time else None,
             "generated_questions": self.generated_questions,
+            "questions_progress": self.questions_progress,
+            "draft_progress": self.draft_progress,
+            "outline_progress": self.outline_progress,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -122,6 +128,9 @@ class SessionData:
         chapter_start_str = data.get("chapter_start_time")
         session.chapter_start_time = datetime.fromisoformat(chapter_start_str) if chapter_start_str else None
         session.generated_questions = data.get("generated_questions")
+        session.questions_progress = data.get("questions_progress")
+        session.draft_progress = data.get("draft_progress")
+        session.outline_progress = data.get("outline_progress")
         # Parse created_at e updated_at con fallback a datetime.now() se non presente (retrocompatibilità)
         created_at_str = data.get("created_at")
         session.created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.now()
@@ -293,6 +302,36 @@ class SessionStore:
         session.writing_progress = new_progress
         session.update_timestamp()
         
+        return session
+    
+    def update_questions_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione domande."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.questions_progress = progress_dict
+        session.update_timestamp()
+        return session
+    
+    def update_draft_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione bozza."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.draft_progress = progress_dict
+        session.update_timestamp()
+        return session
+    
+    def update_outline_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione outline."""
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.outline_progress = progress_dict
+        session.update_timestamp()
         return session
     
     def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:

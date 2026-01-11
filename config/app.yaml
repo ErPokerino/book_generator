@@ -9,6 +9,12 @@ retry:
   chapter_generation:
     max_retries: 2
     min_chapter_length: 50
+  questions_generation:
+    max_retries: 2
+  draft_generation:
+    max_retries: 2
+  outline_generation:
+    max_retries: 2
 validation:
   min_chapter_length: 50
   words_per_page: 250
@@ -16,6 +22,10 @@ validation:
 frontend:
   polling_interval: 2000
   polling_interval_critique: 5000
+  polling_interval_questions: 1500
+  polling_interval_draft: 3000
+  polling_interval_outline: 2500
+  polling_backoff_max: 15000
   mode_availability_defaults:
     flash: 10
     pro: 5

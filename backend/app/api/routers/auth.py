@@ -319,6 +319,34 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     )
 
 
+@router.get("/credits")
+async def get_user_credits(current_user: User = Depends(get_current_user)):
+    """
+    Ottiene i crediti disponibili per le modalità di generazione.
+    I crediti si resettano automaticamente ogni lunedì.
+    """
+    from app.models import UserCreditsResponse, ModeCredits
+    
+    user_store = get_user_store()
+    try:
+        credits, credits_reset_at, next_reset_at = await user_store.get_user_credits(current_user.id)
+        return UserCreditsResponse(
+            credits=credits,
+            credits_reset_at=credits_reset_at,
+            next_reset_at=next_reset_at,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"[AUTH] Errore nel recupero crediti: {e}", file=sys.stderr)
+        # Fallback: ritorna crediti di default
+        return UserCreditsResponse(
+            credits=ModeCredits(),
+            credits_reset_at=None,
+            next_reset_at=datetime.utcnow(),
+        )
+
+
 class VerifyEmailRequest(BaseModel):
     """Richiesta verifica email."""
     token: str = Field(..., min_length=1)

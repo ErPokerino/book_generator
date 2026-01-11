@@ -1,7 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse } from '../api/client';
+import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse, getUserCredits, ModeCredits } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
@@ -43,6 +43,8 @@ export default function DynamicForm() {
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [userCredits, setUserCredits] = useState<ModeCredits | null>(null);
+  const [nextCreditsReset, setNextCreditsReset] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -71,6 +73,27 @@ export default function DynamicForm() {
     }
   }, []);
 
+  // Carica crediti utente quando autenticato
+  useEffect(() => {
+    const loadUserCredits = async () => {
+      if (user) {
+        try {
+          const creditsResponse = await getUserCredits();
+          if (creditsResponse) {
+            setUserCredits(creditsResponse.credits);
+            setNextCreditsReset(creditsResponse.next_reset_at);
+          }
+        } catch (err) {
+          console.warn('[DynamicForm] Errore nel caricamento crediti:', err);
+        }
+      } else {
+        // Utente non autenticato: resetta i crediti
+        setUserCredits(null);
+        setNextCreditsReset(null);
+      }
+    };
+    loadUserCredits();
+  }, [user]);
 
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {
@@ -403,36 +426,56 @@ export default function DynamicForm() {
       console.log('[DynamicForm] submitForm completato:', response);
       setFormPayload(payload);
 
-      // Genera le domande
+      // Genera le domande (sincrono - richiede pochi secondi)
       setIsGeneratingQuestions(true);
       try {
-        console.log('[DynamicForm] Inizio generazione domande');
-        const questionsPromise = generateQuestions(payload);
-        const questionsTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout: la generazione delle domande ha impiegato troppo tempo')), 60000)
-        );
+        console.log('[DynamicForm] Avvio generazione domande');
+        const questionsResponse = await generateQuestions(payload);
+        console.log('[DynamicForm] Generazione domande completata:', questionsResponse);
         
-        const questionsResponse = await Promise.race([questionsPromise, questionsTimeoutPromise]) as QuestionsResponse;
-        console.log('[DynamicForm] Domande generate:', questionsResponse);
-        setQuestions(questionsResponse.questions);
+        // Controlla se la risposta indica crediti esauriti
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyResponse = questionsResponse as any;
+        if (anyResponse.error_type === 'credits_exhausted') {
+          // Crediti esauriti - mostra messaggio user-friendly
+          toast.error(anyResponse.message || `Hai esaurito i crediti per la modalità ${anyResponse.mode}. I crediti si ricaricano ogni lunedì.`, {
+            duration: 6000,
+          });
+          // Ricarica i crediti per aggiornare la UI
+          const creditsResponse = await getUserCredits();
+          if (creditsResponse) {
+            setUserCredits(creditsResponse.credits);
+            setNextCreditsReset(creditsResponse.next_reset_at);
+          }
+          return;
+        }
+        
         setSessionId(questionsResponse.session_id);
         // Salva sessionId in localStorage per permettere il ripristino
         localStorage.setItem(SESSION_STORAGE_KEY, questionsResponse.session_id);
-        setIsGeneratingQuestions(false);
+        
+        setQuestions(questionsResponse.questions);
         toast.success('Domande generate con successo!');
-        setCurrentStep('questions'); // Passa allo step delle domande
+        setCurrentStep('questions');
+        
+        // Ricarica i crediti per aggiornare la UI dopo il consumo
+        if (user) {
+          const creditsResponse = await getUserCredits();
+          if (creditsResponse) {
+            setUserCredits(creditsResponse.credits);
+          }
+        }
       } catch (err) {
-        console.error('[DynamicForm] Errore nella generazione delle domande:', err);
-        setIsGeneratingQuestions(false);
+        console.error('[DynamicForm] Errore nella generazione domande:', err);
         const errorMessage = err instanceof Error ? err.message : 'Errore nella generazione delle domande';
         toast.error(errorMessage);
-        // Non rilanciare l'errore qui, così l'utente vede il messaggio
+      } finally {
+        setIsGeneratingQuestions(false);
       }
     } catch (err) {
       console.error('[DynamicForm] Errore nell\'invio del form:', err);
       const errorMessage = err instanceof Error ? err.message : 'Errore nell\'invio del form';
       toast.error(errorMessage);
-      setIsGeneratingQuestions(false);
     } finally {
       console.log('[DynamicForm] Submit completato, reset isSubmitting');
       setIsSubmitting(false);
@@ -677,40 +720,47 @@ export default function DynamicForm() {
                 // Estrai modalità dal value
                 let modeName = '';
                 let modeClass = '';
+                let modeKey: 'flash' | 'pro' | 'ultra' = 'flash';
                 let ModeIconComponent: React.ComponentType<{ className?: string; size?: number }> | null = null;
                 let modeDescription = '';
-                let availability = 0; // Default: 0 se non configurato
-                
-                // Leggi disponibilità dalla configurazione app (config/app.yaml via /api/config/app)
-                const modeAvailability = appConfig?.frontend?.mode_availability_defaults || {};
                 
                 if (value.includes('flash')) {
                   modeName = 'Flash';
                   modeClass = 'mode-flash';
+                  modeKey = 'flash';
                   ModeIconComponent = FlashIcon;
                   modeDescription = 'Velocità';
-                  availability = modeAvailability.flash ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('ultra')) {
                   modeName = 'Ultra';
                   modeClass = 'mode-ultra';
+                  modeKey = 'ultra';
                   ModeIconComponent = UltraIcon;
                   modeDescription = 'Estensione';
-                  availability = modeAvailability.ultra ?? 0; // Nessun fallback, usa 0 se non configurato
                 } else if (value.includes('pro')) {
                   modeName = 'Pro';
                   modeClass = 'mode-pro';
+                  modeKey = 'pro';
                   ModeIconComponent = ProIcon;
                   modeDescription = 'Qualità';
-                  availability = modeAvailability.pro ?? 0; // Nessun fallback, usa 0 se non configurato
                 }
+                
+                // Usa crediti reali dall'API se disponibili, altrimenti fallback ai default
+                const defaultCredits = appConfig?.frontend?.mode_availability_defaults || {};
+                const availability = userCredits 
+                  ? userCredits[modeKey] 
+                  : (defaultCredits[modeKey] ?? 0);
+                
+                const isExhausted = availability === 0;
                 
                 return (
                   <button
                     key={value}
                     type="button"
-                    className={`llm-model-chip ${modeClass} ${selected ? 'selected' : ''}`}
-                    onClick={() => handleChange(field.id, value)}
+                    className={`llm-model-chip ${modeClass} ${selected ? 'selected' : ''} ${isExhausted ? 'exhausted' : ''}`}
+                    onClick={isExhausted ? undefined : () => handleChange(field.id, value)}
                     aria-pressed={selected}
+                    disabled={isExhausted}
+                    title={isExhausted ? `Crediti ${modeName} esauriti. Si ricaricano ogni lunedì.` : undefined}
                   >
                     {ModeIconComponent && (
                       <span className="mode-icon">
@@ -719,7 +769,9 @@ export default function DynamicForm() {
                     )}
                     <span className="mode-name">{modeName}</span>
                     <span className="mode-description">{modeDescription}</span>
-                    <span className="mode-availability">{availability} disponibili</span>
+                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''}`}>
+                      {isExhausted ? 'Esaurito' : `${availability} disponibili`}
+                    </span>
                   </button>
                 );
               })}
@@ -1117,24 +1169,6 @@ export default function DynamicForm() {
     );
   }
 
-  // Mostra loading durante generazione domande
-  if (isGeneratingQuestions) {
-    return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep="questions" />
-        </div>
-        <div className="dynamic-form-main-content">
-          <div className="loading">
-            <p>Generazione domande preliminari in corso...</p>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-              Questo potrebbe richiedere alcuni secondi
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="dynamic-form-layout">
@@ -1162,6 +1196,14 @@ export default function DynamicForm() {
             
             return (
               <form onSubmit={handleSubmit} className="dynamic-form">
+                {/* Spinner semplice per generazione domande */}
+                {isGeneratingQuestions && (
+                  <div className="questions-loading-overlay">
+                    <div className="questions-loading-spinner"></div>
+                    <p>Generazione domande in corso...</p>
+                  </div>
+                )}
+                
                 {/* Campi Base */}
                 <div className="form-fields-base">
                   {baseFields.map((field) => renderField(field))}

@@ -246,6 +246,24 @@ class BookGenerationResponse(BaseModel):
     message: str
 
 
+class ProcessProgress(BaseModel):
+    """Stato di avanzamento di un processo AI."""
+    status: Literal["pending", "running", "completed", "failed"]
+    current_step: Optional[int] = None
+    total_steps: Optional[int] = None
+    progress_percentage: Optional[float] = None
+    estimated_time_seconds: Optional[float] = None
+    error: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None  # QuestionsResponse, DraftResponse, OutlineResponse
+
+
+class ProcessStartResponse(BaseModel):
+    """Risposta all'avvio di un processo in background."""
+    success: bool
+    session_id: str
+    message: str
+
+
 class BookResponse(BaseModel):
     """Risposta con il libro completo."""
     title: str
@@ -357,6 +375,14 @@ class PdfEntry(BaseModel):
     size_bytes: Optional[int] = None
 
 
+# Modelli per crediti modalità generazione
+class ModeCredits(BaseModel):
+    """Crediti disponibili per ogni modalità di generazione."""
+    flash: int = 10
+    pro: int = 5
+    ultra: int = 1
+
+
 # Modelli per autenticazione utente
 class User(BaseModel):
     """Modello per utente del sistema."""
@@ -373,6 +399,9 @@ class User(BaseModel):
     password_reset_expires: Optional[datetime] = None
     verification_token: Optional[str] = None
     verification_expires: Optional[datetime] = None
+    # Crediti per modalità generazione
+    mode_credits: Optional[ModeCredits] = None
+    credits_reset_at: Optional[datetime] = None  # Data ultimo reset crediti
 
 
 class UserResponse(BaseModel):
@@ -384,6 +413,22 @@ class UserResponse(BaseModel):
     is_active: bool
     is_verified: bool = False
     created_at: datetime
+
+
+class UserCreditsResponse(BaseModel):
+    """Risposta con crediti utente per modalità generazione."""
+    credits: ModeCredits
+    credits_reset_at: Optional[datetime] = None
+    next_reset_at: datetime  # Prossimo lunedì
+
+
+class CreditsExhaustedResponse(BaseModel):
+    """Risposta quando i crediti sono esauriti."""
+    success: bool = False
+    error_type: str = "credits_exhausted"
+    message: str
+    mode: str
+    next_reset_at: datetime
 
 
 class RegisterRequest(BaseModel):

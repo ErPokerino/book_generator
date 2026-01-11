@@ -139,11 +139,13 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
+      const target = event.target as HTMLElement;
       const isToggleClick = toggleRef.current?.contains(target);
       const isMenuClick = menuRef.current?.contains(target);
-      
-      if (!isToggleClick && !isMenuClick) {
+      // Riconosci anche i click sul sotto-menu di ExportDropdown (Portal separato)
+      const isExportMenuClick = target.closest('[data-export-menu]') !== null;
+
+      if (!isToggleClick && !isMenuClick && !isExportMenuClick) {
         setIsMenuOpen(false);
       }
     };
@@ -260,7 +262,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             </button>
           )}
           {/* Su mobile, nascondi Esporta e Rigenera Copertina - vanno nel menu */}
-          {book.status === 'complete' && !book.cover_image_path && (
+          {book.status === 'complete' && (
             <button 
               className="action-btn regenerate-cover-btn regenerate-cover-btn-desktop" 
               onClick={handleRegenerateCover}
@@ -356,7 +358,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
                   📤 Condividi
                 </button>
               )}
-              {book.status === 'complete' && !book.cover_image_path && (
+              {book.status === 'complete' && (
                 <button
                   className="book-card-menu-item book-card-menu-item-regenerate"
                   onClick={() => handleMenuAction(handleRegenerateCover)}

@@ -9,6 +9,27 @@ export interface User {
   created_at: string;
 }
 
+// Crediti per modalità generazione
+export interface ModeCredits {
+  flash: number;
+  pro: number;
+  ultra: number;
+}
+
+export interface UserCreditsResponse {
+  credits: ModeCredits;
+  credits_reset_at: string | null;
+  next_reset_at: string;
+}
+
+export interface CreditsExhaustedResponse {
+  success: false;
+  error_type: 'credits_exhausted';
+  message: string;
+  mode: string;
+  next_reset_at: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -378,6 +399,108 @@ export interface OutlineGenerateRequest {
   session_id: string;
 }
 
+// ===== Process Progress Types =====
+export interface ProcessProgress {
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  current_step?: number;
+  total_steps?: number;
+  progress_percentage?: number;
+  estimated_time_seconds?: number;
+  error?: string;
+  result?: QuestionsResponse | DraftResponse | OutlineResponse;
+}
+
+export interface ProcessStartResponse {
+  success: boolean;
+  session_id: string;
+  message: string;
+}
+
+// ===== Async Process Start Functions =====
+export async function startQuestionsGeneration(request: QuestionGenerationRequest): Promise<ProcessStartResponse> {
+  const response = await fetch(`${API_BASE}/questions/generate/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'avvio della generazione delle domande: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getQuestionsProgress(sessionId: string): Promise<ProcessProgress> {
+  const response = await fetch(`${API_BASE}/questions/progress/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function startDraftGeneration(request: DraftGenerationRequest): Promise<ProcessStartResponse> {
+  const response = await fetch(`${API_BASE}/draft/generate/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'avvio della generazione della bozza: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getDraftProgress(sessionId: string): Promise<ProcessProgress> {
+  const response = await fetch(`${API_BASE}/draft/progress/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function startOutlineGeneration(request: OutlineGenerateRequest): Promise<ProcessStartResponse> {
+  const response = await fetch(`${API_BASE}/outline/generate/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nell'avvio della generazione della struttura: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function getOutlineProgress(sessionId: string): Promise<ProcessProgress> {
+  const response = await fetch(`${API_BASE}/outline/progress/${sessionId}`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del progresso: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
 export async function generateOutline(request: OutlineGenerateRequest): Promise<OutlineResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minuti
@@ -697,7 +820,9 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
 }
 
 export async function exportBook(sessionId: string, format: 'pdf' | 'epub' | 'docx'): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`${API_BASE}/book/export/${sessionId}?format=${format}`);
+  const response = await fetch(`${API_BASE}/book/export/${sessionId}?format=${format}`, {
+    credentials: 'include',
+  });
   
   if (!response.ok) {
     let errorMessage = `Errore nell'export del libro in formato ${format}: ${response.statusText}`;
@@ -1280,6 +1405,29 @@ export async function getCurrentUser(): Promise<User | null> {
     return response.json();
   } catch (error) {
     console.error('[API] Errore nel recupero utente corrente:', error);
+    return null;
+  }
+}
+
+export async function getUserCredits(): Promise<UserCreditsResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/credits`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      return null; // Non autenticato
+    }
+
+    if (!response.ok) {
+      console.warn('[API] Errore nel recupero crediti, uso default');
+      return null;
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('[API] Errore nel recupero crediti utente:', error);
     return null;
   }
 }

@@ -90,6 +90,42 @@ async def update_outline_async(
         return session_store.update_outline(session_id, outline_text, allow_if_writing, version)
 
 
+async def update_questions_progress_async(
+    session_store: SessionStore,
+    session_id: str,
+    progress_dict: Dict[str, Any],
+) -> SessionData:
+    """Helper per aggiornare il progresso generazione domande in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        return await session_store.update_questions_progress(session_id, progress_dict)
+    else:
+        return session_store.update_questions_progress(session_id, progress_dict)
+
+
+async def update_draft_progress_async(
+    session_store: SessionStore,
+    session_id: str,
+    progress_dict: Dict[str, Any],
+) -> SessionData:
+    """Helper per aggiornare il progresso generazione bozza in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        return await session_store.update_draft_progress(session_id, progress_dict)
+    else:
+        return session_store.update_draft_progress(session_id, progress_dict)
+
+
+async def update_outline_progress_async(
+    session_store: SessionStore,
+    session_id: str,
+    progress_dict: Dict[str, Any],
+) -> SessionData:
+    """Helper per aggiornare il progresso generazione outline in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        return await session_store.update_outline_progress(session_id, progress_dict)
+    else:
+        return session_store.update_outline_progress(session_id, progress_dict)
+
+
 async def update_writing_progress_async(
     session_store: SessionStore,
     session_id: str,

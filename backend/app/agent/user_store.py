@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import IndexModel, ASCENDING
 from pymongo.errors import DuplicateKeyError
-from app.models import User
+from app.models import User, ModeCredits
 
 
 class UserStore:
@@ -88,11 +88,21 @@ class UserStore:
             doc["verification_token"] = user.verification_token
         if user.verification_expires:
             doc["verification_expires"] = user.verification_expires
+        # Crediti modalità generazione
+        if user.mode_credits:
+            doc["mode_credits"] = user.mode_credits.model_dump()
+        if user.credits_reset_at:
+            doc["credits_reset_at"] = user.credits_reset_at
         return doc
     
     @classmethod
     def _doc_to_user(cls, doc: dict) -> User:
         """Converte documento MongoDB in User."""
+        # Converti mode_credits da dict a ModeCredits
+        mode_credits = None
+        if doc.get("mode_credits"):
+            mode_credits = ModeCredits(**doc["mode_credits"])
+        
         return User(
             id=doc["_id"],
             email=doc["email"],
@@ -107,6 +117,8 @@ class UserStore:
             password_reset_expires=doc.get("password_reset_expires"),
             verification_token=doc.get("verification_token"),
             verification_expires=doc.get("verification_expires"),
+            mode_credits=mode_credits,
+            credits_reset_at=doc.get("credits_reset_at"),
         )
     
     async def create_user(self, email: str, password_hash: str, name: str, role: str = "user") -> User:
@@ -390,6 +402,177 @@ class UserStore:
         if doc:
             return self._doc_to_user(doc)
         return None
+    
+    # ==================== GESTIONE CREDITI ====================
+    
+    @staticmethod
+    def _get_default_credits() -> ModeCredits:
+        """Restituisce i crediti di default."""
+        return ModeCredits(flash=10, pro=5, ultra=1)
+    
+    @staticmethod
+    def _get_next_monday() -> datetime:
+        """Calcola il prossimo lunedì alle 00:00 UTC."""
+        now = datetime.utcnow()
+        days_until_monday = (7 - now.weekday()) % 7
+        if days_until_monday == 0:
+            # Se oggi è lunedì, il prossimo è tra 7 giorni
+            days_until_monday = 7
+        next_monday = now + timedelta(days=days_until_monday)
+        return next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    @staticmethod
+    def _should_reset_credits(credits_reset_at: Optional[datetime]) -> bool:
+        """
+        Verifica se i crediti devono essere resettati (lazy reset).
+        Reset se:
+        - credits_reset_at è None (mai resettato)
+        - È passato almeno un lunedì dall'ultimo reset
+        """
+        if credits_reset_at is None:
+            return True
+        
+        now = datetime.utcnow()
+        # Trova l'ultimo lunedì alle 00:00
+        days_since_monday = now.weekday()
+        last_monday = now - timedelta(days=days_since_monday)
+        last_monday = last_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Reset se l'ultimo reset è prima dell'ultimo lunedì
+        return credits_reset_at < last_monday
+    
+    async def get_user_credits(self, user_id: str) -> tuple[ModeCredits, datetime, datetime]:
+        """
+        Ottiene i crediti dell'utente con lazy reset se necessario.
+        
+        Args:
+            user_id: ID dell'utente
+        
+        Returns:
+            Tuple di (crediti, data_ultimo_reset, data_prossimo_reset)
+        """
+        if self.users_collection is None:
+            await self.connect()
+        
+        doc = await self.users_collection.find_one({"_id": user_id})
+        if not doc:
+            raise ValueError(f"Utente {user_id} non trovato")
+        
+        mode_credits_doc = doc.get("mode_credits")
+        credits_reset_at = doc.get("credits_reset_at")
+        
+        # Verifica se serve reset
+        if self._should_reset_credits(credits_reset_at):
+            # Reset ai valori di default
+            default_credits = self._get_default_credits()
+            now = datetime.utcnow()
+            
+            await self.users_collection.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "mode_credits": default_credits.model_dump(),
+                        "credits_reset_at": now,
+                        "updated_at": now,
+                    }
+                }
+            )
+            print(f"[UserStore] Crediti resettati per utente {user_id}", file=sys.stderr)
+            return default_credits, now, self._get_next_monday()
+        
+        # Usa crediti esistenti o default
+        if mode_credits_doc:
+            credits = ModeCredits(**mode_credits_doc)
+        else:
+            credits = self._get_default_credits()
+            # Salva i default se non esistono
+            await self.users_collection.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "mode_credits": credits.model_dump(),
+                        "credits_reset_at": credits_reset_at or datetime.utcnow(),
+                        "updated_at": datetime.utcnow(),
+                    }
+                }
+            )
+        
+        return credits, credits_reset_at or datetime.utcnow(), self._get_next_monday()
+    
+    async def consume_credit(self, user_id: str, mode: str) -> tuple[bool, str, Optional[ModeCredits]]:
+        """
+        Consuma un credito per la modalità specificata.
+        
+        Args:
+            user_id: ID dell'utente
+            mode: Modalità (flash, pro, ultra)
+        
+        Returns:
+            Tuple di (successo, messaggio, crediti_aggiornati)
+            - Se successo=True: credito consumato
+            - Se successo=False: messaggio spiega perché (esaurito)
+        """
+        if self.users_collection is None:
+            await self.connect()
+        
+        mode = mode.lower()
+        if mode not in ["flash", "pro", "ultra"]:
+            return False, f"Modalità '{mode}' non valida", None
+        
+        # Ottieni crediti (con lazy reset)
+        credits, _, _ = await self.get_user_credits(user_id)
+        
+        current_value = getattr(credits, mode)
+        if current_value <= 0:
+            mode_names = {"flash": "Flash", "pro": "Pro", "ultra": "Ultra"}
+            return False, f"Hai esaurito i crediti per la modalità {mode_names[mode]}. I crediti si ricaricano automaticamente ogni lunedì.", None
+        
+        # Decrementa
+        new_value = current_value - 1
+        setattr(credits, mode, new_value)
+        
+        await self.users_collection.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    f"mode_credits.{mode}": new_value,
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
+        
+        print(f"[UserStore] Credito {mode} consumato per utente {user_id}: {current_value} -> {new_value}", file=sys.stderr)
+        return True, "Credito consumato", credits
+    
+    async def reset_user_credits(self, user_id: str) -> ModeCredits:
+        """
+        Resetta manualmente i crediti di un utente ai valori di default.
+        
+        Args:
+            user_id: ID dell'utente
+        
+        Returns:
+            Nuovi crediti
+        """
+        if self.users_collection is None:
+            await self.connect()
+        
+        default_credits = self._get_default_credits()
+        now = datetime.utcnow()
+        
+        await self.users_collection.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    "mode_credits": default_credits.model_dump(),
+                    "credits_reset_at": now,
+                    "updated_at": now,
+                }
+            }
+        )
+        
+        print(f"[UserStore] Crediti resettati manualmente per utente {user_id}", file=sys.stderr)
+        return default_credits
 
 
 # Istanza globale

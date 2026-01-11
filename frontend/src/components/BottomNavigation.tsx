@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PlusCircle, BarChart3, UserPlus, User, Bell, LogOut, TrendingUp } from 'lucide-react';
+import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getPendingConnectionsCount } from '../api/client';
@@ -143,7 +143,7 @@ export default function BottomNavigation() {
             aria-label="Profilo"
           >
             <div className="bottom-nav-icon-wrapper">
-              <Bell size={24} />
+              <Settings size={24} />
               {unreadCount > 0 && (
                 <span className="bottom-nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
               )}

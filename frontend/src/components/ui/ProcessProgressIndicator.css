@@ -1,0 +1,167 @@
+/* ============================================
+   Process Progress Indicator
+   ============================================ */
+
+.process-progress-indicator {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.1));
+  margin-bottom: 1rem;
+}
+
+.process-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.process-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.process-progress-icon {
+  color: var(--primary, #8b5cf6);
+  flex-shrink: 0;
+}
+
+.process-progress-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.process-progress-icon.success {
+  color: #34c759;
+}
+
+.process-progress-icon.error {
+  color: #dc2626;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.process-progress-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+  font-family: 'Outfit', sans-serif;
+}
+
+.process-progress-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+}
+
+.process-progress-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #666);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 4px);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.process-progress-dismiss:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.process-progress-bar-wrapper {
+  margin-top: 0.5rem;
+}
+
+.process-progress-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--radius-md, 8px);
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #dc2626;
+}
+
+.process-progress-error svg {
+  flex-shrink: 0;
+}
+
+.process-progress-error span {
+  flex: 1;
+}
+
+.process-progress-retry {
+  padding: 0.375rem 0.75rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+}
+
+.process-progress-retry:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.process-progress-retry:active {
+  transform: translateY(0);
+}
+
+.process-progress-success {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: var(--radius-md, 8px);
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #22c55e;
+}
+
+.process-progress-success svg {
+  flex-shrink: 0;
+}
+
+.process-progress-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #666);
+}
+
+.process-progress-loading .process-progress-icon {
+  animation: spin 1s linear infinite;
+}

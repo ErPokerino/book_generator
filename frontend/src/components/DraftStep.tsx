@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { generateDraft, modifyDraft, validateDraft, generateOutline, DraftResponse, DraftModificationRequest, DraftValidationRequest, OutlineResponse, SubmissionRequest, QuestionAnswer } from '../api/client';
+import { generateDraft, modifyDraft, validateDraft, generateOutline, DraftResponse, DraftModificationRequest, DraftValidationRequest, OutlineResponse, SubmissionRequest, QuestionAnswer, startOutlineGeneration, getOutlineProgress, ProcessProgress } from '../api/client';
+import { useProcessPolling } from '../hooks/useProcessPolling';
 import DraftViewer from './DraftViewer';
 import DraftChat from './DraftChat';
+import ProcessProgressIndicator from './ui/ProcessProgressIndicator';
 import './DraftStep.css';
 
 interface DraftStepProps {
@@ -20,7 +22,36 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
   const [isModifying, setIsModifying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
+  const [outlineProgress, setOutlineProgress] = useState<ProcessProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Polling per generazione outline
+  const { progress: outlinePollingProgress } = useProcessPolling({
+    sessionId: sessionId,
+    progressEndpoint: getOutlineProgress,
+    pollingInterval: 2500,
+    enabled: isGeneratingOutline && !!sessionId,
+    onComplete: (progress) => {
+      console.log('[DraftStep] Generazione outline completata:', progress);
+      setIsGeneratingOutline(false);
+      if (progress.result && 'outline_text' in progress.result) {
+        const outlineResponse = progress.result as OutlineResponse;
+        onDraftValidated(draft!, outlineResponse);
+      }
+    },
+    onError: (errorMsg) => {
+      console.error('[DraftStep] Errore generazione outline:', errorMsg);
+      setIsGeneratingOutline(false);
+      setError(errorMsg);
+    },
+  });
+
+  // Aggiorna outlineProgress quando cambia il polling
+  useEffect(() => {
+    if (outlinePollingProgress) {
+      setOutlineProgress(outlinePollingProgress);
+    }
+  }, [outlinePollingProgress]);
 
   useEffect(() => {
     // Se c'è un initialDraft, usa quello (ripristino sessione)
@@ -133,12 +164,24 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
 
   if (isGeneratingOutline) {
     return (
-      <div className="draft-step-loading">
-        <h2>Generazione Struttura del Libro</h2>
-        <p>Sto generando la struttura del libro...</p>
-        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Questo richiederà circa un minuto
-        </p>
+      <div className="draft-step">
+        <div className="draft-step-loading">
+          <h2>Generazione Struttura del Libro</h2>
+          <ProcessProgressIndicator
+            progress={outlineProgress}
+            processName="struttura"
+            onRetry={() => {
+              // Retry: riavvia il processo
+              setIsGeneratingOutline(false);
+              setTimeout(() => {
+                handleValidateDraft();
+              }, 100);
+            }}
+            onDismiss={() => {
+              setIsGeneratingOutline(false);
+            }}
+          />
+        </div>
       </div>
     );
   }

@@ -316,6 +316,33 @@ class MongoSessionStore(SessionStore):
         
         return await self.save_session(session)
     
+    async def update_questions_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione domande."""
+        session = await self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.questions_progress = progress_dict
+        return await self.save_session(session)
+    
+    async def update_draft_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione bozza."""
+        session = await self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.draft_progress = progress_dict
+        return await self.save_session(session)
+    
+    async def update_outline_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
+        """Aggiorna lo stato di avanzamento della generazione outline."""
+        session = await self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Sessione {session_id} non trovata")
+        
+        session.outline_progress = progress_dict
+        return await self.save_session(session)
+    
     async def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:
         """
         Aggiorna solo estimated_cost in writing_progress senza sovrascrivere l'intero dict.

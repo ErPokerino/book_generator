@@ -48,6 +48,8 @@ from app.models import (
     DraftValidationResponse,
     OutlineGenerateRequest,
     OutlineResponse,
+    ProcessProgress,
+    ProcessStartResponse,
     OutlineUpdateRequest,
     BookGenerationRequest,
     BookGenerationResponse,
@@ -76,8 +78,9 @@ from app.agent.session_store import get_session_store, FileSessionStore
 from app.agent.session_store_helpers import (
     get_session_async, update_writing_progress_async, update_critique_async, 
     update_critique_status_async, update_writing_times_async, update_cover_image_path_async,
-    set_estimated_cost_async,
-    delete_session_async
+    set_estimated_cost_async, delete_session_async, update_questions_progress_async,
+    update_draft_progress_async, update_outline_progress_async, save_generated_questions_async,
+    update_draft_async, update_outline_async, create_session_async
 )
 from app.services.pdf_service import generate_complete_book_pdf
 from app.services.export_service import generate_epub, generate_docx
@@ -344,10 +347,15 @@ async def shutdown_db():
 
 # NOTE: Gli endpoint /api/questions/* sono stati spostati in app/api/routers/questions.py
 # Gli endpoint rimanenti (da spostare nei router in futuro):
-@app.post("/api/questions/generate", response_model=QuestionsResponse)
-async def generate_questions_endpoint_OLD(request: QuestionGenerationRequest):
+@app.post("/api/questions/generate")
+async def generate_questions_endpoint_OLD(
+    request: QuestionGenerationRequest,
+    current_user = Depends(get_current_user_optional),
+):
     """Genera domande preliminari basate sul form compilato."""
     try:
+        from app.agent.user_store import get_user_store
+        
         # Verifica che l'API key sia configurata
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
@@ -356,22 +364,51 @@ async def generate_questions_endpoint_OLD(request: QuestionGenerationRequest):
                 detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
             )
         
+        # Verifica e consuma crediti (solo per utenti autenticati)
+        if current_user:
+            # Estrai la modalità dal form_data
+            llm_model = request.form_data.get("llm_model", "gemini-3-flash")
+            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
+            
+            # Verifica crediti disponibili
+            user_store = get_user_store()
+            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            
+            if not success:
+                # Crediti esauriti - ritorna messaggio user-friendly come JSON
+                _, _, next_reset = await user_store.get_user_credits(current_user.id)
+                from fastapi.responses import JSONResponse
+                return JSONResponse(
+                    status_code=200,  # Non è un errore tecnico
+                    content={
+                        "success": False,
+                        "error_type": "credits_exhausted",
+                        "message": message,
+                        "mode": mode.capitalize(),
+                        "next_reset_at": next_reset.isoformat(),
+                    }
+                )
+        
         # Genera le domande (la funzione userà automaticamente la variabile d'ambiente se non passata)
         response = await generate_questions(request.form_data, api_key=api_key)
         
         # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande
         # Questo garantisce che la sessione esista anche se il backend si riavvia
         session_store = get_session_store()
+        user_id = current_user.id if current_user else None
         try:
             # Crea la sessione con form_data e question_answers vuote (verranno aggiunte dopo)
-            session_store.create_session(
+            await create_session_async(
+                session_store,
                 session_id=response.session_id,
                 form_data=request.form_data,
                 question_answers=[],  # Vuote per ora, verranno aggiunte quando l'utente risponde
+                user_id=user_id,
             )
             # Salva le questions generate nella sessione per poterle recuperare dopo
             questions_dict = [q.model_dump() for q in response.questions]
-            session_store.save_generated_questions(
+            await save_generated_questions_async(
+                session_store,
                 session_id=response.session_id,
                 questions=questions_dict,
             )
@@ -391,6 +428,136 @@ async def generate_questions_endpoint_OLD(request: QuestionGenerationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nella generazione delle domande: {str(e)}"
+        )
+
+
+@app.post("/api/questions/generate/start")
+async def start_questions_generation_endpoint(
+    request: QuestionGenerationRequest,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user_optional),
+):
+    """Avvia la generazione delle domande in background."""
+    try:
+        from app.agent.user_store import get_user_store
+        
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata."
+            )
+        
+        # Ottieni user_id dall'utente corrente (se autenticato)
+        user_id = current_user.id if current_user else None
+        
+        # Verifica e consuma crediti (solo per utenti autenticati)
+        if current_user:
+            # Estrai la modalità dal form_data
+            llm_model = request.form_data.get("llm_model", "gemini-3-flash")
+            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
+            
+            # Verifica crediti disponibili
+            user_store = get_user_store()
+            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            
+            if not success:
+                # Crediti esauriti - ritorna messaggio user-friendly
+                _, _, next_reset = await user_store.get_user_credits(current_user.id)
+                return {
+                    "success": False,
+                    "error_type": "credits_exhausted",
+                    "message": message,
+                    "mode": mode.capitalize(),
+                    "next_reset_at": next_reset.isoformat(),
+                }
+        
+        # Genera session_id
+        import uuid
+        session_id = str(uuid.uuid4())
+        
+        # Crea la sessione con user_id
+        session_store = get_session_store()
+        await create_session_async(
+            session_store,
+            session_id=session_id,
+            form_data=request.form_data,
+            question_answers=[],
+            user_id=user_id,
+        )
+        
+        # Inizializza progresso: pending
+        await update_questions_progress_async(
+            session_store,
+            session_id,
+            {
+                "status": "pending",
+                "current_step": 0,
+                "total_steps": 1,
+                "progress_percentage": 0.0,
+            }
+        )
+        
+        # Avvia il task in background
+        background_tasks.add_task(
+            background_generate_questions,
+            session_id=session_id,
+            form_data=request.form_data,
+            api_key=api_key,
+        )
+        
+        print(f"[QUESTIONS GENERATION] Task di generazione domande avviato per sessione {session_id}")
+        
+        return ProcessStartResponse(
+            success=True,
+            session_id=session_id,
+            message="Generazione delle domande avviata. Usa /api/questions/progress/{session_id} per monitorare lo stato.",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nell'avvio generazione domande: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della generazione delle domande: {str(e)}"
+        )
+
+
+@app.get("/api/questions/progress/{session_id}", response_model=ProcessProgress)
+async def get_questions_progress_endpoint(session_id: str):
+    """Restituisce lo stato di avanzamento della generazione domande."""
+    try:
+        session_store = get_session_store()
+        session = await get_session_async(session_store, session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        progress = session.questions_progress
+        if not progress:
+            # Nessun progresso = processo non avviato
+            return ProcessProgress(
+                status="pending",
+                current_step=0,
+                total_steps=1,
+                progress_percentage=0.0,
+            )
+        
+        return ProcessProgress(**progress)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nel recupero progresso domande: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del progresso: {str(e)}"
         )
 
 
@@ -505,6 +672,41 @@ async def generate_draft_endpoint(request: DraftGenerationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nella generazione della bozza: {str(e)}"
+        )
+
+
+@app.get("/api/draft/progress/{session_id}", response_model=ProcessProgress)
+async def get_draft_progress_endpoint(session_id: str):
+    """Restituisce lo stato di avanzamento della generazione bozza."""
+    try:
+        session_store = get_session_store()
+        session = await get_session_async(session_store, session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        progress = session.draft_progress
+        if not progress:
+            # Nessun progresso = processo non avviato
+            return ProcessProgress(
+                status="pending",
+                current_step=0,
+                total_steps=1,
+                progress_percentage=0.0,
+            )
+        
+        return ProcessProgress(**progress)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nel recupero progresso bozza: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del progresso: {str(e)}"
         )
 
 
@@ -647,6 +849,81 @@ async def get_draft_endpoint(session_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero della bozza: {str(e)}"
+        )
+
+
+@app.post("/api/outline/generate/start", response_model=ProcessStartResponse)
+async def start_outline_generation_endpoint(
+    request: OutlineGenerateRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Avvia la generazione dell'outline in background."""
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata."
+            )
+        
+        # Recupera la sessione
+        session_store = get_session_store()
+        session = await get_session_async(session_store, request.session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if not session.current_draft:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessuna bozza validata disponibile. Valida prima la bozza estesa."
+            )
+        
+        if not session.validated:
+            raise HTTPException(
+                status_code=400,
+                detail="La bozza deve essere validata prima di generare la struttura."
+            )
+        
+        # Inizializza progresso: pending
+        await update_outline_progress_async(
+            session_store,
+            request.session_id,
+            {
+                "status": "pending",
+                "current_step": 0,
+                "total_steps": 1,
+                "progress_percentage": 0.0,
+            }
+        )
+        
+        # Avvia il task in background
+        background_tasks.add_task(
+            background_generate_outline,
+            session_id=request.session_id,
+            api_key=api_key,
+        )
+        
+        print(f"[OUTLINE GENERATION] Task di generazione outline avviato per sessione {request.session_id}")
+        
+        return ProcessStartResponse(
+            success=True,
+            session_id=request.session_id,
+            message="Generazione della struttura avviata. Usa /api/outline/progress/{session_id} per monitorare lo stato.",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nell'avvio generazione outline: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della generazione della struttura: {str(e)}"
         )
 
 
@@ -2749,6 +3026,30 @@ async def background_book_generation(
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
         
+        # Invia notifica di completamento libro (subito dopo la scrittura)
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session and session.user_id:
+                from app.agent.notification_store import get_notification_store
+                notification_store = get_notification_store()
+                await notification_store.connect()
+                
+                book_title = session.current_title or draft_title or "Il tuo libro"
+                
+                await notification_store.create_notification(
+                    user_id=session.user_id,
+                    type="book_completed",
+                    title="📚 Libro completato!",
+                    message=f'"{book_title}" è pronto per la lettura!',
+                    data={
+                        "session_id": session_id,
+                        "book_title": book_title,
+                    }
+                )
+                print(f"[BOOK GENERATION] Notifica di completamento inviata a utente {session.user_id}")
+        except Exception as notif_err:
+            print(f"[BOOK GENERATION] WARNING: Errore nell'invio notifica: {notif_err}")
+        
         # Aggiorna writing_progress con il tempo calcolato
         session = await get_session_async(session_store, session_id)
         if session and session.writing_progress:
@@ -2888,6 +3189,265 @@ async def background_book_generation(
             is_paused=False,
             error=error_msg,
         )
+
+
+async def background_generate_questions(
+    session_id: str,
+    form_data: SubmissionRequest,
+    api_key: str,
+):
+    """Funzione eseguita in background per generare le domande."""
+    session_store = get_session_store()
+    app_config = get_app_config()
+    retry_config = app_config.get("retry", {}).get("questions_generation", {})
+    max_retries = retry_config.get("max_retries", 2)
+    
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                print(f"[QUESTIONS GENERATION] Retry {attempt}/{max_retries - 1} per sessione {session_id}")
+            
+            print(f"[QUESTIONS GENERATION] Avvio generazione domande per sessione {session_id} (tentativo {attempt + 1}/{max_retries})")
+            
+            # Aggiorna progresso: running
+            await update_questions_progress_async(
+                session_store,
+                session_id,
+                {
+                    "status": "running",
+                    "current_step": 0,
+                    "total_steps": 1,
+                    "progress_percentage": 0.0,
+                }
+            )
+            
+            # Genera le domande
+            response = await generate_questions(form_data, api_key=api_key)
+            
+            # Salva le domande nella sessione
+            questions_dict = [q.model_dump() for q in response.questions]
+            await save_generated_questions_async(session_store, session_id, questions_dict)
+            
+            # Aggiorna progresso: completed
+            await update_questions_progress_async(
+                session_store,
+                session_id,
+                {
+                    "status": "completed",
+                    "current_step": 1,
+                    "total_steps": 1,
+                    "progress_percentage": 100.0,
+                    "result": {
+                        "success": response.success,
+                        "session_id": response.session_id,
+                        "questions": questions_dict,
+                        "message": response.message,
+                    }
+                }
+            )
+            
+            print(f"[QUESTIONS GENERATION] Generazione domande completata per sessione {session_id}")
+            return  # Successo, esci dal loop
+            
+        except Exception as e:
+            error_msg = f"Errore nella generazione delle domande: {str(e)}"
+            print(f"[QUESTIONS GENERATION] ERRORE (tentativo {attempt + 1}/{max_retries}): {error_msg}")
+            
+            if attempt < max_retries - 1:
+                print(f"[QUESTIONS GENERATION] Retry tra 2 secondi...")
+                import asyncio
+                await asyncio.sleep(2)
+                continue
+            else:
+                # Ultimo tentativo fallito
+                import traceback
+                traceback.print_exc()
+                
+                # Aggiorna progresso: failed
+                await update_questions_progress_async(
+                    session_store,
+                    session_id,
+                    {
+                        "status": "failed",
+                        "error": error_msg,
+                    }
+                )
+
+
+async def background_generate_draft(
+    session_id: str,
+    form_data: SubmissionRequest,
+    question_answers: list[QuestionAnswer],
+    api_key: str,
+):
+    """Funzione eseguita in background per generare la bozza."""
+    session_store = get_session_store()
+    try:
+        print(f"[DRAFT GENERATION] Avvio generazione bozza per sessione {session_id}")
+        
+        # Aggiorna progresso: running
+        await update_draft_progress_async(
+            session_store,
+            session_id,
+            {
+                "status": "running",
+                "current_step": 0,
+                "total_steps": 1,
+                "progress_percentage": 0.0,
+            }
+        )
+        
+        # Genera la bozza
+        draft_text, title, version = await generate_draft(
+            form_data=form_data,
+            question_answers=question_answers,
+            session_id=session_id,
+            api_key=api_key,
+        )
+        
+        # Salva la bozza nella sessione
+        await update_draft_async(session_store, session_id, draft_text, version, title=title)
+        
+        # Aggiorna progresso: completed
+        await update_draft_progress_async(
+            session_store,
+            session_id,
+            {
+                "status": "completed",
+                "current_step": 1,
+                "total_steps": 1,
+                "progress_percentage": 100.0,
+                "result": {
+                    "success": True,
+                    "session_id": session_id,
+                    "draft_text": draft_text,
+                    "title": title,
+                    "version": version,
+                    "message": "Bozza generata con successo",
+                }
+            }
+        )
+        
+        print(f"[DRAFT GENERATION] Generazione bozza completata per sessione {session_id}")
+        
+    except Exception as e:
+        error_msg = f"Errore nella generazione della bozza: {str(e)}"
+        print(f"[DRAFT GENERATION] ERRORE: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        
+        # Aggiorna progresso: failed
+        await update_draft_progress_async(
+            session_store,
+            session_id,
+            {
+                "status": "failed",
+                "error": error_msg,
+            }
+        )
+
+
+async def background_generate_outline(
+    session_id: str,
+    api_key: str,
+):
+    """Funzione eseguita in background per generare l'outline."""
+    session_store = get_session_store()
+    app_config = get_app_config()
+    retry_config = app_config.get("retry", {}).get("outline_generation", {})
+    max_retries = retry_config.get("max_retries", 2)
+    
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                print(f"[OUTLINE GENERATION] Retry {attempt}/{max_retries - 1} per sessione {session_id}")
+            
+            print(f"[OUTLINE GENERATION] Avvio generazione outline per sessione {session_id} (tentativo {attempt + 1}/{max_retries})")
+            
+            # Recupera la sessione
+            session = await get_session_async(session_store, session_id)
+            if not session:
+                raise ValueError(f"Sessione {session_id} non trovata")
+            
+            if not session.current_draft:
+                raise ValueError("Nessuna bozza validata disponibile")
+            
+            if not session.validated:
+                raise ValueError("La bozza deve essere validata prima di generare la struttura")
+            
+            # Aggiorna progresso: running
+            await update_outline_progress_async(
+                session_store,
+                session_id,
+                {
+                    "status": "running",
+                    "current_step": 0,
+                    "total_steps": 1,
+                    "progress_percentage": 0.0,
+                }
+            )
+            
+            # Genera l'outline
+            outline_text = await generate_outline(
+                form_data=session.form_data,
+                question_answers=session.question_answers,
+                validated_draft=session.current_draft,
+                session_id=session_id,
+                draft_title=session.current_title,
+                api_key=api_key,
+            )
+            
+            # Salva l'outline nella sessione
+            await update_outline_async(session_store, session_id, outline_text)
+            
+            # Recupera la sessione aggiornata per avere la versione corretta
+            session = await get_session_async(session_store, session_id)
+            
+            # Aggiorna progresso: completed
+            await update_outline_progress_async(
+                session_store,
+                session_id,
+                {
+                    "status": "completed",
+                    "current_step": 1,
+                    "total_steps": 1,
+                    "progress_percentage": 100.0,
+                    "result": {
+                        "success": True,
+                        "session_id": session_id,
+                        "outline_text": outline_text,
+                        "version": session.outline_version,
+                        "message": "Struttura generata con successo",
+                    }
+                }
+            )
+            
+            print(f"[OUTLINE GENERATION] Generazione outline completata per sessione {session_id}")
+            return  # Successo, esci dal loop
+            
+        except Exception as e:
+            error_msg = f"Errore nella generazione dell'outline: {str(e)}"
+            print(f"[OUTLINE GENERATION] ERRORE (tentativo {attempt + 1}/{max_retries}): {error_msg}")
+            
+            if attempt < max_retries - 1:
+                print(f"[OUTLINE GENERATION] Retry tra 3 secondi...")
+                import asyncio
+                await asyncio.sleep(3)
+                continue
+            else:
+                # Ultimo tentativo fallito
+                import traceback
+                traceback.print_exc()
+                
+                # Aggiorna progresso: failed
+                await update_outline_progress_async(
+                    session_store,
+                    session_id,
+                    {
+                        "status": "failed",
+                        "error": error_msg,
+                    }
+                )
 
 
 @app.post("/api/book/generate", response_model=BookGenerationResponse)
@@ -3048,6 +3608,30 @@ async def background_resume_book_generation(
         await update_writing_times_async(session_store, session_id, end_time=end_time)
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
         print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
+        
+        # Invia notifica di completamento libro (subito dopo la scrittura)
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session and session.user_id:
+                from app.agent.notification_store import get_notification_store
+                notification_store = get_notification_store()
+                await notification_store.connect()
+                
+                book_title = session.current_title or "Il tuo libro"
+                
+                await notification_store.create_notification(
+                    user_id=session.user_id,
+                    type="book_completed",
+                    title="📚 Libro completato!",
+                    message=f'"{book_title}" è pronto per la lettura!',
+                    data={
+                        "session_id": session_id,
+                        "book_title": book_title,
+                    }
+                )
+                print(f"[BOOK GENERATION] Notifica di completamento inviata a utente {session.user_id}")
+        except Exception as notif_err:
+            print(f"[BOOK GENERATION] WARNING: Errore nell'invio notifica: {notif_err}")
         
         # Aggiorna writing_progress con il tempo calcolato
         session = await get_session_async(session_store, session_id)

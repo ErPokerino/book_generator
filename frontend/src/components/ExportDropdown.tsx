@@ -61,9 +61,10 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
+      const target = event.target as HTMLElement;
       const isButtonClick = buttonRef.current?.contains(target);
-      const isMenuClick = menuRef.current?.contains(target);
+      // Usa data attribute per identificare il menu (più affidabile con Portal)
+      const isMenuClick = target.closest('[data-export-menu]') !== null;
       
       if (!isButtonClick && !isMenuClick) {
         setIsOpen(false);
@@ -71,7 +72,15 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
     };
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Usa setTimeout per permettere al click di essere processato prima
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
     }
 
     return () => {
@@ -140,6 +149,7 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
       <div 
         className="export-dropdown-menu export-dropdown-menu-portal"
         ref={menuRef}
+        data-export-menu="true"
         style={{
           position: 'fixed',
           top: menuPosition.top,
@@ -148,21 +158,30 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
       >
         <button
           className="export-option"
-          onClick={() => handleExport('pdf')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExport('pdf');
+          }}
         >
           <span className="format-icon">📄</span>
           <span>PDF</span>
         </button>
         <button
           className="export-option"
-          onClick={() => handleExport('epub')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExport('epub');
+          }}
         >
           <span className="format-icon">📚</span>
           <span>EPUB</span>
         </button>
         <button
           className="export-option"
-          onClick={() => handleExport('docx')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExport('docx');
+          }}
         >
           <span className="format-icon">📝</span>
           <span>DOCX</span>
