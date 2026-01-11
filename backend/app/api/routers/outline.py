@@ -1,15 +1,17 @@
 """Router per gli endpoint degli outline."""
 import os
-from fastapi import APIRouter, HTTPException, Depends
-from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest, ProcessStartResponse
 from app.agent.outline_generator import generate_outline
 from app.agent.writer_generator import regenerate_outline_markdown
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async,
     update_outline_async,
+    update_outline_progress_async,
 )
 from app.middleware.auth import get_current_user_optional
+from app.services.generation_service import background_generate_outline
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
 
@@ -229,4 +231,79 @@ async def update_outline_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nell'aggiornamento della struttura: {str(e)}"
+        )
+
+
+@router.post("/generate/start", response_model=ProcessStartResponse)
+async def start_outline_generation_endpoint(
+    request: OutlineGenerateRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Avvia la generazione dell'outline in background."""
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata."
+            )
+        
+        # Recupera la sessione
+        session_store = get_session_store()
+        session = await get_session_async(session_store, request.session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if not session.current_draft:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessuna bozza validata disponibile. Valida prima la bozza estesa."
+            )
+        
+        if not session.validated:
+            raise HTTPException(
+                status_code=400,
+                detail="La bozza deve essere validata prima di generare la struttura."
+            )
+        
+        # Inizializza progresso: pending
+        await update_outline_progress_async(
+            session_store,
+            request.session_id,
+            {
+                "status": "pending",
+                "current_step": 0,
+                "total_steps": 1,
+                "progress_percentage": 0.0,
+            }
+        )
+        
+        # Avvia il task in background
+        background_tasks.add_task(
+            background_generate_outline,
+            session_id=request.session_id,
+            api_key=api_key,
+        )
+        
+        print(f"[OUTLINE GENERATION] Task di generazione outline avviato per sessione {request.session_id}")
+        
+        return ProcessStartResponse(
+            success=True,
+            session_id=request.session_id,
+            message="Generazione della struttura avviata. Usa /api/outline/progress/{session_id} per monitorare lo stato.",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nell'avvio generazione outline: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della generazione della struttura: {str(e)}"
         )

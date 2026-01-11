@@ -1,15 +1,26 @@
 """Router per gli endpoint delle domande."""
 import os
-from fastapi import APIRouter, HTTPException, Depends
-from app.models import QuestionGenerationRequest, QuestionsResponse, AnswersRequest, AnswersResponse
+import uuid
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from app.models import (
+    QuestionGenerationRequest,
+    QuestionsResponse,
+    AnswersRequest,
+    AnswersResponse,
+    ProcessStartResponse,
+    ProcessProgress,
+)
 from app.agent.question_generator import generate_questions
 from app.agent.session_store import get_session_store, FileSessionStore
 from app.agent.session_store_helpers import (
     create_session_async,
     save_generated_questions_async,
     get_session_async,
+    update_questions_progress_async,
 )
 from app.middleware.auth import get_current_user_optional
+from app.services.generation_service import background_generate_questions
+from app.services.stats_service import llm_model_to_mode
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -125,4 +136,133 @@ async def submit_answers(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel salvataggio delle risposte: {str(e)}"
+        )
+
+
+@router.post("/generate/start", response_model=ProcessStartResponse)
+async def start_questions_generation_endpoint(
+    request: QuestionGenerationRequest,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user_optional),
+):
+    """Avvia la generazione delle domande in background."""
+    try:
+        from app.agent.user_store import get_user_store
+        
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata."
+            )
+        
+        # Ottieni user_id dall'utente corrente (se autenticato)
+        user_id = current_user.id if current_user else None
+        
+        # Verifica e consuma crediti (solo per utenti autenticati)
+        if current_user:
+            # Estrai la modalità dal form_data
+            llm_model = request.form_data.get("llm_model", "gemini-3-flash")
+            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
+            
+            # Verifica crediti disponibili
+            user_store = get_user_store()
+            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            
+            if not success:
+                # Crediti esauriti - ritorna messaggio user-friendly
+                _, _, next_reset = await user_store.get_user_credits(current_user.id)
+                return {
+                    "success": False,
+                    "error_type": "credits_exhausted",
+                    "message": message,
+                    "mode": mode.capitalize(),
+                    "next_reset_at": next_reset.isoformat(),
+                }
+        
+        # Genera session_id
+        session_id = str(uuid.uuid4())
+        
+        # Crea la sessione con user_id
+        session_store = get_session_store()
+        await create_session_async(
+            session_store,
+            session_id=session_id,
+            form_data=request.form_data,
+            question_answers=[],
+            user_id=user_id,
+        )
+        
+        # Inizializza progresso: pending
+        await update_questions_progress_async(
+            session_store,
+            session_id,
+            {
+                "status": "pending",
+                "current_step": 0,
+                "total_steps": 1,
+                "progress_percentage": 0.0,
+            }
+        )
+        
+        # Avvia il task in background
+        background_tasks.add_task(
+            background_generate_questions,
+            session_id=session_id,
+            form_data=request.form_data,
+            api_key=api_key,
+        )
+        
+        print(f"[QUESTIONS GENERATION] Task di generazione domande avviato per sessione {session_id}")
+        
+        return ProcessStartResponse(
+            success=True,
+            session_id=session_id,
+            message="Generazione delle domande avviata. Usa /api/questions/progress/{session_id} per monitorare lo stato.",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nell'avvio generazione domande: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della generazione delle domande: {str(e)}"
+        )
+
+
+@router.get("/progress/{session_id}", response_model=ProcessProgress)
+async def get_questions_progress_endpoint(session_id: str):
+    """Restituisce lo stato di avanzamento della generazione domande."""
+    try:
+        session_store = get_session_store()
+        session = await get_session_async(session_store, session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        progress = session.questions_progress
+        if not progress:
+            # Nessun progresso = processo non avviato
+            return ProcessProgress(
+                status="pending",
+                current_step=0,
+                total_steps=1,
+                progress_percentage=0.0,
+            )
+        
+        return ProcessProgress(**progress)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nel recupero progresso domande: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del progresso: {str(e)}"
         )

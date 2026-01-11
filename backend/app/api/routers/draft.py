@@ -7,6 +7,7 @@ from app.models import (
     DraftModificationRequest,
     DraftValidationRequest,
     DraftValidationResponse,
+    ProcessProgress,
 )
 from app.agent.draft_generator import generate_draft
 from app.agent.session_store import get_session_store
@@ -250,4 +251,39 @@ async def get_draft_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero della bozza: {str(e)}"
+        )
+
+
+@router.get("/progress/{session_id}", response_model=ProcessProgress)
+async def get_draft_progress_endpoint(session_id: str):
+    """Restituisce lo stato di avanzamento della generazione bozza."""
+    try:
+        session_store = get_session_store()
+        session = await get_session_async(session_store, session_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+        
+        progress = session.draft_progress
+        if not progress:
+            # Nessun progresso = processo non avviato
+            return ProcessProgress(
+                status="pending",
+                current_step=0,
+                total_steps=1,
+                progress_percentage=0.0,
+            )
+        
+        return ProcessProgress(**progress)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Errore nel recupero progresso bozza: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del progresso: {str(e)}"
         )
