@@ -230,64 +230,93 @@ async def register(request: RegisterRequest):
 @router.post("/login")
 async def login(request: LoginRequest, response: Response):
     """Login utente."""
-    user_store = get_user_store()
-    
-    # Recupera utente
-    user = await user_store.get_user_by_email(request.email)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o password non corretti",
+    try:
+        user_store = get_user_store()
+        
+        # Assicurati che user_store sia connesso
+        if user_store.client is None or user_store.users_collection is None:
+            await user_store.connect()
+        
+        # Recupera utente
+        user = await user_store.get_user_by_email(request.email)
+        if not user:
+            print(f"[AUTH] Login fallito: utente {request.email} non trovato", file=sys.stderr)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email o password non corretti",
+            )
+        
+        # Verifica password
+        if not verify_password(request.password, user.password_hash):
+            print(f"[AUTH] Login fallito: password errata per {request.email}", file=sys.stderr)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email o password non corretti",
+            )
+        
+        # Verifica utente attivo
+        if not user.is_active:
+            print(f"[AUTH] Login fallito: utente {request.email} disattivato", file=sys.stderr)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Utente disattivato",
+            )
+        
+        # Verifica email verificata
+        if not user.is_verified:
+            print(f"[AUTH] Login fallito: email {request.email} non verificata", file=sys.stderr)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="EMAIL_NOT_VERIFIED",  # Codice speciale per il frontend
+            )
+        
+        # Crea sessione
+        session_id = await create_session(user.id)
+        
+        # Imposta cookie httpOnly
+        response.set_cookie(
+            key="session_id",
+            value=session_id,
+            max_age=7 * 24 * 60 * 60,  # 7 giorni
+            httponly=True,
+            secure=os.getenv("ENVIRONMENT") == "production",  # HTTPS solo in produzione
+            samesite="lax",
         )
+        
+        print(f"[AUTH] Login: {user.email}", file=sys.stderr)
+        
+        return {
+            "success": True,
+            "user": UserResponse(
+                id=user.id,
+                email=user.email,
+                name=user.name,
+                role=user.role,
+                is_active=user.is_active,
+                is_verified=user.is_verified,
+                created_at=user.created_at,
+            ),
+        }
     
-    # Verifica password
-    if not verify_password(request.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o password non corretti",
-        )
-    
-    # Verifica utente attivo
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Utente disattivato",
-        )
-    
-    # Verifica email verificata
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="EMAIL_NOT_VERIFIED",  # Codice speciale per il frontend
-        )
-    
-    # Crea sessione
-    session_id = await create_session(user.id)
-    
-    # Imposta cookie httpOnly
-    response.set_cookie(
-        key="session_id",
-        value=session_id,
-        max_age=7 * 24 * 60 * 60,  # 7 giorni
-        httponly=True,
-        secure=os.getenv("ENVIRONMENT") == "production",  # HTTPS solo in produzione
-        samesite="lax",
-    )
-    
-    print(f"[AUTH] Login: {user.email}", file=sys.stderr)
-    
-    return {
-        "success": True,
-        "user": UserResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            role=user.role,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-        ),
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[AUTH ERROR] Errore nel login: {error_msg}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        
+        # Fornisci messaggio più dettagliato
+        if "MongoDB" in error_msg or "connection" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Errore di connessione al database: {error_msg}",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Errore interno durante il login: {error_msg}",
+            )
 
 
 @router.post("/logout")
@@ -320,12 +349,20 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/credits")
-async def get_user_credits(current_user: User = Depends(get_current_user)):
+async def get_user_credits(current_user: User = Depends(get_current_user_optional)):
     """
     Ottiene i crediti disponibili per le modalità di generazione.
     I crediti si resettano automaticamente ogni lunedì.
     """
     from app.models import UserCreditsResponse, ModeCredits
+    
+    # Se l'utente non è autenticato, ritorna crediti default
+    if not current_user:
+        return UserCreditsResponse(
+            credits=ModeCredits(),
+            credits_reset_at=None,
+            next_reset_at=datetime.utcnow(),
+        )
     
     user_store = get_user_store()
     try:
@@ -336,7 +373,13 @@ async def get_user_credits(current_user: User = Depends(get_current_user)):
             next_reset_at=next_reset_at,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        # Se l'utente non ha crediti, ritorna default invece di 404
+        print(f"[AUTH] Utente {current_user.id} non ha crediti configurati, uso default: {e}", file=sys.stderr)
+        return UserCreditsResponse(
+            credits=ModeCredits(),
+            credits_reset_at=None,
+            next_reset_at=datetime.utcnow(),
+        )
     except Exception as e:
         print(f"[AUTH] Errore nel recupero crediti: {e}", file=sys.stderr)
         # Fallback: ritorna crediti di default

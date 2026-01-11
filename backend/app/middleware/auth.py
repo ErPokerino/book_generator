@@ -25,12 +25,15 @@ async def get_auth_sessions_collection():
     global _auth_sessions_collection
     if _auth_sessions_collection is None:
         from motor.motor_asyncio import AsyncIOMotorClient
-        mongo_uri = os.getenv("MONGODB_URI")
-        if not mongo_uri:
-            raise ValueError("MONGODB_URI non configurato")
-        client = AsyncIOMotorClient(mongo_uri)
-        db = client.get_database("narrai")
-        _auth_sessions_collection = db["sessions_auth"]
+        mongo_uri = os.getenv("MONGODB_URI", "mongodb://admin:admin123@localhost:27017/narrai?authSource=admin")
+        try:
+            client = AsyncIOMotorClient(mongo_uri)
+            db = client.get_database("narrai")
+            _auth_sessions_collection = db["sessions_auth"]
+            print(f"[AUTH] Collection sessioni auth inizializzata con MongoDB: {mongo_uri.split('@')[-1] if '@' in mongo_uri else mongo_uri}", file=sys.stderr)
+        except Exception as e:
+            print(f"[AUTH] ERRORE nella connessione MongoDB per sessioni auth: {e}", file=sys.stderr)
+            raise
     return _auth_sessions_collection
 
 

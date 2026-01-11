@@ -160,12 +160,20 @@ async def get_my_referrals(
         return referrals
         
     except Exception as e:
-        print(f"[REFERRALS API] ERRORE nel recupero referral: {e}", file=sys.stderr)
+        error_msg = str(e)
+        print(f"[REFERRALS API] ERRORE nel recupero referral: {error_msg}", file=sys.stderr)
         import traceback
         traceback.print_exc()
+        
+        # Fornisci messaggio più dettagliato per debugging
+        if "MongoDB" in error_msg or "connection" in error_msg.lower():
+            detail_msg = f"Errore di connessione al database: {error_msg}"
+        else:
+            detail_msg = f"Errore nel recupero degli inviti: {error_msg}"
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore nel recupero degli inviti: {str(e)}",
+            detail=detail_msg,
         )
 
 
@@ -199,10 +207,18 @@ async def get_referral_stats(
         return stats
         
     except Exception as e:
-        print(f"[REFERRALS API] ERRORE nel recupero statistiche referral: {e}", file=sys.stderr)
+        error_msg = str(e)
+        print(f"[REFERRALS API] ERRORE nel recupero statistiche referral: {error_msg}", file=sys.stderr)
         import traceback
         traceback.print_exc()
+        
+        # Fornisci messaggio più dettagliato per debugging
+        if "MongoDB" in error_msg or "connection" in error_msg.lower():
+            detail_msg = f"Errore di connessione al database: {error_msg}"
+        else:
+            detail_msg = f"Errore nel recupero delle statistiche referral: {error_msg}"
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Errore nel recupero delle statistiche: {str(e)}",
+            detail=detail_msg,
         )

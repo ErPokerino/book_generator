@@ -583,8 +583,7 @@ def get_user_store() -> UserStore:
     """Restituisce l'istanza globale del UserStore."""
     global _user_store
     if _user_store is None:
-        mongo_uri = os.getenv("MONGODB_URI")
-        if not mongo_uri:
-            raise ValueError("MONGODB_URI non configurato")
+        mongo_uri = os.getenv("MONGODB_URI", "mongodb://admin:admin123@localhost:27017/narrai?authSource=admin")
         _user_store = UserStore(mongo_uri)
+        print(f"[UserStore] Inizializzato con MongoDB URI: {mongo_uri.split('@')[-1] if '@' in mongo_uri else mongo_uri}", file=sys.stderr)
     return _user_store
