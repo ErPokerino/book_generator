@@ -179,24 +179,29 @@
   }
 }
 
-/* Container Mobile Scrollabile - Desktop layout */
-.nav-mobile-container {
+/* Desktop Navigation Container */
+.nav-desktop-links {
   display: flex;
   align-items: center;
   gap: 2rem;
   flex: 1;
   min-width: 0;
-  position: relative; /* Per permettere posizionamento assoluto di nav-user se necessario */
+  position: relative;
 }
 
 /* Su desktop, nav-user dentro il container deve essere spinto a destra */
-.nav-mobile-container > .nav-user {
+.nav-desktop-links > .nav-user {
   margin-left: auto;
 }
 
 /* Su desktop, nav-links si centra grazie al margin auto */
-.nav-mobile-container > .nav-links {
+.nav-desktop-links > .nav-links {
   margin: 0 auto;
+}
+
+/* Mobile Only - NotificationBell */
+.nav-mobile-only {
+  display: none;
 }
 
 /* Responsive */
@@ -222,154 +227,23 @@
     font-size: 1.4rem;
   }
 
-  .nav-menu-toggle {
+  /* Nascondi desktop navigation su mobile */
+  .nav-desktop-links {
+    display: none;
+  }
+
+  /* Mostra solo NotificationBell su mobile */
+  .nav-mobile-only {
     display: flex;
-  }
-
-  .nav-menu-overlay {
-    display: block;
-  }
-
-  /* Container scrollabile per menu mobile */
-  .nav-mobile-container {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    max-height: calc(100vh - var(--safe-area-inset-top, 0px) - 80px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #0f3460 100%);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    z-index: 101;
-    transform: translateY(-100%);
-    opacity: 0;
-    visibility: hidden;
-    transition: transform 0.3s ease, opacity 0.3s ease, visibility 0.3s;
-    -webkit-overflow-scrolling: touch; /* Scroll fluido su iOS */
-    display: none; /* Nascosto di default su mobile quando non aperto */
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    flex: none;
-    margin: 0;
-  }
-
-  .nav-mobile-container.mobile-open {
-    display: flex;
-    transform: translateY(0);
-    opacity: 1;
-    visibility: visible;
-  }
-
-  /* Styling scrollbar per mobile (opzionale ma migliora UX) */
-  .nav-mobile-container::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .nav-mobile-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .nav-mobile-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-  }
-
-  .nav-mobile-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-
-  /* Reset margin-left per mobile */
-  .nav-mobile-container > .nav-user {
-    margin-left: 0;
-  }
-
-  .nav-links {
-    position: relative;
-    flex-direction: column;
-    padding: 1rem 1rem 0.75rem 1rem;
-    gap: 0.5rem;
-    width: 100%;
-    justify-content: flex-start;
-    background: transparent;
-    box-shadow: none;
-    z-index: auto;
-    transform: none;
-    opacity: 1;
-    visibility: visible;
-    transition: none;
-    margin: 0;
-    flex-shrink: 0;
-  }
-
-  .nav-links.mobile-open {
-    transform: none;
-    opacity: 1;
-    visibility: visible;
-  }
-
-  .nav-link {
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0.75rem 1.25rem;
-    font-size: 0.875rem;
-    width: 100%;
-    justify-content: center;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .nav-user {
-    position: relative;
-    flex-direction: column;
-    padding: 1rem;
-    gap: 0.75rem;
-    box-shadow: none;
-    z-index: auto;
-    transform: none;
-    opacity: 1;
-    visibility: visible;
-    transition: none;
-    width: 100%;
-    justify-content: center;
     align-items: center;
-    margin: 0;
-    background: transparent;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    flex-shrink: 0;
-    min-width: auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-bottom: 1.5rem; /* Padding extra in fondo per assicurare che ultimo elemento sia visibile durante scroll */
+    margin-left: auto;
   }
 
-  .nav-user.mobile-open {
-    transform: none;
-    opacity: 1;
-    visibility: visible;
-  }
-
-  /* Spaziatura ottimizzata per elementi utente su mobile */
-  .nav-user.mobile-open > * {
-    width: 100%;
-    text-align: center;
-  }
-
-  .nav-user-name {
-    width: 100%;
-    text-align: center;
-    margin: 0.5rem 0;
-  }
-
-  .nav-logout-button {
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0.75rem 1rem;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
-    width: 100%;
-    justify-content: center;
+  /* Nascondi hamburger menu (non più usato) */
+  .nav-menu-toggle,
+  .nav-menu-overlay,
+  .nav-mobile-container {
+    display: none !important;
   }
 }
 

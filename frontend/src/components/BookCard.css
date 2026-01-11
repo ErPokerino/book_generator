@@ -10,6 +10,7 @@
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  min-height: 250px; /* Altezza minima per prevenire layout shift */
   transition: 
     transform var(--transition-smooth),
     box-shadow var(--transition-smooth),
@@ -435,11 +436,13 @@
   .book-card {
     flex-direction: column;
     padding: 1.25rem;
+    min-height: 400px; /* Altezza maggiore su mobile per layout verticale */
   }
 
   .book-card-cover {
     width: 100%;
     height: 220px;
+    min-height: 220px; /* Altezza fissa per prevenire layout shift */
   }
 
   .book-card-header {

@@ -15,6 +15,7 @@ import ResetPasswordPage from './components/ResetPasswordPage';
 import VerifyEmailPage from './components/VerifyEmailPage';
 import OnboardingCarousel from './components/Onboarding/OnboardingCarousel';
 import Navigation from './components/Navigation';
+import BottomNavigation from './components/BottomNavigation';
 import { useAuth } from './contexts/AuthContext';
 import { useOnboarding } from './hooks/useOnboarding';
 
@@ -44,6 +45,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
         <main className="app-main">
           {children}
         </main>
+        <BottomNavigation />
       </div>
     </ErrorBoundary>
   );
