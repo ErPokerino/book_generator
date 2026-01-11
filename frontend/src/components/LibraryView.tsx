@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   getLibrary, 
@@ -16,12 +17,8 @@ import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
 import './LibraryView.css';
 
-interface LibraryViewProps {
-  onReadBook?: (sessionId: string) => void;
-  onNavigateToNewBook?: () => void;
-}
-
-export default function LibraryView({ onReadBook, onNavigateToNewBook }: LibraryViewProps) {
+export default function LibraryView() {
+  const navigate = useNavigate();
   const toast = useToast();
   const [books, setBooks] = useState<LibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,9 +237,11 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
     // Salva sessionId in localStorage per permettere il ripristino
     localStorage.setItem('current_book_session_id', sessionId);
     // Naviga a "Nuovo Libro"
-    if (onNavigateToNewBook) {
-      onNavigateToNewBook();
-    }
+    navigate('/new');
+  };
+  
+  const handleReadBook = (sessionId: string) => {
+    navigate(`/book/${sessionId}`);
   };
 
   // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
@@ -348,7 +347,7 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
                           onDelete={handleDelete}
                           onContinue={handleContinue}
                           onResume={handleResume}
-                          onRead={book.status === 'complete' ? onReadBook : undefined}
+                          onRead={book.status === 'complete' ? handleReadBook : undefined}
                           onShowCritique={handleShowCritique}
                           onShare={handleShare}
                         />
@@ -395,7 +394,7 @@ export default function LibraryView({ onReadBook, onNavigateToNewBook }: Library
                           onDelete={undefined}
                           onContinue={undefined}
                           onResume={undefined}
-                          onRead={book.status === 'complete' ? onReadBook : undefined}
+                          onRead={book.status === 'complete' ? handleReadBook : undefined}
                           onShowCritique={handleShowCritique}
                           onShare={undefined}
                         />

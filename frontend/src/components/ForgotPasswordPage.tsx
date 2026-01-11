@@ -1,18 +1,15 @@
 import { useState, FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { forgotPassword } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './ForgotPasswordPage.css';
-
-interface ForgotPasswordPageProps {
-  onNavigateToLogin?: () => void;
-  onNavigateToReset?: (token: string) => void;
-}
 
 // In development mode, mostriamo il token direttamente
 // In production, si invierebbe via email
 const isDevelopment = import.meta.env.DEV;
 
-export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToReset }: ForgotPasswordPageProps) {
+export default function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -46,8 +43,8 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
   const handleTokenSubmit = (e: FormEvent) => {
     e.preventDefault();
     const token = resetToken || tokenInput;
-    if (token && onNavigateToReset) {
-      onNavigateToReset(token);
+    if (token) {
+      navigate(`/reset-password?token=${encodeURIComponent(token)}`);
     }
   };
 
@@ -68,7 +65,7 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
                 <code>{resetToken}</code>
               </div>
               <button 
-                onClick={() => onNavigateToReset?.(resetToken)}
+                onClick={() => navigate(`/reset-password?token=${encodeURIComponent(resetToken)}`)}
                 className="auth-submit-button"
                 style={{ marginTop: '1rem' }}
               >
@@ -107,7 +104,7 @@ export default function ForgotPasswordPage({ onNavigateToLogin, onNavigateToRese
           <div className="auth-links">
             <button
               type="button"
-              onClick={onNavigateToLogin}
+              onClick={() => navigate('/login')}
               className="auth-link-button"
             >
               Torna al login

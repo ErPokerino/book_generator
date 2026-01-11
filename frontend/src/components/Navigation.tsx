@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, UserPlus } from 'lucide-react';
 import './Navigation.css';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,12 +7,9 @@ import ConfirmModal from './ConfirmModal';
 import NotificationBell from './NotificationBell';
 import { getPendingConnectionsCount } from '../api/client';
 
-interface NavigationProps {
-  currentView: 'library' | 'newBook' | 'benchmark' | 'analytics' | 'connections';
-  onNavigate: (view: 'library' | 'newBook' | 'benchmark' | 'analytics' | 'connections') => void;
-}
-
-export default function Navigation({ currentView, onNavigate }: NavigationProps) {
+export default function Navigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -47,14 +45,7 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
   };
 
   const handleLogoutConfirm = async () => {
-    setShowLogoutConfirm(false);
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Errore nel logout:', error);
-      setIsLoggingOut(false);
-    }
+    await handleLogoutAndRedirect();
   };
 
   const handleLogoutCancel = () => {
@@ -66,6 +57,18 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
     localStorage.removeItem('narrai_onboarding_tooltips');
     window.location.reload();
   };
+  
+  const handleLogoutAndRedirect = async () => {
+    setShowLogoutConfirm(false);
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Errore nel logout:', error);
+      setIsLoggingOut(false);
+    }
+  };
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!isMobileMenuOpen);
@@ -75,9 +78,17 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
     setMobileMenuOpen(false);
   };
 
-  const handleNavigate = (view: 'library' | 'newBook' | 'benchmark' | 'analytics' | 'connections') => {
-    onNavigate(view);
+  const handleNavigate = (path: string) => {
+    navigate(path);
     closeMobileMenu();
+  };
+  
+  // Determina se una route è attiva
+  const isActive = (path: string) => {
+    if (path === '/new') {
+      return location.pathname === '/new' || location.pathname === '/';
+    }
+    return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
   // Chiudi menu con ESC
@@ -124,35 +135,40 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
       {/* Container scrollabile per mobile - solo su mobile quando aperto */}
       <div className={`nav-mobile-container ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-          <button
-            className={`nav-link ${currentView === 'library' ? 'active' : ''}`}
-            onClick={() => handleNavigate('library')}
+          <NavLink
+            to="/library"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={() => closeMobileMenu()}
           >
             Libreria
-          </button>
-          <button
-            className={`nav-link ${currentView === 'newBook' ? 'active' : ''}`}
-            onClick={() => handleNavigate('newBook')}
+          </NavLink>
+          <NavLink
+            to="/new"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={() => closeMobileMenu()}
           >
             Nuovo Libro
-          </button>
-          <button
-            className={`nav-link ${currentView === 'benchmark' ? 'active' : ''}`}
-            onClick={() => handleNavigate('benchmark')}
+          </NavLink>
+          <NavLink
+            to="/benchmark"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={() => closeMobileMenu()}
           >
             Valuta
-          </button>
+          </NavLink>
           {user?.role === 'admin' && (
-            <button
-              className={`nav-link ${currentView === 'analytics' ? 'active' : ''}`}
-              onClick={() => handleNavigate('analytics')}
+            <NavLink
+              to="/analytics"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              onClick={() => closeMobileMenu()}
             >
               Analisi
-            </button>
+            </NavLink>
           )}
-          <button
-            className={`nav-link ${currentView === 'connections' ? 'active' : ''}`}
-            onClick={() => handleNavigate('connections')}
+          <NavLink
+            to="/connections"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            onClick={() => closeMobileMenu()}
             style={{ position: 'relative' }}
           >
             <UserPlus size={18} style={{ marginRight: '0.5rem' }} />
@@ -160,7 +176,7 @@ export default function Navigation({ currentView, onNavigate }: NavigationProps)
             {pendingConnectionsCount > 0 && (
               <span className="nav-link-badge">{pendingConnectionsCount > 99 ? '99+' : pendingConnectionsCount}</span>
             )}
-          </button>
+          </NavLink>
         </div>
         
         {user && (

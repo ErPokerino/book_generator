@@ -1,15 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
 import { SkeletonBox, SkeletonText, SkeletonChapter } from './Skeleton';
 import { useToast } from '../hooks/useToast';
 import './BookReader.css';
 
-interface BookReaderProps {
-  sessionId: string;
-  onClose: () => void;
-}
-
-export default function BookReader({ sessionId, onClose }: BookReaderProps) {
+export default function BookReader() {
+  const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
+  
+  if (!sessionId) {
+    navigate('/library');
+    return null;
+  }
+  
+  const handleClose = () => {
+    navigate('/library');
+  };
   const toast = useToast();
   const [book, setBook] = useState<BookResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,7 +134,7 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
           if (isFullscreen) {
             toggleFullscreen();
           } else {
-            onClose();
+            handleClose();
           }
           break;
         case 'f':
@@ -142,7 +149,7 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [book, currentChapterIndex, isFullscreen, onClose, goToPreviousChapter, goToNextChapter]);
+  }, [book, currentChapterIndex, isFullscreen, handleClose, goToPreviousChapter, goToNextChapter]);
 
   if (loading) {
     return (
@@ -168,7 +175,7 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
         <div className="reader-error">
           <span className="error-icon">⚠️</span>
           <p>{error || 'Libro non trovato'}</p>
-          <button onClick={onClose} className="back-btn">
+          <button onClick={handleClose} className="back-btn">
             ← Torna alla Libreria
           </button>
         </div>
@@ -188,7 +195,7 @@ export default function BookReader({ sessionId, onClose }: BookReaderProps) {
       {/* Header */}
       <header className="reader-header">
         <div className="header-left">
-          <button onClick={onClose} className="close-btn" title="Chiudi (Esc)">
+          <button onClick={handleClose} className="close-btn" title="Chiudi (Esc)">
             ← Chiudi
           </button>
           <div className="book-info">

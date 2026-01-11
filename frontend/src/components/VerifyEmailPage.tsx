@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { checkVerificationToken, verifyEmail } from '../api/client';
 import './LoginPage.css';
 
-interface VerifyEmailPageProps {
-  token: string;
-  onNavigateToLogin?: () => void;
-}
-
 type VerificationStatus = 'loading' | 'ready' | 'verifying' | 'success' | 'already_verified' | 'error';
 
-export default function VerifyEmailPage({ token, onNavigateToLogin }: VerifyEmailPageProps) {
+export default function VerifyEmailPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
   const [status, setStatus] = useState<VerificationStatus>('loading');
   const [message, setMessage] = useState('');
   const [verifiedEmail, setVerifiedEmail] = useState('');
@@ -166,7 +165,7 @@ export default function VerifyEmailPage({ token, onNavigateToLogin }: VerifyEmai
           {(status === 'success' || status === 'already_verified' || status === 'error') && (
             <button
               type="button"
-              onClick={onNavigateToLogin}
+              onClick={() => navigate('/login')}
               className="auth-submit-button"
               style={{ width: '100%' }}
             >

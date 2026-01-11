@@ -1,15 +1,18 @@
 import { useState, FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { resetPassword } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './ForgotPasswordPage.css'; // Riusa gli stessi stili
 
-interface ResetPasswordPageProps {
-  token: string;
-  onNavigateToLogin: () => void;
-  onSuccess: () => void;
-}
-
-export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess }: ResetPasswordPageProps) {
+export default function ResetPasswordPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+  
+  if (!token) {
+    navigate('/forgot-password');
+    return null;
+  }
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,7 +39,7 @@ export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess 
     try {
       await resetPassword(token, password);
       toast.success('Password aggiornata con successo!');
-      onSuccess();
+      navigate('/login');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nel reset della password');
     } finally {
@@ -163,7 +166,7 @@ export default function ResetPasswordPage({ token, onNavigateToLogin, onSuccess 
           <div className="auth-links">
             <button
               type="button"
-              onClick={onNavigateToLogin}
+              onClick={() => navigate('/login')}
               className="auth-link-button"
               disabled={isLoading}
             >

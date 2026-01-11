@@ -1,14 +1,13 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { register as registerApi } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './RegisterPage.css';
 
-interface RegisterPageProps {
-  onNavigateToLogin?: () => void;
-  referralToken?: string;  // Token referral dall'URL (?ref=xxx)
-}
-
-export default function RegisterPage({ onNavigateToLogin, referralToken }: RegisterPageProps) {
+export default function RegisterPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const referralToken = searchParams.get('ref') || undefined;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,18 +18,6 @@ export default function RegisterPage({ onNavigateToLogin, referralToken }: Regis
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const toast = useToast();
-  
-  // Se c'è un referral token nell'URL, leggerlo anche da lì (backup)
-  useEffect(() => {
-    if (!referralToken) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const ref = urlParams.get('ref');
-      if (ref) {
-        // Il token referral sarà usato durante la registrazione
-        // Non serve salvarlo in state separato, lo passeremo direttamente
-      }
-    }
-  }, [referralToken]);
 
   const validateForm = (): boolean => {
     if (password.length < 8) {
@@ -56,23 +43,18 @@ export default function RegisterPage({ onNavigateToLogin, referralToken }: Regis
     setIsLoading(true);
 
     try {
-      // Leggi referral token da prop o da URL (priorità alla prop)
-      const urlParams = new URLSearchParams(window.location.search);
-      const refToken = referralToken || urlParams.get('ref') || undefined;
-      
-      // Se c'è un ref_token, pulisci l'URL dopo averlo letto
-      if (refToken && !referralToken) {
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('ref');
-        window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
-      }
-      
       const result = await registerApi({ 
         email, 
         password, 
         name,
-        ref_token: refToken,  // Passa il referral token per tracking
+        ref_token: referralToken,  // Passa il referral token per tracking
       });
+      
+      // Pulisci il token referral dall'URL dopo la registrazione
+      if (referralToken) {
+        searchParams.delete('ref');
+        navigate(`/register?${searchParams.toString()}`, { replace: true });
+      }
       
       if (result.requires_verification) {
         setRegisteredEmail(result.email);
@@ -113,7 +95,7 @@ export default function RegisterPage({ onNavigateToLogin, referralToken }: Regis
             <span>Hai già verificato?</span>
             <button
               type="button"
-              onClick={onNavigateToLogin}
+              onClick={() => navigate('/login')}
               className="auth-link-button"
             >
               Vai al login
@@ -266,7 +248,7 @@ export default function RegisterPage({ onNavigateToLogin, referralToken }: Regis
             <span>Hai già un account?</span>
             <button
               type="button"
-              onClick={onNavigateToLogin}
+              onClick={() => navigate('/login')}
               className="auth-link-button"
               disabled={isLoading}
             >

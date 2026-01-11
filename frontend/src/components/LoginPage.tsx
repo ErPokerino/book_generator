@@ -1,15 +1,14 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { resendVerification } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './LoginPage.css';
 
-interface LoginPageProps {
-  onNavigateToRegister?: () => void;
-  onNavigateToForgotPassword?: () => void;
-}
-
-export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPassword }: LoginPageProps) {
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: Location })?.from?.pathname || '/new';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -17,8 +16,15 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
   const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const toast = useToast();
+
+  // Redirect dopo login se autenticato
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,7 +34,7 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
 
     try {
       await login(email, password);
-      // Il redirect viene gestito da App.tsx quando isAuthenticated diventa true
+      // Il redirect viene gestito da useEffect quando isAuthenticated diventa true
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore durante il login';
       // Controlla se è l'errore specifico di email non verificata
@@ -158,7 +164,7 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
           <div className="auth-links">
             <button
               type="button"
-              onClick={onNavigateToForgotPassword}
+              onClick={() => navigate('/forgot-password')}
               className="auth-link-button"
               disabled={isLoading}
             >
@@ -167,7 +173,7 @@ export default function LoginPage({ onNavigateToRegister, onNavigateToForgotPass
             <span className="auth-divider">•</span>
             <button
               type="button"
-              onClick={onNavigateToRegister}
+              onClick={() => navigate('/register')}
               className="auth-link-button"
               disabled={isLoading}
             >
