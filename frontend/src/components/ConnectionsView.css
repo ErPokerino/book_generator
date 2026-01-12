@@ -5,12 +5,12 @@
 .connections-view {
   max-width: 900px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2.5rem;
   animation: fadeIn 0.3s ease;
 }
 
 .connections-header {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
   text-align: center;
 }
 
@@ -33,7 +33,7 @@
 .connections-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
   border-bottom: 2px solid var(--border-light, #e5e7eb);
   position: relative;
 }
@@ -115,13 +115,17 @@
   color: var(--text-primary, #1f2937);
   font-size: 0.95rem;
   font-family: 'Outfit', sans-serif;
-  transition: all var(--transition-fast, 0.15s ease);
+  transition: 
+    border-color var(--transition-fast),
+    box-shadow 0.2s ease-out;
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--accent, #3b82f6);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 
+    0 0 0 var(--focus-glow-spread) rgba(59, 130, 246, 0.15),
+    var(--shadow-sm);
 }
 
 .search-button {
@@ -133,15 +137,23 @@
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast, 0.15s ease);
+  transition: 
+    transform var(--transition-spring),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-smooth);
   font-family: 'Outfit', sans-serif;
   white-space: nowrap;
 }
 
 .search-button:hover:not(:disabled) {
   background: var(--accent-hover, #2563eb);
-  transform: translateY(-1px);
+  transform: translateY(var(--btn-hover-lift)) scale(var(--btn-hover-scale));
   box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
+}
+
+.search-button:active:not(:disabled) {
+  transform: scale(var(--btn-active-scale));
+  transition-duration: 0.1s;
 }
 
 .search-button:disabled {
@@ -155,16 +167,16 @@
 }
 
 .user-card {
-  padding: 1.5rem;
+  padding: 1.75rem;
   background: var(--surface, #ffffff);
   border: 1px solid var(--border-light, #e5e7eb);
   border-radius: var(--radius-lg, 0.75rem);
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+  box-shadow: var(--shadow-card);
   transition: all var(--transition-smooth, 0.2s ease);
 }
 
 .user-card:hover {
-  box-shadow: var(--shadow-md, 0 4px 6px rgba(0, 0, 0, 0.1));
+  box-shadow: var(--shadow-card-hover);
   border-color: var(--border, #d1d5db);
 }
 

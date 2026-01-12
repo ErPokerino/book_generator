@@ -20,6 +20,7 @@ import {
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import PageTransition from './ui/PageTransition';
 import './ConnectionsView.css';
 
 type TabType = 'search' | 'pending' | 'connections' | 'invite';
@@ -235,13 +236,14 @@ export default function ConnectionsView() {
   const outgoingPending = pendingConnections.filter(c => c.from_user_id === user?.id);
 
   return (
-    <div className="connections-view">
-      <div className="connections-header">
-        <h2>La tua rete</h2>
-        <p className="connections-subtitle">Trova altri scrittori, condividi libri e collabora</p>
-      </div>
+    <PageTransition>
+      <div className="connections-view">
+        <div className="connections-header">
+          <h2>La tua rete</h2>
+          <p className="connections-subtitle">Trova altri scrittori, condividi libri e collabora</p>
+        </div>
 
-      {/* Tabs */}
+        {/* Tabs */}
       <div className="connections-tabs">
         <button
           className={`connections-tab ${activeTab === 'search' ? 'active' : ''}`}
@@ -613,8 +615,9 @@ export default function ConnectionsView() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }
 

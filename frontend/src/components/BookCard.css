@@ -4,23 +4,28 @@
 
 .book-card {
   display: flex;
-  gap: 1.25rem;
-  padding: 1.5rem;
+  gap: 1.5rem;
+  padding: 1.75rem;
   background-color: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
   min-height: 250px; /* Altezza minima per prevenire layout shift */
   transition: 
     transform var(--transition-smooth),
     box-shadow var(--transition-smooth),
     border-color var(--transition-smooth);
-  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Stagger animation for cards not using framer-motion */
+.book-card.animate-stagger {
+  animation: cardEntrance 0.4s ease-out backwards;
+  animation-delay: calc(var(--card-index, 0) * var(--card-stagger-delay, 50ms));
 }
 
 .book-card:hover {
   transform: translateY(-4px);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-card-hover);
   border-color: var(--border);
 }
 
@@ -138,7 +143,7 @@
 .book-card-info {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.625rem;
   font-size: 0.9rem;
   color: var(--text-secondary);
   transition: all var(--transition-smooth);
@@ -324,7 +329,7 @@
   background: var(--surface, #ffffff);
   border: 1px solid var(--border-light, #e5e7eb);
   border-radius: var(--radius-md, 0.5rem);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-modal);
   z-index: 99999;
   min-width: 200px;
   max-width: 280px;

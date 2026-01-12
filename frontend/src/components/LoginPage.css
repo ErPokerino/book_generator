@@ -78,7 +78,9 @@
   border-radius: var(--radius-md);
   font-size: 1rem;
   font-family: inherit;
-  transition: all var(--transition-fast);
+  transition: 
+    border-color var(--transition-fast),
+    box-shadow 0.2s ease-out;
   background: var(--surface);
   color: var(--text-primary);
   width: 100%;
@@ -96,7 +98,9 @@
 .auth-field input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-light);
+  box-shadow: 
+    0 0 0 var(--focus-glow-spread) rgba(201, 72, 91, var(--focus-glow-opacity)),
+    var(--shadow-sm);
 }
 
 .auth-field input:disabled {
@@ -150,7 +154,10 @@
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-smooth);
+  transition: 
+    transform var(--transition-spring),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-smooth);
   margin-top: 0.5rem;
   box-shadow: 0 2px 8px rgba(201, 72, 91, 0.2);
   letter-spacing: 0.01em;
@@ -158,12 +165,13 @@
 
 .auth-submit-button:hover:not(:disabled) {
   background: var(--accent-hover);
-  transform: translateY(-1px);
+  transform: translateY(var(--btn-hover-lift)) scale(var(--btn-hover-scale));
   box-shadow: 0 4px 12px rgba(201, 72, 91, 0.3);
 }
 
 .auth-submit-button:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(var(--btn-active-scale));
+  transition-duration: 0.1s;
 }
 
 .auth-submit-button:disabled {

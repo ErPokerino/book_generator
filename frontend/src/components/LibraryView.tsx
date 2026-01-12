@@ -15,6 +15,7 @@ import CritiqueModal from './CritiqueModal';
 import ShareBookModal from './ShareBookModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
+import PageTransition from './ui/PageTransition';
 import './LibraryView.css';
 
 export default function LibraryView() {
@@ -284,18 +285,19 @@ export default function LibraryView() {
   }
 
   return (
-    <div className="library-view">
-      <FilterBar
-        onFiltersChange={handleFiltersChange}
-        availableModes={availableModes}
-        availableGenres={availableGenres}
-      />
+    <PageTransition>
+      <div className="library-view">
+        <FilterBar
+          onFiltersChange={handleFiltersChange}
+          availableModes={availableModes}
+          availableGenres={availableGenres}
+        />
 
-      {refreshing && (
-        <div className="refreshing-indicator">
-          <span>Aggiornamento in corso...</span>
-        </div>
-      )}
+        {refreshing && (
+          <div className="refreshing-indicator">
+            <span>Aggiornamento in corso...</span>
+          </div>
+        )}
 
       {/* Separare libri propri da libri condivisi */}
       {(() => {
@@ -440,6 +442,7 @@ export default function LibraryView() {
           onSuccess={handleShareSuccess}
         />
       )}
-    </div>
+      </div>
+    </PageTransition>
   );
 }

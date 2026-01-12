@@ -11,6 +11,7 @@ import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
 import AlertModal from './AlertModal';
 import PlotTextarea from './PlotTextarea';
+import PageTransition from './ui/PageTransition';
 import { FlashIcon, ProIcon, UltraIcon } from './ui/icons/ModeIcons';
 import './DynamicForm.css';
 
@@ -1171,14 +1172,15 @@ export default function DynamicForm() {
 
 
   return (
-    <div className="dynamic-form-layout">
-      <div className="step-indicator-wrapper">
-        <StepIndicator currentStep={currentStep} />
-      </div>
-      <div className="dynamic-form-main-content">
-        <div className="dynamic-form-container">
-          <h1>NarrAI</h1>
-          <p className="subtitle">La tua storia, generata con l'AI</p>
+    <PageTransition>
+      <div className="dynamic-form-layout">
+        <div className="step-indicator-wrapper">
+          <StepIndicator currentStep={currentStep} />
+        </div>
+        <div className="dynamic-form-main-content">
+          <div className="dynamic-form-container">
+            <h1>NarrAI</h1>
+            <p className="subtitle">La tua storia, generata con l'AI</p>
           
           {loading ? (
             <div className="form-loading-skeleton" role="status" aria-label="Caricamento configurazione">
@@ -1250,10 +1252,10 @@ export default function DynamicForm() {
               <p>Nessun campo disponibile nella configurazione.</p>
             </div>
           ) : null}
+          </div>
         </div>
       </div>
-
-    </div>
+    </PageTransition>
   );
 }
 

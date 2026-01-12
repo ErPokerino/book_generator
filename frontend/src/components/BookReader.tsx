@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
 import { SkeletonBox, SkeletonText, SkeletonChapter } from './Skeleton';
 import { useToast } from '../hooks/useToast';
+import PageTransition from './ui/PageTransition';
 import './BookReader.css';
 
 export default function BookReader() {
@@ -191,13 +192,14 @@ export default function BookReader() {
     : ((currentChapterIndex + 1) / book.chapters.length) * 100;
 
   return (
-    <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
-      {/* Header */}
-      <header className="reader-header">
-        <div className="header-left">
-          <button onClick={handleClose} className="close-btn" title="Chiudi (Esc)">
-            ← Chiudi
-          </button>
+    <PageTransition>
+      <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
+        {/* Header */}
+        <header className="reader-header">
+          <div className="header-left">
+            <button onClick={handleClose} className="close-btn" title="Chiudi (Esc)">
+              ← Chiudi
+            </button>
           <div className="book-info">
             <h1 className="book-title">{book.title}</h1>
             <span className="book-author">di {book.author}</span>
@@ -314,9 +316,9 @@ export default function BookReader() {
         >
           {isShowingCover ? 'Primo capitolo →' : 'Capitolo successivo →'}
         </button>
-      </footer>
-
-    </div>
+        </footer>
+      </div>
+    </PageTransition>
   );
 }
 
