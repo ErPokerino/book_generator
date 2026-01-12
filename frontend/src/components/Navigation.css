@@ -31,8 +31,24 @@
 .nav-brand {
   flex-shrink: 0; /* Previene che il logo si rimpicciolisca */
   margin-right: auto; /* Spinge il logo a sinistra */
+  display: flex;
+  align-items: center;
 }
 
+.nav-logo {
+  height: 52px;
+  width: auto;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.2));
+  transition: transform var(--transition-fast), filter var(--transition-fast);
+}
+
+.nav-logo:hover {
+  transform: scale(1.02);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+/* Legacy h1 for fallback */
 .nav-brand h1 {
   margin: 0;
   font-size: 1.6rem;
@@ -221,6 +237,10 @@
 
   .nav-brand {
     margin-right: 0;
+  }
+
+  .nav-logo {
+    height: 44px;
   }
 
   .nav-brand h1 {

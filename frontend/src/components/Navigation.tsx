@@ -66,7 +66,11 @@ export default function Navigation() {
   return (
     <nav className="main-navigation">
       <div className="nav-brand">
-        <h1>📚 NarrAI</h1>
+        <img 
+          src="/logo-narrai.png" 
+          alt="NarrAI" 
+          className="nav-logo"
+        />
       </div>
       
       {/* Desktop Navigation Links */}
