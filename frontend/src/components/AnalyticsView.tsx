@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLibraryStats, getAdvancedStats, getUsersStats, LibraryStats, AdvancedStats, UsersStats } from '../api/client';
+import { getLibraryStats, getAdvancedStats, getUsersStats, deleteUserAdmin, LibraryStats, AdvancedStats, UsersStats } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
 import { SkeletonBox, SkeletonText, SkeletonChart } from './Skeleton';
@@ -22,6 +22,26 @@ export default function AnalyticsView() {
   const [advancedStats, setAdvancedStats] = useState<AdvancedStats | null>(null);
   const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
+
+  const handleDeleteUser = async (email: string, name: string) => {
+    if (!confirm(`Sei sicuro di voler eliminare l'utente "${name}" (${email})?\n\nQuesta azione è irreversibile.`)) {
+      return;
+    }
+    
+    setDeletingUser(email);
+    try {
+      await deleteUserAdmin(email);
+      toast.success(`Utente ${email} eliminato con successo`);
+      // Ricarica le statistiche utenti
+      const usersData = await getUsersStats();
+      setUsersStats(usersData);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore nell\'eliminazione dell\'utente');
+    } finally {
+      setDeletingUser(null);
+    }
+  };
 
   useEffect(() => {
     const loadStats = async () => {
@@ -325,6 +345,12 @@ export default function AnalyticsView() {
                       fontWeight: 600,
                       color: 'var(--text-primary)',
                     }}>Libri Generati</th>
+                    <th style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}>Azioni</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -350,6 +376,38 @@ export default function AnalyticsView() {
                         fontWeight: 600,
                         color: 'var(--accent)',
                       }}>{user.books_count}</td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        textAlign: 'center',
+                      }}>
+                        <button
+                          onClick={() => handleDeleteUser(user.email, user.name)}
+                          disabled={deletingUser === user.email}
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            background: deletingUser === user.email ? 'var(--text-muted)' : '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: deletingUser === user.email ? 'not-allowed' : 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 500,
+                            transition: 'background 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (deletingUser !== user.email) {
+                              e.currentTarget.style.background = '#c82333';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (deletingUser !== user.email) {
+                              e.currentTarget.style.background = '#dc3545';
+                            }
+                          }}
+                        >
+                          {deletingUser === user.email ? '...' : '🗑️ Elimina'}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

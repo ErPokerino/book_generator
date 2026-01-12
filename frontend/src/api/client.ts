@@ -1151,6 +1151,26 @@ export async function getUsersStats(): Promise<UsersStats> {
   }
 }
 
+export async function deleteUserAdmin(email: string): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Errore nell'eliminazione dell'utente: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Ignora errori di parsing
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return await response.json();
+}
+
 export async function deleteBook(sessionId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/library/${sessionId}`, {
     method: 'DELETE',
