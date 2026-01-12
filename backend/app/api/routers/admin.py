@@ -138,7 +138,9 @@ async def get_users_stats_endpoint(
             print(f"[USERS STATS] Errore nel salvare cache: {e}", file=sys.stderr)
         
         return result
-    
+    except HTTPException:
+        # Mantieni status code originali (es. 401/403) invece di convertirli in 500
+        raise
     except Exception as e:
         print(f"[USERS STATS] Errore nel calcolo statistiche utenti: {e}")
         import traceback
@@ -146,6 +148,51 @@ async def get_users_stats_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel calcolo delle statistiche utenti: {str(e)}"
+        )
+
+
+@router.delete("/users/{email}")
+async def delete_user_endpoint(
+    email: str,
+    current_user = Depends(require_admin),
+):
+    """Elimina un utente per email (solo admin)."""
+    try:
+        user_store = get_user_store()
+        
+        if user_store.client is None or user_store.users_collection is None:
+            await user_store.connect()
+        
+        # Non permettere di eliminare se stessi
+        if current_user.email.lower() == email.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Non puoi eliminare il tuo stesso account"
+            )
+        
+        deleted = await user_store.delete_user_by_email(email)
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Utente con email {email} non trovato"
+            )
+        
+        # Invalida la cache delle statistiche utenti
+        from app.services.stats_service import set_cached_stats
+        set_cached_stats("admin_users_stats", None)
+        
+        return {"success": True, "message": f"Utente {email} eliminato con successo"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[DELETE USER] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'eliminazione dell'utente: {str(e)}"
         )
 
 

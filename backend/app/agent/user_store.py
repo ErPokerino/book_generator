@@ -254,13 +254,34 @@ class UserStore:
         # Assicurati che la connessione sia attiva
         if self.client is None or self.users_collection is None:
             await self.connect()
-        
+
         cursor = self.users_collection.find().skip(skip).limit(limit).sort("created_at", -1)
         users = []
         async for doc in cursor:
             users.append(self._doc_to_user(doc))
         return users
-    
+
+    async def delete_user_by_email(self, email: str) -> bool:
+        """
+        Elimina un utente per email (per admin).
+        
+        Args:
+            email: Email dell'utente da eliminare
+        
+        Returns:
+            True se l'utente è stato eliminato, False se non trovato
+        """
+        if self.client is None or self.users_collection is None:
+            await self.connect()
+        
+        result = await self.users_collection.delete_one({"email": email.lower().strip()})
+        deleted = result.deleted_count > 0
+        if deleted:
+            print(f"[UserStore] Utente eliminato: {email}", file=sys.stderr)
+        else:
+            print(f"[UserStore] Utente non trovato per eliminazione: {email}", file=sys.stderr)
+        return deleted
+
     async def update_user(self, user_id: str, updates: dict) -> bool:
         """
         Aggiorna utente.

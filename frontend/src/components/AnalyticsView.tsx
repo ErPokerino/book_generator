@@ -63,6 +63,38 @@ export default function AnalyticsView() {
     }));
   };
 
+  const exportUsersToCSV = () => {
+    if (!usersStats || !usersStats.users_with_books) {
+      toast.error('Nessun dato utente disponibile');
+      return;
+    }
+
+    const headers = ['Nome', 'Email', 'Libri Generati'];
+    const rows = usersStats.users_with_books.map(user => [
+      user.name || 'N/A',
+      user.email || 'N/A',
+      user.books_count.toString()
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `utenti_narrai_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success('CSV esportato con successo');
+  };
+
   if (loading) {
     return (
       <div className="analytics-view">
@@ -222,7 +254,7 @@ export default function AnalyticsView() {
       {usersStats && (
         <section className="analytics-section">
           <h2 className="section-title">Statistiche Utenti</h2>
-          <div style={{ marginBottom: '2rem' }}>
+          <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <div style={{
               display: 'inline-block',
               padding: '1rem 2rem',
@@ -234,6 +266,33 @@ export default function AnalyticsView() {
             }}>
               👥 Totale Utenti: {usersStats.total_users}
             </div>
+            <button
+              onClick={exportUsersToCSV}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                transition: 'background 0.2s ease, transform 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--accent-hover)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--accent)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              📥 Esporta CSV
+            </button>
           </div>
           
           {usersStats.users_with_books.length > 0 && (
