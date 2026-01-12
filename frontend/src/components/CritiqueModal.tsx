@@ -122,7 +122,7 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
                   className="score-value"
                   style={{ color: getScoreColor(critique.score) }}
                 >
-                  {critique.score.toFixed(1)}/10
+                  {critique.score.toFixed(1)}
                 </span>
               </div>
               

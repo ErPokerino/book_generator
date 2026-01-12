@@ -16,6 +16,25 @@
 
 /* Touch Target Optimization for Mobile */
 @media (max-width: 768px) {
+  /* Su mobile, limita altezza per non andare sotto la bottom navigation */
+  .App {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height per browser moderni */
+    min-height: auto;
+    overflow: hidden; /* Scroll gestito solo da app-main */
+  }
+  
+  .app-main {
+    /* Altezza = viewport - header (circa 60px) - bottom nav (60px + safe area) */
+    flex: 1;
+    max-height: calc(100dvh - 60px - 60px - var(--safe-area-inset-bottom));
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: calc(20px + var(--safe-area-inset-bottom));
+    /* Scrollbar non va oltre il contenitore */
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Assicura che tutti i bottoni abbiano almeno 44px di touch target */
   button {
     touch-action: manipulation;
@@ -33,11 +52,6 @@
   .nav-menu-toggle {
     min-height: 44px;
     min-width: 44px;
-  }
-
-  /* Padding bottom per non essere coperto dalla bottom navigation */
-  .app-main {
-    padding-bottom: calc(80px + var(--safe-area-inset-bottom));
   }
 }
 

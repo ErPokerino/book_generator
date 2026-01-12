@@ -68,7 +68,7 @@ export default function Dashboard({ stats }: DashboardProps) {
           <div className="stat-label">Voto Medio</div>
           <div className="stat-value">
             {stats.average_score !== null && stats.average_score !== undefined 
-              ? `${stats.average_score.toFixed(1)}/10`
+              ? stats.average_score.toFixed(1)
               : 'N/A'}
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function Dashboard({ stats }: DashboardProps) {
                         width: `${(avgScore / 10) * 100}%` 
                       }}
                     >
-                      {avgScore.toFixed(1)}/10
+                      {avgScore.toFixed(1)}
                     </div>
                   </div>
                 </div>

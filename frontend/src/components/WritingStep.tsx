@@ -226,20 +226,32 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
 
       <div className="progress-container">
         <div className="progress-info">
-          <span className="progress-text">
-            {critiqueFailed
-              ? 'Valutazione critica fallita'
-              : critiqueInProgress
-              ? 'Generazione valutazione critica in corso...'
-              : progress.is_complete && hasCritique
-              ? `Completato: ${progress.total_steps} sezioni scritte`
-              : progress.current_section_name
-                ? `Scrittura in corso: ${progress.current_section_name}...`
-                : 'Preparazione...'}
-          </span>
-          <span className="progress-percentage">
-            {currentStep} / {totalSteps}
-          </span>
+          <div className="progress-status">
+            <span className="progress-label">
+              {critiqueFailed
+                ? 'Valutazione critica fallita'
+                : critiqueInProgress
+                ? 'Generazione valutazione critica in corso...'
+                : progress.is_complete && hasCritique
+                ? 'Completato'
+                : progress.current_section_name
+                  ? 'Scrittura in corso'
+                  : 'Preparazione...'}
+            </span>
+            <span className="progress-counter">
+              {currentStep} / {totalSteps}
+            </span>
+          </div>
+          {progress.current_section_name && !progress.is_complete && !critiqueInProgress && !critiqueFailed && (
+            <div className="progress-chapter-name">
+              {progress.current_section_name}
+            </div>
+          )}
+          {progress.is_complete && hasCritique && (
+            <div className="progress-chapter-name">
+              {progress.total_steps} sezioni scritte
+            </div>
+          )}
         </div>
         
         <ProgressBar percentage={progressPercentage} />
@@ -452,10 +464,10 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
               <div className="critique-score">
                 <span className="score-label">Valutazione:</span>
                 <span 
-                  className="score-value"
+                  className="critique-score-value"
                   style={{ color: getScoreColor(progress.critique.score) }}
                 >
-                  {progress.critique.score.toFixed(1)}/10
+                  {progress.critique.score.toFixed(1)}
                 </span>
               </div>
               {progress.critique.summary && (

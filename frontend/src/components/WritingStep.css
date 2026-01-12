@@ -30,11 +30,44 @@
 
 .progress-info {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
 }
 
+.progress-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #213547;
+}
+
+.progress-counter {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #666;
+  background: rgba(100, 108, 255, 0.1);
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.progress-chapter-name {
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.4;
+  padding-left: 0;
+  word-break: break-word;
+}
+
+/* Legacy classes for compatibility */
 .progress-text {
   font-size: 1.1rem;
   font-weight: 500;
@@ -284,23 +317,28 @@
 .critique-score {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
-  padding: 0.75rem;
+  padding: 0.75rem 1rem;
   background-color: #fff;
-  border-radius: 4px;
+  border-radius: 8px;
   border: 1px solid #ddd;
+  overflow: hidden;
+  max-width: 100%;
 }
 
-.score-label {
+.critique-section .score-label {
   font-weight: 500;
   color: #666;
+  flex-shrink: 0;
 }
 
-.score-value {
-  font-size: 1.1rem;
+.critique-section .critique-score-value {
+  font-size: 1.8rem;
   font-weight: bold;
   /* Color applied dynamically via inline style */
+  flex-shrink: 0;
 }
 
 .critique-summary,

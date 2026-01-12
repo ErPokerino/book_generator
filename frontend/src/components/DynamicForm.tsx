@@ -74,15 +74,17 @@ export default function DynamicForm() {
     }
   }, []);
 
-  // Carica crediti utente quando autenticato
+  // Carica crediti utente quando autenticato o quando si torna al form
   useEffect(() => {
     const loadUserCredits = async () => {
       if (user) {
         try {
+          console.log('[DynamicForm] Caricamento crediti utente...');
           const creditsResponse = await getUserCredits();
           if (creditsResponse) {
             setUserCredits(creditsResponse.credits);
             setNextCreditsReset(creditsResponse.next_reset_at);
+            console.log('[DynamicForm] Crediti caricati:', creditsResponse.credits);
           }
         } catch (err) {
           console.warn('[DynamicForm] Errore nel caricamento crediti:', err);
@@ -93,8 +95,12 @@ export default function DynamicForm() {
         setNextCreditsReset(null);
       }
     };
-    loadUserCredits();
-  }, [user]);
+    // Carica i crediti quando l'utente cambia o quando si torna alla pagina form
+    // Questo assicura che i crediti siano sempre aggiornati quando si inizia un nuovo libro
+    if (currentStep === 'form') {
+      loadUserCredits();
+    }
+  }, [user, currentStep]);
 
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {

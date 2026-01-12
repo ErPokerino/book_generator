@@ -31,7 +31,8 @@ load_dotenv(backend_dir.parent / ".env")
 
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_all_sessions_async
-from app.main import get_generation_method, calculate_page_count
+from app.utils.stats_utils import get_generation_method
+from app.services.stats_service import calculate_page_count
 
 
 async def export_chapter_timings():

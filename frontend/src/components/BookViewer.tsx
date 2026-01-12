@@ -183,7 +183,7 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
           <h3>📚 Valutazione Critica</h3>
           <div className="critique-score">
             <span className="score-label">Valutazione:</span>
-            <span className="score-value">{book.critique.score.toFixed(1)}/10</span>
+            <span className="score-value">{book.critique.score.toFixed(1)}</span>
           </div>
           {book.critique.summary && (
             <div className="critique-summary">

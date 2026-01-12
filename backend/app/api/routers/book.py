@@ -157,7 +157,7 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
         
         current_model = session.form_data.llm_model if session and session.form_data else None
         
-        from app.analytics.estimate_linear_params import get_generation_method, get_linear_params_for_method, calculate_residual_time_linear
+        from app.utils.stats_utils import get_generation_method, get_linear_params_for_method, calculate_residual_time_linear
         method = get_generation_method(current_model)
         a, b = get_linear_params_for_method(method, app_config)
         

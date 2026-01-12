@@ -28,7 +28,7 @@ load_dotenv(backend_dir.parent / ".env")
 
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_all_sessions_async
-from app.main import get_generation_method, estimate_linear_params_from_history
+from app.utils.stats_utils import get_generation_method, estimate_linear_params_from_history
 from app.core.config import get_app_config
 
 

@@ -81,22 +81,26 @@ def create_reset_token() -> str:
 @router.post("/register")
 async def register(request: RegisterRequest):
     """Registrazione nuovo utente con invio email di verifica e tracking referral."""
-    user_store = get_user_store()
-    email_service = get_email_service()
-    
-    # Verifica email già esistente
-    existing_user = await user_store.get_user_by_email(request.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email già registrata",
-        )
-    
-    # Hash password
-    password_hash = hash_password(request.password)
-    
-    # Crea utente (non verificato)
     try:
+        user_store = get_user_store()
+        email_service = get_email_service()
+
+        # Assicurati che user_store sia connesso (reload/dev può lasciare la collection None)
+        if user_store.client is None or user_store.users_collection is None:
+            await user_store.connect()
+
+        # Verifica email già esistente
+        existing_user = await user_store.get_user_by_email(request.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email già registrata",
+            )
+
+        # Hash password
+        password_hash = hash_password(request.password)
+
+        # Crea utente (non verificato)
         user = await user_store.create_user(
             email=request.email,
             password_hash=password_hash,
@@ -163,6 +167,8 @@ async def register(request: RegisterRequest):
         
         return response_data
         
+    except HTTPException:
+        raise
     except ValueError as e:
         print(f"[AUTH ERROR] ValueError in register: {e}", file=sys.stderr)
         raise HTTPException(
@@ -462,6 +468,8 @@ async def verify_email(request: VerifyEmailRequest):
     Questo endpoint invalida il token e marca l'utente come verificato.
     """
     user_store = get_user_store()
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     if not request.token:
         raise HTTPException(
@@ -492,6 +500,9 @@ async def resend_verification(request: ResendVerificationRequest):
     """Reinvia email di verifica."""
     user_store = get_user_store()
     email_service = get_email_service()
+
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     # Recupera utente
     user = await user_store.get_user_by_email(request.email)
@@ -537,6 +548,9 @@ async def resend_verification(request: ResendVerificationRequest):
 async def forgot_password(request: ForgotPasswordRequest):
     """Richiesta reset password."""
     user_store = get_user_store()
+
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     user = await user_store.get_user_by_email(request.email)
     if not user:
@@ -583,6 +597,9 @@ async def forgot_password(request: ForgotPasswordRequest):
 async def reset_password(request: ResetPasswordRequest):
     """Reset password con token."""
     user_store = get_user_store()
+
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     # Verifica token
     user = await user_store.verify_reset_token(request.token)
@@ -622,6 +639,9 @@ async def update_user_role(
         request: Richiesta con nuovo ruolo (user o admin)
     """
     user_store = get_user_store()
+
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     # Verifica che l'utente esista
     target_user = await user_store.get_user_by_id(user_id)
@@ -670,6 +690,9 @@ async def get_user_by_email_endpoint(
     Utile per trovare user_id prima di modificare il ruolo.
     """
     user_store = get_user_store()
+
+    if user_store.client is None or user_store.users_collection is None:
+        await user_store.connect()
     
     user = await user_store.get_user_by_email(email)
     if not user:

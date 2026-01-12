@@ -215,7 +215,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
                   className="score-value" 
                   style={{ color: getScoreColor(book.critique_score) }}
                 >
-                  {book.critique_score.toFixed(1)}/10
+                  {book.critique_score.toFixed(1)}
                 </span>
               </p>
             )}

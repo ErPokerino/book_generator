@@ -209,6 +209,32 @@ class BookShareStore:
             return True
         return False
     
+    async def get_shares_by_book(self, book_session_id: str) -> List[BookShare]:
+        """
+        Recupera tutte le condivisioni attive (accepted) per un libro.
+        
+        Args:
+            book_session_id: ID sessione del libro
+        
+        Returns:
+            Lista di condivisioni attive per il libro
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            cursor = self.shares_collection.find({
+                "book_session_id": book_session_id,
+                "status": "accepted"
+            })
+            shares = []
+            async for doc in cursor:
+                shares.append(self._doc_to_share(doc))
+            return shares
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE nel recupero condivisioni per libro {book_session_id}: {e}", file=sys.stderr)
+            return []
+    
     async def get_user_shared_books(
         self,
         user_id: str,

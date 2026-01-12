@@ -212,6 +212,10 @@ La copertina deve essere:
             for idx, part in enumerate(parts_to_process):
                 print(f"[COVER GENERATOR] Analizzando part {idx}, tipo: {type(part).__name__}")
                 
+                # Log dettagliato degli attributi disponibili per debug
+                part_attrs = [a for a in dir(part) if not a.startswith('_')]
+                print(f"[COVER GENERATOR] Attributi part {idx}: {part_attrs}")
+                
                 # Metodo 1: inline_data (snake_case)
                 if hasattr(part, 'inline_data') and part.inline_data is not None:
                     print(f"[COVER GENERATOR] Trovato inline_data (snake_case), mime_type: {getattr(part.inline_data, 'mime_type', 'N/A')}")
@@ -264,7 +268,103 @@ La copertina deve essere:
                             print(f"[COVER GENERATOR] Errore nel caricamento PIL Image: {load_error}")
                             continue
                 
-                # Metodo 3: text con data URI
+                # Metodo 3: image attribute diretto (nuova API Gemini 3)
+                if hasattr(part, 'image') and part.image is not None:
+                    print(f"[COVER GENERATOR] Trovato attributo 'image' diretto")
+                    try:
+                        image_obj = part.image
+                        print(f"[COVER GENERATOR] Tipo image: {type(image_obj)}")
+                        
+                        # L'immagine potrebbe essere già un oggetto PIL o avere attributi specifici
+                        if isinstance(image_obj, PILImage.Image):
+                            pil_image = image_obj
+                            print(f"[COVER GENERATOR] image è già PIL Image, dimensioni: {pil_image.size}")
+                            break
+                        elif hasattr(image_obj, 'data'):
+                            data = image_obj.data
+                            if isinstance(data, bytes):
+                                image_bytes = data
+                            elif isinstance(data, str):
+                                image_bytes = base64.b64decode(data)
+                            else:
+                                continue
+                            pil_image = PILImage.open(BytesIO(image_bytes))
+                            print(f"[COVER GENERATOR] Immagine estratta da image.data, dimensioni: {pil_image.size}")
+                            break
+                        elif isinstance(image_obj, bytes):
+                            pil_image = PILImage.open(BytesIO(image_obj))
+                            print(f"[COVER GENERATOR] image è bytes, dimensioni: {pil_image.size}")
+                            break
+                    except Exception as image_error:
+                        print(f"[COVER GENERATOR] Errore con attributo image: {image_error}")
+                        continue
+                
+                # Metodo 4: data attribute diretto sulla part (senza wrapper inline_data)
+                if hasattr(part, 'data') and part.data is not None:
+                    print(f"[COVER GENERATOR] Trovato attributo 'data' diretto sulla part")
+                    try:
+                        data = part.data
+                        print(f"[COVER GENERATOR] Tipo data: {type(data)}")
+                        
+                        if isinstance(data, bytes):
+                            image_bytes = data
+                            print(f"[COVER GENERATOR] data è bytes, dimensione: {len(image_bytes)} bytes")
+                        elif isinstance(data, str):
+                            # Potrebbe essere base64 o data URI
+                            if data.startswith('data:image'):
+                                header, encoded = data.split(',', 1)
+                                image_bytes = base64.b64decode(encoded)
+                            else:
+                                image_bytes = base64.b64decode(data)
+                            print(f"[COVER GENERATOR] data decodificato, dimensione: {len(image_bytes)} bytes")
+                        else:
+                            continue
+                        
+                        pil_image = PILImage.open(BytesIO(image_bytes))
+                        print(f"[COVER GENERATOR] Immagine caricata da data diretto, dimensioni: {pil_image.size}")
+                        break
+                    except Exception as data_error:
+                        print(f"[COVER GENERATOR] Errore con data diretto: {data_error}")
+                        continue
+                
+                # Metodo 5: part come dizionario (alcune versioni API restituiscono dict)
+                if isinstance(part, dict):
+                    print(f"[COVER GENERATOR] Part è un dizionario, chiavi: {part.keys()}")
+                    try:
+                        # Prova varie chiavi comuni
+                        for key in ['inline_data', 'inlineData', 'image', 'data', 'b64_json', 'image_data']:
+                            if key in part:
+                                value = part[key]
+                                print(f"[COVER GENERATOR] Trovata chiave '{key}' nel dict")
+                                
+                                if isinstance(value, dict) and 'data' in value:
+                                    data = value['data']
+                                elif isinstance(value, (bytes, str)):
+                                    data = value
+                                else:
+                                    continue
+                                
+                                if isinstance(data, bytes):
+                                    image_bytes = data
+                                elif isinstance(data, str):
+                                    if data.startswith('data:image'):
+                                        header, encoded = data.split(',', 1)
+                                        image_bytes = base64.b64decode(encoded)
+                                    else:
+                                        image_bytes = base64.b64decode(data)
+                                else:
+                                    continue
+                                
+                                pil_image = PILImage.open(BytesIO(image_bytes))
+                                print(f"[COVER GENERATOR] Immagine estratta da dict[{key}], dimensioni: {pil_image.size}")
+                                break
+                        if pil_image:
+                            break
+                    except Exception as dict_error:
+                        print(f"[COVER GENERATOR] Errore con part dict: {dict_error}")
+                        continue
+                
+                # Metodo 6: text con data URI
                 if hasattr(part, 'text') and part.text:
                     text_preview = part.text[:100] if len(part.text) > 100 else part.text
                     print(f"[COVER GENERATOR] Trovato text (primi 100 caratteri): {text_preview}")
@@ -285,15 +385,24 @@ La copertina deve essere:
                 print(f"[COVER GENERATOR] ERRORE: Impossibile estrarre immagine. Parts disponibili:")
                 for idx, part in enumerate(parts_to_process):
                     print(f"  Part {idx}: {type(part).__name__}")
-                    print(f"    Attributi: {[a for a in dir(part) if not a.startswith('_')]}")
+                    attrs = [a for a in dir(part) if not a.startswith('_')]
+                    print(f"    Attributi: {attrs}")
                     # Prova a vedere se ci sono attributi con valori
                     try:
-                        for attr in ['inline_data', 'inlineData', 'text', 'data']:
+                        for attr in ['inline_data', 'inlineData', 'text', 'data', 'image', 'file_data', 'b64_json']:
                             if hasattr(part, attr):
                                 value = getattr(part, attr)
-                                print(f"    {attr}: {type(value).__name__}")
-                    except Exception:
-                        pass
+                                if value is not None:
+                                    print(f"    {attr}: {type(value).__name__} = {str(value)[:200] if value else 'None'}...")
+                                else:
+                                    print(f"    {attr}: None")
+                        # Se è un dict, stampa le chiavi
+                        if isinstance(part, dict):
+                            print(f"    Dict keys: {list(part.keys())}")
+                            for k, v in part.items():
+                                print(f"      {k}: {type(v).__name__} = {str(v)[:100] if v else 'None'}...")
+                    except Exception as debug_error:
+                        print(f"    Errore debug: {debug_error}")
                 raise Exception(f"Impossibile estrarre l'immagine dalla risposta di {model_name}. Formato non supportato.")
             
             # Verifica che l'immagine sia valida prima del salvataggio

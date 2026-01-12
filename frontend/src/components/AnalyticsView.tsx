@@ -235,7 +235,7 @@ export default function AnalyticsView() {
                     domain={[0, 10]}
                   />
                   <Tooltip
-                    formatter={(value: number) => [`${value.toFixed(2)}/10`, 'Voto medio']}
+                    formatter={(value: number) => [value.toFixed(2), 'Voto medio']}
                     contentStyle={{
                       backgroundColor: 'var(--surface)',
                       border: '1px solid var(--border-light)',

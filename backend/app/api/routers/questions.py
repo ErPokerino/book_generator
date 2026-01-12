@@ -159,15 +159,22 @@ async def start_questions_generation_endpoint(
         # Ottieni user_id dall'utente corrente (se autenticato)
         user_id = current_user.id if current_user else None
         
+        # Log per debug autenticazione
+        print(f"[QUESTIONS GENERATION] user_id: {user_id}, current_user: {current_user.email if current_user else 'None'}")
+        
         # Verifica e consuma crediti (solo per utenti autenticati)
         if current_user:
             # Estrai la modalità dal form_data
             llm_model = request.form_data.get("llm_model", "gemini-3-flash")
             mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
             
+            print(f"[QUESTIONS GENERATION] Tentativo consumo credito {mode} per utente {current_user.id}")
+            
             # Verifica crediti disponibili
             user_store = get_user_store()
             success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            
+            print(f"[QUESTIONS GENERATION] Risultato consumo credito: success={success}, message={message}, credits={updated_credits}")
             
             if not success:
                 # Crediti esauriti - ritorna messaggio user-friendly
@@ -179,6 +186,8 @@ async def start_questions_generation_endpoint(
                     "mode": mode.capitalize(),
                     "next_reset_at": next_reset.isoformat(),
                 }
+        else:
+            print(f"[QUESTIONS GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
         
         # Genera session_id
         session_id = str(uuid.uuid4())

@@ -461,7 +461,7 @@ class Notification(BaseModel):
     """Modello per una notifica."""
     id: str  # UUID
     user_id: str  # destinatario
-    type: Literal["connection_request", "connection_accepted", "book_shared", "book_share_accepted", "system"]
+    type: Literal["connection_request", "connection_accepted", "book_shared", "book_share_accepted", "book_completed", "system"]
     title: str
     message: str
     data: Optional[Dict[str, Any]] = None  # dati extra (es: from_user_id, book_id)

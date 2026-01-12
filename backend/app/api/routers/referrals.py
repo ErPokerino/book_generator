@@ -158,7 +158,9 @@ async def get_my_referrals(
         print(f"[REFERRALS API] Recuperati {len(referrals)} referral per utente {current_user.id}", file=sys.stderr)
         
         return referrals
-        
+    except HTTPException:
+        # Mantieni status code originali (es. 401/403) invece di convertirli in 500
+        raise
     except Exception as e:
         error_msg = str(e)
         print(f"[REFERRALS API] ERRORE nel recupero referral: {error_msg}", file=sys.stderr)
@@ -205,7 +207,9 @@ async def get_referral_stats(
         print(f"[REFERRALS API] Statistiche referral per {current_user.id}: {stats.total_sent} inviati, {stats.total_registered} registrati, {stats.pending} in attesa", file=sys.stderr)
         
         return stats
-        
+    except HTTPException:
+        # Mantieni status code originali (es. 401/403) invece di convertirli in 500
+        raise
     except Exception as e:
         error_msg = str(e)
         print(f"[REFERRALS API] ERRORE nel recupero statistiche referral: {error_msg}", file=sys.stderr)

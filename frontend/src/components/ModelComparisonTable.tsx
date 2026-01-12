@@ -143,7 +143,7 @@ export default function ModelComparisonTable({ models }: ModelComparisonTablePro
                         }}
                       />
                       <span className="score-text">
-                        {model.average_score.toFixed(1)}/10
+                        {model.average_score.toFixed(1)}
                       </span>
                     </div>
                   </div>

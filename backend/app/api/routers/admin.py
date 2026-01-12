@@ -10,6 +10,7 @@ from app.models import UsersStats, UserBookCount
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_all_sessions_async, delete_session_async
 from app.agent.user_store import get_user_store
+from app.agent.book_share_store import get_book_share_store
 from app.middleware.auth import require_admin
 from app.services.stats_service import (
     get_cached_stats,
@@ -156,38 +157,70 @@ async def delete_user_endpoint(
     email: str,
     current_user = Depends(require_admin),
 ):
-    """Elimina un utente per email (solo admin)."""
+    """Elimina un utente per email (solo admin). Elimina anche i libri non condivisi."""
     try:
         user_store = get_user_store()
-        
+
         if user_store.client is None or user_store.users_collection is None:
             await user_store.connect()
-        
+
         # Non permettere di eliminare se stessi
         if current_user.email.lower() == email.lower():
             raise HTTPException(
                 status_code=400,
                 detail="Non puoi eliminare il tuo stesso account"
             )
-        
-        deleted = await user_store.delete_user_by_email(email)
-        
-        if not deleted:
+
+        # 1. Trova l'utente per ottenere l'ID
+        user = await user_store.get_user_by_email(email)
+        if not user:
             raise HTTPException(
                 status_code=404,
                 detail=f"Utente con email {email} non trovato"
             )
+
+        # 2. Trova tutti i libri dell'utente
+        session_store = get_session_store()
+        user_sessions = await get_all_sessions_async(session_store, user_id=user.id)
         
+        # 3. Per ogni libro, verifica se è condiviso e elimina solo quelli non condivisi
+        book_share_store = get_book_share_store()
+        await book_share_store.connect()
+        
+        deleted_books = 0
+        kept_books = 0
+        
+        for session_id in user_sessions.keys():
+            shares = await book_share_store.get_shares_by_book(session_id)
+            if not shares:  # Nessuna condivisione attiva
+                await delete_session_async(session_store, session_id)
+                deleted_books += 1
+            else:
+                kept_books += 1
+                print(f"[DELETE USER] Libro {session_id} mantenuto: condiviso con {len(shares)} utenti", file=sys.stderr)
+
+        # 4. Elimina l'utente
+        deleted = await user_store.delete_user_by_email(email)
+
+        if not deleted:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nell'eliminazione dell'utente {email}"
+            )
+
         # Invalida la cache delle statistiche utenti
-        from app.services.stats_service import set_cached_stats
         set_cached_stats("admin_users_stats", None)
+
+        message = f"Utente {email} eliminato con successo. Libri eliminati: {deleted_books}"
+        if kept_books > 0:
+            message += f", libri mantenuti (condivisi): {kept_books}"
         
-        return {"success": True, "message": f"Utente {email} eliminato con successo"}
-    
+        return {"success": True, "message": message, "deleted_books": deleted_books, "kept_books": kept_books}
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[DELETE USER] Errore: {e}")
+        print(f"[DELETE USER] Errore: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         raise HTTPException(
