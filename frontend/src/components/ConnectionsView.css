@@ -420,20 +420,65 @@
   color: var(--text-muted, #9ca3af);
 }
 
+.empty-state-cta {
+  margin-top: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--accent, #3b82f6);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 0.5rem);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.empty-state-cta:hover {
+  background: var(--accent-hover, #2563eb);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .connections-view {
     padding: 1rem;
   }
 
+  /* Tab con solo icone su mobile */
   .connections-tabs {
-    flex-wrap: wrap;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     gap: 0.25rem;
+    justify-content: space-around;
+  }
+
+  .connections-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .connections-tab {
-    padding: 0.625rem 1rem;
-    font-size: 0.85rem;
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
+    min-width: auto;
+    position: relative;
+  }
+
+  .connections-tab span {
+    display: none;  /* Nasconde il testo, mostra solo icone */
+  }
+
+  .tab-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    margin-left: 0;
   }
 
   .search-bar {

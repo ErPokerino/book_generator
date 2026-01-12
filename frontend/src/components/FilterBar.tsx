@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { LibraryFilters } from '../api/client';
 import './FilterBar.css';
 
@@ -15,6 +16,16 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
     sort_order: 'desc',
   });
   const [searchText, setSearchText] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Contare filtri attivi per mostrare badge
+  const activeFiltersCount = [
+    filters.status && filters.status !== 'all',
+    filters.mode && filters.mode !== 'all',
+    filters.genre && filters.genre !== 'all',
+    filters.sort_by && filters.sort_by !== 'created_at',
+    filters.sort_order && filters.sort_order !== 'desc',
+  ].filter(Boolean).length;
 
   const handleFilterChange = (key: keyof LibraryFilters, value: string) => {
     const newFilters = {
@@ -48,93 +59,110 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
 
   return (
     <div className="filter-bar">
-      <div className="filter-group">
-        <label htmlFor="status-filter">Stato:</label>
-        <select
-          id="status-filter"
-          value={filters.status || 'all'}
-          onChange={(e) => handleFilterChange('status', e.target.value)}
+      {/* Sezione principale: Cerca + Toggle filtri avanzati (su mobile) */}
+      <div className="filter-bar-main">
+        <div className="filter-group search-group">
+          <label htmlFor="search-input">Cerca:</label>
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Titolo o autore..."
+            value={searchText}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+        </div>
+
+        <button 
+          className="advanced-filters-toggle"
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
         >
-          <option value="all">Tutti</option>
-          <option value="draft">Bozza</option>
-          <option value="outline">Struttura</option>
-          <option value="writing">In Scrittura</option>
-          <option value="paused">In Pausa</option>
-          <option value="complete">Completati</option>
-        </select>
+          <SlidersHorizontal size={18} />
+          <span>Filtri</span>
+          {activeFiltersCount > 0 && (
+            <span className="filters-badge">{activeFiltersCount}</span>
+          )}
+          {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
       </div>
 
-      <div className="filter-group">
-        <label htmlFor="mode-filter">Modalità:</label>
-        <select
-          id="mode-filter"
-          value={filters.mode || 'all'}
-          onChange={(e) => handleFilterChange('mode', e.target.value)}
-        >
-          <option value="all">Tutte le modalità</option>
-          {availableModes.map(mode => (
-            <option key={mode} value={mode}>{mode}</option>
-          ))}
-        </select>
-      </div>
+      {/* Sezione filtri avanzati (collassabile su mobile) */}
+      <div className={`filter-bar-advanced ${showAdvancedFilters ? 'expanded' : ''}`}>
+        <div className="filter-group">
+          <label htmlFor="status-filter">Stato:</label>
+          <select
+            id="status-filter"
+            value={filters.status || 'all'}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+          >
+            <option value="all">Tutti</option>
+            <option value="draft">Bozza</option>
+            <option value="outline">Struttura</option>
+            <option value="writing">In Scrittura</option>
+            <option value="paused">In Pausa</option>
+            <option value="complete">Completati</option>
+          </select>
+        </div>
 
-      <div className="filter-group">
-        <label htmlFor="genre-filter">Genere:</label>
-        <select
-          id="genre-filter"
-          value={filters.genre || 'all'}
-          onChange={(e) => handleFilterChange('genre', e.target.value)}
-        >
-          <option value="all">Tutti i generi</option>
-          {availableGenres.map(genre => (
-            <option key={genre} value={genre}>{genre}</option>
-          ))}
-        </select>
-      </div>
+        <div className="filter-group">
+          <label htmlFor="mode-filter">Modalità:</label>
+          <select
+            id="mode-filter"
+            value={filters.mode || 'all'}
+            onChange={(e) => handleFilterChange('mode', e.target.value)}
+          >
+            <option value="all">Tutte le modalità</option>
+            {availableModes.map(mode => (
+              <option key={mode} value={mode}>{mode}</option>
+            ))}
+          </select>
+        </div>
 
-      <div className="filter-group search-group">
-        <label htmlFor="search-input">Cerca:</label>
-        <input
-          id="search-input"
-          type="text"
-          placeholder="Titolo o autore..."
-          value={searchText}
-          onChange={(e) => handleSearch(e.target.value)}
-        />
-      </div>
+        <div className="filter-group">
+          <label htmlFor="genre-filter">Genere:</label>
+          <select
+            id="genre-filter"
+            value={filters.genre || 'all'}
+            onChange={(e) => handleFilterChange('genre', e.target.value)}
+          >
+            <option value="all">Tutti i generi</option>
+            {availableGenres.map(genre => (
+              <option key={genre} value={genre}>{genre}</option>
+            ))}
+          </select>
+        </div>
 
-      <div className="filter-group">
-        <label htmlFor="sort-by">Ordina per:</label>
-        <select
-          id="sort-by"
-          value={filters.sort_by || 'created_at'}
-          onChange={(e) => handleFilterChange('sort_by', e.target.value)}
-        >
-          <option value="created_at">Data creazione</option>
-          <option value="updated_at">Ultima modifica</option>
-          <option value="title">Titolo</option>
-          <option value="score">Voto</option>
-          <option value="cost">Costo</option>
-          <option value="total_pages">Pagine</option>
-        </select>
-      </div>
+        <div className="filter-group">
+          <label htmlFor="sort-by">Ordina per:</label>
+          <select
+            id="sort-by"
+            value={filters.sort_by || 'created_at'}
+            onChange={(e) => handleFilterChange('sort_by', e.target.value)}
+          >
+            <option value="created_at">Data creazione</option>
+            <option value="updated_at">Ultima modifica</option>
+            <option value="title">Titolo</option>
+            <option value="score">Voto</option>
+            <option value="cost">Costo</option>
+            <option value="total_pages">Pagine</option>
+          </select>
+        </div>
 
-      <div className="filter-group">
-        <label htmlFor="sort-order">Ordine:</label>
-        <select
-          id="sort-order"
-          value={filters.sort_order || 'desc'}
-          onChange={(e) => handleFilterChange('sort_order', e.target.value as 'asc' | 'desc')}
-        >
-          <option value="desc">Discendente</option>
-          <option value="asc">Ascendente</option>
-        </select>
-      </div>
+        <div className="filter-group">
+          <label htmlFor="sort-order">Ordine:</label>
+          <select
+            id="sort-order"
+            value={filters.sort_order || 'desc'}
+            onChange={(e) => handleFilterChange('sort_order', e.target.value as 'asc' | 'desc')}
+          >
+            <option value="desc">Discendente</option>
+            <option value="asc">Ascendente</option>
+          </select>
+        </div>
 
-      <button className="clear-filters-btn" onClick={clearFilters}>
-        Pulisci filtri
-      </button>
+        <button className="clear-filters-btn" onClick={clearFilters}>
+          Pulisci filtri
+        </button>
+      </div>
     </div>
   );
 }
-

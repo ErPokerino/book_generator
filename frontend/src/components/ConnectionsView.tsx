@@ -237,8 +237,8 @@ export default function ConnectionsView() {
   return (
     <div className="connections-view">
       <div className="connections-header">
-        <h2>Connetti con altri utenti</h2>
-        <p className="connections-subtitle">Cerca utenti, gestisci richieste e visualizza le tue connessioni</p>
+        <h2>La tua rete</h2>
+        <p className="connections-subtitle">Trova altri scrittori, condividi libri e collabora</p>
       </div>
 
       {/* Tabs */}
@@ -473,6 +473,13 @@ export default function ConnectionsView() {
                   <Users size={48} />
                   <p>Nessuna connessione ancora</p>
                   <p className="empty-state-hint">Cerca altri utenti per iniziare a connetterti</p>
+                  <button 
+                    className="empty-state-cta"
+                    onClick={() => setActiveTab('search')}
+                  >
+                    <Search size={16} />
+                    Trova scrittori
+                  </button>
                 </div>
               )}
             </motion.div>
