@@ -40,13 +40,21 @@ gcloud artifacts repositories create narrai \
 gcloud secrets create gemini-api-key --replication-policy="automatic"
 gcloud secrets create mongodb-uri --replication-policy="automatic"
 gcloud secrets create jwt-secret --replication-policy="automatic"
+gcloud secrets create smtp-password --replication-policy="automatic"
 
 # Aggiungere i valori (sostituisci con i tuoi valori reali)
 # IMPORTANTE: Non committare mai i valori reali in questo file!
 echo -n "YOUR_GEMINI_API_KEY_HERE" | gcloud secrets versions add gemini-api-key --data-file=-
 echo -n "mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/DATABASE?retryWrites=true&w=majority" | gcloud secrets versions add mongodb-uri --data-file=-
-echo -n "your-super-secret-jwt-key-minimum-32-characters-long" | gcloud secrets versions add jwt-secret --data-file=-
+echo -n "your-super-secret-session-key-minimum-32-characters-long" | gcloud secrets versions add jwt-secret --data-file=-
+echo -n "YOUR_SMTP_APP_PASSWORD" | gcloud secrets versions add smtp-password --data-file=-
 ```
+
+**Secrets utilizzati**:
+- `gemini-api-key`: Chiave API Google Gemini
+- `mongodb-uri`: Connection string MongoDB Atlas
+- `jwt-secret`: Chiave segreta per sessioni (SESSION_SECRET)
+- `smtp-password`: Password/App Password per invio email SMTP
 
 **Nota**: Per GCP credentials, puoi:
 - Includere il file JSON nel container (attuale)
@@ -92,6 +100,13 @@ gcloud run services add-iam-policy-binding narrai \
 gcloud builds submit --config=cloudbuild.yaml
 ```
 
+Il file `cloudbuild.yaml` contiene tutti i passi necessari:
+1. Build immagine Docker con tag BUILD_ID e latest
+2. Push a Artifact Registry
+3. Deploy su Cloud Run con secrets e env vars configurati
+
+**Nota**: `cloudbuild.yaml` contiene configurazioni specifiche (bucket, email). Modifica prima del deploy se necessario.
+
 ### Opzione 2: Deploy Manuale
 
 ```bash
@@ -111,9 +126,15 @@ gcloud run deploy narrai \
     --memory=2Gi \
     --cpu=2 \
     --timeout=3600 \
-    --set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest \
-    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=YOUR_BUCKET_NAME
+    --set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest \
+    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=YOUR_BUCKET_NAME,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=your_email@gmail.com,FRONTEND_URL=https://YOUR_SERVICE_URL
 ```
+
+**Variabili d'ambiente**:
+- `GCS_ENABLED`: Abilita storage su Google Cloud Storage
+- `GCS_BUCKET_NAME`: Nome bucket GCS per libri e copertine
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`: Configurazione email SMTP
+- `FRONTEND_URL`: URL del servizio Cloud Run (per link in email)
 
 ## Configurazioni Aggiuntive
 

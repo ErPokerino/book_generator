@@ -880,6 +880,34 @@ L'header utilizza un design moderno con gradiente blu continuo:
 
 **File**: `frontend/src/components/Navigation.tsx`, `frontend/src/components/Navigation.css`, `frontend/src/components/NotificationBell.tsx`
 
+### Bottom Navigation (Mobile)
+
+Su dispositivi mobile (< 768px), l'applicazione mostra una barra di navigazione fissa in basso:
+
+**4 Tab Principali**:
+1. **Libreria** (BookOpen icon): Accesso alla libreria libri
+2. **Nuovo** (PenTool icon): Creazione nuovo libro
+3. **Rete** (Users icon): Sezione connessioni e referral
+4. **Profilo** (User icon): Impostazioni utente
+
+**Caratteristiche**:
+- Fixed bottom con supporto safe-area per dispositivi con gesture bar
+- Background blur (glassmorphism) per leggibilità
+- Active state con indicatore colorato
+- Icone lucide-react con label sotto
+
+**Badge Dinamici**:
+- **Tab Rete**: Badge rosso con conteggio richieste connessione pendenti
+- Polling automatico ogni 30s per aggiornamento conteggio
+- Badge nascosto se conteggio = 0
+
+**Integrazione**:
+- Nascosta su desktop (Navigation header usata invece)
+- Sincronizzata con route corrente (active state)
+- Z-index alto per sovrapposizione contenuto
+
+**File**: `frontend/src/components/BottomNavigation.tsx`, `frontend/src/components/BottomNavigation.css`
+
 ### Ottimizzazione Mobile
 
 L'applicazione è ottimizzata per dispositivi mobile con diverse migliorie:
@@ -987,6 +1015,18 @@ La sezione Libreria offre strumenti avanzati per gestione libri:
 - Costo (estimated_cost)
 - Ordinamento ascendente/descendente
 
+**Filtri Collassabili (Mobile)**:
+- Su schermi < 768px, i filtri avanzati sono nascosti di default
+- Campo "Cerca" sempre visibile in primo piano
+- Pulsante "Filtri" con:
+  - Icona SlidersHorizontal
+  - Badge numerico con conteggio filtri attivi
+  - Icona chevron per stato espanso/collassato
+- Click su "Filtri" espande/collassa sezione filtri avanzati
+- Animazione slide-down fluida
+- Filtri avanzati mostrati in layout verticale su mobile
+- Pulsante "Cancella filtri" per reset rapido
+
 **Azioni**:
 - Leggi libro (visualizzazione completa)
 - Condividi libro (ShareBookModal per ricerca utente e condivisione)
@@ -1008,6 +1048,11 @@ La sezione Libreria offre strumenti avanzati per gestione libri:
 ### ConnectionsView
 
 Componente per gestione connessioni tra utenti e inviti referral.
+
+**Header "La tua rete"**:
+- Titolo principale: "La tua rete" (sostituisce precedente "Connetti con altri utenti")
+- Sottotitolo: "Trova altri scrittori, condividi libri e collabora"
+- Design pulito con icona Users
 
 **4 Tab Principali**:
 1. **Cerca**: Ricerca utente per email e invio richiesta connessione
@@ -1039,7 +1084,23 @@ Componente per gestione connessioni tra utenti e inviti referral.
 - Mantiene solo ultimo invito per email (confronto `created_at`)
 - Ordinamento: più recenti prima
 
-**File**: `frontend/src/components/ConnectionsView.tsx`
+**Tab Solo Icone (Mobile)**:
+- Su schermi < 768px, i tab mostrano solo icone senza testo
+- Icone: Search, Clock, Users, UserPlus
+- Badge numerico per tab "Pendenti" con conteggio richieste
+- Tab scrollabili orizzontalmente se necessario
+- Miglior utilizzo spazio su schermi piccoli
+
+**Empty State con CTA**:
+- Quando tab "Connessioni" è vuoto:
+  - Icona Users grande (48px)
+  - Messaggio: "Nessuna connessione ancora"
+  - Hint: "Cerca altri utenti per iniziare a connetterti"
+  - Pulsante CTA: "Trova scrittori" con icona Search
+  - Click su CTA naviga automaticamente a tab "Cerca"
+- Guida utenti verso azioni utili invece di lasciare schermo vuoto
+
+**File**: `frontend/src/components/ConnectionsView.tsx`, `frontend/src/components/ConnectionsView.css`
 
 ### DOCX
 

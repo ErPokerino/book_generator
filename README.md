@@ -137,27 +137,31 @@ Per dettagli completi sulla configurazione, consulta [Documentazione Tecnica - C
 
 ```
 scrittura-libro/
-├── backend/          # Backend FastAPI
-│   ├── app/         # Codice applicazione
-│   │   ├── agent/   # Agenti AI (generazione, critica, copertina)
-│   │   ├── api/     # API routers
-│   │   ├── services/# Business logic services
-│   │   └── ...
+├── backend/              # Backend FastAPI
+│   ├── app/             # Codice applicazione
+│   │   ├── agent/       # Agenti AI e Store MongoDB
+│   │   ├── api/routers/ # 18 Router REST organizzati
+│   │   ├── services/    # 10 Business logic services
+│   │   ├── analytics/   # Tools analisi dati
+│   │   ├── middleware/  # Autenticazione e autorizzazione
+│   │   └── utils/       # Utility functions
 │   └── pyproject.toml
-├── frontend/        # Frontend React + Vite
+├── frontend/            # Frontend React + Vite
 │   ├── src/
-│   │   ├── components/  # Componenti React
-│   │   ├── api/         # Client API
-│   │   └── ...
+│   │   ├── components/  # 50+ Componenti React
+│   │   ├── contexts/    # AuthContext, NotificationContext
+│   │   ├── hooks/       # Custom hooks (polling, toast)
+│   │   ├── api/         # Client API TypeScript
+│   │   └── routing/     # Route guards (RequireAuth, RequireAdmin)
 │   └── package.json
-├── config/          # File di configurazione
-│   ├── inputs.yaml      # Configurazione form
+├── config/              # File di configurazione
+│   ├── inputs.yaml      # Configurazione form dinamico
 │   ├── app.yaml         # Configurazione applicazione
 │   └── ...
-├── docs/            # Documentazione dettagliata
-│   ├── FUNZIONALE.md
-│   └── TECNICA.md
-└── .env             # Variabili d'ambiente (da creare)
+├── docs/                # Documentazione dettagliata
+│   ├── FUNZIONALE.md    # Flussi utente e logiche
+│   └── TECNICA.md       # Architettura e stack
+└── .env                 # Variabili d'ambiente (da creare)
 ```
 
 ## Funzionalità Principali
@@ -170,13 +174,13 @@ scrittura-libro/
 - **Statistiche Avanzate**: Analytics con grafici temporali e confronto modelli (admin-only)
 - **Autenticazione Utenti**: Registrazione, login, email verification, password reset
 - **Condivisione Libri**: Condivisione libri tra utenti connessi con notifiche in-app
-- **Sistema di Connessioni**: Connessioni tra utenti e richieste di amicizia con email di notifica
+- **Sistema di Connessioni**: Sezione "La tua rete" per connessioni tra utenti
 - **Notifiche In-App**: Sistema notifiche in-app con polling automatico per condivisioni e connessioni
 - **Sistema Referral**: Inviti esterni con tracking e statistiche (conteggio unico per email)
 - **Onboarding Interattivo**: Carousel guidato per nuovi utenti con 5 step informativi
 - **Ripristino Sessione**: Continuazione processi interrotti con stato persistito
 - **Copertina AI**: Generazione automatica immagini copertina con Gemini
-- **Ottimizzazione Mobile**: Interfaccia responsive con touch targets ottimizzati, hamburger menu, step indicator compatto
+- **Ottimizzazione Mobile**: Bottom navigation, filtri collassabili, tab icone, empty state CTA
 
 Per dettagli completi, consulta [Documentazione Funzionale](docs/FUNZIONALE.md).
 
@@ -194,12 +198,15 @@ Le icone vengono generate automaticamente da `app-icon-original.png` usando lo s
 
 ## Interfaccia Utente
 
-L'applicazione è organizzata in quattro sezioni principali:
+L'applicazione è organizzata in cinque sezioni principali:
 
-- **📚 Libreria**: Visualizzazione libri con filtri, ricerca, ordinamento, export e azioni (leggi, elimina, riprendi)
+- **📚 Libreria**: Visualizzazione libri con filtri collassabili, ricerca, ordinamento, export e azioni
 - **📖 Nuovo Libro**: Wizard guidato con form semplificato (Base/Avanzate) e step indicator
+- **👥 La tua rete**: Connessioni tra utenti, richieste pendenti, inviti referral
 - **📊 Analisi**: Dashboard statistiche con grafici temporali e confronto modelli (solo admin)
 - **🎯 Valuta**: Valutazione e confronto modelli LLM
+
+**Mobile**: Bottom navigation con 4 tab (Libreria, Nuovo, Rete, Profilo) e badge notifiche.
 
 Per dettagli sulle funzionalità, consulta [Documentazione Funzionale](docs/FUNZIONALE.md).
 

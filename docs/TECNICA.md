@@ -145,7 +145,7 @@ L'applicazione adotta una **Clean Architecture** semplificata con separazione de
 backend/app/
 ├── main.py                 # Entry point FastAPI, lifecycle hooks
 ├── models.py               # Schema Pydantic per validazione
-├── agent/                  # Agenti AI specializzati
+├── agent/                  # Agenti AI e Store MongoDB
 │   ├── question_generator.py      # Genera domande preliminari
 │   ├── draft_generator.py         # Genera bozza estesa
 │   ├── outline_generator.py       # Genera struttura libro
@@ -153,21 +153,54 @@ backend/app/
 │   ├── literary_critic.py         # Valuta libro completato
 │   ├── cover_generator.py         # Genera copertina AI
 │   ├── session_store.py           # Interface + FileSessionStore
-│   ├── mongo_session_store.py     # MongoDB implementation
-│   └── session_store_helpers.py   # Helper async/sync compatibility
-├── api/routers/           # Endpoint REST organizzati
-│   ├── config.py          # GET /api/config
-│   ├── submission.py      # POST /api/submissions
-│   ├── questions.py       # POST /api/questions/*
-│   ├── draft.py           # POST /api/draft/*
-│   └── outline.py         # POST /api/outline/*
+│   ├── mongo_session_store.py     # MongoDB implementation sessioni
+│   ├── session_store_helpers.py   # Helper async/sync compatibility
+│   ├── user_store.py              # Gestione utenti MongoDB
+│   ├── book_share_store.py        # Condivisione libri tra utenti
+│   ├── connection_store.py        # Connessioni tra utenti
+│   ├── notification_store.py      # Notifiche in-app
+│   ├── referral_store.py          # Sistema referral/inviti
+│   └── state.py                   # Gestione stato applicazione
+├── api/                   # Layer API
+│   ├── deps.py            # Dependency injection FastAPI
+│   └── routers/           # 18 Router REST organizzati per dominio
+│       ├── admin.py       # Statistiche utenti (admin-only)
+│       ├── auth.py        # Autenticazione (login, register, verify)
+│       ├── book.py        # Generazione e gestione libri
+│       ├── book_shares.py # Condivisione libri
+│       ├── config.py      # GET /api/config
+│       ├── connections.py # Connessioni tra utenti
+│       ├── critique.py    # Critica letteraria e audio
+│       ├── draft.py       # Generazione/modifica bozza
+│       ├── files.py       # Download file (PDF, cover)
+│       ├── health.py      # Health check endpoint
+│       ├── library.py     # Libreria utente e statistiche
+│       ├── notifications.py # Notifiche in-app
+│       ├── outline.py     # Generazione/modifica struttura
+│       ├── questions.py   # Domande preliminari
+│       ├── referrals.py   # Sistema inviti referral
+│       ├── session.py     # Gestione sessioni libro
+│       └── submission.py  # Creazione nuova sessione
+├── analytics/             # Tools analisi dati
+│   ├── estimate_linear_params.py  # Stima parametri lineari
+│   └── export_chapter_timings.py  # Export tempi capitoli CSV
 ├── core/                  # Configurazione centralizzata
 │   └── config.py          # Caricamento YAML, cache
-├── services/              # Business logic services
-│   ├── cost_service.py    # Calcolo costi generazione
-│   ├── export_service.py  # Export EPUB/DOCX
-│   ├── library_service.py # Gestione libreria, statistiche
-│   └── pdf_service.py     # Generazione PDF
+├── middleware/            # Middleware FastAPI
+│   └── auth.py            # Autenticazione e autorizzazione
+├── services/              # 10 Business logic services
+│   ├── book_generation_service.py # Orchestrazione generazione libro
+│   ├── cost_service.py            # Calcolo costi generazione
+│   ├── critique_service.py        # Generazione critica letteraria
+│   ├── email_service.py           # Invio email (SMTP)
+│   ├── export_service.py          # Export EPUB/DOCX
+│   ├── generation_service.py      # Servizio generazione generico
+│   ├── library_service.py         # Gestione libreria
+│   ├── pdf_service.py             # Generazione PDF
+│   ├── stats_service.py           # Calcolo statistiche
+│   └── storage_service.py         # Storage GCS/locale
+├── utils/                 # Utility functions
+│   └── stats_utils.py     # Utility statistiche
 ├── static/                # File statici (CSS PDF)
 │   └── book_styles.css
 └── templates/             # Template HTML
@@ -179,27 +212,63 @@ backend/app/
 ```
 frontend/src/
 ├── App.tsx                # Componente root, routing, Toaster
+├── main.tsx               # Entry point React
+├── router.tsx             # Configurazione routing
 ├── api/
-│   └── client.ts          # Client API TypeScript, tipi
+│   └── client.ts          # Client API TypeScript, tipi, funzioni API
 ├── components/            # Componenti React modulari
 │   ├── DynamicForm.tsx    # Wizard creazione libro (Base/Avanzate, step indicator)
 │   ├── PlotTextarea.tsx   # Textarea avanzata (autosave, modale, contatori)
 │   ├── LibraryView.tsx    # Visualizzazione libreria (filtri, ricerca, ordinamento)
+│   ├── FilterBar.tsx      # Filtri libreria (collassabili su mobile)
 │   ├── AnalyticsView.tsx  # Dashboard statistiche (admin-only)
 │   ├── BenchmarkView.tsx  # Valutazione modelli LLM
-│   ├── BookReader.tsx     # Visualizzatore libro
+│   ├── BookReader.tsx     # Visualizzatore libro completo
+│   ├── BookViewer.tsx     # Visualizzatore libro compatto
+│   ├── BookCard.tsx       # Card libro nella libreria
 │   ├── OutlineEditor.tsx  # Editor drag-and-drop struttura
 │   ├── WritingStep.tsx    # Monitoraggio generazione
 │   ├── DraftStep.tsx      # Generazione/modifica bozza
+│   ├── DraftChat.tsx      # Chat modifica bozza interattiva
+│   ├── DraftViewer.tsx    # Visualizzatore bozza
+│   ├── ConnectionsView.tsx    # Gestione connessioni e referral
+│   ├── ShareBookModal.tsx     # Modal condivisione libro
+│   ├── NotificationBell.tsx   # Icona notifiche con badge
+│   ├── Navigation.tsx         # Header navigazione desktop
+│   ├── BottomNavigation.tsx   # Navigazione bottom bar mobile
+│   ├── Dashboard.tsx          # Dashboard view
+│   ├── CritiqueModal.tsx      # Modal critica letteraria
+│   ├── CritiqueAudioPlayer.tsx # Player audio critica
+│   ├── ExportDropdown.tsx     # Dropdown export formati
+│   ├── ModelComparisonTable.tsx # Tabella confronto modelli
 │   ├── Skeleton.tsx       # Skeleton loaders (SkeletonText, SkeletonCard, etc.)
+│   ├── AlertModal.tsx     # Modal alert
+│   ├── ConfirmModal.tsx   # Modal conferma
 │   ├── LoginPage.tsx      # Pagina login
 │   ├── RegisterPage.tsx   # Pagina registrazione
 │   ├── ForgotPasswordPage.tsx  # Richiesta reset password
 │   ├── ResetPasswordPage.tsx   # Reset password
 │   ├── VerifyEmailPage.tsx     # Verifica email
-│   └── ...                # Altri componenti UI
-├── contexts/
-│   └── AuthContext.tsx    # Context autenticazione (AuthProvider, useAuth)
+│   ├── Onboarding/        # Componenti onboarding
+│   │   ├── OnboardingCarousel.tsx  # Carousel 5 step
+│   │   └── OnboardingTooltip.tsx   # Tooltip guidati
+│   ├── routing/           # Route Guards
+│   │   ├── RequireAuth.tsx     # Guard autenticazione
+│   │   └── RequireAdmin.tsx    # Guard ruolo admin
+│   └── ui/                # Componenti UI riutilizzabili
+│       ├── FadeIn.tsx         # Animazione fade-in
+│       ├── ProgressBar.tsx    # Barra progresso
+│       ├── ProcessProgressIndicator.tsx  # Indicatore progresso processo
+│       └── icons/             # Icone SVG
+│           ├── ModeIcons.tsx  # Icone modalità (Flash, Pro, Ultra)
+│           └── StepIcons.tsx  # Icone step wizard
+├── contexts/              # React Context
+│   ├── AuthContext.tsx    # Autenticazione (AuthProvider, useAuth)
+│   └── NotificationContext.tsx  # Notifiche (polling, badge)
+├── hooks/                 # Custom hooks
+│   ├── useOnboarding.ts   # Gestione stato onboarding
+│   ├── useProcessPolling.ts   # Polling stato processi
+│   └── useToast.ts        # Gestione toast notifications
 └── utils/
     └── parseOutline.ts    # Parser outline Markdown
 ```
@@ -1188,6 +1257,89 @@ def function_name(param: str) -> Optional[Dict[str, Any]]:
     ...
 ```
 
+### Route Guards
+
+Il sistema utilizza componenti wrapper per proteggere le route che richiedono autenticazione o ruoli specifici.
+
+**RequireAuth** (`routing/RequireAuth.tsx`):
+- Wrapper per route che richiedono autenticazione
+- Redirect a `/login` se utente non autenticato
+- Mostra loading durante verifica stato auth
+
+```typescript
+<Route path="/library" element={
+  <RequireAuth>
+    <LibraryView />
+  </RequireAuth>
+} />
+```
+
+**RequireAdmin** (`routing/RequireAdmin.tsx`):
+- Wrapper per route che richiedono ruolo admin
+- Verifica `user.role === 'admin'`
+- Redirect a `/` se non admin
+
+```typescript
+<Route path="/analytics" element={
+  <RequireAdmin>
+    <AnalyticsView />
+  </RequireAdmin>
+} />
+```
+
+**File**: `frontend/src/components/routing/RequireAuth.tsx`, `frontend/src/components/routing/RequireAdmin.tsx`
+
+### Navigazione Mobile (Bottom Navigation)
+
+L'applicazione utilizza una bottom navigation bar su dispositivi mobile per migliorare l'accessibilità.
+
+**Componente BottomNavigation**:
+- Visibile solo su schermi < 768px
+- 4 tab principali: Libreria, Nuovo, Rete, Profilo
+- Badge dinamici per notifiche e connessioni pendenti
+- Icone lucide-react con label
+
+**Caratteristiche**:
+- Fixed bottom con safe area support
+- Background blur (glassmorphism)
+- Active state con indicatore visivo
+- Badge rosso per conteggio notifiche/richieste
+
+**Polling Badge**:
+- Connessioni pendenti: polling ogni 30s (`/api/connections/pending-count`)
+- Notifiche non lette: gestite da NotificationContext
+
+**File**: `frontend/src/components/BottomNavigation.tsx`, `frontend/src/components/BottomNavigation.css`
+
+### Custom Hooks
+
+**useProcessPolling** (`hooks/useProcessPolling.ts`):
+- Hook per polling stato processi (generazione libro, critica)
+- Intervallo configurabile
+- Cleanup automatico al unmount
+- Gestione errori con retry
+
+```typescript
+const { data, isPolling, error } = useProcessPolling({
+  sessionId,
+  endpoint: '/api/book/progress',
+  interval: 2000,
+  enabled: isGenerating,
+});
+```
+
+**useToast** (`hooks/useToast.ts`):
+- Wrapper per react-hot-toast
+- Metodi: `success()`, `error()`, `loading()`, `dismiss()`
+- Configurazione centralizzata durate e stili
+
+**useOnboarding** (`hooks/useOnboarding.ts`):
+- Gestione stato onboarding carousel
+- Persistenza in localStorage
+- Reset e skip funzionalità
+
+**File**: `frontend/src/hooks/`
+
 ### Pattern UI/UX
 
 **Progressive Disclosure** (Form Base/Avanzate):
@@ -1195,6 +1347,13 @@ def function_name(param: str) -> Optional[Dict[str, Any]]:
 - Campi avanzati in accordion collassabile
 - Stato accordion salvato in localStorage
 - Compatibilità backend: tutti i campi rimangono nella configurazione
+
+**Filtri Collassabili** (FilterBar mobile):
+- Su mobile, filtri avanzati nascosti di default
+- Toggle "Filtri" con badge conteggio filtri attivi
+- Icona chevron per stato espanso/collassato
+- Animazione slide-down per espansione
+- Ricerca sempre visibile in primo piano
 
 **Toast Notifications**:
 - Notifiche non bloccanti per feedback operazioni
@@ -1209,13 +1368,16 @@ def function_name(param: str) -> Optional[Dict[str, Any]]:
 - Componenti riutilizzabili per diversi layout
 
 **Responsive Design**:
-- Media queries per breakpoint mobile/desktop
+- Media queries per breakpoint mobile/desktop (768px)
 - Step indicator: verticale (desktop) → orizzontale compatto (mobile)
-- Navigation: menu completo (desktop) → hamburger menu (mobile)
+- Navigation: menu completo (desktop) → hamburger menu + bottom nav (mobile)
 - Touch targets: minimo 44px per tutti gli elementi interattivi su mobile
+- Tab Connessioni: testo + icone (desktop) → solo icone (mobile)
 
 **Mobile Optimization**:
 - Safe area support per dispositivi con notch
 - Hamburger menu con overlay e animazioni
 - Book card espandibile con menu dropdown su mobile
 - Step indicator compatto orizzontale su schermi piccoli
+- Bottom navigation sticky con badge notifiche
+- Empty state con CTA per guidare utenti
