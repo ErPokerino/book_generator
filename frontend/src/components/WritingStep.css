@@ -334,11 +334,13 @@
   flex-shrink: 0;
 }
 
-.critique-section .critique-score-value {
-  font-size: 1.8rem;
+.writing-step .critique-section .critique-score-value {
+  font-size: 1.5rem !important;
   font-weight: bold;
   /* Color applied dynamically via inline style */
   flex-shrink: 0;
+  max-width: 80px;
+  text-align: right;
 }
 
 .critique-summary,

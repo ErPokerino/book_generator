@@ -9,6 +9,18 @@ interface DraftViewerProps {
   version: number;
 }
 
+// Funzione per rimuovere marker markdown dal titolo
+const sanitizeTitle = (title: string): string => {
+  return title
+    .replace(/^\*\*|\*\*$/g, '')  // Rimuove ** all'inizio e alla fine
+    .replace(/^__|\__$/g, '')      // Rimuove __ all'inizio e alla fine
+    .replace(/^\*|\*$/g, '')       // Rimuove * singoli
+    .replace(/^_|_$/g, '')         // Rimuove _ singoli
+    .replace(/\*\*/g, '')          // Rimuove tutti i ** nel mezzo
+    .replace(/__/g, '')            // Rimuove tutti gli __ nel mezzo
+    .trim();
+};
+
 export default function DraftViewer({ draftText, title, version }: DraftViewerProps) {
   return (
     <div className="draft-viewer">
@@ -18,7 +30,7 @@ export default function DraftViewer({ draftText, title, version }: DraftViewerPr
       </div>
       {title && (
         <div className="draft-title">
-          <h1>{title}</h1>
+          <h1>{sanitizeTitle(title)}</h1>
         </div>
       )}
       <div className="draft-content">

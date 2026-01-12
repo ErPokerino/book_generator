@@ -74,12 +74,12 @@ export default function DynamicForm() {
     }
   }, []);
 
-  // Carica crediti utente quando autenticato o quando si torna al form
+  // Carica crediti utente quando autenticato (al mount e quando user cambia)
   useEffect(() => {
     const loadUserCredits = async () => {
       if (user) {
         try {
-          console.log('[DynamicForm] Caricamento crediti utente...');
+          console.log('[DynamicForm] Caricamento crediti utente (mount/user change)...');
           const creditsResponse = await getUserCredits();
           if (creditsResponse) {
             setUserCredits(creditsResponse.credits);
@@ -95,12 +95,24 @@ export default function DynamicForm() {
         setNextCreditsReset(null);
       }
     };
-    // Carica i crediti quando l'utente cambia o quando si torna alla pagina form
-    // Questo assicura che i crediti siano sempre aggiornati quando si inizia un nuovo libro
-    if (currentStep === 'form') {
-      loadUserCredits();
+    loadUserCredits();
+  }, [user]);
+
+  // Refresh crediti quando si torna al form (dopo aver completato un libro)
+  useEffect(() => {
+    if (currentStep === 'form' && user) {
+      console.log('[DynamicForm] Refresh crediti (ritorno al form)...');
+      getUserCredits().then(response => {
+        if (response) {
+          setUserCredits(response.credits);
+          setNextCreditsReset(response.next_reset_at);
+          console.log('[DynamicForm] Crediti refreshati:', response.credits);
+        }
+      }).catch(err => {
+        console.warn('[DynamicForm] Errore refresh crediti:', err);
+      });
     }
-  }, [user, currentStep]);
+  }, [currentStep, user]);
 
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {

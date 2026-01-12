@@ -218,7 +218,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   return (
     <div className="writing-step">
       <div className="writing-header">
-        <h2>Scrittura del Romanzo in Corso</h2>
+        <h2>Scrittura in Corso</h2>
         {progress.is_complete && hasCritique && (
           <div className="completion-badge">✓ Completato!</div>
         )}
