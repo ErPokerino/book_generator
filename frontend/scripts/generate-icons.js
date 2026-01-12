@@ -41,21 +41,34 @@ async function createBackground(size, color) {
 }
 
 /**
- * Generate standard icons with TRANSPARENT background
- * These are used for splash screen overlay
+ * Generate standard icons with COLORED background
+ * These are used for PWA app icon on home screen
  */
 async function generateStandardIcons() {
-  console.log('Generating standard icons (transparent background)...');
+  console.log('Generating standard icons (colored background)...');
   
   for (const size of ICON_SIZES.standard) {
     try {
-      // Resize logo to fit within the icon with transparent background
-      const logoSize = Math.round(size * 0.85);
-      await sharp(LOGO_PATH)
-        .resize(size, size, {
-          fit: 'contain',
+      // Create background with theme color
+      const background = await createBackground(size, BACKGROUND_COLOR);
+      
+      // Resize logo to fit within the icon (75% of size for padding)
+      const logoSize = Math.round(size * 0.75);
+      const logo = await sharp(LOGO_PATH)
+        .resize(logoSize, logoSize, {
+          fit: 'inside',
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         })
+        .toBuffer();
+      
+      // Get logo metadata for centering
+      const logoMeta = await sharp(logo).metadata();
+      const left = Math.round((size - logoMeta.width) / 2);
+      const top = Math.round((size - logoMeta.height) / 2);
+      
+      // Composite logo on colored background
+      await sharp(background)
+        .composite([{ input: logo, left, top }])
         .png()
         .toFile(join(PUBLIC_DIR, `icon-${size}.png`));
       

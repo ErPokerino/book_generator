@@ -544,14 +544,28 @@ if os.path.exists(static_path):
             return FileResponse(icon_path, media_type="image/png")
         raise HTTPException(status_code=404, detail="Icon not found")
     
+    @app.get("/logo-narrai.png")
+    async def serve_logo_narrai():
+        logo_path = os.path.join(static_path, "logo-narrai.png")
+        if os.path.exists(logo_path):
+            return FileResponse(logo_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Logo not found")
+    
+    @app.get("/logo-narrai-header.png")
+    async def serve_logo_narrai_header():
+        logo_path = os.path.join(static_path, "logo-narrai-header.png")
+        if os.path.exists(logo_path):
+            return FileResponse(logo_path, media_type="image/png")
+        raise HTTPException(status_code=404, detail="Logo not found")
+    
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Skip if it's an API route, favicon, manifest, or PWA icons
+        # Skip if it's an API route, favicon, manifest, or PWA icons/logos
         if (full_path.startswith("api/") or 
             full_path == "favicon.svg" or 
             full_path == "manifest.webmanifest" or
-            full_path in ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "favicon.png"]):
+            full_path in ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "favicon.png", "logo-narrai.png", "logo-narrai-header.png"]):
             raise HTTPException(status_code=404, detail="Not found")
         # Serve index.html for SPA routing
         index_path = os.path.join(static_path, "index.html")
