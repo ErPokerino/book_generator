@@ -672,6 +672,15 @@ export async function startBookGeneration(request: BookGenerationRequest): Promi
   
   if (!response.ok) {
     const error = await response.json();
+    // Gestisci errori di crediti esauriti (402 Payment Required)
+    if (response.status === 402 && error.detail && typeof error.detail === 'object') {
+      const creditsError = error.detail;
+      const errorMessage = new Error(creditsError.message || `Hai esaurito i crediti per la modalità ${creditsError.mode || 'selezionata'}`);
+      (errorMessage as any).error_type = 'credits_exhausted';
+      (errorMessage as any).mode = creditsError.mode;
+      (errorMessage as any).next_reset_at = creditsError.next_reset_at;
+      throw errorMessage;
+    }
     throw new Error(error.detail || `Errore nell'avvio della generazione: ${response.statusText}`);
   }
   

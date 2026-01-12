@@ -38,6 +38,7 @@ from app.services.book_generation_service import (
     background_resume_book_generation,
 )
 from app.core.config import get_app_config
+from app.services.stats_service import llm_model_to_mode
 
 # Helper functions (temporarily defined here, will be moved to utils later)
 def get_model_abbreviation(model_name: str) -> str:
@@ -445,6 +446,37 @@ async def generate_book_endpoint(
                 status_code=400,
                 detail="La struttura del libro deve essere generata prima di iniziare la scrittura."
             )
+        
+        # Verifica e consuma crediti (solo per utenti autenticati)
+        if current_user:
+            from app.agent.user_store import get_user_store
+            
+            # Estrai la modalità dal form_data della sessione
+            llm_model = session.form_data.llm_model if session.form_data and session.form_data.llm_model else "gemini-3-flash"
+            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
+            
+            print(f"[BOOK GENERATION] Tentativo consumo credito {mode} per utente {current_user.id}")
+            
+            # Verifica crediti disponibili e consuma
+            user_store = get_user_store()
+            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            
+            print(f"[BOOK GENERATION] Risultato consumo credito: success={success}, message={message}, credits={updated_credits}")
+            
+            if not success:
+                # Crediti esauriti - ritorna errore HTTP
+                _, _, next_reset = await user_store.get_user_credits(current_user.id)
+                raise HTTPException(
+                    status_code=402,  # Payment Required
+                    detail={
+                        "error_type": "credits_exhausted",
+                        "message": message,
+                        "mode": mode.capitalize(),
+                        "next_reset_at": next_reset.isoformat(),
+                    }
+                )
+        else:
+            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
         
         # Parsa l'outline e inizializza il progresso IMMEDIATAMENTE
         try:

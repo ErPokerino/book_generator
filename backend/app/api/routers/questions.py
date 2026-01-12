@@ -20,7 +20,6 @@ from app.agent.session_store_helpers import (
 )
 from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_questions
-from app.services.stats_service import llm_model_to_mode
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -147,8 +146,6 @@ async def start_questions_generation_endpoint(
 ):
     """Avvia la generazione delle domande in background."""
     try:
-        from app.agent.user_store import get_user_store
-        
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise HTTPException(
@@ -162,32 +159,7 @@ async def start_questions_generation_endpoint(
         # Log per debug autenticazione
         print(f"[QUESTIONS GENERATION] user_id: {user_id}, current_user: {current_user.email if current_user else 'None'}")
         
-        # Verifica e consuma crediti (solo per utenti autenticati)
-        if current_user:
-            # Estrai la modalità dal form_data
-            llm_model = request.form_data.get("llm_model", "gemini-3-flash")
-            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
-            
-            print(f"[QUESTIONS GENERATION] Tentativo consumo credito {mode} per utente {current_user.id}")
-            
-            # Verifica crediti disponibili
-            user_store = get_user_store()
-            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
-            
-            print(f"[QUESTIONS GENERATION] Risultato consumo credito: success={success}, message={message}, credits={updated_credits}")
-            
-            if not success:
-                # Crediti esauriti - ritorna messaggio user-friendly
-                _, _, next_reset = await user_store.get_user_credits(current_user.id)
-                return {
-                    "success": False,
-                    "error_type": "credits_exhausted",
-                    "message": message,
-                    "mode": mode.capitalize(),
-                    "next_reset_at": next_reset.isoformat(),
-                }
-        else:
-            print(f"[QUESTIONS GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
+        # Nota: I crediti vengono consumati quando si avvia la generazione del libro, non qui
         
         # Genera session_id
         session_id = str(uuid.uuid4())

@@ -12,7 +12,6 @@ import StepIndicator from './StepIndicator';
 import AlertModal from './AlertModal';
 import PlotTextarea from './PlotTextarea';
 import PageTransition from './ui/PageTransition';
-import { FlashIcon, ProIcon, UltraIcon } from './ui/icons/ModeIcons';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -740,27 +739,27 @@ export default function DynamicForm() {
                 let modeName = '';
                 let modeClass = '';
                 let modeKey: 'flash' | 'pro' | 'ultra' = 'flash';
-                let ModeIconComponent: React.ComponentType<{ className?: string; size?: number }> | null = null;
                 let modeDescription = '';
+                let modeTradeoff = '';
                 
                 if (value.includes('flash')) {
-                  modeName = 'Flash';
+                  modeName = 'FLASH';
                   modeClass = 'mode-flash';
                   modeKey = 'flash';
-                  ModeIconComponent = FlashIcon;
-                  modeDescription = 'Velocità';
+                  modeDescription = 'Esplorazione e prove';
+                  modeTradeoff = 'Ideale per test rapidi';
                 } else if (value.includes('ultra')) {
-                  modeName = 'Ultra';
+                  modeName = 'ULTRA';
                   modeClass = 'mode-ultra';
                   modeKey = 'ultra';
-                  ModeIconComponent = UltraIcon;
-                  modeDescription = 'Estensione';
+                  modeDescription = 'Rifinitura avanzata';
+                  modeTradeoff = 'Testi più estesi';
                 } else if (value.includes('pro')) {
-                  modeName = 'Pro';
+                  modeName = 'PRO';
                   modeClass = 'mode-pro';
                   modeKey = 'pro';
-                  ModeIconComponent = ProIcon;
-                  modeDescription = 'Qualità';
+                  modeDescription = 'Scrittura principale';
+                  modeTradeoff = 'Scelta consigliata';
                 }
                 
                 // Usa crediti reali dall'API se disponibili, altrimenti fallback ai default
@@ -770,6 +769,9 @@ export default function DynamicForm() {
                   : (defaultCredits[modeKey] ?? 0);
                 
                 const isExhausted = availability === 0;
+                
+                // Determina se mostrare warning soft per disponibilità bassa (X <= 1) - solo per modalità diverse da ULTRA
+                const showLowAvailabilityWarning = modeKey !== 'ultra' && availability > 0 && availability <= 1;
                 
                 return (
                   <button
@@ -781,15 +783,28 @@ export default function DynamicForm() {
                     disabled={isExhausted}
                     title={isExhausted ? `Crediti ${modeName} esauriti. Si ricaricano ogni lunedì.` : undefined}
                   >
-                    {ModeIconComponent && (
-                      <span className="mode-icon">
-                        <ModeIconComponent className="mode-icon-svg" size={32} />
+                    {selected && (
+                      <span className="selection-label" aria-label="Selezionata">
+                        Selezionata
                       </span>
                     )}
                     <span className="mode-name">{modeName}</span>
                     <span className="mode-description">{modeDescription}</span>
-                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''}`}>
-                      {isExhausted ? 'Esaurito' : `${availability} disponibili`}
+                    <span className="mode-tradeoff">{modeTradeoff}</span>
+                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''} ${showLowAvailabilityWarning ? 'low-availability' : ''}`}>
+                      {isExhausted ? (
+                        <>
+                          <span>Esaurita</span>
+                          <span className="availability-count">Disponibili: 0</span>
+                        </>
+                      ) : showLowAvailabilityWarning ? (
+                        <>
+                          <span className="availability-warning-hint">Pochi disponibili</span>
+                          <span className="availability-count">Disponibili: {availability}</span>
+                        </>
+                      ) : (
+                        <span className="availability-count">Disponibili: {availability}</span>
+                      )}
                     </span>
                   </button>
                 );
@@ -1123,9 +1138,44 @@ export default function DynamicForm() {
                 console.log('[DEBUG] Risposta:', response);
                 setCurrentStep('writing');
                 toast.success('Scrittura del libro avviata con successo!');
+                
+                // Ricarica i crediti per aggiornare la UI dopo il consumo
+                if (user) {
+                  try {
+                    const creditsResponse = await getUserCredits();
+                    if (creditsResponse) {
+                      setUserCredits(creditsResponse.credits);
+                      setNextCreditsReset(creditsResponse.next_reset_at);
+                    }
+                  } catch (creditsErr) {
+                    console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
+                  }
+                }
               } catch (err) {
                 console.error('[DEBUG] Errore:', err);
-                toast.error(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
+                
+                // Gestisci errori di crediti esauriti
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const anyErr = err as any;
+                if (anyErr.error_type === 'credits_exhausted') {
+                  toast.error(anyErr.message || `Hai esaurito i crediti per la modalità ${anyErr.mode || 'selezionata'}. I crediti si ricaricano ogni lunedì.`, {
+                    duration: 6000,
+                  });
+                  // Ricarica i crediti per aggiornare la UI
+                  if (user) {
+                    try {
+                      const creditsResponse = await getUserCredits();
+                      if (creditsResponse) {
+                        setUserCredits(creditsResponse.credits);
+                        setNextCreditsReset(creditsResponse.next_reset_at);
+                      }
+                    } catch (creditsErr) {
+                      console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
+                    }
+                  }
+                } else {
+                  toast.error(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
+                }
               } finally {
                 setIsStartingWriting(false);
               }
