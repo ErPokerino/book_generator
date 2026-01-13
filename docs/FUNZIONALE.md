@@ -257,7 +257,7 @@ Il sistema utilizza SMTP per invio email (verifica e password reset):
 **URL Frontend**:
 - Configurabile via variabile d'ambiente `FRONTEND_URL`
 - Default: `http://localhost:5173` (sviluppo)
-- Produzione: `https://narrai-274471015864.europe-west1.run.app`
+- Produzione: `https://narrai.it`
 
 **Fallback**: Se credenziali SMTP non configurate, email non vengono inviate ma il processo continua (utile per sviluppo).
 
