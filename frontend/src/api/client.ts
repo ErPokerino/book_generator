@@ -219,6 +219,20 @@ export interface DraftValidationResponse {
 
 const API_BASE = '/api';
 
+// Event per segnalare sessione scaduta
+const SESSION_EXPIRED_EVENT = 'session-expired';
+
+/**
+ * Emette l'evento di sessione scaduta se la risposta è 401.
+ * Questo permette all'AuthContext di fare logout automatico.
+ */
+function handleUnauthorized(status: number): void {
+  if (status === 401) {
+    console.warn('[API Client] Ricevuto 401, emitting session-expired event');
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+  }
+}
+
 export async function fetchConfig(): Promise<ConfigResponse> {
   const response = await fetch(`${API_BASE}/config`);
   if (!response.ok) {
@@ -1600,6 +1614,7 @@ export async function getUnreadCount(): Promise<UnreadCountResponse> {
   });
 
   if (!response.ok) {
+    handleUnauthorized(response.status);
     let errorDetail = `[${response.status}] Errore nel recupero del conteggio notifiche`;
     try {
       const error = await response.json();
@@ -2140,6 +2155,7 @@ export async function getPendingConnectionsCount(): Promise<{ pending_count: num
   });
 
   if (!response.ok) {
+    handleUnauthorized(response.status);
     let errorDetail = `[${response.status}] Errore nel recupero del conteggio richieste pendenti`;
     try {
       const error = await response.json();

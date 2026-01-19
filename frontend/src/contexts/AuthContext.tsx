@@ -1,5 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, login as apiLogin, register as apiRegister, logout as apiLogout, getCurrentUser } from '../api/client';
+
+// Event per segnalare sessione scaduta (401)
+export const SESSION_EXPIRED_EVENT = 'session-expired';
 
 interface AuthContextType {
   user: User | null;
@@ -27,6 +30,20 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Gestisce l'evento di sessione scaduta
+  const handleSessionExpired = useCallback(() => {
+    console.warn('[AuthContext] Sessione scaduta, logout automatico');
+    setUser(null);
+  }, []);
+
+  // Ascolta l'evento di sessione scaduta
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, [handleSessionExpired]);
 
   // Check sessione esistente all'avvio
   useEffect(() => {
