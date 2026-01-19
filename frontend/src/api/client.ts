@@ -1600,10 +1600,10 @@ export async function getUnreadCount(): Promise<UnreadCountResponse> {
   });
 
   if (!response.ok) {
-    let errorDetail = 'Errore nel recupero del conteggio notifiche';
+    let errorDetail = `[${response.status}] Errore nel recupero del conteggio notifiche`;
     try {
       const error = await response.json();
-      errorDetail = error.detail || errorDetail;
+      errorDetail = `[${response.status}] ${error.detail || 'Errore nel recupero del conteggio notifiche'}`;
     } catch {
       // Se non è JSON, usa il messaggio di default
     }
@@ -2140,10 +2140,10 @@ export async function getPendingConnectionsCount(): Promise<{ pending_count: num
   });
 
   if (!response.ok) {
-    let errorDetail = 'Errore nel recupero del conteggio richieste pendenti';
+    let errorDetail = `[${response.status}] Errore nel recupero del conteggio richieste pendenti`;
     try {
       const error = await response.json();
-      errorDetail = error.detail || errorDetail;
+      errorDetail = `[${response.status}] ${error.detail || 'Errore nel recupero del conteggio richieste pendenti'}`;
     } catch {
       // Se non è JSON, usa il messaggio di default
     }

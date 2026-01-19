@@ -78,8 +78,17 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     try {
       const response = await getUnreadCount();
       setUnreadCount(response.unread_count);
-    } catch (error) {
-      console.error('[NotificationContext] Errore nel recupero conteggio notifiche:', error);
+    } catch (error: unknown) {
+      // Se errore 401, ferma il polling (sessione scaduta)
+      if (error instanceof Error && error.message.includes('401')) {
+        console.warn('[NotificationContext] Sessione scaduta, polling interrotto');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } else {
+        console.error('[NotificationContext] Errore nel recupero conteggio notifiche:', error);
+      }
       // Non bloccare l'app se fallisce, mantieni il valore precedente
     }
   }, [isAuthenticated]);

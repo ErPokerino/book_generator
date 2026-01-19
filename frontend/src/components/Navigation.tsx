@@ -21,12 +21,22 @@ export default function Navigation() {
       return;
     }
 
+    let isSessionValid = true;
+
     const loadPendingCount = async () => {
+      if (!isSessionValid) return; // Non fare polling se sessione non valida
+      
       try {
         const response = await getPendingConnectionsCount();
         setPendingConnectionsCount(response.pending_count);
-      } catch (error) {
-        console.error('Errore nel recupero conteggio richieste pendenti:', error);
+      } catch (error: unknown) {
+        // Se errore 401, smetti di fare polling (sessione scaduta)
+        if (error instanceof Error && error.message.includes('401')) {
+          isSessionValid = false;
+          console.warn('[Navigation] Sessione scaduta, polling interrotto');
+        } else {
+          console.error('Errore nel recupero conteggio richieste pendenti:', error);
+        }
       }
     };
 
