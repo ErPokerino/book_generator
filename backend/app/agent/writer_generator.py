@@ -1,5 +1,6 @@
 import os
 import re
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional, List, Dict
@@ -14,6 +15,37 @@ from app.agent.session_store_helpers import (
 from app.core.config import get_app_config, get_temperature_for_agent
 from app.services.pdf_service import calculate_page_count
 import math
+import httpx
+
+# Configurazione retry e timeout per robustezza contro errori di rete
+CHAPTER_GENERATION_MAX_RETRIES = 3  # Numero massimo di tentativi per generare un capitolo
+CHAPTER_GENERATION_RETRY_DELAY = 5  # Delay base in secondi tra tentativi (con backoff)
+CHAPTER_GENERATION_TIMEOUT = 300  # Timeout in secondi per la generazione (5 minuti)
+
+# Errori di rete che giustificano un retry
+RETRYABLE_EXCEPTIONS = (
+    httpx.ReadTimeout,
+    httpx.ConnectTimeout,
+    httpx.ConnectError,
+    httpx.RemoteProtocolError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """Verifica se l'errore è recuperabile con un retry."""
+    # Controlla se è un'istanza diretta
+    if isinstance(error, RETRYABLE_EXCEPTIONS):
+        return True
+    # Controlla se il messaggio contiene indicatori di errori di rete
+    error_msg = str(error).lower()
+    retryable_patterns = [
+        'timeout', 'timed out', 'connection', 'connect', 
+        'read timeout', 'ssl', 'tls', 'handshake',
+        'network', 'socket', 'eof', 'reset'
+    ]
+    return any(pattern in error_msg for pattern in retryable_patterns)
 
 
 def load_writer_agent_context() -> str:
@@ -469,27 +501,52 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
     
     user_prompt = HumanMessage(content=user_prompt_content)
     
-    # Inizializza il modello Gemini
+    # Inizializza il modello Gemini con timeout configurato
     temperature = get_temperature_for_agent("writer_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(
         model=gemini_model,
         google_api_key=api_key,
         temperature=temperature,
         max_output_tokens=max_tokens,
+        timeout=CHAPTER_GENERATION_TIMEOUT,  # Timeout esplicito
     )
     
-    # Genera la parte del capitolo
-    response = await llm.ainvoke([system_prompt, user_prompt])
-    part_text = _coerce_llm_content_to_text(response.content).strip()
+    # Genera la parte del capitolo con retry automatico
+    last_error = None
+    for attempt in range(CHAPTER_GENERATION_MAX_RETRIES):
+        try:
+            response = await llm.ainvoke([system_prompt, user_prompt])
+            part_text = _coerce_llm_content_to_text(response.content).strip()
+            
+            # Validazione base
+            if not part_text or len(part_text.strip()) < 20:
+                raise ValueError(
+                    f"Parte del capitolo generata vuota o troppo corta per '{current_section_title}': "
+                    f"{len(part_text) if part_text else 0} caratteri"
+                )
+            
+            # Successo: log e ritorna
+            if attempt > 0:
+                print(f"[WRITER] Generazione riuscita al tentativo {attempt + 1} per '{current_section_title}'")
+            return part_text
+            
+        except Exception as e:
+            last_error = e
+            is_retryable = _is_retryable_error(e)
+            
+            if is_retryable and attempt < CHAPTER_GENERATION_MAX_RETRIES - 1:
+                delay = CHAPTER_GENERATION_RETRY_DELAY * (attempt + 1)  # Backoff lineare
+                print(f"[WRITER] Tentativo {attempt + 1}/{CHAPTER_GENERATION_MAX_RETRIES} fallito per '{current_section_title}': {type(e).__name__}")
+                print(f"[WRITER] Errore recuperabile, riprovo tra {delay}s...")
+                await asyncio.sleep(delay)
+            else:
+                # Non recuperabile o ultimo tentativo
+                if attempt > 0:
+                    print(f"[WRITER] Tutti i {CHAPTER_GENERATION_MAX_RETRIES} tentativi falliti per '{current_section_title}'")
+                raise
     
-    # Validazione base
-    if not part_text or len(part_text.strip()) < 20:
-        raise ValueError(
-            f"Parte del capitolo generata vuota o troppo corta per '{current_section_title}': "
-            f"{len(part_text) if part_text else 0} caratteri"
-        )
-    
-    return part_text
+    # Non dovremmo mai arrivare qui, ma per sicurezza
+    raise last_error if last_error else Exception(f"Generazione fallita per '{current_section_title}'")
 
 
 async def generate_chapter(
@@ -635,41 +692,61 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
         
         user_prompt = HumanMessage(content=user_prompt_content)
         
-        # Inizializza il modello Gemini
+        # Inizializza il modello Gemini con timeout configurato
         temperature = get_temperature_for_agent("writer_generator", gemini_model)
         llm = ChatGoogleGenerativeAI(
             model=gemini_model,
             google_api_key=api_key,
             temperature=temperature,
             max_output_tokens=max_tokens,
+            timeout=CHAPTER_GENERATION_TIMEOUT,  # Timeout esplicito
         )
         
-        # Genera il capitolo
-        try:
-            response = await llm.ainvoke([system_prompt, user_prompt])
-            chapter_text = _coerce_llm_content_to_text(response.content).strip()
-            
-            # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
-            import re
-            alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
-            # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
-            is_effectively_empty = (alnum_count < 20)
+        # Genera il capitolo con retry automatico
+        last_error = None
+        for attempt in range(CHAPTER_GENERATION_MAX_RETRIES):
+            try:
+                response = await llm.ainvoke([system_prompt, user_prompt])
+                chapter_text = _coerce_llm_content_to_text(response.content).strip()
+                
+                # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
+                alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
+                # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
+                is_effectively_empty = (alnum_count < 20)
 
-            app_config = get_app_config()
-            min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
-            
-            if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
-                raise ValueError(
-                    f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
-                    f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
-                    f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
-                )
-            
-            print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
-            return chapter_text
-            
-        except Exception as e:
-            raise Exception(f"Errore nella generazione del capitolo '{current_section['title']}': {str(e)}")
+                app_config = get_app_config()
+                min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
+                
+                if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
+                    raise ValueError(
+                        f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
+                        f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
+                        f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
+                    )
+                
+                # Successo
+                if attempt > 0:
+                    print(f"[WRITER] Generazione riuscita al tentativo {attempt + 1} per '{current_section['title']}'")
+                print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
+                return chapter_text
+                
+            except Exception as e:
+                last_error = e
+                is_retryable = _is_retryable_error(e)
+                
+                if is_retryable and attempt < CHAPTER_GENERATION_MAX_RETRIES - 1:
+                    delay = CHAPTER_GENERATION_RETRY_DELAY * (attempt + 1)  # Backoff lineare
+                    print(f"[WRITER] Tentativo {attempt + 1}/{CHAPTER_GENERATION_MAX_RETRIES} fallito per '{current_section['title']}': {type(e).__name__}")
+                    print(f"[WRITER] Errore recuperabile, riprovo tra {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    # Non recuperabile o ultimo tentativo
+                    if attempt > 0:
+                        print(f"[WRITER] Tutti i {CHAPTER_GENERATION_MAX_RETRIES} tentativi falliti per '{current_section['title']}'")
+                    raise Exception(f"Errore nella generazione del capitolo '{current_section['title']}': {str(e)}")
+        
+        # Fallback (non dovremmo mai arrivare qui)
+        raise last_error if last_error else Exception(f"Generazione fallita per '{current_section['title']}'")
 
 
 async def generate_full_book(
