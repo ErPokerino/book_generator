@@ -567,9 +567,12 @@ if os.path.exists(static_path):
             full_path == "manifest.webmanifest" or
             full_path in ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "favicon.png", "logo-narrai.png", "logo-narrai-header.png"]):
             raise HTTPException(status_code=404, detail="Not found")
-        # Serve index.html for SPA routing
+        # Serve index.html for SPA routing with no-cache to ensure fresh code
         index_path = os.path.join(static_path, "index.html")
         if os.path.exists(index_path):
-            return FileResponse(index_path)
+            return FileResponse(
+                index_path,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+            )
         raise HTTPException(status_code=404, detail="Frontend not found")
 
