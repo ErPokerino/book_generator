@@ -78,13 +78,13 @@ La copertina deve essere:
     
     # Lista dei modelli da provare (primario e fallback)
     # Per ogni modello, specifichiamo anche la configurazione dell'immagine
-    # NOTA: gemini-2.5-flash-image è ora primario perché gemini-3-pro-image-preview
-    # restituisce spesso un formato di risposta non supportato dal parser
+    # NOTA: response_modalities=["IMAGE"] è fondamentale per ricevere immagini
     models_to_try = [
         {
             'name': 'gemini-2.5-flash-image',
             'type': 'primario',
             'config': {
+                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
                 'image_config': {
                     'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
                 }
@@ -94,6 +94,7 @@ La copertina deve essere:
             'name': 'gemini-3-pro-image-preview',
             'type': 'fallback',
             'config': {
+                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
                 'image_config': {
                     'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
                     'image_size': '2K'  # Alta risoluzione per copertina professionale
@@ -217,6 +218,18 @@ La copertina deve essere:
                 # Log dettagliato degli attributi disponibili per debug
                 part_attrs = [a for a in dir(part) if not a.startswith('_')]
                 print(f"[COVER GENERATOR] Attributi part {idx}: {part_attrs}")
+                
+                # Metodo 0: as_image() - metodo helper della libreria google-genai (più affidabile)
+                if hasattr(part, 'as_image') and callable(getattr(part, 'as_image')):
+                    print(f"[COVER GENERATOR] Trovato metodo as_image(), provo a usarlo...")
+                    try:
+                        pil_image = part.as_image()
+                        if pil_image is not None:
+                            print(f"[COVER GENERATOR] Immagine estratta con as_image(), dimensioni: {pil_image.size}")
+                            break
+                    except Exception as as_image_error:
+                        print(f"[COVER GENERATOR] Errore con as_image(): {as_image_error}")
+                        # Continua con altri metodi
                 
                 # Metodo 1: inline_data (snake_case)
                 if hasattr(part, 'inline_data') and part.inline_data is not None:
