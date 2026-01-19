@@ -78,23 +78,25 @@ La copertina deve essere:
     
     # Lista dei modelli da provare (primario e fallback)
     # Per ogni modello, specifichiamo anche la configurazione dell'immagine
+    # NOTA: gemini-2.5-flash-image è ora primario perché gemini-3-pro-image-preview
+    # restituisce spesso un formato di risposta non supportato dal parser
     models_to_try = [
         {
-            'name': 'gemini-3-pro-image-preview',
+            'name': 'gemini-2.5-flash-image',
             'type': 'primario',
             'config': {
                 'image_config': {
-                    'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
-                    'image_size': '2K'  # Alta risoluzione per copertina professionale
+                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
                 }
             }
         },
         {
-            'name': 'gemini-2.5-flash-image',
+            'name': 'gemini-3-pro-image-preview',
             'type': 'fallback',
             'config': {
                 'image_config': {
-                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
+                    'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
+                    'image_size': '2K'  # Alta risoluzione per copertina professionale
                 }
             }
         },
