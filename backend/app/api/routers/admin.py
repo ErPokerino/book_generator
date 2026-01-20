@@ -543,3 +543,97 @@ async def delete_gemini_2_5_books_endpoint(
             status_code=500,
             detail=f"Errore nell'eliminazione dei libri Gemini 2.5: {str(e)}"
         )
+
+
+@router.get("/books/pending")
+async def get_pending_books_endpoint(
+    current_user = Depends(require_admin),
+):
+    """Restituisce lista di libri in fase di generazione (draft, outline, writing, paused) con info utente (solo admin)."""
+    try:
+        session_store = get_session_store()
+        user_store = get_user_store()
+        
+        if user_store.client is None or user_store.users_collection is None:
+            await user_store.connect()
+        
+        # Recupera tutte le sessioni
+        all_sessions = await get_all_sessions_async(session_store, user_id=None)
+        
+        # Stati che indicano generazione in corso
+        in_progress_states = ["draft", "outline", "writing", "paused"]
+        
+        # Filtra solo quelle in stato di generazione
+        pending_books = []
+        
+        for session_id, session in all_sessions.items():
+            status = session.get_status()
+            if status in in_progress_states:
+                # Recupera info utente
+                user_email = "Unknown"
+                user_name = "Unknown"
+                if session.user_id:
+                    user = await user_store.get_user_by_id(session.user_id)
+                    if user:
+                        user_email = user.email
+                        user_name = user.name
+                
+                # Info libro
+                title = session.current_title or (session.form_data.book_title if session.form_data else None) or "Senza titolo"
+                model = session.form_data.llm_model if session.form_data else "unknown"
+                
+                writing_progress = session.writing_progress or {}
+                current_phase = writing_progress.get("current_phase", "unknown")
+                current_chapter = writing_progress.get("current_chapter", 0)
+                total_chapters = writing_progress.get("total_chapters", 0)
+                error = writing_progress.get("error")
+                is_paused = writing_progress.get("is_paused", False)
+                is_complete = writing_progress.get("is_complete", False)
+                
+                pending_books.append({
+                    "session_id": session_id,
+                    "user_email": user_email,
+                    "user_name": user_name,
+                    "title": title,
+                    "status": status,
+                    "model": model,
+                    "phase": current_phase,
+                    "current_chapter": current_chapter,
+                    "total_chapters": total_chapters,
+                    "is_paused": is_paused,
+                    "is_complete": is_complete,
+                    "error": error,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                })
+        
+        # Raggruppa per utente
+        by_user = defaultdict(list)
+        for book in pending_books:
+            by_user[book["user_email"]].append(book)
+        
+        return {
+            "total": len(pending_books),
+            "by_user": {
+                email: {
+                    "name": books[0]["user_name"] if books else "Unknown",
+                    "count": len(books),
+                    "books": books
+                }
+                for email, books in by_user.items()
+            },
+            "by_status": {
+                status: len([b for b in pending_books if b["status"] == status])
+                for status in in_progress_states
+            },
+            "with_errors": len([b for b in pending_books if b["error"]]),
+        }
+    
+    except Exception as e:
+        print(f"[PENDING BOOKS] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero libri in sospeso: {str(e)}"
+        )
