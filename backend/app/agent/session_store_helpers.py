@@ -302,6 +302,37 @@ async def delete_session_async(
         return session_store.delete_session(session_id)
 
 
+async def update_token_usage_async(
+    session_store: SessionStore,
+    session_id: str,
+    phase: str,
+    input_tokens: int,
+    output_tokens: int,
+    model: str,
+) -> bool:
+    """Helper per aggiornare il token usage in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        # MongoSessionStore - metodo async
+        return await session_store.update_token_usage(session_id, phase, input_tokens, output_tokens, model)
+    else:
+        # FileSessionStore - metodo sync
+        return session_store.update_token_usage(session_id, phase, input_tokens, output_tokens, model)
+
+
+async def set_real_cost_async(
+    session_store: SessionStore,
+    session_id: str,
+    real_cost_eur: float,
+) -> bool:
+    """Helper per impostare il costo reale in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        # MongoSessionStore - metodo async
+        return await session_store.set_real_cost(session_id, real_cost_eur)
+    else:
+        # FileSessionStore - metodo sync
+        return session_store.set_real_cost(session_id, real_cost_eur)
+
+
 async def get_all_sessions_async(session_store: SessionStore, user_id: Optional[str] = None, 
                                  fields: Optional[list] = None, status: Optional[str] = None,
                                  llm_model: Optional[str] = None, genre: Optional[str] = None) -> Dict[str, SessionData]:

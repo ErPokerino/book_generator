@@ -9,6 +9,12 @@ retry:
   chapter_generation:
     max_retries: 2
     min_chapter_length: 50
+  questions_generation:
+    max_retries: 2
+  draft_generation:
+    max_retries: 2
+  outline_generation:
+    max_retries: 2
 validation:
   min_chapter_length: 50
   words_per_page: 250
@@ -16,6 +22,10 @@ validation:
 frontend:
   polling_interval: 2000
   polling_interval_critique: 5000
+  polling_interval_questions: 1500
+  polling_interval_draft: 3000
+  polling_interval_outline: 2500
+  polling_backoff_max: 15000
   mode_availability_defaults:
     flash: 10
     pro: 5
@@ -39,8 +49,8 @@ time_estimation:
       a: 0.2707
       b: 51.14
     ultra:
-      a: 0.7271
-      b: 72.97
+      a: 0.4583
+      b: 84.8
     default:
       a: 1.1
       b: 44.3
@@ -74,6 +84,22 @@ cost_estimation:
     gemini-3-pro-preview:
       input_cost_per_million: 2.0
       output_cost_per_million: 12.0
+    # OpenAI GPT 5.2 models (per agente critico)
+    gpt-5.2:
+      input_cost_per_million: 1.75
+      output_cost_per_million: 14.0
+    gpt-5.2-pro:
+      input_cost_per_million: 21.0
+      output_cost_per_million: 168.0
+    gpt-5.2-chat-latest:
+      input_cost_per_million: 1.75
+      output_cost_per_million: 14.0
+    gpt-4o:
+      input_cost_per_million: 2.50
+      output_cost_per_million: 10.0
+    gpt-4o-mini:
+      input_cost_per_million: 0.15
+      output_cost_per_million: 0.60
     default:
       input_cost_per_million: 1.0
       output_cost_per_million: 3.0

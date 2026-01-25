@@ -1144,6 +1144,7 @@ export interface UsersStats {
     name: string;
     email: string;
     books_count: number;
+    created_at?: string;
   }>;
 }
 
@@ -1191,6 +1192,56 @@ export async function deleteUserAdmin(email: string): Promise<{ success: boolean
     throw new Error(errorMessage);
   }
   
+  return await response.json();
+}
+
+// ===== Pending Books (Admin) =====
+
+export interface PendingBook {
+  session_id: string;
+  user_email: string;
+  user_name: string;
+  title: string;
+  status: 'draft' | 'outline' | 'writing' | 'paused';
+  model: string;
+  phase: string;
+  current_chapter: number;
+  total_chapters: number;
+  is_paused: boolean;
+  is_complete: boolean;
+  error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PendingBooksResponse {
+  total: number;
+  by_user: Record<string, {
+    name: string;
+    count: number;
+    books: PendingBook[];
+  }>;
+  by_status: Record<string, number>;
+  with_errors: number;
+}
+
+export async function getPendingBooks(): Promise<PendingBooksResponse> {
+  const response = await fetch(`${API_BASE}/admin/books/pending`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Errore nel recupero dei libri in sospeso: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Ignora errori di parsing
+    }
+    throw new Error(errorMessage);
+  }
+
   return await response.json();
 }
 

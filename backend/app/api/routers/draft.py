@@ -16,6 +16,7 @@ from app.agent.session_store_helpers import (
     create_session_async,
     update_draft_async,
     validate_session_async,
+    update_token_usage_async,
 )
 from app.middleware.auth import get_current_user_optional
 
@@ -58,7 +59,7 @@ async def generate_draft_endpoint(
             )
         
         print("[DEBUG] Chiamata a generate_draft...")
-        draft_text, title, version = await generate_draft(
+        draft_text, title, version, token_usage = await generate_draft(
             form_data=request.form_data,
             question_answers=request.question_answers,
             session_id=request.session_id,
@@ -67,6 +68,16 @@ async def generate_draft_endpoint(
         
         print(f"[DEBUG] Bozza generata: {title}, v{version}")
         await update_draft_async(session_store, request.session_id, draft_text, version, title)
+        
+        # Salva token usage per la fase draft
+        await update_token_usage_async(
+            session_store=session_store,
+            session_id=request.session_id,
+            phase="draft",
+            input_tokens=token_usage.get("input_tokens", 0),
+            output_tokens=token_usage.get("output_tokens", 0),
+            model=token_usage.get("model", "gemini-3-pro-preview"),
+        )
         
         return DraftResponse(
             success=True,
@@ -123,7 +134,7 @@ async def modify_draft_endpoint(
                 detail="Nessuna bozza esistente da modificare"
             )
         
-        draft_text, title, version = await generate_draft(
+        draft_text, title, version, token_usage = await generate_draft(
             form_data=session.form_data,
             question_answers=session.question_answers,
             session_id=request.session_id,
@@ -133,6 +144,16 @@ async def modify_draft_endpoint(
         )
         
         await update_draft_async(session_store, request.session_id, draft_text, version, title)
+        
+        # Salva token usage per la fase draft (rigenerazione)
+        await update_token_usage_async(
+            session_store=session_store,
+            session_id=request.session_id,
+            phase="draft",
+            input_tokens=token_usage.get("input_tokens", 0),
+            output_tokens=token_usage.get("output_tokens", 0),
+            model=token_usage.get("model", "gemini-3-pro-preview"),
+        )
         
         return DraftResponse(
             success=True,

@@ -43,6 +43,16 @@ class SessionData:
         self.outline_progress: Optional[Dict[str, Any]] = None  # Stato avanzamento generazione outline
         self.created_at: datetime = datetime.now()  # Timestamp creazione sessione
         self.updated_at: datetime = datetime.now()  # Timestamp ultima modifica
+        # Token usage tracking per calcolo costi reali
+        self.token_usage: Dict[str, Any] = {
+            "questions": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "total": {"input_tokens": 0, "output_tokens": 0},
+        }
+        self.real_cost_eur: Optional[float] = None  # Costo effettivo calcolato dai token reali
     
     def get_status(self) -> str:
         """
@@ -95,6 +105,8 @@ class SessionData:
             "outline_progress": self.outline_progress,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "token_usage": self.token_usage,
+            "real_cost_eur": self.real_cost_eur,
         }
     
     @classmethod
@@ -136,6 +148,16 @@ class SessionData:
         session.created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.now()
         updated_at_str = data.get("updated_at")
         session.updated_at = datetime.fromisoformat(updated_at_str) if updated_at_str else datetime.now()
+        # Token usage (retrocompatibile: se non presente, usa default)
+        session.token_usage = data.get("token_usage", {
+            "questions": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
+            "total": {"input_tokens": 0, "output_tokens": 0},
+        })
+        session.real_cost_eur = data.get("real_cost_eur")
         return session
 
 
@@ -355,6 +377,77 @@ class SessionStore:
         session.writing_progress["estimated_cost"] = estimated_cost
         session.update_timestamp()
         
+        return True
+    
+    def update_token_usage(
+        self,
+        session_id: str,
+        phase: str,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+    ) -> bool:
+        """
+        Aggiorna il conteggio token per una fase specifica della generazione.
+        
+        Args:
+            session_id: ID della sessione
+            phase: Fase di generazione ("questions", "draft", "outline", "chapters", "critique")
+            input_tokens: Numero di token in input
+            output_tokens: Numero di token in output
+            model: Nome del modello utilizzato
+        
+        Returns:
+            True se l'aggiornamento è riuscito, False altrimenti
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+        
+        # Inizializza token_usage se non esiste (retrocompatibilità)
+        if not hasattr(session, 'token_usage') or session.token_usage is None:
+            session.token_usage = {
+                "questions": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+                "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+                "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "total": {"input_tokens": 0, "output_tokens": 0},
+            }
+        
+        # Aggiorna i token per la fase specifica
+        if phase in session.token_usage:
+            session.token_usage[phase]["input_tokens"] += input_tokens
+            session.token_usage[phase]["output_tokens"] += output_tokens
+            session.token_usage[phase]["model"] = model
+            # Incrementa il contatore chiamate per draft e chapters
+            if phase in ("draft", "chapters") and "calls" in session.token_usage[phase]:
+                session.token_usage[phase]["calls"] += 1
+        
+        # Aggiorna anche il totale
+        session.token_usage["total"]["input_tokens"] += input_tokens
+        session.token_usage["total"]["output_tokens"] += output_tokens
+        
+        session.update_timestamp()
+        return True
+    
+    def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
+        """
+        Imposta il costo reale calcolato dai token effettivi.
+        
+        Args:
+            session_id: ID della sessione
+            real_cost_eur: Costo reale in EUR
+        
+        Returns:
+            True se l'aggiornamento è riuscito, False altrimenti
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return False
+        
+        session.real_cost_eur = real_cost_eur
+        session.update_timestamp()
         return True
     
     def pause_writing(
@@ -735,6 +828,27 @@ class FileSessionStore(SessionStore):
         session = super().update_critique(session_id, critique)
         self._save_sessions()
         return session
+    
+    def update_token_usage(
+        self,
+        session_id: str,
+        phase: str,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+    ) -> bool:
+        """Aggiorna il conteggio token e salva su file."""
+        result = super().update_token_usage(session_id, phase, input_tokens, output_tokens, model)
+        if result:
+            self._save_sessions()
+        return result
+    
+    def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
+        """Imposta il costo reale e salva su file."""
+        result = super().set_real_cost(session_id, real_cost_eur)
+        if result:
+            self._save_sessions()
+        return result
 
 
 # Istanza globale del session store

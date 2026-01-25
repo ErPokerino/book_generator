@@ -528,6 +528,55 @@ class MongoSessionStore(SessionStore):
         
         return await self.save_session(session)
     
+    async def update_token_usage(
+        self,
+        session_id: str,
+        phase: str,
+        input_tokens: int,
+        output_tokens: int,
+        model: str,
+    ) -> bool:
+        """Aggiorna il conteggio token per una fase specifica della generazione."""
+        session = await self.get_session(session_id)
+        if not session:
+            return False
+        
+        # Inizializza token_usage se non esiste
+        if not hasattr(session, 'token_usage') or session.token_usage is None:
+            session.token_usage = {
+                "questions": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+                "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+                "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
+                "total": {"input_tokens": 0, "output_tokens": 0},
+            }
+        
+        # Aggiorna i token per la fase specifica
+        if phase in session.token_usage:
+            session.token_usage[phase]["input_tokens"] += input_tokens
+            session.token_usage[phase]["output_tokens"] += output_tokens
+            session.token_usage[phase]["model"] = model
+            if phase in ("draft", "chapters") and "calls" in session.token_usage[phase]:
+                session.token_usage[phase]["calls"] += 1
+        
+        # Aggiorna anche il totale
+        session.token_usage["total"]["input_tokens"] += input_tokens
+        session.token_usage["total"]["output_tokens"] += output_tokens
+        
+        await self.save_session(session)
+        return True
+    
+    async def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
+        """Imposta il costo reale calcolato dai token effettivi."""
+        session = await self.get_session(session_id)
+        if not session:
+            return False
+        
+        session.real_cost_eur = real_cost_eur
+        await self.save_session(session)
+        return True
+    
     async def get_all_sessions(self, user_id: Optional[str] = None, fields: Optional[list] = None, 
                               status: Optional[str] = None, llm_model: Optional[str] = None,
                               genre: Optional[str] = None) -> Dict[str, SessionData]:

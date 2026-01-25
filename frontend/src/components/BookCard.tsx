@@ -249,7 +249,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             )}
             {book.estimated_cost != null && (
               <p className="book-cost">
-                Costo stimato: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
+                Costo generazione: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
               </p>
             )}
           </div>

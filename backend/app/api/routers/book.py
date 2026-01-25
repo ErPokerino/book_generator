@@ -28,6 +28,7 @@ from app.agent.session_store_helpers import (
     update_writing_progress_async,
     update_critique_async,
     update_critique_status_async,
+    update_token_usage_async,
 )
 from app.middleware.auth import get_current_user_optional
 from app.services.pdf_service import generate_complete_book_pdf, calculate_page_count
@@ -457,9 +458,10 @@ async def generate_book_endpoint(
             
             print(f"[BOOK GENERATION] Tentativo consumo credito {mode} per utente {current_user.id}")
             
-            # Verifica crediti disponibili e consuma
+            # Verifica crediti disponibili e consuma (admin ha crediti illimitati)
             user_store = get_user_store()
-            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode)
+            is_admin = current_user.role == "admin"
+            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode, is_admin=is_admin)
             
             print(f"[BOOK GENERATION] Risultato consumo credito: success={success}, message={message}, credits={updated_credits}")
             
@@ -687,10 +689,8 @@ async def get_book_progress_endpoint(
                 delta = session.writing_end_time - session.writing_start_time
                 writing_time_minutes = delta.total_seconds() / 60
         
-        # Calcola costo stimato (solo se libro completo)
-        estimated_cost = None
-        if is_complete and total_pages:
-            estimated_cost = calculate_generation_cost(session, total_pages)
+        # Usa il costo reale basato sui token effettivi (None per libri vecchi senza tracking)
+        estimated_cost = getattr(session, 'real_cost_eur', None)
         
         # Recupera la valutazione critica se disponibile
         critique = None
@@ -1112,7 +1112,7 @@ async def regenerate_book_critique_endpoint(
     
     api_key = None  # Passiamo None, la funzione leggerà da env appropriato
     try:
-        critique = await generate_literary_critique_from_pdf(
+        critique, token_usage = await generate_literary_critique_from_pdf(
             title=session.current_title or "Romanzo",
             author=session.form_data.user_name or "Autore",
             pdf_bytes=bytes(pdf_bytes),
@@ -1124,4 +1124,15 @@ async def regenerate_book_critique_endpoint(
 
     await update_critique_async(session_store, session_id, critique)
     await update_critique_status_async(session_store, session_id, "completed", error=None)
+    
+    # Salva token usage per la fase critique
+    await update_token_usage_async(
+        session_store=session_store,
+        session_id=session_id,
+        phase="critique",
+        input_tokens=token_usage.get("input_tokens", 0),
+        output_tokens=token_usage.get("output_tokens", 0),
+        model=token_usage.get("model", "gemini-3-pro-preview"),
+    )
+    
     return critique

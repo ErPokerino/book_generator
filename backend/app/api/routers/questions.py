@@ -17,6 +17,7 @@ from app.agent.session_store_helpers import (
     save_generated_questions_async,
     get_session_async,
     update_questions_progress_async,
+    update_token_usage_async,
 )
 from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_questions
@@ -40,7 +41,7 @@ async def generate_questions_endpoint(
             )
         
         # Genera le domande (la funzione userà automaticamente la variabile d'ambiente se non passata)
-        response = await generate_questions(request.form_data, api_key=api_key)
+        response, token_usage = await generate_questions(request.form_data, api_key=api_key)
         
         # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande
         session_store = get_session_store()
@@ -58,6 +59,15 @@ async def generate_questions_endpoint(
                 session_store=session_store,
                 session_id=response.session_id,
                 questions=questions_dict,
+            )
+            # Salva token usage per la fase questions
+            await update_token_usage_async(
+                session_store=session_store,
+                session_id=response.session_id,
+                phase="questions",
+                input_tokens=token_usage.get("input_tokens", 0),
+                output_tokens=token_usage.get("output_tokens", 0),
+                model=token_usage.get("model", "gemini-3-pro-preview"),
             )
             print(f"[DEBUG] Sessione {response.session_id} creata nel session store dopo generazione domande")
         except Exception as session_error:

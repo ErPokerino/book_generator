@@ -429,7 +429,7 @@ class UserStore:
     @staticmethod
     def _get_default_credits() -> ModeCredits:
         """Restituisce i crediti di default."""
-        return ModeCredits(flash=10, pro=5, ultra=1)
+        return ModeCredits(flash=1, pro=0, ultra=0)
     
     @staticmethod
     def _get_next_monday() -> datetime:
@@ -520,13 +520,14 @@ class UserStore:
         
         return credits, credits_reset_at or datetime.utcnow(), self._get_next_monday()
     
-    async def consume_credit(self, user_id: str, mode: str) -> tuple[bool, str, Optional[ModeCredits]]:
+    async def consume_credit(self, user_id: str, mode: str, is_admin: bool = False) -> tuple[bool, str, Optional[ModeCredits]]:
         """
         Consuma un credito per la modalità specificata.
         
         Args:
             user_id: ID dell'utente
             mode: Modalità (flash, pro, ultra)
+            is_admin: Se True, salta il controllo crediti (admin ha crediti illimitati)
         
         Returns:
             Tuple di (successo, messaggio, crediti_aggiornati)
@@ -539,6 +540,13 @@ class UserStore:
         mode = mode.lower()
         if mode not in ["flash", "pro", "ultra"]:
             return False, f"Modalità '{mode}' non valida", None
+        
+        # Admin ha crediti illimitati - non consuma crediti
+        if is_admin:
+            print(f"[UserStore] Utente admin {user_id} - bypass controllo crediti per modalità {mode}", file=sys.stderr)
+            # Restituisci crediti attuali senza consumarli
+            credits, _, _ = await self.get_user_credits(user_id)
+            return True, "Admin - crediti illimitati", credits
         
         # Ottieni crediti (con lazy reset)
         credits, _, _ = await self.get_user_credits(user_id)

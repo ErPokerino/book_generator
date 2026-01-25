@@ -120,12 +120,13 @@ async def analyze_external_pdf(
         # Genera la critica
         try:
             print(f"[EXTERNAL PDF CRITIQUE] Avvio analisi con modello critico...")
-            critique_dict = await analyze_pdf_from_bytes(
+            critique_dict, token_usage = await analyze_pdf_from_bytes(
                 pdf_bytes=pdf_bytes,
                 title=book_title,
                 author=book_author,
             )
             print(f"[EXTERNAL PDF CRITIQUE] Analisi modello completata")
+            print(f"[EXTERNAL PDF CRITIQUE] Token usage: {token_usage.get('input_tokens', 0)} input, {token_usage.get('output_tokens', 0)} output")
         except Exception as critique_error:
             print(f"[EXTERNAL PDF CRITIQUE] ERRORE durante analisi modello: {critique_error}")
             import traceback

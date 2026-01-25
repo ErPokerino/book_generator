@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLibraryStats, getAdvancedStats, getUsersStats, deleteUserAdmin, LibraryStats, AdvancedStats, UsersStats } from '../api/client';
+import { getLibraryStats, getAdvancedStats, getUsersStats, deleteUserAdmin, getPendingBooks, LibraryStats, AdvancedStats, UsersStats, PendingBooksResponse } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
 import { SkeletonBox, SkeletonText, SkeletonChart } from './Skeleton';
@@ -21,6 +21,7 @@ export default function AnalyticsView() {
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [advancedStats, setAdvancedStats] = useState<AdvancedStats | null>(null);
   const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
+  const [pendingBooks, setPendingBooks] = useState<PendingBooksResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
 
@@ -47,14 +48,16 @@ export default function AnalyticsView() {
     const loadStats = async () => {
       try {
         setLoading(true);
-        const [statsData, advancedData, usersData] = await Promise.all([
+        const [statsData, advancedData, usersData, pendingData] = await Promise.all([
           getLibraryStats(),
           getAdvancedStats(),
           getUsersStats(),
+          getPendingBooks(),
         ]);
         setStats(statsData);
         setAdvancedStats(advancedData);
         setUsersStats(usersData);
+        setPendingBooks(pendingData);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Errore nel caricamento delle statistiche');
       } finally {
@@ -83,17 +86,31 @@ export default function AnalyticsView() {
     }));
   };
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'N/A';
+    try {
+      return new Date(dateStr).toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return 'N/A';
+    }
+  };
+
   const exportUsersToCSV = () => {
     if (!usersStats || !usersStats.users_with_books) {
       toast.error('Nessun dato utente disponibile');
       return;
     }
 
-    const headers = ['Nome', 'Email', 'Libri Generati'];
+    const headers = ['Nome', 'Email', 'Libri Generati', 'Data Registrazione'];
     const rows = usersStats.users_with_books.map(user => [
       user.name || 'N/A',
       user.email || 'N/A',
-      user.books_count.toString()
+      user.books_count.toString(),
+      formatDate(user.created_at)
     ]);
 
     const csvContent = [
@@ -350,6 +367,12 @@ export default function AnalyticsView() {
                       textAlign: 'center',
                       fontWeight: 600,
                       color: 'var(--text-primary)',
+                    }}>Data Registrazione</th>
+                    <th style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
                     }}>Azioni</th>
                   </tr>
                 </thead>
@@ -376,6 +399,12 @@ export default function AnalyticsView() {
                         fontWeight: 600,
                         color: 'var(--accent)',
                       }}>{user.books_count}</td>
+                      <td style={{
+                        padding: '0.75rem 1rem',
+                        textAlign: 'center',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.9rem',
+                      }}>{formatDate(user.created_at)}</td>
                       <td style={{
                         padding: '0.75rem 1rem',
                         textAlign: 'center',
@@ -414,6 +443,114 @@ export default function AnalyticsView() {
               </table>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Libri in Sospeso */}
+      {pendingBooks && pendingBooks.total > 0 && (
+        <section className="analytics-section">
+          <h2 className="section-title">Libri in Sospeso</h2>
+          <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '0.75rem 1.5rem',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              borderRadius: 'var(--radius-md)',
+              color: 'white',
+              fontSize: '1rem',
+              fontWeight: 600,
+            }}>
+              ⏳ Totale: {pendingBooks.total}
+            </div>
+            {Object.entries(pendingBooks.by_status).map(([status, count]) => (
+              <div key={status} style={{
+                display: 'inline-block',
+                padding: '0.5rem 1rem',
+                background: 'var(--surface-elevated)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)',
+                fontSize: '0.9rem',
+                border: '1px solid var(--border-light)',
+              }}>
+                {status}: {count}
+              </div>
+            ))}
+            {pendingBooks.with_errors > 0 && (
+              <div style={{
+                display: 'inline-block',
+                padding: '0.5rem 1rem',
+                background: '#dc3545',
+                borderRadius: 'var(--radius-md)',
+                color: 'white',
+                fontSize: '0.9rem',
+              }}>
+                ⚠️ Con errori: {pendingBooks.with_errors}
+              </div>
+            )}
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+            }}>
+              <thead>
+                <tr style={{
+                  background: 'var(--surface-elevated)',
+                  borderBottom: '2px solid var(--border)',
+                }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Titolo</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Utente</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Stato</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Fase</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Progresso</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Errore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(pendingBooks.by_user).flatMap(([, userData]) =>
+                  userData.books.map((book) => (
+                    <tr
+                      key={book.session_id}
+                      style={{
+                        borderBottom: '1px solid var(--border-light)',
+                        background: book.error ? 'rgba(220, 53, 69, 0.05)' : undefined,
+                      }}
+                    >
+                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {book.title}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        <div>{book.user_name}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{book.user_email}</div>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                        <span style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.8rem',
+                          fontWeight: 500,
+                          background: book.status === 'paused' ? '#f59e0b' : book.status === 'writing' ? '#10b981' : 'var(--primary)',
+                          color: 'white',
+                        }}>
+                          {book.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                        {book.phase}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--accent)' }}>
+                        {book.current_chapter}/{book.total_chapters}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', color: '#dc3545', fontSize: '0.85rem', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {book.error || '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

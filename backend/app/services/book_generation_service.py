@@ -15,8 +15,11 @@ from app.agent.session_store_helpers import (
     update_cover_image_path_async,
     update_critique_async,
     update_critique_status_async,
+    update_token_usage_async,
+    set_real_cost_async,
 )
 from app.services.storage_service import get_storage_service
+from app.services.cost_service import calculate_real_generation_cost
 
 
 async def background_book_generation(
@@ -138,6 +141,17 @@ async def background_book_generation(
             if hasattr(session_store, '_save_sessions'):
                 session_store._save_sessions()
         
+        # Calcola e salva il costo reale basato sui token effettivi
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session:
+                real_cost = calculate_real_generation_cost(session)
+                if real_cost is not None:
+                    await set_real_cost_async(session_store, session_id, real_cost)
+                    print(f"[BOOK GENERATION] Costo reale calcolato e salvato: €{real_cost:.6f}")
+        except Exception as cost_err:
+            print(f"[BOOK GENERATION] WARNING: Errore nel calcolo costo reale: {cost_err}")
+        
         # Genera la copertina dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
@@ -201,7 +215,7 @@ async def background_book_generation(
                 except Exception as e:
                     raise RuntimeError(f"Impossibile generare/recuperare PDF per critica: {e}")
 
-                critique = await generate_literary_critique_from_pdf(
+                critique, token_usage = await generate_literary_critique_from_pdf(
                     title=draft_title or "Romanzo",
                     author=form_data.user_name or "Autore",
                     pdf_bytes=bytes(pdf_bytes),
@@ -210,6 +224,17 @@ async def background_book_generation(
 
                 await update_critique_async(session_store, session_id, critique)
                 await update_critique_status_async(session_store, session_id, "completed", error=None)
+                
+                # Salva token usage per la fase critique
+                await update_token_usage_async(
+                    session_store,
+                    session_id,
+                    phase="critique",
+                    input_tokens=token_usage.get("input_tokens", 0),
+                    output_tokens=token_usage.get("output_tokens", 0),
+                    model=token_usage.get("model", "gemini-3-pro-preview"),
+                )
+                
                 print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
@@ -361,6 +386,17 @@ async def background_resume_book_generation(
             if hasattr(session_store, '_save_sessions'):
                 session_store._save_sessions()
         
+        # Calcola e salva il costo reale basato sui token effettivi
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session:
+                real_cost = calculate_real_generation_cost(session)
+                if real_cost is not None:
+                    await set_real_cost_async(session_store, session_id, real_cost)
+                    print(f"[BOOK GENERATION] Costo reale calcolato e salvato: €{real_cost:.6f}")
+        except Exception as cost_err:
+            print(f"[BOOK GENERATION] WARNING: Errore nel calcolo costo reale: {cost_err}")
+        
         # Genera la copertina dopo che il libro è stato completato
         try:
             print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
@@ -424,7 +460,7 @@ async def background_resume_book_generation(
                     raise RuntimeError(f"Impossibile generare/recuperare PDF per critica: {e}")
 
                 # La funzione gestisce automaticamente quale API key usare (Gemini o OpenAI)
-                critique = await generate_literary_critique_from_pdf(
+                critique, token_usage = await generate_literary_critique_from_pdf(
                     title=session.current_title or "Romanzo",
                     author=session.form_data.user_name or "Autore",
                     pdf_bytes=bytes(pdf_bytes),
@@ -433,6 +469,17 @@ async def background_resume_book_generation(
 
                 await update_critique_async(session_store, session_id, critique)
                 await update_critique_status_async(session_store, session_id, "completed", error=None)
+                
+                # Salva token usage per la fase critique
+                await update_token_usage_async(
+                    session_store,
+                    session_id,
+                    phase="critique",
+                    input_tokens=token_usage.get("input_tokens", 0),
+                    output_tokens=token_usage.get("output_tokens", 0),
+                    model=token_usage.get("model", "gemini-3-pro-preview"),
+                )
+                
                 print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
         except Exception as e:
             print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")

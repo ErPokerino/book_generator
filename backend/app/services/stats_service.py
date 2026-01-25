@@ -29,6 +29,7 @@ LIBRARY_ENTRY_FIELDS = [
     "writing_start_time",
     "writing_end_time",
     "critique_status",
+    "real_cost_eur",  # Costo reale basato su token effettivi
 ]
 
 # Cache in memoria per statistiche (TTL: 30 secondi)
@@ -254,19 +255,8 @@ def session_to_library_entry(session, skip_cost_calculation: bool = False) -> Li
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
     
-    # Calcola costo stimato
-    estimated_cost = None
-    
-    # PRIMA: sempre prova a leggere il costo già salvato (veloce, nessun calcolo)
-    if status == "complete" and session.writing_progress:
-        estimated_cost = session.writing_progress.get("estimated_cost")
-    
-    # SECONDA: calcola solo se non già salvato E skip_cost_calculation=False
-    if estimated_cost is None and not skip_cost_calculation and status == "complete" and total_pages:
-        estimated_cost = calculate_generation_cost(session, total_pages)
-        # Salva il costo calcolato in writing_progress per le prossime richieste (in background)
-        if estimated_cost is not None and session.writing_progress:
-            session.writing_progress["estimated_cost"] = estimated_cost
+    # Usa il costo reale basato sui token effettivi (None per libri vecchi senza tracking)
+    estimated_cost = getattr(session, 'real_cost_eur', None)
     
     # Converti il modello in modalità per la visualizzazione
     original_model = session.form_data.llm_model if session.form_data else None

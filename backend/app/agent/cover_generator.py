@@ -81,23 +81,23 @@ La copertina deve essere:
     # NOTA: response_modalities=["IMAGE"] è fondamentale per ricevere immagini
     models_to_try = [
         {
-            'name': 'gemini-2.5-flash-image',
-            'type': 'primario',
-            'config': {
-                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
-                'image_config': {
-                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
-                }
-            }
-        },
-        {
             'name': 'gemini-3-pro-image-preview',
-            'type': 'fallback',
+            'type': 'primario',
             'config': {
                 'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
                 'image_config': {
                     'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
                     'image_size': '2K'  # Alta risoluzione per copertina professionale
+                }
+            }
+        },
+        {
+            'name': 'gemini-2.5-flash-image',
+            'type': 'fallback',
+            'config': {
+                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
+                'image_config': {
+                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
                 }
             }
         },

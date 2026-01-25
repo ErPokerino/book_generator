@@ -310,6 +310,7 @@ class UserBookCount(BaseModel):
     name: str
     email: str
     books_count: int
+    created_at: Optional[datetime] = None
 
 
 class UsersStats(BaseModel):

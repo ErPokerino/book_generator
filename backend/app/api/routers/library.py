@@ -19,7 +19,6 @@ from app.agent.session_store_helpers import (
     get_session_async,
     delete_session_async,
     update_writing_progress_async,
-    set_estimated_cost_async,
     update_cover_image_path_async,
 )
 from app.agent.cover_generator import generate_book_cover
@@ -37,7 +36,6 @@ from app.services.stats_service import (
     get_model_abbreviation,
     llm_model_to_mode,
     mode_to_llm_models,
-    calculate_generation_cost,
     LIBRARY_ENTRY_FIELDS,
 )
 from app.core.config import get_app_config
@@ -206,83 +204,60 @@ async def get_library_endpoint(
             try:
                 entry = session_to_library_entry(session)
                 
-                if entry.status == "complete":
-                    needs_pages_backfill = entry.total_pages is None
-                    needs_cost_backfill = entry.estimated_cost is None and entry.total_pages is not None
-                    
-                    if needs_pages_backfill or needs_cost_backfill:
-                        full_session = None
-                        if needs_pages_backfill:
-                            try:
-                                full_session = await get_session_async(session_store, session.session_id, user_id=user_id)
-                                if full_session and full_session.book_chapters:
-                                    chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in full_session.book_chapters)
-                                    cover_pages = 1
-                                    app_config = get_app_config()
-                                    toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
-                                    toc_pages = math.ceil(len(full_session.book_chapters) / toc_chapters_per_page)
-                                    calculated_pages = chapters_pages + cover_pages + toc_pages
-                                    calculated_chapters_count = len(full_session.book_chapters)
-                                    
-                                    entry.total_pages = calculated_pages
-                                    
-                                    if needs_cost_backfill and calculated_pages:
-                                        calculated_cost = calculate_generation_cost(full_session, calculated_pages)
-                                        if calculated_cost is not None:
-                                            entry.estimated_cost = calculated_cost
-                                            sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, calculated_cost))
-                                        else:
-                                            sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, None))
-                                    else:
-                                        sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count, None))
-                            except Exception as e:
-                                print(f"[LIBRARY] Errore nel caricare sessione completa per backfill {session.session_id}: {e}")
-                        elif needs_cost_backfill:
-                            calculated_cost = calculate_generation_cost(session, entry.total_pages)
-                            if calculated_cost is not None:
-                                entry.estimated_cost = calculated_cost
-                                sessions_to_backfill.append((session.session_id, None, None, calculated_cost))
+                # Backfill solo per total_pages mancanti (il costo reale viene dalla sessione)
+                if entry.status == "complete" and entry.total_pages is None:
+                    try:
+                        full_session = await get_session_async(session_store, session.session_id, user_id=user_id)
+                        if full_session and full_session.book_chapters:
+                            chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in full_session.book_chapters)
+                            cover_pages = 1
+                            app_config = get_app_config()
+                            toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
+                            toc_pages = math.ceil(len(full_session.book_chapters) / toc_chapters_per_page)
+                            calculated_pages = chapters_pages + cover_pages + toc_pages
+                            calculated_chapters_count = len(full_session.book_chapters)
+                            
+                            entry.total_pages = calculated_pages
+                            sessions_to_backfill.append((session.session_id, calculated_pages, calculated_chapters_count))
+                    except Exception as e:
+                        print(f"[LIBRARY] Errore nel caricare sessione completa per backfill {session.session_id}: {e}")
                 
                 entries.append(entry)
             except Exception as e:
                 print(f"[LIBRARY] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
         
-        # Salva dati backfillati in background
+        # Salva dati backfillati in background (solo total_pages)
         if sessions_to_backfill:
             async def backfill_library_data():
-                """Salva total_pages e estimated_cost calcolati in background."""
+                """Salva total_pages calcolati in background."""
                 store = get_session_store()
                 uid = user_id
                 
-                for session_id, total_pages, completed_chapters_count, estimated_cost in sessions_to_backfill:
+                for session_id, total_pages, completed_chapters_count in sessions_to_backfill:
                     try:
-                        if total_pages is not None:
-                            full_session = await get_session_async(store, session_id, user_id=uid)
-                            if full_session and full_session.writing_progress:
-                                current_step = full_session.writing_progress.get('current_step', 0)
-                                total_steps = full_session.writing_progress.get('total_steps', 0)
-                                current_section_name = full_session.writing_progress.get('current_section_name')
-                                is_complete = full_session.writing_progress.get('is_complete', False)
-                                is_paused = full_session.writing_progress.get('is_paused', False)
-                                error = full_session.writing_progress.get('error')
-                                final_chapters_count = completed_chapters_count if completed_chapters_count is not None else full_session.writing_progress.get('completed_chapters_count')
-                                
-                                await update_writing_progress_async(
-                                    store,
-                                    session_id,
-                                    current_step=current_step,
-                                    total_steps=total_steps,
-                                    current_section_name=current_section_name,
-                                    is_complete=is_complete,
-                                    is_paused=is_paused,
-                                    error=error,
-                                    total_pages=total_pages,
-                                    completed_chapters_count=final_chapters_count,
-                                )
-                        
-                        if estimated_cost is not None:
-                            await set_estimated_cost_async(store, session_id, estimated_cost)
+                        full_session = await get_session_async(store, session_id, user_id=uid)
+                        if full_session and full_session.writing_progress:
+                            current_step = full_session.writing_progress.get('current_step', 0)
+                            total_steps = full_session.writing_progress.get('total_steps', 0)
+                            current_section_name = full_session.writing_progress.get('current_section_name')
+                            is_complete = full_session.writing_progress.get('is_complete', False)
+                            is_paused = full_session.writing_progress.get('is_paused', False)
+                            error = full_session.writing_progress.get('error')
+                            final_chapters_count = completed_chapters_count if completed_chapters_count is not None else full_session.writing_progress.get('completed_chapters_count')
+                            
+                            await update_writing_progress_async(
+                                store,
+                                session_id,
+                                current_step=current_step,
+                                total_steps=total_steps,
+                                current_section_name=current_section_name,
+                                is_complete=is_complete,
+                                is_paused=is_paused,
+                                error=error,
+                                total_pages=total_pages,
+                                completed_chapters_count=final_chapters_count,
+                            )
                     except Exception as e:
                         print(f"[LIBRARY] Errore nel backfill per sessione {session_id}: {e}")
                 
@@ -467,35 +442,14 @@ async def get_library_stats_endpoint(
         all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
         entries = []
-        sessions_to_update = []
         
         for session in all_sessions.values():
             try:
-                entry = session_to_library_entry(session, skip_cost_calculation=True)
-                
-                if entry.estimated_cost is None and entry.status == "complete" and entry.total_pages:
-                    calculated_cost = calculate_generation_cost(session, entry.total_pages)
-                    if calculated_cost is not None:
-                        entry.estimated_cost = calculated_cost
-                        sessions_to_update.append((session.session_id, calculated_cost))
-                
+                entry = session_to_library_entry(session)
                 entries.append(entry)
             except Exception as e:
                 print(f"[LIBRARY STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
-        
-        # Salva costi calcolati in background
-        if sessions_to_update:
-            async def backfill_costs():
-                """Salva costi calcolati in background."""
-                for session_id, cost in sessions_to_update:
-                    try:
-                        await set_estimated_cost_async(session_store, session_id, cost)
-                    except Exception as e:
-                        print(f"[LIBRARY STATS] Errore nel salvare costo per {session_id}: {e}")
-                invalidate_cache(cache_key)
-            
-            background_tasks.add_task(backfill_costs)
         
         stats = calculate_library_stats(entries)
         set_cached_stats(cache_key, stats)
@@ -527,35 +481,14 @@ async def get_advanced_stats_endpoint(
         all_sessions = await get_all_sessions_async(session_store, user_id=None, fields=LIBRARY_ENTRY_FIELDS)
         
         entries = []
-        sessions_to_update = []
         
         for session in all_sessions.values():
             try:
-                entry = session_to_library_entry(session, skip_cost_calculation=True)
-                
-                if entry.estimated_cost is None and entry.status == "complete" and entry.total_pages:
-                    calculated_cost = calculate_generation_cost(session, entry.total_pages)
-                    if calculated_cost is not None:
-                        entry.estimated_cost = calculated_cost
-                        sessions_to_update.append((session.session_id, calculated_cost))
-                
+                entry = session_to_library_entry(session)
                 entries.append(entry)
             except Exception as e:
                 print(f"[ADVANCED STATS] Errore nel convertire sessione {session.session_id}: {e}")
                 continue
-        
-        # Salva costi calcolati in background
-        if sessions_to_update:
-            async def backfill_costs():
-                """Salva costi calcolati in background."""
-                for session_id, cost in sessions_to_update:
-                    try:
-                        await set_estimated_cost_async(session_store, session_id, cost)
-                    except Exception as e:
-                        print(f"[ADVANCED STATS] Errore nel salvare costo per {session_id}: {e}")
-                invalidate_cache(cache_key)
-            
-            background_tasks.add_task(backfill_costs)
         
         advanced_stats = calculate_advanced_stats(entries)
         set_cached_stats(cache_key, advanced_stats)

@@ -7,6 +7,7 @@ from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
 from app.core.config import get_temperature_for_agent
+from app.utils.token_tracker import extract_token_usage
 
 
 def load_draft_agent_context() -> str:
@@ -180,7 +181,7 @@ async def generate_draft(
     api_key: Optional[str] = None,
     previous_draft: Optional[str] = None,
     user_feedback: Optional[str] = None,
-) -> tuple[str, str, int]:
+) -> tuple[str, str, int, dict[str, int]]:
     """
     Genera o rigenera una bozza estesa della trama.
     
@@ -193,7 +194,8 @@ async def generate_draft(
         user_feedback: Feedback dell'utente per modifiche
     
     Returns:
-        Tupla (draft_text, title, version)
+        Tupla (draft_text, title, version, token_usage)
+        token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
     # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
@@ -258,6 +260,11 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         response = await llm.ainvoke([system_prompt, user_prompt])
         llm_output = _coerce_llm_content_to_text(response.content).strip()
         
+        # Estrai token usage dalla risposta
+        token_usage = extract_token_usage(response)
+        token_usage["model"] = gemini_model
+        print(f"[DRAFT_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
+        
         # Estrai titolo e trama dall'output
         title, draft_text = parse_draft_output(llm_output)
         
@@ -270,7 +277,7 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         else:
             new_version = 1
         
-        return draft_text, title, new_version
+        return draft_text, title, new_version, token_usage
         
     except Exception as e:
         raise Exception(f"Errore nella generazione della bozza: {str(e)}")

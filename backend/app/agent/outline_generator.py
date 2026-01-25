@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
 from app.core.config import get_temperature_for_agent
+from app.utils.token_tracker import extract_token_usage
 
 
 def load_outline_agent_context() -> str:
@@ -137,7 +138,7 @@ async def generate_outline(
     session_id: str,
     draft_title: Optional[str] = None,
     api_key: Optional[str] = None,
-) -> str:
+) -> tuple[str, dict[str, int]]:
     """
     Genera la struttura/indice del libro basandosi sulla bozza validata.
     
@@ -150,7 +151,8 @@ async def generate_outline(
         api_key: API key per Gemini (se None, usa variabile d'ambiente)
     
     Returns:
-        Outline text in Markdown format
+        Tupla (outline_text, token_usage)
+        token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
     # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
@@ -233,7 +235,12 @@ sottotrame e sviluppi narrativi che creano un romanzo ricco e coinvolgente (orie
         response = await llm.ainvoke([system_prompt, user_prompt])
         outline_text = _coerce_llm_content_to_text(response.content).strip()
         
-        return outline_text
+        # Estrai token usage dalla risposta
+        token_usage = extract_token_usage(response)
+        token_usage["model"] = gemini_model
+        print(f"[OUTLINE_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
+        
+        return outline_text, token_usage
         
     except Exception as e:
         raise Exception(f"Errore nella generazione della struttura: {str(e)}")

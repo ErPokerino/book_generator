@@ -8,6 +8,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from app.models import SubmissionRequest, Question, QuestionsResponse
 from app.agent.state import AgentState
 from app.core.config import get_temperature_for_agent
+from app.utils.token_tracker import extract_token_usage
 
 
 def load_agent_context() -> str:
@@ -148,17 +149,20 @@ def parse_questions_from_llm_response(response_text: Any) -> list[Question]:
 
 async def generate_questions(
     form_data: SubmissionRequest,
-    api_key: Optional[str] = None
-) -> QuestionsResponse:
+    api_key: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> tuple[QuestionsResponse, dict[str, int]]:
     """
     Genera domande usando LangGraph e Gemini.
     
     Args:
         form_data: Dati del form compilato dall'utente
         api_key: API key per Gemini (se None, usa variabile d'ambiente)
+        session_id: ID della sessione (opzionale, usato solo per logging)
     
     Returns:
-        QuestionsResponse con le domande generate
+        Tupla (QuestionsResponse, token_usage_dict)
+        token_usage_dict contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
     # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
@@ -203,16 +207,24 @@ Genera domande pertinenti in formato JSON come specificato nel contesto. Rispond
     response = await llm.ainvoke(messages)
     response_text = _coerce_llm_content_to_text(response.content)
     
+    # Estrai token usage dalla risposta
+    token_usage = extract_token_usage(response)
+    token_usage["model"] = gemini_model
+    print(f"[QUESTION_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
+    
     # Parsa le domande
     questions = parse_questions_from_llm_response(response_text)
     
-    # Genera session_id
-    session_id = str(uuid.uuid4())
+    # Genera session_id se non fornito
+    if session_id is None:
+        session_id = str(uuid.uuid4())
     
-    return QuestionsResponse(
+    questions_response = QuestionsResponse(
         success=True,
         session_id=session_id,
         questions=questions,
         message="Domande generate con successo",
     )
+    
+    return questions_response, token_usage
 

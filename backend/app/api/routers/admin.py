@@ -108,6 +108,7 @@ async def get_users_stats_endpoint(
                     "name": str(user.name) if user.name else "N/A",
                     "email": str(user.email) if user.email else "N/A",
                     "books_count": int(books_count) if books_count else 0,
+                    "created_at": user.created_at.isoformat() if user.created_at else None,
                 })
             except Exception as e:
                 print(f"[USERS STATS] Errore nel processare utente {getattr(user, 'id', 'unknown')}: {e}", file=sys.stderr)
@@ -579,7 +580,7 @@ async def get_pending_books_endpoint(
                         user_name = user.name
                 
                 # Info libro
-                title = session.current_title or (session.form_data.book_title if session.form_data else None) or "Senza titolo"
+                title = session.current_title or "Senza titolo"
                 model = session.form_data.llm_model if session.form_data else "unknown"
                 
                 writing_progress = session.writing_progress or {}

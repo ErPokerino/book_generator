@@ -16,6 +16,7 @@ from app.agent.session_store_helpers import (
     update_draft_async,
     update_outline_async,
     get_session_async,
+    update_token_usage_async,
 )
 from app.core.config import get_app_config
 
@@ -51,11 +52,21 @@ async def background_generate_questions(
             )
             
             # Genera le domande
-            response = await generate_questions(form_data, api_key=api_key)
+            response, token_usage = await generate_questions(form_data, api_key=api_key, session_id=session_id)
             
             # Salva le domande nella sessione
             questions_dict = [q.model_dump() for q in response.questions]
             await save_generated_questions_async(session_store, session_id, questions_dict)
+            
+            # Salva token usage per la fase questions
+            await update_token_usage_async(
+                session_store,
+                session_id,
+                phase="questions",
+                input_tokens=token_usage.get("input_tokens", 0),
+                output_tokens=token_usage.get("output_tokens", 0),
+                model=token_usage.get("model", "gemini-3-pro-preview"),
+            )
             
             # Aggiorna progresso: completed
             await update_questions_progress_async(
@@ -126,7 +137,7 @@ async def background_generate_draft(
         )
         
         # Genera la bozza
-        draft_text, title, version = await generate_draft(
+        draft_text, title, version, token_usage = await generate_draft(
             form_data=form_data,
             question_answers=question_answers,
             session_id=session_id,
@@ -135,6 +146,16 @@ async def background_generate_draft(
         
         # Salva la bozza nella sessione
         await update_draft_async(session_store, session_id, draft_text, version, title=title)
+        
+        # Salva token usage per la fase draft
+        await update_token_usage_async(
+            session_store,
+            session_id,
+            phase="draft",
+            input_tokens=token_usage.get("input_tokens", 0),
+            output_tokens=token_usage.get("output_tokens", 0),
+            model=token_usage.get("model", "gemini-3-pro-preview"),
+        )
         
         # Aggiorna progresso: completed
         await update_draft_progress_async(
@@ -216,7 +237,7 @@ async def background_generate_outline(
             )
             
             # Genera l'outline
-            outline_text = await generate_outline(
+            outline_text, token_usage = await generate_outline(
                 form_data=session.form_data,
                 question_answers=session.question_answers,
                 validated_draft=session.current_draft,
@@ -227,6 +248,16 @@ async def background_generate_outline(
             
             # Salva l'outline nella sessione
             await update_outline_async(session_store, session_id, outline_text)
+            
+            # Salva token usage per la fase outline
+            await update_token_usage_async(
+                session_store,
+                session_id,
+                phase="outline",
+                input_tokens=token_usage.get("input_tokens", 0),
+                output_tokens=token_usage.get("output_tokens", 0),
+                model=token_usage.get("model", "gemini-3-pro-preview"),
+            )
             
             # Recupera la sessione aggiornata per avere la versione corretta
             session = await get_session_async(session_store, session_id)

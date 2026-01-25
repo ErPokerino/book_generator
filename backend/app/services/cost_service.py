@@ -1,6 +1,6 @@
 """Servizio per il calcolo dei costi di generazione."""
 import math
-from typing import Optional
+from typing import Optional, Dict, Any
 from app.agent.session_store import SessionData
 from app.core.config import (
     get_tokens_per_page,
@@ -9,6 +9,7 @@ from app.core.config import (
     get_token_estimates,
     get_app_config,
 )
+from app.utils.token_tracker import calculate_total_cost
 
 
 def calculate_generation_cost(
@@ -93,7 +94,7 @@ def calculate_generation_cost(
         exchange_rate = get_exchange_rate_usd_to_eur()
         total_cost_eur = chapters_cost_usd * exchange_rate
         
-        print(f"[COST CALCULATION] Risultato: ${chapters_cost_usd:.6f} USD = €{total_cost_eur:.4f} EUR")
+        print(f"[COST CALCULATION] Risultato stimato: ${chapters_cost_usd:.6f} USD = €{total_cost_eur:.4f} EUR")
         
         return round(total_cost_eur, 4)
         
@@ -102,3 +103,99 @@ def calculate_generation_cost(
         import traceback
         traceback.print_exc()
         return None
+
+
+def calculate_real_generation_cost(session: SessionData) -> Optional[float]:
+    """
+    Calcola il costo REALE di generazione basandosi sui token effettivamente usati.
+    
+    Questo metodo usa i dati raccolti in session.token_usage per calcolare
+    il costo effettivo in EUR per tutte le fasi di generazione.
+    
+    Args:
+        session: SessionData object con token_usage popolato
+    
+    Returns:
+        Costo reale in EUR, o None se token_usage non disponibile
+    """
+    # Verifica che token_usage esista e abbia dati
+    token_usage = getattr(session, 'token_usage', None)
+    if not token_usage:
+        print(f"[REAL COST CALCULATION] Nessun token_usage per sessione {session.session_id}")
+        return None
+    
+    # Verifica che ci siano token registrati
+    total = token_usage.get("total", {})
+    total_input = total.get("input_tokens", 0) or 0
+    total_output = total.get("output_tokens", 0) or 0
+    
+    if total_input == 0 and total_output == 0:
+        print(f"[REAL COST CALCULATION] Nessun token registrato per sessione {session.session_id}")
+        return None
+    
+    try:
+        # Usa la funzione di calcolo dal token_tracker
+        real_cost = calculate_total_cost(token_usage)
+        
+        print(f"[REAL COST CALCULATION] Sessione {session.session_id}:")
+        print(f"  Token totali: {total_input:,} input + {total_output:,} output = {total_input + total_output:,}")
+        print(f"  Costo reale: €{real_cost:.6f} EUR")
+        
+        # Log dettaglio per fase
+        for phase in ["questions", "draft", "outline", "chapters", "critique"]:
+            phase_data = token_usage.get(phase, {})
+            phase_in = phase_data.get("input_tokens", 0) or 0
+            phase_out = phase_data.get("output_tokens", 0) or 0
+            if phase_in > 0 or phase_out > 0:
+                calls = phase_data.get("calls", 1)
+                model = phase_data.get("model", "N/A")
+                calls_str = f" ({calls} calls)" if calls > 1 else ""
+                print(f"  {phase.capitalize()}{calls_str}: {phase_in:,} in + {phase_out:,} out [{model}]")
+        
+        return round(real_cost, 6)
+        
+    except Exception as e:
+        print(f"[REAL COST CALCULATION] Errore nel calcolo costo reale: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def get_cost_summary(session: SessionData, total_pages: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Restituisce un riepilogo completo dei costi (stimati e reali).
+    
+    Args:
+        session: SessionData object
+        total_pages: Numero totale di pagine (per stima)
+    
+    Returns:
+        Dict con estimated_cost, real_cost, token_usage summary
+    """
+    estimated_cost = calculate_generation_cost(session, total_pages)
+    real_cost = calculate_real_generation_cost(session)
+    
+    token_usage = getattr(session, 'token_usage', None)
+    total_tokens = None
+    if token_usage:
+        total = token_usage.get("total", {})
+        total_tokens = {
+            "input": total.get("input_tokens", 0) or 0,
+            "output": total.get("output_tokens", 0) or 0,
+            "total": (total.get("input_tokens", 0) or 0) + (total.get("output_tokens", 0) or 0),
+        }
+    
+    return {
+        "estimated_cost_eur": estimated_cost,
+        "real_cost_eur": real_cost,
+        "token_usage": total_tokens,
+        "phases": {
+            phase: {
+                "input_tokens": (token_usage.get(phase, {}).get("input_tokens", 0) or 0) if token_usage else 0,
+                "output_tokens": (token_usage.get(phase, {}).get("output_tokens", 0) or 0) if token_usage else 0,
+                "model": token_usage.get(phase, {}).get("model") if token_usage else None,
+                "calls": token_usage.get(phase, {}).get("calls", 1) if token_usage and phase in ["draft", "chapters"] else None,
+            }
+            for phase in ["questions", "draft", "outline", "chapters", "critique"]
+        } if token_usage else None,
+    }

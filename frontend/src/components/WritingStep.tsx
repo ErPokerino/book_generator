@@ -445,7 +445,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           )}
           {progress.estimated_cost != null && (
             <p className="estimated-cost-info">
-              <strong>Costo stimato:</strong> €{progress.estimated_cost >= 0.01 ? progress.estimated_cost.toFixed(2) : progress.estimated_cost.toFixed(4)}
+              <strong>Costo generazione:</strong> €{progress.estimated_cost >= 0.01 ? progress.estimated_cost.toFixed(2) : progress.estimated_cost.toFixed(4)}
             </p>
           )}
           <div className="completion-actions">

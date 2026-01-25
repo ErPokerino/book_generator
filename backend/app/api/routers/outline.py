@@ -9,6 +9,7 @@ from app.agent.session_store_helpers import (
     get_session_async,
     update_outline_async,
     update_outline_progress_async,
+    update_token_usage_async,
 )
 from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_outline
@@ -62,7 +63,7 @@ async def generate_outline_endpoint(
         print(f"[DEBUG OUTLINE] Draft length: {len(session.current_draft) if session.current_draft else 0}")
         print(f"[DEBUG OUTLINE] Titolo: {session.current_title}")
         
-        outline_text = await generate_outline(
+        outline_text, token_usage = await generate_outline(
             form_data=session.form_data,
             question_answers=session.question_answers,
             validated_draft=session.current_draft,
@@ -75,6 +76,17 @@ async def generate_outline_endpoint(
         print(f"[DEBUG OUTLINE] Preview: {outline_text[:200] if outline_text else 'None'}...")
         
         await update_outline_async(session_store, request.session_id, outline_text)
+        
+        # Salva token usage per la fase outline
+        await update_token_usage_async(
+            session_store=session_store,
+            session_id=request.session_id,
+            phase="outline",
+            input_tokens=token_usage.get("input_tokens", 0),
+            output_tokens=token_usage.get("output_tokens", 0),
+            model=token_usage.get("model", "gemini-3-pro-preview"),
+        )
+        
         session = await get_session_async(session_store, request.session_id)  # Re-fetch per versione aggiornata
         print(f"[DEBUG OUTLINE] Outline salvato nella sessione")
         

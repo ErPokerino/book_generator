@@ -10,9 +10,11 @@ from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async, update_writing_progress_async, start_chapter_timing_async, 
-    end_chapter_timing_async, update_book_chapter_async, pause_writing_async, resume_writing_async
+    end_chapter_timing_async, update_book_chapter_async, pause_writing_async, resume_writing_async,
+    update_token_usage_async,
 )
 from app.core.config import get_app_config, get_temperature_for_agent
+from app.utils.token_tracker import extract_token_usage
 from app.services.pdf_service import calculate_page_count
 import math
 import httpx
@@ -474,7 +476,7 @@ async def _generate_chapter_part(
     gemini_model: str,
     api_key: str,
     current_section_title: str,
-) -> str:
+) -> tuple[str, dict[str, int]]:
     """
     Helper per generare una parte di un capitolo (usato per modalità Long Form).
     
@@ -486,7 +488,7 @@ async def _generate_chapter_part(
         current_section_title: Titolo della sezione corrente (per logging)
     
     Returns:
-        Testo generato per la parte del capitolo
+        Tupla (part_text, token_usage)
     """
     # Determina max_output_tokens
     max_tokens = get_max_output_tokens(gemini_model)
@@ -518,6 +520,10 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
             response = await llm.ainvoke([system_prompt, user_prompt])
             part_text = _coerce_llm_content_to_text(response.content).strip()
             
+            # Estrai token usage dalla risposta
+            token_usage = extract_token_usage(response)
+            token_usage["model"] = gemini_model
+            
             # Validazione base
             if not part_text or len(part_text.strip()) < 20:
                 raise ValueError(
@@ -528,7 +534,7 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
             # Successo: log e ritorna
             if attempt > 0:
                 print(f"[WRITER] Generazione riuscita al tentativo {attempt + 1} per '{current_section_title}'")
-            return part_text
+            return part_text, token_usage
             
         except Exception as e:
             last_error = e
@@ -558,7 +564,7 @@ async def generate_chapter(
     previous_chapters: List[Dict[str, Any]],
     current_section: Dict[str, str],
     api_key: str,
-) -> str:
+) -> tuple[str, dict[str, int]]:
     """
     Genera il testo di un singolo capitolo/sezione usando il contesto completo.
     
@@ -577,7 +583,8 @@ async def generate_chapter(
         api_key: API key per Gemini
     
     Returns:
-        Testo del capitolo generato
+        Tupla (chapter_text, token_usage)
+        token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
     # Carica il contesto dell'agente
     agent_context = load_writer_agent_context()
@@ -608,14 +615,14 @@ async def generate_chapter(
         )
         
         try:
-            part1_text = await _generate_chapter_part(
+            part1_text, token_usage_part1 = await _generate_chapter_part(
                 agent_context=agent_context,
                 formatted_context=formatted_context_part1,
                 gemini_model=gemini_model,
                 api_key=api_key,
                 current_section_title=current_section['title'],
             )
-            print(f"[WRITER] Step 1/2 completato: {len(part1_text)} caratteri")
+            print(f"[WRITER] Step 1/2 completato: {len(part1_text)} caratteri, {token_usage_part1['input_tokens']}+{token_usage_part1['output_tokens']} tokens")
         except Exception as e:
             raise Exception(f"Errore nella generazione della prima parte del capitolo '{current_section['title']}': {str(e)}")
         
@@ -634,22 +641,28 @@ async def generate_chapter(
         )
         
         try:
-            part2_text = await _generate_chapter_part(
+            part2_text, token_usage_part2 = await _generate_chapter_part(
                 agent_context=agent_context,
                 formatted_context=formatted_context_part2,
                 gemini_model=gemini_model,
                 api_key=api_key,
                 current_section_title=current_section['title'],
             )
-            print(f"[WRITER] Step 2/2 completato: {len(part2_text)} caratteri")
+            print(f"[WRITER] Step 2/2 completato: {len(part2_text)} caratteri, {token_usage_part2['input_tokens']}+{token_usage_part2['output_tokens']} tokens")
         except Exception as e:
             raise Exception(f"Errore nella generazione della seconda parte del capitolo '{current_section['title']}': {str(e)}")
         
         # Unione delle due parti
         chapter_text = f"{part1_text}\n\n{part2_text}".strip()
         
+        # Combina token usage delle due parti
+        token_usage = {
+            "input_tokens": token_usage_part1.get("input_tokens", 0) + token_usage_part2.get("input_tokens", 0),
+            "output_tokens": token_usage_part1.get("output_tokens", 0) + token_usage_part2.get("output_tokens", 0),
+            "model": gemini_model,
+        }
+        
         # Validazione finale
-        import re
         alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
         is_effectively_empty = (alnum_count < 20)
         
@@ -664,7 +677,8 @@ async def generate_chapter(
             )
         
         print(f"[WRITER] Capitolo Long Form '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri totali (Parte 1: {len(part1_text)}, Parte 2: {len(part2_text)})")
-        return chapter_text
+        print(f"[WRITER] Token totali capitolo: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
+        return chapter_text, token_usage
     
     else:
         # MODALITÀ STANDARD: 1 chiamata singola
@@ -709,6 +723,10 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
                 response = await llm.ainvoke([system_prompt, user_prompt])
                 chapter_text = _coerce_llm_content_to_text(response.content).strip()
                 
+                # Estrai token usage dalla risposta
+                token_usage = extract_token_usage(response)
+                token_usage["model"] = gemini_model
+                
                 # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
                 alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
                 # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
@@ -728,7 +746,8 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
                 if attempt > 0:
                     print(f"[WRITER] Generazione riuscita al tentativo {attempt + 1} per '{current_section['title']}'")
                 print(f"[WRITER] Capitolo '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri")
-                return chapter_text
+                print(f"[WRITER] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
+                return chapter_text, token_usage
                 
             except Exception as e:
                 last_error = e
@@ -845,7 +864,7 @@ async def generate_full_book(
                 else:
                     print(f"[WRITER] Chiamata a generate_chapter per '{section['title']}'...")
                 
-                chapter_content = await generate_chapter(
+                chapter_content, chapter_token_usage = await generate_chapter(
                     form_data=form_data,
                     question_answers=question_answers,
                     validated_draft=validated_draft,
@@ -854,6 +873,16 @@ async def generate_full_book(
                     previous_chapters=completed_chapters,  # Passa i capitoli già scritti
                     current_section=section,
                     api_key=api_key,
+                )
+                
+                # Aggiorna token usage per la fase chapters
+                await update_token_usage_async(
+                    session_store,
+                    session_id,
+                    phase="chapters",
+                    input_tokens=chapter_token_usage.get("input_tokens", 0),
+                    output_tokens=chapter_token_usage.get("output_tokens", 0),
+                    model=chapter_token_usage.get("model", "gemini-3-pro-preview"),
                 )
                 
                 # Verifica che il contenuto sia valido

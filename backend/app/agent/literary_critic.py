@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
+from app.utils.token_tracker import extract_token_usage
 
 
 def _coerce_points_to_list(value: Any) -> list[str]:
@@ -238,18 +239,35 @@ def parse_critique_response(response_text: str) -> Dict[str, Any]:
     }
 
 
+def _extract_token_usage_google_genai(response: Any, model_name: str) -> Dict[str, int]:
+    """Estrae token usage dalla risposta google.genai."""
+    token_usage = {"input_tokens": 0, "output_tokens": 0, "model": model_name}
+    
+    # google.genai risposta ha attributo usage_metadata
+    usage = getattr(response, 'usage_metadata', None)
+    if usage:
+        token_usage["input_tokens"] = getattr(usage, 'prompt_token_count', 0) or 0
+        token_usage["output_tokens"] = getattr(usage, 'candidates_token_count', 0) or 0
+    
+    return token_usage
+
+
 async def generate_literary_critique_from_pdf(
     title: str,
     author: str,
     pdf_bytes: bytes,
     api_key: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> tuple[Dict[str, Any], Dict[str, int]]:
     """
     Genera una valutazione critica usando come input il PDF finale del libro.
     
     Supporta due provider:
     - Gemini: PDF diretto (multimodale) - comportamento originale
     - OpenAI: Estrazione testo dal PDF - per modelli GPT che non supportano PDF direttamente
+    
+    Returns:
+        Tupla (critique_dict, token_usage)
+        token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
     cfg = get_literary_critic_config()
     system_prompt = (cfg.get("system_prompt") or "").strip()
@@ -320,6 +338,10 @@ async def generate_literary_critique_from_pdf(
                     config=config_obj,
                 )
                 response_text = _response_to_text(response)
+                
+                # Estrai token usage per google.genai
+                token_usage = _extract_token_usage_google_genai(response, model_name)
+                print(f"[LITERARY_CRITIC] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output", file=sys.stderr)
                 print(f"[LITERARY_CRITIC] ✅ Risposta ricevuta da Gemini ({len(response_text)} caratteri)", file=sys.stderr)
                 
             elif provider == "openai":
@@ -385,6 +407,11 @@ Testo completo del libro (estratto dal PDF):
                 
                 response = await llm.ainvoke(messages)
                 response_text = _response_to_text(response)
+                
+                # Estrai token usage per LangChain OpenAI
+                token_usage = extract_token_usage(response)
+                token_usage["model"] = model_name
+                print(f"[LITERARY_CRITIC] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output", file=sys.stderr)
                 print(f"[LITERARY_CRITIC] ✅ Risposta ricevuta da OpenAI ({len(response_text)} caratteri)", file=sys.stderr)
                 
             else:
@@ -397,7 +424,7 @@ Testo completo del libro (estratto dal PDF):
             print(f"[LITERARY_CRITIC] Pros: {len(critique.get('pros', []))} punti", file=sys.stderr)
             print(f"[LITERARY_CRITIC] Cons: {len(critique.get('cons', []))} punti", file=sys.stderr)
             print(f"[LITERARY_CRITIC] ===== CRITICA COMPLETATA =====", file=sys.stderr)
-            return critique
+            return critique, token_usage
 
         except Exception as e:
             provider_name = provider if 'provider' in locals() else 'unknown'

@@ -178,7 +178,7 @@ async def analyze_pdf_from_bytes(
     pdf_bytes: bytes,
     title: Optional[str] = None,
     author: Optional[str] = None,
-) -> dict:
+) -> tuple[dict, dict]:
     """
     Analizza un PDF esterno e genera una critica letteraria.
     
@@ -188,13 +188,13 @@ async def analyze_pdf_from_bytes(
         author: Autore del libro (opzionale)
     
     Returns:
-        Dict con la critica (compatibile con LiteraryCritique)
+        Tupla (critique_dict, token_usage)
     """
-    critique = await generate_literary_critique_from_pdf(
+    critique, token_usage = await generate_literary_critique_from_pdf(
         title=title or "Romanzo",
         author=author or "Autore",
         pdf_bytes=pdf_bytes,
         api_key=None,  # Auto-detect da env
     )
     
-    return critique
+    return critique, token_usage
