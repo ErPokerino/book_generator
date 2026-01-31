@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp } from 'lucide-react';
+import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getPendingConnectionsCount } from '../api/client';
@@ -101,6 +101,11 @@ export default function BottomNavigation() {
     navigate('/analytics');
   };
 
+  const handleNavigateToPrivacySettings = () => {
+    setIsProfileMenuOpen(false);
+    navigate('/settings/privacy');
+  };
+
   if (!user) {
     return null;
   }
@@ -180,6 +185,14 @@ export default function BottomNavigation() {
                   <span>Analisi</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={handleNavigateToPrivacySettings}
+                className="profile-menu-item"
+              >
+                <Shield size={18} />
+                <span>Privacy</span>
+              </button>
               <button
                 type="button"
                 onClick={handleLogoutClick}

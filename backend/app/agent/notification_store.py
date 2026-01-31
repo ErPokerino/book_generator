@@ -276,6 +276,84 @@ class NotificationStore:
             print(f"[NotificationStore] ERRORE nell'eliminazione notifica: {e}", file=sys.stderr)
             raise
 
+    async def get_user_notifications(self, user_id: str, limit: int = 100) -> list:
+        """
+        Recupera tutte le notifiche di un utente (per export GDPR).
+        
+        Args:
+            user_id: ID utente
+            limit: Numero massimo di notifiche
+        
+        Returns:
+            Lista di notifiche
+        """
+        if self.notifications_collection is None:
+            await self.connect()
+        
+        try:
+            from app.models import Notification
+            cursor = self.notifications_collection.find(
+                {"user_id": user_id}
+            ).sort("created_at", -1).limit(limit)
+            
+            notifications = []
+            async for doc in cursor:
+                notifications.append(Notification(
+                    id=doc["_id"],
+                    user_id=doc["user_id"],
+                    type=doc["type"],
+                    title=doc["title"],
+                    message=doc["message"],
+                    data=doc.get("data"),
+                    is_read=doc.get("is_read", False),
+                    created_at=doc["created_at"]
+                ))
+            return notifications
+        except Exception as e:
+            print(f"[NotificationStore] ERRORE get_user_notifications: {e}", file=sys.stderr)
+            return []
+
+    async def delete_user_notifications(self, user_id: str) -> int:
+        """
+        Elimina tutte le notifiche di un utente (per cancellazione account GDPR).
+        
+        Args:
+            user_id: ID utente
+        
+        Returns:
+            Numero di notifiche eliminate
+        """
+        if self.notifications_collection is None:
+            await self.connect()
+        
+        try:
+            result = await self.notifications_collection.delete_many({"user_id": user_id})
+            print(f"[NotificationStore] Eliminate {result.deleted_count} notifiche per utente {user_id}", file=sys.stderr)
+            return result.deleted_count
+        except Exception as e:
+            print(f"[NotificationStore] ERRORE delete_user_notifications: {e}", file=sys.stderr)
+            return 0
+
+    async def count_user_notifications(self, user_id: str) -> int:
+        """
+        Conta le notifiche di un utente.
+        
+        Args:
+            user_id: ID utente
+        
+        Returns:
+            Numero di notifiche
+        """
+        if self.notifications_collection is None:
+            await self.connect()
+        
+        try:
+            count = await self.notifications_collection.count_documents({"user_id": user_id})
+            return count
+        except Exception as e:
+            print(f"[NotificationStore] ERRORE count_user_notifications: {e}", file=sys.stderr)
+            return 0
+
 
 # Istanza globale
 _notification_store: Optional[NotificationStore] = None

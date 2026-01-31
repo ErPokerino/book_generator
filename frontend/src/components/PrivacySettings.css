@@ -1,0 +1,338 @@
+/* ============================================
+   Privacy Settings Page Styles
+   ============================================ */
+
+.privacy-settings-page {
+  min-height: 100vh;
+  background: var(--app-bg);
+  padding: var(--spacing-xl) var(--spacing-md);
+  padding-bottom: calc(var(--spacing-4xl) + var(--safe-area-inset-bottom));
+}
+
+.privacy-settings-container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.privacy-settings-header {
+  text-align: center;
+  margin-bottom: var(--spacing-2xl);
+}
+
+.privacy-settings-header h1 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-3xl);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.privacy-settings-header p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.privacy-settings-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--spacing-lg);
+  overflow: hidden;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.privacy-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.privacy-card-header svg {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+
+.privacy-card-header h2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.privacy-card-body {
+  padding: var(--spacing-lg);
+}
+
+/* User Info Section */
+.privacy-user-info {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.privacy-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.privacy-info-row:last-child {
+  border-bottom: none;
+}
+
+.privacy-info-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.privacy-info-value {
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Data Counts */
+.privacy-data-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.privacy-count-item {
+  text-align: center;
+  padding: var(--spacing-md);
+  background: var(--surface-elevated);
+  border-radius: var(--radius-md);
+}
+
+.privacy-count-number {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--accent);
+  display: block;
+}
+
+.privacy-count-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Export Section */
+.privacy-export-section {
+  text-align: center;
+}
+
+.privacy-export-section p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-lg);
+  line-height: var(--leading-relaxed);
+}
+
+.privacy-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-xl);
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.privacy-export-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.privacy-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.privacy-export-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Delete Account Section */
+.privacy-delete-section {
+  background: rgba(201, 72, 91, 0.05);
+  border: 1px solid rgba(201, 72, 91, 0.2);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+.privacy-delete-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: rgba(201, 72, 91, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.privacy-delete-warning svg {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.privacy-delete-warning p {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--leading-relaxed);
+  margin: 0;
+}
+
+.privacy-delete-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.privacy-delete-form label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.privacy-delete-form input[type="password"] {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: border-color var(--transition-fast);
+}
+
+.privacy-delete-form input[type="password"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.privacy-confirm-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.privacy-confirm-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.privacy-confirm-checkbox span {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.privacy-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.privacy-delete-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.privacy-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.privacy-delete-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Links Section */
+.privacy-links {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.privacy-links a {
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.privacy-links a:hover {
+  color: var(--accent-hover);
+}
+
+/* Loading */
+.privacy-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4xl);
+  color: var(--text-muted);
+}
+
+.privacy-loading svg {
+  width: 48px;
+  height: 48px;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .privacy-settings-page {
+    padding: var(--spacing-md);
+    padding-bottom: calc(80px + var(--safe-area-inset-bottom));
+  }
+
+  .privacy-settings-header h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .privacy-data-counts {
+    grid-template-columns: 1fr;
+  }
+
+  .privacy-info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .privacy-links {
+    flex-direction: column;
+    align-items: center;
+  }
+}

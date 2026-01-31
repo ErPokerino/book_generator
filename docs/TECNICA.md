@@ -10,6 +10,7 @@
 6. [Configurazione](#configurazione)
 7. [Gestione Dati](#gestione-dati)
 8. [Pattern e Convenzioni](#pattern-e-convenzioni)
+9. [GDPR Compliance - Implementazione Tecnica](#gdpr-compliance---implementazione-tecnica)
 
 ## Architettura del Sistema
 
@@ -1434,3 +1435,198 @@ const { data, isPolling, error } = useProcessPolling({
 - Step indicator compatto orizzontale su schermi piccoli
 - Bottom navigation sticky con badge notifiche
 - Empty state con CTA per guidare utenti
+
+## GDPR Compliance - Implementazione Tecnica
+
+### Architettura GDPR
+
+```mermaid
+graph TB
+    subgraph Frontend["Frontend Components"]
+        CookieBanner[CookieBanner.tsx]
+        PrivacySettings[PrivacySettings.tsx]
+        LegalPages[Legal Pages]
+        RegisterConsent[Register Consent]
+    end
+    
+    subgraph Backend["Backend Services"]
+        GDPRRouter[gdpr.py Router]
+        AuditService[audit_service.py]
+        RetentionService[retention_service.py]
+    end
+    
+    subgraph Storage["MongoDB Collections"]
+        Users[(users)]
+        AuditLogs[(audit_logs)]
+    end
+    
+    CookieBanner --> localStorage
+    PrivacySettings --> GDPRRouter
+    RegisterConsent --> Users
+    GDPRRouter --> AuditService
+    GDPRRouter --> Users
+    AuditService --> AuditLogs
+    RetentionService --> AuditLogs
+    RetentionService --> Users
+```
+
+### Nuovi File Creati
+
+**Frontend** (`frontend/src/components/`):
+```
+legal/
+├── LegalPage.css          # Stili condivisi pagine legali
+├── PrivacyPolicy.tsx      # Privacy Policy completa
+├── CookiePolicy.tsx       # Cookie Policy
+└── TermsOfService.tsx     # Terms of Service
+
+CookieBanner.tsx           # Banner cookie con gestione consensi
+CookieBanner.css
+PrivacySettings.tsx        # Pagina impostazioni privacy utente
+PrivacySettings.css
+Footer.tsx                 # Footer con link legali
+Footer.css
+```
+
+**Backend** (`backend/app/`):
+```
+api/routers/
+└── gdpr.py                # Endpoint GDPR (export, delete, summary)
+
+services/
+├── audit_service.py       # Logging strutturato eventi
+└── retention_service.py   # Policy retention e cleanup job
+```
+
+### Modelli Dati Aggiornati
+
+**User Model** (`backend/app/models.py`):
+```python
+class User(BaseModel):
+    # ... campi esistenti ...
+    
+    # GDPR: Consensi privacy
+    privacy_accepted_at: Optional[datetime] = None
+    terms_accepted_at: Optional[datetime] = None
+```
+
+**RegisterRequest** (`backend/app/models.py`):
+```python
+class RegisterRequest(BaseModel):
+    # ... campi esistenti ...
+    
+    # GDPR: Consensi obbligatori
+    privacy_accepted: bool = Field(False)
+    data_processing_accepted: bool = Field(False)
+```
+
+### API Endpoints GDPR
+
+| Metodo | Endpoint | Autenticazione | Descrizione |
+|--------|----------|----------------|-------------|
+| GET | `/api/gdpr/export` | Richiesta | Export dati in ZIP |
+| DELETE | `/api/gdpr/account` | Richiesta | Cancellazione account |
+| GET | `/api/gdpr/data-summary` | Richiesta | Riepilogo dati utente |
+| POST | `/api/admin/retention/cleanup` | Admin | Job pulizia dati |
+
+### Export Dati - Implementazione
+
+```python
+# Struttura ZIP generato
+narrai_export_{user_id}_{timestamp}.zip
+├── profile.json      # Dati profilo (no password hash)
+├── books.json        # Libri con metadati
+├── connections.json  # Connessioni utente
+├── notifications.json
+├── referrals.json
+├── shares.json       # sent + received
+└── README.txt        # Guida contenuto
+```
+
+### Retention Service - Policy
+
+```python
+RETENTION_POLICIES = {
+    "auth_sessions": 7,           # giorni
+    "password_reset_tokens": 1,   # giorni
+    "verification_tokens": 1,     # giorni
+    "referrals_pending": 30,      # giorni
+    "notifications_read": 90,     # giorni
+    "book_sessions_incomplete": 365,
+    "audit_logs": 730,            # 2 anni
+}
+```
+
+### Audit Service - Eventi
+
+```python
+AuditEventType = Literal[
+    "login", "logout", "login_failed",
+    "password_reset_request", "password_reset_complete",
+    "email_verification",
+    "account_created", "account_deleted",
+    "profile_updated", "consent_updated",
+    "data_export", "data_access",
+    "book_created", "book_deleted", "book_shared",
+    "admin_action", "retention_cleanup",
+]
+```
+
+### Cookie Consent - localStorage
+
+```typescript
+interface CookieConsent {
+  necessary: boolean;    // sempre true
+  functional: boolean;   // preferenze utente
+  version: string;       // per invalidazione
+  timestamp: string;     // ISO datetime
+}
+
+// Chiave localStorage
+const COOKIE_CONSENT_KEY = 'cookie_consent';
+```
+
+### Metodi Store Aggiunti
+
+**NotificationStore**:
+- `get_user_notifications(user_id, limit)` - Per export
+- `delete_user_notifications(user_id)` - Per cancellazione
+- `count_user_notifications(user_id)` - Per summary
+
+**ConnectionStore**:
+- `anonymize_user_connections(user_id)` - Anonimizza invece di eliminare
+
+**BookShareStore**:
+- `get_sent_shares(owner_id)` - Per export
+- `get_received_shares(recipient_id)` - Per export
+- `delete_shares_for_book(session_id)` - Per cancellazione libro
+- `anonymize_user_shares(user_id)` - Per cancellazione account
+
+**ReferralStore**:
+- `delete_user_referrals(user_id)` - Per cancellazione
+
+**UserStore**:
+- `delete_user(user_id)` - Cancellazione per ID
+
+**MongoSessionStore**:
+- `get_sessions_by_user(user_id)` - Per export
+
+### Routing Frontend
+
+```typescript
+// Route pubbliche (no auth)
+{ path: '/privacy', element: <PrivacyPolicy /> }
+{ path: '/cookies', element: <CookiePolicy /> }
+{ path: '/terms', element: <TermsOfService /> }
+
+// Route protette
+{ path: '/settings/privacy', element: <PrivacySettings /> }
+```
+
+### Sicurezza Implementata
+
+- **Password verification** per cancellazione account
+- **Confirm flag** esplicito richiesto
+- **Audit trail** per tutte le operazioni sensibili
+- **IP anonymization** dopo 90 giorni nei log
+- **Consent versioning** per re-richiesta consenso

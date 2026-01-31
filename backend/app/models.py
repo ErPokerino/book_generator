@@ -410,6 +410,9 @@ class User(BaseModel):
     # Crediti per modalità generazione
     mode_credits: Optional[ModeCredits] = None
     credits_reset_at: Optional[datetime] = None  # Data ultimo reset crediti
+    # GDPR: Consensi privacy
+    privacy_accepted_at: Optional[datetime] = None  # Timestamp accettazione Privacy Policy
+    terms_accepted_at: Optional[datetime] = None  # Timestamp accettazione Terms of Service
 
 
 class UserResponse(BaseModel):
@@ -445,6 +448,9 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=1)
     ref_token: Optional[str] = Field(None, description="Token referral opzionale per tracking inviti")
+    # GDPR: Consensi obbligatori
+    privacy_accepted: bool = Field(False, description="Accettazione Privacy Policy e Terms of Service")
+    data_processing_accepted: bool = Field(False, description="Consenso al trattamento dati tramite AI")
 
 
 class LoginRequest(BaseModel):

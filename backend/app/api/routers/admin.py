@@ -638,3 +638,41 @@ async def get_pending_books_endpoint(
             status_code=500,
             detail=f"Errore nel recupero libri in sospeso: {str(e)}"
         )
+
+
+@router.post("/retention/cleanup")
+async def run_retention_cleanup(
+    current_user = Depends(require_admin),
+):
+    """
+    Esegue manualmente il job di pulizia dati secondo le policy di retention GDPR.
+    
+    Elimina:
+    - Notifiche lette più vecchie di 90 giorni
+    - Referral pendenti scaduti (>30 giorni)
+    - Sessioni incomplete più vecchie di 1 anno
+    - Token scaduti (password reset, verifica email)
+    - Anonimizza IP nei log di audit >90 giorni
+    - Elimina log di audit >2 anni
+    
+    Solo admin.
+    """
+    from app.services.retention_service import get_retention_service
+    
+    try:
+        service = get_retention_service()
+        results = await service.run_cleanup()
+        
+        return {
+            "success": True,
+            "message": "Pulizia completata con successo",
+            "results": results
+        }
+    except Exception as e:
+        print(f"[RETENTION CLEANUP] Errore: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore durante la pulizia: {str(e)}"
+        )

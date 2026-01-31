@@ -359,6 +359,27 @@ class ReferralStore:
         except Exception as e:
             print(f"[ReferralStore] ERRORE expire_old_referrals: {e}", file=sys.stderr)
 
+    async def delete_user_referrals(self, user_id: str) -> int:
+        """
+        Elimina tutti i referral inviati da un utente (per cancellazione account GDPR).
+        
+        Args:
+            user_id: ID utente
+        
+        Returns:
+            Numero di referral eliminati
+        """
+        if self.referrals_collection is None:
+            await self.connect()
+        
+        try:
+            result = await self.referrals_collection.delete_many({"referrer_id": user_id})
+            print(f"[ReferralStore] Eliminati {result.deleted_count} referral per utente {user_id}", file=sys.stderr)
+            return result.deleted_count
+        except Exception as e:
+            print(f"[ReferralStore] ERRORE delete_user_referrals: {e}", file=sys.stderr)
+            return 0
+
 
 # Istanza globale
 _referral_store: Optional[ReferralStore] = None

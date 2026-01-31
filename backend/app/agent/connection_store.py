@@ -381,6 +381,56 @@ class ConnectionStore:
             print(f"[ConnectionStore] ERRORE nell'eliminazione connessione: {e}", file=sys.stderr)
             raise
 
+    async def anonymize_user_connections(self, user_id: str) -> int:
+        """
+        Anonimizza le connessioni di un utente (per cancellazione account GDPR).
+        Sostituisce i dati identificativi con placeholder.
+        
+        Args:
+            user_id: ID utente da anonimizzare
+        
+        Returns:
+            Numero di connessioni anonimizzate
+        """
+        if self.connections_collection is None:
+            await self.connect()
+        
+        try:
+            from datetime import datetime
+            
+            # Anonimizza connessioni dove l'utente e il mittente
+            result_from = await self.connections_collection.update_many(
+                {"from_user_id": user_id},
+                {
+                    "$set": {
+                        "from_user_id": "[DELETED]",
+                        "from_user_name": "[Utente eliminato]",
+                        "from_user_email": "[deleted]",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Anonimizza connessioni dove l'utente e il destinatario
+            result_to = await self.connections_collection.update_many(
+                {"to_user_id": user_id},
+                {
+                    "$set": {
+                        "to_user_id": "[DELETED]",
+                        "to_user_name": "[Utente eliminato]",
+                        "to_user_email": "[deleted]",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            total = result_from.modified_count + result_to.modified_count
+            print(f"[ConnectionStore] Anonimizzate {total} connessioni per utente {user_id}", file=sys.stderr)
+            return total
+        except Exception as e:
+            print(f"[ConnectionStore] ERRORE anonymize_user_connections: {e}", file=sys.stderr)
+            return 0
+
 
 # Istanza globale
 _connection_store: Optional[ConnectionStore] = None

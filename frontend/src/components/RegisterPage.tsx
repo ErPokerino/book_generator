@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { register as registerApi } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import './RegisterPage.css';
@@ -17,6 +17,9 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  // GDPR: Consensi obbligatori
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [dataProcessingAccepted, setDataProcessingAccepted] = useState(false);
   const toast = useToast();
 
   const validateForm = (): boolean => {
@@ -27,6 +30,17 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       toast.error('Le password non corrispondono');
+      return false;
+    }
+
+    // GDPR: Verifica consensi obbligatori
+    if (!privacyAccepted) {
+      toast.error('Devi accettare la Privacy Policy e i Termini di Servizio');
+      return false;
+    }
+
+    if (!dataProcessingAccepted) {
+      toast.error('Devi acconsentire al trattamento dei dati tramite AI');
       return false;
     }
 
@@ -48,6 +62,9 @@ export default function RegisterPage() {
         password, 
         name,
         ref_token: referralToken,  // Passa il referral token per tracking
+        // GDPR: Consensi obbligatori
+        privacy_accepted: privacyAccepted,
+        data_processing_accepted: dataProcessingAccepted,
       });
       
       // Pulisci il token referral dall'URL dopo la registrazione
@@ -238,6 +255,45 @@ export default function RegisterPage() {
                 )}
               </button>
             </div>
+          </div>
+
+          {/* GDPR: Consensi obbligatori */}
+          <div className="auth-consent-section">
+            <label className="auth-checkbox-label">
+              <input
+                type="checkbox"
+                checked={privacyAccepted}
+                onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                disabled={isLoading}
+                required
+              />
+              <span className="auth-checkbox-text">
+                Ho letto e accetto la{' '}
+                <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                  Privacy Policy
+                </Link>{' '}
+                e i{' '}
+                <Link to="/terms" target="_blank" rel="noopener noreferrer">
+                  Termini di Servizio
+                </Link>
+                <span className="auth-required">*</span>
+              </span>
+            </label>
+
+            <label className="auth-checkbox-label">
+              <input
+                type="checkbox"
+                checked={dataProcessingAccepted}
+                onChange={(e) => setDataProcessingAccepted(e.target.checked)}
+                disabled={isLoading}
+                required
+              />
+              <span className="auth-checkbox-text">
+                Acconsento al trattamento dei miei dati per la generazione di 
+                contenuti tramite intelligenza artificiale
+                <span className="auth-required">*</span>
+              </span>
+            </label>
           </div>
 
           <button type="submit" className="auth-submit-button" disabled={isLoading}>

@@ -2,6 +2,7 @@ import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { NotificationProvider } from './contexts/NotificationContext'
+import CookieBanner from './components/CookieBanner'
 import { router } from './router'
 import './App.css'
 
@@ -9,6 +10,7 @@ function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
+        <CookieBanner />
         <Toaster 
           position="top-right"
           toastOptions={{

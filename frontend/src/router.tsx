@@ -16,6 +16,11 @@ import VerifyEmailPage from './components/VerifyEmailPage';
 import OnboardingCarousel from './components/Onboarding/OnboardingCarousel';
 import Navigation from './components/Navigation';
 import BottomNavigation from './components/BottomNavigation';
+import Footer from './components/Footer';
+import PrivacySettings from './components/PrivacySettings';
+import PrivacyPolicy from './components/legal/PrivacyPolicy';
+import CookiePolicy from './components/legal/CookiePolicy';
+import TermsOfService from './components/legal/TermsOfService';
 import { useAuth } from './contexts/AuthContext';
 import { useOnboarding } from './hooks/useOnboarding';
 
@@ -44,6 +49,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
         <Navigation />
         <main className="app-main">
           {children}
+          <Footer />
         </main>
         <BottomNavigation />
       </div>
@@ -161,6 +167,42 @@ export const router = createBrowserRouter([
           <ConnectionsView />
         </ProtectedLayout>
       </RequireAuth>
+    ),
+  },
+  // Privacy Settings (autenticato)
+  {
+    path: '/settings/privacy',
+    element: (
+      <RequireAuth>
+        <ProtectedLayout>
+          <PrivacySettings />
+        </ProtectedLayout>
+      </RequireAuth>
+    ),
+  },
+  // Pagine legali (pubbliche)
+  {
+    path: '/privacy',
+    element: (
+      <ErrorBoundary>
+        <PrivacyPolicy />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    path: '/cookies',
+    element: (
+      <ErrorBoundary>
+        <CookiePolicy />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    path: '/terms',
+    element: (
+      <ErrorBoundary>
+        <TermsOfService />
+      </ErrorBoundary>
     ),
   },
 ]);

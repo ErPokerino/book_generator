@@ -93,6 +93,11 @@ class UserStore:
             doc["mode_credits"] = user.mode_credits.model_dump()
         if user.credits_reset_at:
             doc["credits_reset_at"] = user.credits_reset_at
+        # GDPR: Consensi privacy
+        if user.privacy_accepted_at:
+            doc["privacy_accepted_at"] = user.privacy_accepted_at
+        if user.terms_accepted_at:
+            doc["terms_accepted_at"] = user.terms_accepted_at
         return doc
     
     @classmethod
@@ -119,9 +124,20 @@ class UserStore:
             verification_expires=doc.get("verification_expires"),
             mode_credits=mode_credits,
             credits_reset_at=doc.get("credits_reset_at"),
+            # GDPR: Consensi privacy
+            privacy_accepted_at=doc.get("privacy_accepted_at"),
+            terms_accepted_at=doc.get("terms_accepted_at"),
         )
     
-    async def create_user(self, email: str, password_hash: str, name: str, role: str = "user") -> User:
+    async def create_user(
+        self, 
+        email: str, 
+        password_hash: str, 
+        name: str, 
+        role: str = "user",
+        privacy_accepted_at: datetime = None,
+        terms_accepted_at: datetime = None
+    ) -> User:
         """
         Crea un nuovo utente.
         
@@ -130,6 +146,8 @@ class UserStore:
             password_hash: Hash della password
             name: Nome utente
             role: Ruolo (default: "user")
+            privacy_accepted_at: Timestamp accettazione Privacy Policy (GDPR)
+            terms_accepted_at: Timestamp accettazione Terms of Service (GDPR)
         
         Returns:
             User creato
@@ -151,6 +169,8 @@ class UserStore:
             is_verified=False,
             created_at=now,
             updated_at=now,
+            privacy_accepted_at=privacy_accepted_at,
+            terms_accepted_at=terms_accepted_at,
         )
         
         doc = self._user_to_doc(user)
@@ -280,6 +300,27 @@ class UserStore:
             print(f"[UserStore] Utente eliminato: {email}", file=sys.stderr)
         else:
             print(f"[UserStore] Utente non trovato per eliminazione: {email}", file=sys.stderr)
+        return deleted
+
+    async def delete_user(self, user_id: str) -> bool:
+        """
+        Elimina un utente per ID (per cancellazione account GDPR).
+        
+        Args:
+            user_id: ID dell'utente da eliminare
+        
+        Returns:
+            True se l'utente è stato eliminato, False se non trovato
+        """
+        if self.client is None or self.users_collection is None:
+            await self.connect()
+        
+        result = await self.users_collection.delete_one({"_id": user_id})
+        deleted = result.deleted_count > 0
+        if deleted:
+            print(f"[UserStore] Utente eliminato per ID: {user_id}", file=sys.stderr)
+        else:
+            print(f"[UserStore] Utente non trovato per eliminazione ID: {user_id}", file=sys.stderr)
         return deleted
 
     async def update_user(self, user_id: str, updates: dict) -> bool:

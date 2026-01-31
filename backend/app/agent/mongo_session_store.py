@@ -638,6 +638,19 @@ class MongoSessionStore(SessionStore):
         except Exception as e:
             print(f"[MongoSessionStore] ERRORE nel recupero di tutte le sessioni: {e}", file=sys.stderr)
             return {}
+
+    async def get_sessions_by_user(self, user_id: str) -> list:
+        """
+        Recupera tutte le sessioni di un utente (per export GDPR).
+        
+        Args:
+            user_id: ID utente
+        
+        Returns:
+            Lista di SessionData
+        """
+        sessions_dict = await self.get_all_sessions(user_id=user_id)
+        return list(sessions_dict.values())
     
     @property
     def _sessions(self) -> Dict[str, SessionData]:

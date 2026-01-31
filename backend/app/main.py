@@ -29,7 +29,7 @@ from app.core.config import (
     get_tokens_per_page, get_model_pricing, get_image_generation_cost,
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
-from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files
+from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr
 from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
     ConfigResponse,
@@ -143,6 +143,7 @@ app.include_router(session.router)
 app.include_router(admin.router)
 app.include_router(health.router)
 app.include_router(files.router)
+app.include_router(gdpr.router)
 
 
 # Lifecycle hooks per MongoDB

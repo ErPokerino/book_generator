@@ -89,6 +89,18 @@ async def register(request: RegisterRequest):
         if user_store.client is None or user_store.users_collection is None:
             await user_store.connect()
 
+        # GDPR: Verifica consensi obbligatori
+        if not request.privacy_accepted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Devi accettare la Privacy Policy e i Termini di Servizio per registrarti",
+            )
+        if not request.data_processing_accepted:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Devi acconsentire al trattamento dei dati tramite AI per utilizzare il servizio",
+            )
+
         # Verifica email già esistente
         existing_user = await user_store.get_user_by_email(request.email)
         if existing_user:
@@ -99,15 +111,32 @@ async def register(request: RegisterRequest):
 
         # Hash password
         password_hash = hash_password(request.password)
+        
+        # Timestamp consensi GDPR
+        consent_timestamp = datetime.utcnow()
 
         # Crea utente (non verificato)
         user = await user_store.create_user(
             email=request.email,
             password_hash=password_hash,
             name=request.name,
-            role="user"
+            role="user",
+            privacy_accepted_at=consent_timestamp,
+            terms_accepted_at=consent_timestamp
         )
         print(f"[AUTH] Utente registrato (non verificato): {user.email}", file=sys.stderr)
+        
+        # Audit log registrazione
+        try:
+            from app.services.audit_service import get_audit_service
+            audit_service = get_audit_service()
+            await audit_service.log_account_created(
+                user_id=user.id,
+                user_email=user.email,
+                referral_token=request.ref_token
+            )
+        except Exception as audit_error:
+            print(f"[AUTH] Warning: audit log failed: {audit_error}", file=sys.stderr)
         
         # Tracking referral (se presente token)
         if request.ref_token:
@@ -290,6 +319,18 @@ async def login(request: LoginRequest, response: Response):
         )
         
         print(f"[AUTH] Login: {user.email}", file=sys.stderr)
+        
+        # Audit log login
+        try:
+            from app.services.audit_service import get_audit_service
+            audit_service = get_audit_service()
+            await audit_service.log_login(
+                user_id=user.id,
+                user_email=user.email,
+                success=True
+            )
+        except Exception as audit_error:
+            print(f"[AUTH] Warning: audit log failed: {audit_error}", file=sys.stderr)
         
         return {
             "success": True,

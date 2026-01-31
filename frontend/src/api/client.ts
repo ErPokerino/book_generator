@@ -40,6 +40,9 @@ export interface RegisterRequest {
   password: string;
   name: string;
   ref_token?: string;  // Token referral opzionale per tracking inviti
+  // GDPR: Consensi obbligatori
+  privacy_accepted: boolean;  // Accettazione Privacy Policy e Terms of Service
+  data_processing_accepted: boolean;  // Consenso al trattamento dati tramite AI
 }
 
 export interface ForgotPasswordRequest {
@@ -2237,6 +2240,91 @@ export async function getPendingConnectionsCount(): Promise<{ pending_count: num
       errorDetail = `[${response.status}] ${error.detail || 'Errore nel recupero del conteggio richieste pendenti'}`;
     } catch {
       // Se non è JSON, usa il messaggio di default
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+// ===== GDPR API Functions =====
+
+export interface GdprDataSummary {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    created_at: string | null;
+    privacy_accepted_at: string | null;
+    terms_accepted_at: string | null;
+  };
+  data_counts: {
+    books: number;
+    notifications: number;
+    connections: number;
+  };
+}
+
+export interface DeleteAccountRequest {
+  password: string;
+  confirm: boolean;
+}
+
+export interface DeleteAccountResponse {
+  success: boolean;
+  message: string;
+  deleted: {
+    books: number;
+    notifications: number;
+  };
+}
+
+export async function getGdprDataSummary(): Promise<GdprDataSummary> {
+  const response = await fetch(`${API_BASE}/gdpr/data-summary`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    handleUnauthorized(response.status);
+    throw new Error('Errore nel recupero del riepilogo dati');
+  }
+
+  return response.json();
+}
+
+export async function exportUserData(): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/gdpr/export`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    handleUnauthorized(response.status);
+    throw new Error('Errore durante l\'export dei dati');
+  }
+
+  return response.blob();
+}
+
+export async function deleteAccount(request: DeleteAccountRequest): Promise<DeleteAccountResponse> {
+  const response = await fetch(`${API_BASE}/gdpr/account`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    handleUnauthorized(response.status);
+    let errorDetail = 'Errore durante la cancellazione dell\'account';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // ignore
     }
     throw new Error(errorDetail);
   }

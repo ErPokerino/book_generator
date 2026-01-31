@@ -564,6 +564,144 @@ class BookShareStore:
             print(f"[BookShareStore] ERRORE nell'eliminazione condivisioni libro: {e}", file=sys.stderr)
             raise
 
+    async def get_sent_shares(self, owner_id: str) -> list:
+        """
+        Recupera tutte le condivisioni inviate da un utente (per export GDPR).
+        
+        Args:
+            owner_id: ID utente proprietario
+        
+        Returns:
+            Lista di BookShare
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            from app.models import BookShare
+            cursor = self.shares_collection.find({"owner_id": owner_id}).sort("created_at", -1)
+            shares = []
+            async for doc in cursor:
+                shares.append(BookShare(
+                    id=doc["_id"],
+                    book_session_id=doc["book_session_id"],
+                    owner_id=doc["owner_id"],
+                    recipient_id=doc["recipient_id"],
+                    status=doc.get("status", "pending"),
+                    created_at=doc.get("created_at"),
+                    updated_at=doc.get("updated_at"),
+                    owner_name=doc.get("owner_name"),
+                    recipient_name=doc.get("recipient_name"),
+                    book_title=doc.get("book_title")
+                ))
+            return shares
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE get_sent_shares: {e}", file=sys.stderr)
+            return []
+
+    async def get_received_shares(self, recipient_id: str) -> list:
+        """
+        Recupera tutte le condivisioni ricevute da un utente (per export GDPR).
+        
+        Args:
+            recipient_id: ID utente destinatario
+        
+        Returns:
+            Lista di BookShare
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            from app.models import BookShare
+            cursor = self.shares_collection.find({"recipient_id": recipient_id}).sort("created_at", -1)
+            shares = []
+            async for doc in cursor:
+                shares.append(BookShare(
+                    id=doc["_id"],
+                    book_session_id=doc["book_session_id"],
+                    owner_id=doc["owner_id"],
+                    recipient_id=doc["recipient_id"],
+                    status=doc.get("status", "pending"),
+                    created_at=doc.get("created_at"),
+                    updated_at=doc.get("updated_at"),
+                    owner_name=doc.get("owner_name"),
+                    recipient_name=doc.get("recipient_name"),
+                    book_title=doc.get("book_title")
+                ))
+            return shares
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE get_received_shares: {e}", file=sys.stderr)
+            return []
+
+    async def delete_shares_for_book(self, book_session_id: str) -> int:
+        """
+        Elimina tutte le condivisioni di un libro (senza verifica owner).
+        Usato per cancellazione account GDPR.
+        
+        Args:
+            book_session_id: ID della sessione libro
+        
+        Returns:
+            Numero di condivisioni eliminate
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            result = await self.shares_collection.delete_many({"book_session_id": book_session_id})
+            return result.deleted_count
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE delete_shares_for_book: {e}", file=sys.stderr)
+            return 0
+
+    async def anonymize_user_shares(self, user_id: str) -> int:
+        """
+        Anonimizza le condivisioni di un utente (per cancellazione account GDPR).
+        
+        Args:
+            user_id: ID utente da anonimizzare
+        
+        Returns:
+            Numero di condivisioni anonimizzate
+        """
+        if self.shares_collection is None:
+            await self.connect()
+        
+        try:
+            from datetime import datetime
+            
+            # Anonimizza condivisioni dove l'utente e il proprietario
+            result_owner = await self.shares_collection.update_many(
+                {"owner_id": user_id},
+                {
+                    "$set": {
+                        "owner_id": "[DELETED]",
+                        "owner_name": "[Utente eliminato]",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Anonimizza condivisioni dove l'utente e il destinatario
+            result_recipient = await self.shares_collection.update_many(
+                {"recipient_id": user_id},
+                {
+                    "$set": {
+                        "recipient_id": "[DELETED]",
+                        "recipient_name": "[Utente eliminato]",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            total = result_owner.modified_count + result_recipient.modified_count
+            print(f"[BookShareStore] Anonimizzate {total} condivisioni per utente {user_id}", file=sys.stderr)
+            return total
+        except Exception as e:
+            print(f"[BookShareStore] ERRORE anonymize_user_shares: {e}", file=sys.stderr)
+            return 0
+
 
 # Istanza globale
 _book_share_store: Optional[BookShareStore] = None

@@ -14,6 +14,7 @@
 10. [Sistema di Notifiche](#sistema-di-notifiche)
 11. [Statistiche e Analytics](#statistiche-e-analytics)
 12. [Validazioni e Regole](#validazioni-e-regole)
+13. [GDPR Compliance](#gdpr-compliance)
 
 ## Flusso Generazione Libro
 
@@ -1524,3 +1525,166 @@ api_timeouts:
 - Nessun retry automatico per altri endpoint
 
 **File**: `config/app.yaml`, `backend/app/core/config.py`
+
+## GDPR Compliance
+
+### Panoramica
+
+L'applicazione implementa le funzionalità richieste dal Regolamento Generale sulla Protezione dei Dati (GDPR - UE 2016/679) e dalla Direttiva ePrivacy (2002/58/CE).
+
+### Documentazione Legale
+
+**Pagine pubbliche** accessibili senza autenticazione:
+
+| Pagina | Route | Descrizione |
+|--------|-------|-------------|
+| Privacy Policy | `/privacy` | Informativa completa sul trattamento dati personali |
+| Cookie Policy | `/cookies` | Informativa su cookie e localStorage utilizzati |
+| Termini di Servizio | `/terms` | Condizioni d'uso del servizio |
+
+**Contenuto Privacy Policy**:
+- Titolare del trattamento e contatti
+- Categorie di dati raccolti (registrazione, utilizzo, relazionali)
+- Finalità e basi giuridiche (Art. 6 GDPR)
+- Destinatari e trasferimenti extra-UE
+- Periodi di conservazione
+- Diritti dell'interessato (accesso, rettifica, cancellazione, portabilità)
+- Trattamenti automatizzati (AI)
+
+**File**: `frontend/src/components/legal/PrivacyPolicy.tsx`, `CookiePolicy.tsx`, `TermsOfService.tsx`
+
+### Meccanismi di Consenso
+
+#### Cookie Banner
+
+**Comportamento**:
+1. Mostrato al primo accesso se consenso non presente
+2. Tre opzioni: "Accetta tutti", "Solo necessari", "Personalizza"
+3. Preferenze salvate in localStorage (`cookie_consent`)
+4. Versioning del consenso per richiedere nuova accettazione se policy cambia
+
+**Categorie Cookie**:
+- **Necessari** (sempre attivi): session_id per autenticazione
+- **Funzionali** (opzionali): preferenze form, onboarding, autosave
+
+**File**: `frontend/src/components/CookieBanner.tsx`
+
+#### Consenso Registrazione
+
+**Checkbox obbligatorie** in fase di registrazione:
+1. Accettazione Privacy Policy e Terms of Service
+2. Consenso al trattamento dati tramite AI
+
+**Backend validation**: La registrazione fallisce se i consensi non sono forniti.
+
+**Tracciamento**: Timestamp dei consensi salvati nel profilo utente:
+- `privacy_accepted_at`
+- `terms_accepted_at`
+
+**File**: `frontend/src/components/RegisterPage.tsx`, `backend/app/api/routers/auth.py`
+
+### Diritti dell'Interessato
+
+#### Portabilità Dati (Art. 20 GDPR)
+
+**Endpoint**: `GET /api/gdpr/export`
+
+**Processo**:
+1. Utente autenticato richiede export
+2. Sistema raccoglie tutti i dati personali
+3. Generazione file ZIP con JSON strutturati
+
+**Dati esportati**:
+- `profile.json`: Dati profilo utente
+- `books.json`: Libri creati
+- `connections.json`: Connessioni
+- `notifications.json`: Notifiche
+- `referrals.json`: Inviti inviati
+- `shares.json`: Condivisioni libri
+- `README.txt`: Guida al contenuto
+
+**File**: `backend/app/api/routers/gdpr.py`
+
+#### Cancellazione Account (Art. 17 GDPR - Diritto all'Oblio)
+
+**Endpoint**: `DELETE /api/gdpr/account`
+
+**Processo**:
+1. Verifica password per conferma identità
+2. Conferma esplicita richiesta
+3. Eliminazione: account, libri, PDF, copertine, notifiche
+4. Anonimizzazione: connessioni, condivisioni (mantiene struttura)
+5. Invalidazione sessione
+
+**File**: `backend/app/api/routers/gdpr.py`
+
+### Impostazioni Privacy
+
+**Route**: `/settings/privacy`
+
+**Funzionalità**:
+- Visualizzazione riepilogo dati personali
+- Conteggio libri, connessioni, notifiche
+- Pulsante "Scarica i miei dati" (export ZIP)
+- Sezione eliminazione account con conferma password
+
+**Accesso**: Dal menu profilo (icona Privacy/Scudo)
+
+**File**: `frontend/src/components/PrivacySettings.tsx`
+
+### Data Retention
+
+**Policy di conservazione**:
+
+| Tipo Dato | Periodo |
+|-----------|---------|
+| Sessioni autenticazione | 7 giorni |
+| Token reset password | 24 ore |
+| Token verifica email | 24 ore |
+| Referral pendenti | 30 giorni |
+| Notifiche lette | 90 giorni |
+| Sessioni incomplete | 1 anno |
+| Audit log | 2 anni |
+| IP in audit log | Anonimizzati dopo 90 giorni |
+
+**Job di pulizia**: Endpoint admin `POST /api/admin/retention/cleanup`
+
+**File**: `backend/app/services/retention_service.py`
+
+### Audit Logging
+
+**Eventi tracciati**:
+- Login/logout
+- Creazione/cancellazione account
+- Export dati
+- Modifiche profilo
+- Azioni admin
+
+**Struttura log**:
+```json
+{
+  "timestamp": "2026-01-31T12:00:00Z",
+  "action": "login",
+  "user_id": "uuid",
+  "user_email": "email",
+  "ip_address": "xxx.xxx.xxx.xxx",
+  "success": true,
+  "details": {}
+}
+```
+
+**Retention**: 2 anni, IP anonimizzati dopo 90 giorni
+
+**File**: `backend/app/services/audit_service.py`
+
+### Footer e Navigazione
+
+**Footer** presente in tutte le pagine autenticate con link a:
+- Privacy Policy
+- Cookie Policy  
+- Termini di Servizio
+- Gestione Cookie
+
+**Menu Profilo**: Voce "Privacy" per accesso rapido a `/settings/privacy`
+
+**File**: `frontend/src/components/Footer.tsx`, `frontend/src/components/BottomNavigation.tsx`
