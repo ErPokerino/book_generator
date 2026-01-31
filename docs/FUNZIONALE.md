@@ -282,26 +282,49 @@ Il sistema utilizza SMTP per invio email (verifica e password reset):
 
 ### Step 3: Draft (Bozza Estesa)
 
-**Descrizione**: Generazione di una bozza estesa della trama che l'utente può modificare.
+**Descrizione**: Generazione di una bozza estesa della trama che l'utente può modificare in due modi: editing manuale diretto o tramite chat con LLM.
 
 **Processo**:
 1. Chiamata a `/api/draft/generate` con `form_data` + `question_answers`
 2. Agente AI (`draft_generator.py`) genera bozza estesa (~2000-3000 parole)
 3. Bozza salvata in `SessionData.current_draft`
-4. Frontend mostra bozza in editor con chat per modifiche
-5. Utente può richiedere modifiche tramite feedback
-6. Validazione bozza: `POST /api/draft/validate` imposta `validated=True`
+4. Frontend mostra bozza in editor con due modalità di modifica:
+   - **Editing manuale**: Pulsante "Modifica" per editare direttamente il testo markdown
+   - **Chat LLM**: Richiesta modifiche tramite feedback testuale (approccio chirurgico)
+5. Validazione bozza: `POST /api/draft/validate` imposta `validated=True`
 
 **Caratteristiche**:
 - **Versioning**: Ogni modifica incrementa `current_version`
 - **History**: `draft_history` mantiene traccia di tutte le versioni
-- **Modifica interattiva**: Chat-based con feedback utente
+- **Editing manuale**: Modifica diretta del testo markdown senza passare dall'LLM
+- **Modifiche chirurgiche**: Chat-based con approccio mirato (modifica solo parti specifiche)
 
-**Input**: `form_data`, `question_answers`, `user_feedback` (opzionale)
+**Modalità di Modifica**:
+
+#### Editing Manuale
+- Pulsante "Modifica" nell'header del visualizzatore bozza
+- Toggle tra visualizzazione markdown e textarea editabile
+- Possibilità di modificare sia il titolo che il contenuto
+- Salvataggio diretto senza chiamata LLM (`POST /api/draft/update`)
+- Ideale per correzioni puntuali, typo, riformulazioni
+
+#### Modifiche tramite Chat (Approccio Chirurgico)
+- Feedback testuale inviato all'LLM
+- **Approccio chirurgico**: L'LLM modifica SOLO le parti specifiche indicate nel feedback
+- Tutto ciò che non è menzionato rimane identico, parola per parola
+- Ideale per modifiche narrative, espansioni, cambiamenti strutturali
+
+**Input**: `form_data`, `question_answers`, `user_feedback` (opzionale), `draft_text` (per editing manuale)
 
 **Output**: `DraftResponse` (draft_text, title, version)
 
-**File**: `backend/app/agent/draft_generator.py`, `frontend/src/components/DraftStep.tsx`
+**Endpoint**:
+- `POST /api/draft/generate`: Generazione iniziale
+- `POST /api/draft/modify`: Modifica tramite chat LLM (chirurgica)
+- `POST /api/draft/update`: Salvataggio manuale diretto
+- `POST /api/draft/validate`: Validazione bozza
+
+**File**: `backend/app/agent/draft_generator.py`, `frontend/src/components/DraftStep.tsx`, `frontend/src/components/DraftViewer.tsx`
 
 ### Step 4: Summary (Struttura del Libro)
 

@@ -5,6 +5,7 @@ from app.models import (
     DraftGenerationRequest,
     DraftResponse,
     DraftModificationRequest,
+    DraftManualUpdateRequest,
     DraftValidationRequest,
     DraftValidationResponse,
     ProcessProgress,
@@ -170,6 +171,70 @@ async def modify_draft_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nella modifica della bozza: {str(e)}"
+        )
+
+
+@router.post("/update", response_model=DraftResponse)
+async def update_draft_manually_endpoint(
+    request: DraftManualUpdateRequest,
+    current_user = Depends(get_current_user_optional)
+):
+    """Salva le modifiche manuali alla bozza senza passare dall'LLM."""
+    try:
+        session_store = get_session_store()
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {request.session_id} non trovata"
+            )
+        
+        if current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            )
+        
+        if not session.current_draft:
+            raise HTTPException(
+                status_code=400,
+                detail="Nessuna bozza esistente da modificare"
+            )
+        
+        # Incrementa la versione
+        new_version = session.current_version + 1
+        
+        # Usa il titolo fornito o mantieni quello esistente
+        new_title = request.title if request.title else session.current_title
+        
+        # Salva direttamente senza passare dall'LLM
+        await update_draft_async(
+            session_store, 
+            request.session_id, 
+            request.draft_text, 
+            new_version, 
+            new_title
+        )
+        
+        print(f"[DEBUG] Bozza aggiornata manualmente: v{new_version}")
+        
+        return DraftResponse(
+            success=True,
+            session_id=request.session_id,
+            draft_text=request.draft_text,
+            title=new_title,
+            version=new_version,
+            message="Bozza aggiornata manualmente con successo",
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel salvataggio manuale della bozza: {str(e)}"
         )
 
 

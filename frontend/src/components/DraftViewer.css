@@ -22,6 +22,12 @@
   color: #213547;
 }
 
+.draft-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .draft-version {
   font-size: 0.875rem;
   color: #666;
@@ -30,10 +36,149 @@
   border-radius: 12px;
 }
 
+.edit-toggle-button {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #4a90d9;
+  border-radius: 4px;
+  background-color: transparent;
+  color: #4a90d9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-toggle-button:hover:not(:disabled) {
+  background-color: #4a90d9;
+  color: white;
+}
+
+.edit-toggle-button.editing {
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.edit-toggle-button.editing:hover:not(:disabled) {
+  background-color: #dc3545;
+  color: white;
+}
+
+.edit-toggle-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .draft-content {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem;
+}
+
+.draft-content-edit {
+  padding: 0;
+}
+
+.draft-title-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background-color: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.draft-title-edit label {
+  font-weight: 600;
+  color: #213547;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.draft-title-edit input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #213547;
+  background-color: white;
+}
+
+.draft-title-edit input:focus {
+  outline: none;
+  border-color: #4a90d9;
+  box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+}
+
+.draft-edit-textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  padding: 1.5rem;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  border: none;
+  resize: none;
+  color: #213547;
+  background-color: #fafafa;
+}
+
+.draft-edit-textarea:focus {
+  outline: none;
+  background-color: white;
+}
+
+.draft-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background-color: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+}
+
+.draft-save-button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  background-color: #28a745;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.draft-save-button:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.draft-save-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.draft-cancel-button {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid #6c757d;
+  border-radius: 4px;
+  background-color: transparent;
+  color: #6c757d;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.draft-cancel-button:hover:not(:disabled) {
+  background-color: #6c757d;
+  color: white;
+}
+
+.draft-cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .draft-title {
@@ -154,6 +299,26 @@
     background-color: #333;
   }
 
+  .edit-toggle-button {
+    border-color: #6ba3e0;
+    color: #6ba3e0;
+  }
+
+  .edit-toggle-button:hover:not(:disabled) {
+    background-color: #6ba3e0;
+    color: #1a1a1a;
+  }
+
+  .edit-toggle-button.editing {
+    border-color: #e05555;
+    color: #e05555;
+  }
+
+  .edit-toggle-button.editing:hover:not(:disabled) {
+    background-color: #e05555;
+    color: white;
+  }
+
   .draft-title {
     background-color: #2a2a2a;
     border-bottom-color: #444;
@@ -161,6 +326,58 @@
 
   .draft-title h1 {
     color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-title-edit {
+    background-color: #2a2a2a;
+    border-bottom-color: #444;
+  }
+
+  .draft-title-edit label {
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-title-edit input {
+    background-color: #333;
+    border-color: #555;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-title-edit input:focus {
+    border-color: #6ba3e0;
+    box-shadow: 0 0 0 2px rgba(107, 163, 224, 0.2);
+  }
+
+  .draft-edit-textarea {
+    background-color: #252525;
+    color: rgba(255, 255, 255, 0.87);
+  }
+
+  .draft-edit-textarea:focus {
+    background-color: #2a2a2a;
+  }
+
+  .draft-edit-actions {
+    background-color: #2a2a2a;
+    border-top-color: #444;
+  }
+
+  .draft-save-button {
+    background-color: #2e7d32;
+  }
+
+  .draft-save-button:hover:not(:disabled) {
+    background-color: #388e3c;
+  }
+
+  .draft-cancel-button {
+    border-color: #888;
+    color: #888;
+  }
+
+  .draft-cancel-button:hover:not(:disabled) {
+    background-color: #555;
+    color: white;
   }
 
   .draft-text {

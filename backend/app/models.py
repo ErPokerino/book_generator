@@ -125,6 +125,13 @@ class DraftValidationResponse(BaseModel):
     message: str
 
 
+class DraftManualUpdateRequest(BaseModel):
+    session_id: str
+    draft_text: str
+    title: Optional[str] = None
+    current_version: int
+
+
 # Modelli per la struttura/indice
 class OutlineGenerateRequest(BaseModel):
     session_id: str

@@ -217,22 +217,33 @@ async def generate_draft(
     
     # Crea il prompt
     if previous_draft and user_feedback:
-        # Modifica della bozza esistente
+        # Modifica della bozza esistente - APPROCCIO CHIRURGICO
         system_prompt = SystemMessage(content=agent_context)
-        user_prompt_content = f"""Hai già generato una bozza estesa per questo romanzo. L'utente ha richiesto delle modifiche.
+        user_prompt_content = f"""## MODIFICA CHIRURGICA RICHIESTA
 
-**Dati originali del romanzo:**
+**REGOLA FONDAMENTALE**: Devi applicare un approccio CHIRURGICO alle modifiche.
+- Modifica SOLO le parti specifiche indicate nel feedback dell'utente
+- Tutto ciò che NON è menzionato nel feedback deve rimanere ESATTAMENTE IDENTICO, parola per parola
+- Non riscrivere sezioni che non sono coinvolte dalla richiesta
+- Non migliorare, espandere o modificare parti non richieste
+
+**Feedback dell'utente (modifica SOLO ciò che è indicato qui):**
+{user_feedback}
+
+**Bozza attuale (mantieni IDENTICO tutto ciò che non è nel feedback):**
+{previous_draft}
+
+**Dati originali del romanzo (per riferimento):**
 {formatted_form_data}
 
 {formatted_answers}
 
-**Bozza precedente (versione da modificare):**
-{previous_draft}
-
-**Feedback dell'utente per le modifiche:**
-{user_feedback}
-
-Genera una nuova versione della bozza estesa che incorpori le modifiche richieste dall'utente, mantenendo tutti gli elementi che non sono stati richiesti di modificare. La nuova bozza deve essere coerente e completa."""
+**ISTRUZIONI**:
+1. Identifica ESATTAMENTE quali sezioni/paragrafi sono interessati dal feedback
+2. Modifica SOLO quelle parti specifiche
+3. Copia ESATTAMENTE tutto il resto senza modifiche
+4. Se il feedback richiede modifiche a un personaggio/evento, tocca SOLO le parti dove quel personaggio/evento appare in relazione alla modifica richiesta
+5. Restituisci la bozza completa nel formato richiesto (TITOLO: ... TRAMA: ...)"""
     else:
         # Generazione iniziale
         system_prompt = SystemMessage(content=agent_context)

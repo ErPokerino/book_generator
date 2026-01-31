@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { generateDraft, modifyDraft, validateDraft, generateOutline, DraftResponse, DraftModificationRequest, DraftValidationRequest, OutlineResponse, SubmissionRequest, QuestionAnswer, startOutlineGeneration, getOutlineProgress, ProcessProgress } from '../api/client';
+import { generateDraft, modifyDraft, validateDraft, generateOutline, updateDraftManually, DraftResponse, DraftModificationRequest, DraftValidationRequest, DraftManualUpdateRequest, OutlineResponse, SubmissionRequest, QuestionAnswer, startOutlineGeneration, getOutlineProgress, ProcessProgress } from '../api/client';
 import { useProcessPolling } from '../hooks/useProcessPolling';
 import DraftViewer from './DraftViewer';
 import DraftChat from './DraftChat';
@@ -20,6 +20,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
   const [draft, setDraft] = useState<DraftResponse | null>(initialDraft || null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModifying, setIsModifying] = useState(false);
+  const [isManualSaving, setIsManualSaving] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [outlineProgress, setOutlineProgress] = useState<ProcessProgress | null>(null);
@@ -99,6 +100,28 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       setError(err instanceof Error ? err.message : 'Errore nella modifica della bozza');
     } finally {
       setIsModifying(false);
+    }
+  };
+
+  const handleManualEdit = async (newText: string, newTitle?: string) => {
+    if (!draft) return;
+
+    setIsManualSaving(true);
+    setError(null);
+
+    try {
+      const request: DraftManualUpdateRequest = {
+        session_id: sessionId,
+        draft_text: newText,
+        title: newTitle,
+        current_version: draft.version,
+      };
+      const response = await updateDraftManually(request);
+      setDraft(response);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nel salvataggio manuale della bozza');
+    } finally {
+      setIsManualSaving(false);
     }
   };
 
@@ -197,7 +220,7 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
     );
   }
 
-  const isLoading = isModifying || isValidating;
+  const isLoading = isModifying || isValidating || isManualSaving;
 
   return (
     <div className="draft-step">
@@ -208,7 +231,13 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       )}
       <div className="draft-step-content">
         <div className="draft-viewer-container">
-          <DraftViewer draftText={draft.draft_text} title={draft.title} version={draft.version} />
+          <DraftViewer 
+            draftText={draft.draft_text} 
+            title={draft.title} 
+            version={draft.version}
+            onManualEdit={handleManualEdit}
+            isLoading={isLoading}
+          />
         </div>
         <div className="draft-chat-container">
           <DraftChat

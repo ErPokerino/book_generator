@@ -228,9 +228,9 @@ frontend/src/
 │   ├── BookCard.tsx       # Card libro nella libreria
 │   ├── OutlineEditor.tsx  # Editor drag-and-drop struttura
 │   ├── WritingStep.tsx    # Monitoraggio generazione
-│   ├── DraftStep.tsx      # Generazione/modifica bozza
-│   ├── DraftChat.tsx      # Chat modifica bozza interattiva
-│   ├── DraftViewer.tsx    # Visualizzatore bozza
+│   ├── DraftStep.tsx      # Generazione/modifica bozza (manuale + LLM)
+│   ├── DraftChat.tsx      # Chat modifica bozza interattiva (approccio chirurgico)
+│   ├── DraftViewer.tsx    # Visualizzatore/Editor bozza (toggle view/edit)
 │   ├── ConnectionsView.tsx    # Gestione connessioni e referral
 │   ├── ShareBookModal.tsx     # Modal condivisione libro
 │   ├── NotificationBell.tsx   # Icona notifiche con badge
@@ -408,7 +408,7 @@ Gli endpoint sono organizzati per dominio in router separati:
 - **`/api/config`**: Configurazione form dinamico
 - **`/api/submissions`**: Inizializzazione nuova sessione
 - **`/api/questions/*`**: Generazione e salvataggio risposte domande
-- **`/api/draft/*`**: Generazione, modifica, validazione bozza
+- **`/api/draft/*`**: Generazione, modifica (manuale e LLM chirurgica), validazione bozza
 - **`/api/outline/*`**: Generazione e modifica struttura
 - **`/api/book/*`**: Scrittura, progresso, export, critica
 - **`/api/library/*`**: Lista libri, statistiche, gestione
@@ -436,7 +436,60 @@ class DraftResponse(BaseModel):
     title: Optional[str] = None
     version: int
     message: Optional[str] = None
+
+class DraftManualUpdateRequest(BaseModel):
+    session_id: str
+    draft_text: str
+    title: Optional[str] = None
+    current_version: int
 ```
+
+### Editing Bozza
+
+Il sistema supporta due modalità di modifica della bozza:
+
+#### Editing Manuale (`POST /api/draft/update`)
+
+Salvataggio diretto delle modifiche senza passare dall'LLM:
+
+```python
+@router.post("/update", response_model=DraftResponse)
+async def update_draft_manually_endpoint(request: DraftManualUpdateRequest):
+    # Incrementa versione
+    new_version = session.current_version + 1
+    # Salva direttamente senza chiamata LLM
+    await update_draft_async(session_store, session_id, draft_text, new_version, title)
+```
+
+**Caratteristiche**:
+- Nessuna chiamata API LLM
+- Salvataggio immediato
+- Incremento versione automatico
+- Ideale per correzioni puntuali
+
+#### Modifica Chirurgica (`POST /api/draft/modify`)
+
+Modifica tramite LLM con approccio chirurgico:
+
+```python
+user_prompt = f"""MODIFICA CHIRURGICA RICHIESTA.
+
+**REGOLA FONDAMENTALE**: Modifica SOLO le parti specifiche indicate nel feedback.
+Tutto ciò che NON è menzionato deve rimanere IDENTICO, parola per parola.
+
+**Feedback dell'utente:**
+{user_feedback}
+
+**Bozza attuale (mantieni IDENTICO tutto ciò che non è nel feedback):**
+{previous_draft}
+"""
+```
+
+**Caratteristiche**:
+- Modifica solo parti specifiche richieste
+- Mantiene invariato il resto della bozza
+- Istruzioni dettagliate nel prompt per approccio chirurgico
+- Ideale per modifiche narrative e strutturali
 
 ### Gestione Errori
 

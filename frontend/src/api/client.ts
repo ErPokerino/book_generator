@@ -217,6 +217,13 @@ export interface DraftValidationResponse {
   message: string;
 }
 
+export interface DraftManualUpdateRequest {
+  session_id: string;
+  draft_text: string;
+  title?: string;
+  current_version: number;
+}
+
 const API_BASE = '/api';
 
 // Event per segnalare sessione scaduta
@@ -396,6 +403,23 @@ export async function getDraft(sessionId: string): Promise<DraftResponse> {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || `Errore nel recupero della bozza: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+export async function updateDraftManually(request: DraftManualUpdateRequest): Promise<DraftResponse> {
+  const response = await fetch(`${API_BASE}/draft/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel salvataggio manuale della bozza: ${response.statusText}`);
   }
   
   return response.json();
