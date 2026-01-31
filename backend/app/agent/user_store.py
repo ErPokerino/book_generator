@@ -1,12 +1,12 @@
 """Store MongoDB per utenti."""
 import os
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import IndexModel, ASCENDING
 from pymongo.errors import DuplicateKeyError
-from app.models import User, ModeCredits
+from app.models import User, ModeCredits, MODE_COSTS, DEFAULT_POINTS
 
 
 class UserStore:
@@ -88,7 +88,11 @@ class UserStore:
             doc["verification_token"] = user.verification_token
         if user.verification_expires:
             doc["verification_expires"] = user.verification_expires
-        # Crediti modalità generazione
+        # Sistema punti unificato
+        doc["points"] = user.points
+        if user.points_reset_at:
+            doc["points_reset_at"] = user.points_reset_at
+        # DEPRECATO: manteniamo per retrocompatibilità durante migrazione
         if user.mode_credits:
             doc["mode_credits"] = user.mode_credits.model_dump()
         if user.credits_reset_at:
@@ -103,7 +107,16 @@ class UserStore:
     @classmethod
     def _doc_to_user(cls, doc: dict) -> User:
         """Converte documento MongoDB in User."""
-        # Converti mode_credits da dict a ModeCredits
+        # Gestione punti: usa campo points se esiste, altrimenti migra da mode_credits
+        points = doc.get("points")
+        points_reset_at = doc.get("points_reset_at")
+        
+        if points is None:
+            # Migrazione: se non esiste points, assegna default
+            # (gli utenti esistenti avranno mode_credits che ignoriamo)
+            points = DEFAULT_POINTS
+        
+        # DEPRECATO: converti mode_credits da dict a ModeCredits (retrocompatibilità)
         mode_credits = None
         if doc.get("mode_credits"):
             mode_credits = ModeCredits(**doc["mode_credits"])
@@ -122,6 +135,10 @@ class UserStore:
             password_reset_expires=doc.get("password_reset_expires"),
             verification_token=doc.get("verification_token"),
             verification_expires=doc.get("verification_expires"),
+            # Sistema punti unificato
+            points=points,
+            points_reset_at=points_reset_at,
+            # DEPRECATO: mantenuto per retrocompatibilità
             mode_credits=mode_credits,
             credits_reset_at=doc.get("credits_reset_at"),
             # GDPR: Consensi privacy
@@ -465,12 +482,7 @@ class UserStore:
             return self._doc_to_user(doc)
         return None
     
-    # ==================== GESTIONE CREDITI ====================
-    
-    @staticmethod
-    def _get_default_credits() -> ModeCredits:
-        """Restituisce i crediti di default."""
-        return ModeCredits(flash=1, pro=0, ultra=0)
+    # ==================== GESTIONE PUNTI ====================
     
     @staticmethod
     def _get_next_monday() -> datetime:
@@ -484,14 +496,14 @@ class UserStore:
         return next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
     
     @staticmethod
-    def _should_reset_credits(credits_reset_at: Optional[datetime]) -> bool:
+    def _should_reset_points(points_reset_at: Optional[datetime]) -> bool:
         """
-        Verifica se i crediti devono essere resettati (lazy reset).
+        Verifica se i punti devono essere resettati (lazy reset).
         Reset se:
-        - credits_reset_at è None (mai resettato)
+        - points_reset_at è None (mai resettato)
         - È passato almeno un lunedì dall'ultimo reset
         """
-        if credits_reset_at is None:
+        if points_reset_at is None:
             return True
         
         now = datetime.utcnow()
@@ -501,17 +513,17 @@ class UserStore:
         last_monday = last_monday.replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Reset se l'ultimo reset è prima dell'ultimo lunedì
-        return credits_reset_at < last_monday
+        return points_reset_at < last_monday
     
-    async def get_user_credits(self, user_id: str) -> tuple[ModeCredits, datetime, datetime]:
+    async def get_user_points(self, user_id: str) -> Tuple[int, Optional[datetime], datetime]:
         """
-        Ottiene i crediti dell'utente con lazy reset se necessario.
+        Ottiene i punti dell'utente con lazy reset se necessario.
         
         Args:
             user_id: ID dell'utente
         
         Returns:
-            Tuple di (crediti, data_ultimo_reset, data_prossimo_reset)
+            Tuple di (punti, data_ultimo_reset, data_prossimo_reset)
         """
         if self.users_collection is None:
             await self.connect()
@@ -520,129 +532,127 @@ class UserStore:
         if not doc:
             raise ValueError(f"Utente {user_id} non trovato")
         
-        mode_credits_doc = doc.get("mode_credits")
-        credits_reset_at = doc.get("credits_reset_at")
+        points = doc.get("points", DEFAULT_POINTS)
+        points_reset_at = doc.get("points_reset_at")
         
         # Verifica se serve reset
-        if self._should_reset_credits(credits_reset_at):
-            # Reset ai valori di default
-            default_credits = self._get_default_credits()
+        if self._should_reset_points(points_reset_at):
+            # Reset ai punti di default
             now = datetime.utcnow()
             
             await self.users_collection.update_one(
                 {"_id": user_id},
                 {
                     "$set": {
-                        "mode_credits": default_credits.model_dump(),
-                        "credits_reset_at": now,
+                        "points": DEFAULT_POINTS,
+                        "points_reset_at": now,
                         "updated_at": now,
                     }
                 }
             )
-            print(f"[UserStore] Crediti resettati per utente {user_id}", file=sys.stderr)
-            return default_credits, now, self._get_next_monday()
+            print(f"[UserStore] Punti resettati per utente {user_id}: {DEFAULT_POINTS}", file=sys.stderr)
+            return DEFAULT_POINTS, now, self._get_next_monday()
         
-        # Usa crediti esistenti o default
-        if mode_credits_doc:
-            credits = ModeCredits(**mode_credits_doc)
-        else:
-            credits = self._get_default_credits()
-            # Salva i default se non esistono
-            await self.users_collection.update_one(
-                {"_id": user_id},
-                {
-                    "$set": {
-                        "mode_credits": credits.model_dump(),
-                        "credits_reset_at": credits_reset_at or datetime.utcnow(),
-                        "updated_at": datetime.utcnow(),
-                    }
-                }
-            )
-        
-        return credits, credits_reset_at or datetime.utcnow(), self._get_next_monday()
+        return points, points_reset_at, self._get_next_monday()
     
-    async def consume_credit(self, user_id: str, mode: str, is_admin: bool = False) -> tuple[bool, str, Optional[ModeCredits]]:
+    async def consume_points(self, user_id: str, mode: str, is_admin: bool = False) -> Tuple[bool, str, int, int]:
         """
-        Consuma un credito per la modalità specificata.
+        Consuma punti per la modalità specificata.
         
         Args:
             user_id: ID dell'utente
             mode: Modalità (flash, pro, ultra)
-            is_admin: Se True, salta il controllo crediti (admin ha crediti illimitati)
+            is_admin: Se True, salta il controllo punti (admin ha punti illimitati)
         
         Returns:
-            Tuple di (successo, messaggio, crediti_aggiornati)
-            - Se successo=True: credito consumato
-            - Se successo=False: messaggio spiega perché (esaurito)
+            Tuple di (successo, messaggio, punti_rimanenti, costo)
+            - Se successo=True: punti consumati
+            - Se successo=False: messaggio spiega perché (insufficienti)
         """
         if self.users_collection is None:
             await self.connect()
         
         mode = mode.lower()
-        if mode not in ["flash", "pro", "ultra"]:
-            return False, f"Modalità '{mode}' non valida", None
+        if mode not in MODE_COSTS:
+            return False, f"Modalità '{mode}' non valida", 0, 0
         
-        # Admin ha crediti illimitati - non consuma crediti
+        cost = MODE_COSTS[mode]
+        
+        # Admin ha punti illimitati - non consuma punti
         if is_admin:
-            print(f"[UserStore] Utente admin {user_id} - bypass controllo crediti per modalità {mode}", file=sys.stderr)
-            # Restituisci crediti attuali senza consumarli
-            credits, _, _ = await self.get_user_credits(user_id)
-            return True, "Admin - crediti illimitati", credits
+            print(f"[UserStore] Utente admin {user_id} - bypass controllo punti per modalità {mode}", file=sys.stderr)
+            points, _, _ = await self.get_user_points(user_id)
+            return True, "Admin - punti illimitati", points, cost
         
-        # Ottieni crediti (con lazy reset)
-        credits, _, _ = await self.get_user_credits(user_id)
+        # Ottieni punti (con lazy reset)
+        points, _, _ = await self.get_user_points(user_id)
         
-        current_value = getattr(credits, mode)
-        if current_value <= 0:
+        if points < cost:
             mode_names = {"flash": "Flash", "pro": "Pro", "ultra": "Ultra"}
-            return False, f"Hai esaurito i crediti per la modalità {mode_names[mode]}. I crediti si ricaricano automaticamente ogni lunedì.", None
+            return False, f"Punti insufficienti per la modalità {mode_names[mode]}. Servono {cost} punti, ne hai {points}. I punti si ricaricano automaticamente ogni lunedì.", points, cost
         
         # Decrementa
-        new_value = current_value - 1
-        setattr(credits, mode, new_value)
+        new_points = points - cost
         
         await self.users_collection.update_one(
             {"_id": user_id},
             {
                 "$set": {
-                    f"mode_credits.{mode}": new_value,
+                    "points": new_points,
                     "updated_at": datetime.utcnow(),
                 }
             }
         )
         
-        print(f"[UserStore] Credito {mode} consumato per utente {user_id}: {current_value} -> {new_value}", file=sys.stderr)
-        return True, "Credito consumato", credits
+        print(f"[UserStore] Punti consumati per utente {user_id}: {points} -> {new_points} (costo: {cost} per {mode})", file=sys.stderr)
+        return True, f"Consumati {cost} punti per modalità {mode}", new_points, cost
     
-    async def reset_user_credits(self, user_id: str) -> ModeCredits:
+    async def reset_user_points(self, user_id: str) -> int:
         """
-        Resetta manualmente i crediti di un utente ai valori di default.
+        Resetta manualmente i punti di un utente ai valori di default.
         
         Args:
             user_id: ID dell'utente
         
         Returns:
-            Nuovi crediti
+            Nuovi punti
         """
         if self.users_collection is None:
             await self.connect()
         
-        default_credits = self._get_default_credits()
         now = datetime.utcnow()
         
         await self.users_collection.update_one(
             {"_id": user_id},
             {
                 "$set": {
-                    "mode_credits": default_credits.model_dump(),
-                    "credits_reset_at": now,
+                    "points": DEFAULT_POINTS,
+                    "points_reset_at": now,
                     "updated_at": now,
                 }
             }
         )
         
-        print(f"[UserStore] Crediti resettati manualmente per utente {user_id}", file=sys.stderr)
-        return default_credits
+        print(f"[UserStore] Punti resettati manualmente per utente {user_id}: {DEFAULT_POINTS}", file=sys.stderr)
+        return DEFAULT_POINTS
+    
+    # ==================== METODI DEPRECATI (retrocompatibilità) ====================
+    
+    async def get_user_credits(self, user_id: str) -> Tuple[ModeCredits, Optional[datetime], datetime]:
+        """DEPRECATO: Usa get_user_points invece. Mantenuto per retrocompatibilità."""
+        points, reset_at, next_reset = await self.get_user_points(user_id)
+        # Converti punti in crediti virtuali per retrocompatibilità
+        credits = ModeCredits(
+            flash=points // MODE_COSTS["flash"],
+            pro=points // MODE_COSTS["pro"],
+            ultra=points // MODE_COSTS["ultra"]
+        )
+        return credits, reset_at, next_reset
+    
+    async def consume_credit(self, user_id: str, mode: str, is_admin: bool = False) -> Tuple[bool, str, Optional[int]]:
+        """DEPRECATO: Usa consume_points invece. Mantenuto per retrocompatibilità."""
+        success, message, remaining_points, cost = await self.consume_points(user_id, mode, is_admin)
+        return success, message, remaining_points
 
 
 # Istanza globale

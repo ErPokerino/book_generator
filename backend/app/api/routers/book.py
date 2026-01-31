@@ -448,37 +448,41 @@ async def generate_book_endpoint(
                 detail="La struttura del libro deve essere generata prima di iniziare la scrittura."
             )
         
-        # Verifica e consuma crediti (solo per utenti autenticati)
+        # Verifica e consuma punti (solo per utenti autenticati)
         if current_user:
             from app.agent.user_store import get_user_store
+            from app.models import MODE_COSTS
             
             # Estrai la modalità dal form_data della sessione
             llm_model = session.form_data.llm_model if session.form_data and session.form_data.llm_model else "gemini-3-flash"
             mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
+            cost = MODE_COSTS.get(mode, 1)
             
-            print(f"[BOOK GENERATION] Tentativo consumo credito {mode} per utente {current_user.id}")
+            print(f"[BOOK GENERATION] Tentativo consumo {cost} punti per modalità {mode}, utente {current_user.id}")
             
-            # Verifica crediti disponibili e consuma (admin ha crediti illimitati)
+            # Verifica punti disponibili e consuma (admin ha punti illimitati)
             user_store = get_user_store()
             is_admin = current_user.role == "admin"
-            success, message, updated_credits = await user_store.consume_credit(current_user.id, mode, is_admin=is_admin)
+            success, message, remaining_points, consumed_cost = await user_store.consume_points(current_user.id, mode, is_admin=is_admin)
             
-            print(f"[BOOK GENERATION] Risultato consumo credito: success={success}, message={message}, credits={updated_credits}")
+            print(f"[BOOK GENERATION] Risultato consumo punti: success={success}, message={message}, remaining={remaining_points}")
             
             if not success:
-                # Crediti esauriti - ritorna errore HTTP
-                _, _, next_reset = await user_store.get_user_credits(current_user.id)
+                # Punti insufficienti - ritorna errore HTTP
+                _, _, next_reset = await user_store.get_user_points(current_user.id)
                 raise HTTPException(
                     status_code=402,  # Payment Required
                     detail={
-                        "error_type": "credits_exhausted",
+                        "error_type": "points_exhausted",
                         "message": message,
                         "mode": mode.capitalize(),
+                        "cost": cost,
+                        "current_points": remaining_points,
                         "next_reset_at": next_reset.isoformat(),
                     }
                 )
         else:
-            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
+            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, punti NON consumati")
         
         # Parsa l'outline e inizializza il progresso IMMEDIATAMENTE
         try:

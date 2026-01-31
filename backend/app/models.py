@@ -383,9 +383,14 @@ class PdfEntry(BaseModel):
     size_bytes: Optional[int] = None
 
 
-# Modelli per crediti modalità generazione
+# Costanti per sistema punti
+MODE_COSTS: Dict[str, int] = {"flash": 1, "pro": 3, "ultra": 5}
+DEFAULT_POINTS: int = 10
+
+
+# Modelli per crediti modalità generazione (DEPRECATO - mantenuto per retrocompatibilità)
 class ModeCredits(BaseModel):
-    """Crediti disponibili per ogni modalità di generazione."""
+    """DEPRECATO: Crediti separati per ogni modalità. Usare points invece."""
     flash: int = 10
     pro: int = 5
     ultra: int = 1
@@ -407,9 +412,12 @@ class User(BaseModel):
     password_reset_expires: Optional[datetime] = None
     verification_token: Optional[str] = None
     verification_expires: Optional[datetime] = None
-    # Crediti per modalità generazione
+    # Sistema punti unificato (sostituisce mode_credits)
+    points: int = DEFAULT_POINTS  # Punti disponibili per generazione
+    points_reset_at: Optional[datetime] = None  # Data ultimo reset punti
+    # DEPRECATO: mantenuto per migrazione dati esistenti
     mode_credits: Optional[ModeCredits] = None
-    credits_reset_at: Optional[datetime] = None  # Data ultimo reset crediti
+    credits_reset_at: Optional[datetime] = None
     # GDPR: Consensi privacy
     privacy_accepted_at: Optional[datetime] = None  # Timestamp accettazione Privacy Policy
     terms_accepted_at: Optional[datetime] = None  # Timestamp accettazione Terms of Service
@@ -427,18 +435,21 @@ class UserResponse(BaseModel):
 
 
 class UserCreditsResponse(BaseModel):
-    """Risposta con crediti utente per modalità generazione."""
-    credits: ModeCredits
-    credits_reset_at: Optional[datetime] = None
+    """Risposta con punti utente per generazione."""
+    points: int  # Saldo punti unificato
+    points_reset_at: Optional[datetime] = None  # Data ultimo reset
     next_reset_at: datetime  # Prossimo lunedì
+    mode_costs: Dict[str, int] = Field(default_factory=lambda: MODE_COSTS.copy())  # Costi per modalità
 
 
 class CreditsExhaustedResponse(BaseModel):
-    """Risposta quando i crediti sono esauriti."""
+    """Risposta quando i punti sono esauriti."""
     success: bool = False
-    error_type: str = "credits_exhausted"
+    error_type: str = "points_exhausted"
     message: str
     mode: str
+    cost: int  # Costo in punti della modalità richiesta
+    current_points: int  # Punti attuali dell'utente
     next_reset_at: datetime
 
 

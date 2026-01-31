@@ -9,19 +9,36 @@ export interface User {
   created_at: string;
 }
 
-// Crediti per modalità generazione
+// Costi in punti per modalità generazione
+export const MODE_COSTS = { flash: 1, pro: 3, ultra: 5 } as const;
+export type ModeType = keyof typeof MODE_COSTS;
+
+// DEPRECATO: Crediti separati per modalità (mantenuto per retrocompatibilità)
 export interface ModeCredits {
   flash: number;
   pro: number;
   ultra: number;
 }
 
+// Nuovo sistema punti unificato
 export interface UserCreditsResponse {
-  credits: ModeCredits;
-  credits_reset_at: string | null;
+  points: number;  // Saldo punti unificato
+  points_reset_at: string | null;
+  next_reset_at: string;
+  mode_costs?: Record<string, number>;  // Costi per modalità
+}
+
+export interface PointsExhaustedResponse {
+  success: false;
+  error_type: 'points_exhausted';
+  message: string;
+  mode: string;
+  cost: number;
+  current_points: number;
   next_reset_at: string;
 }
 
+// DEPRECATO: mantenuto per retrocompatibilità
 export interface CreditsExhaustedResponse {
   success: false;
   error_type: 'credits_exhausted';

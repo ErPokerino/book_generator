@@ -398,41 +398,46 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 @router.get("/credits")
 async def get_user_credits(current_user: User = Depends(get_current_user_optional)):
     """
-    Ottiene i crediti disponibili per le modalità di generazione.
-    I crediti si resettano automaticamente ogni lunedì.
-    """
-    from app.models import UserCreditsResponse, ModeCredits
+    Ottiene i punti disponibili per le modalità di generazione.
+    I punti si resettano automaticamente ogni lunedì.
     
-    # Se l'utente non è autenticato, ritorna crediti default
+    Costi per modalità:
+    - Flash: 1 punto
+    - Pro: 3 punti
+    - Ultra: 5 punti
+    """
+    from app.models import UserCreditsResponse, DEFAULT_POINTS
+    
+    # Se l'utente non è autenticato, ritorna punti default
     if not current_user:
         return UserCreditsResponse(
-            credits=ModeCredits(),
-            credits_reset_at=None,
+            points=DEFAULT_POINTS,
+            points_reset_at=None,
             next_reset_at=datetime.utcnow(),
         )
     
     user_store = get_user_store()
     try:
-        credits, credits_reset_at, next_reset_at = await user_store.get_user_credits(current_user.id)
+        points, points_reset_at, next_reset_at = await user_store.get_user_points(current_user.id)
         return UserCreditsResponse(
-            credits=credits,
-            credits_reset_at=credits_reset_at,
+            points=points,
+            points_reset_at=points_reset_at,
             next_reset_at=next_reset_at,
         )
     except ValueError as e:
-        # Se l'utente non ha crediti, ritorna default invece di 404
-        print(f"[AUTH] Utente {current_user.id} non ha crediti configurati, uso default: {e}", file=sys.stderr)
+        # Se l'utente non ha punti, ritorna default invece di 404
+        print(f"[AUTH] Utente {current_user.id} non ha punti configurati, uso default: {e}", file=sys.stderr)
         return UserCreditsResponse(
-            credits=ModeCredits(),
-            credits_reset_at=None,
+            points=DEFAULT_POINTS,
+            points_reset_at=None,
             next_reset_at=datetime.utcnow(),
         )
     except Exception as e:
-        print(f"[AUTH] Errore nel recupero crediti: {e}", file=sys.stderr)
-        # Fallback: ritorna crediti di default
+        print(f"[AUTH] Errore nel recupero punti: {e}", file=sys.stderr)
+        # Fallback: ritorna punti di default
         return UserCreditsResponse(
-            credits=ModeCredits(),
-            credits_reset_at=None,
+            points=DEFAULT_POINTS,
+            points_reset_at=None,
             next_reset_at=datetime.utcnow(),
         )
 

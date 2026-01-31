@@ -1,7 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse, getUserCredits, ModeCredits } from '../api/client';
+import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse, getUserCredits, MODE_COSTS, ModeType } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
@@ -43,8 +43,8 @@ export default function DynamicForm() {
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [userCredits, setUserCredits] = useState<ModeCredits | null>(null);
-  const [nextCreditsReset, setNextCreditsReset] = useState<string | null>(null);
+  const [userPoints, setUserPoints] = useState<number | null>(null);
+  const [nextPointsReset, setNextPointsReset] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -73,42 +73,42 @@ export default function DynamicForm() {
     }
   }, []);
 
-  // Carica crediti utente quando autenticato (al mount e quando user cambia)
+  // Carica punti utente quando autenticato (al mount e quando user cambia)
   useEffect(() => {
-    const loadUserCredits = async () => {
+    const loadUserPoints = async () => {
       if (user) {
         try {
-          console.log('[DynamicForm] Caricamento crediti utente (mount/user change)...');
+          console.log('[DynamicForm] Caricamento punti utente (mount/user change)...');
           const creditsResponse = await getUserCredits();
           if (creditsResponse) {
-            setUserCredits(creditsResponse.credits);
-            setNextCreditsReset(creditsResponse.next_reset_at);
-            console.log('[DynamicForm] Crediti caricati:', creditsResponse.credits);
+            setUserPoints(creditsResponse.points);
+            setNextPointsReset(creditsResponse.next_reset_at);
+            console.log('[DynamicForm] Punti caricati:', creditsResponse.points);
           }
         } catch (err) {
-          console.warn('[DynamicForm] Errore nel caricamento crediti:', err);
+          console.warn('[DynamicForm] Errore nel caricamento punti:', err);
         }
       } else {
-        // Utente non autenticato: resetta i crediti
-        setUserCredits(null);
-        setNextCreditsReset(null);
+        // Utente non autenticato: resetta i punti
+        setUserPoints(null);
+        setNextPointsReset(null);
       }
     };
-    loadUserCredits();
+    loadUserPoints();
   }, [user]);
 
-  // Refresh crediti quando si torna al form (dopo aver completato un libro)
+  // Refresh punti quando si torna al form (dopo aver completato un libro)
   useEffect(() => {
     if (currentStep === 'form' && user) {
-      console.log('[DynamicForm] Refresh crediti (ritorno al form)...');
+      console.log('[DynamicForm] Refresh punti (ritorno al form)...');
       getUserCredits().then(response => {
         if (response) {
-          setUserCredits(response.credits);
-          setNextCreditsReset(response.next_reset_at);
-          console.log('[DynamicForm] Crediti refreshati:', response.credits);
+          setUserPoints(response.points);
+          setNextPointsReset(response.next_reset_at);
+          console.log('[DynamicForm] Punti refreshati:', response.points);
         }
       }).catch(err => {
-        console.warn('[DynamicForm] Errore refresh crediti:', err);
+        console.warn('[DynamicForm] Errore refresh punti:', err);
       });
     }
   }, [currentStep, user]);
@@ -717,6 +717,7 @@ export default function DynamicForm() {
         }
 
         const labelId = `${field.id}-label`;
+        const currentPoints = userPoints ?? 10;
 
         return (
           <div key={field.id} className="form-field">
@@ -725,6 +726,13 @@ export default function DynamicForm() {
               {field.required && <span className="required"> *</span>}
               {renderInfoIcon()}
             </label>
+
+            {/* Display punti disponibili */}
+            <div className="points-balance">
+              <span className="points-icon">💎</span>
+              <span className="points-value">{currentPoints}</span>
+              <span className="points-label">punti disponibili</span>
+            </div>
 
             <div
               className={`llm-model-chips ${fieldError ? 'error' : ''}`}
@@ -762,16 +770,15 @@ export default function DynamicForm() {
                   modeTradeoff = 'Scelta consigliata';
                 }
                 
-                // Usa crediti reali dall'API se disponibili, altrimenti fallback ai default
-                const defaultCredits = appConfig?.frontend?.mode_availability_defaults || {};
-                const availability = userCredits 
-                  ? userCredits[modeKey] 
-                  : (defaultCredits[modeKey] ?? 0);
+                // Sistema punti: costo per modalità e verifica disponibilità
+                const cost = MODE_COSTS[modeKey as ModeType];
+                const currentPoints = userPoints ?? 10; // Default 10 punti se non caricati
+                const canAfford = currentPoints >= cost;
+                const isExhausted = !canAfford;
                 
-                const isExhausted = availability === 0;
-                
-                // Determina se mostrare warning soft per disponibilità bassa (X <= 1) - solo per modalità diverse da ULTRA
-                const showLowAvailabilityWarning = modeKey !== 'ultra' && availability > 0 && availability <= 1;
+                // Determina se mostrare warning per punti bassi (può permettersi solo 1 uso)
+                const usesRemaining = Math.floor(currentPoints / cost);
+                const showLowPointsWarning = canAfford && usesRemaining === 1 && modeKey !== 'ultra';
                 
                 return (
                   <button
@@ -781,7 +788,7 @@ export default function DynamicForm() {
                     onClick={isExhausted ? undefined : () => handleChange(field.id, value)}
                     aria-pressed={selected}
                     disabled={isExhausted}
-                    title={isExhausted ? `Crediti ${modeName} esauriti. Si ricaricano ogni lunedì.` : undefined}
+                    title={isExhausted ? `Punti insufficienti per ${modeName}. Servono ${cost} punti, ne hai ${currentPoints}. Si ricaricano ogni lunedì.` : undefined}
                   >
                     {selected && (
                       <span className="selection-label" aria-label="Selezionata">
@@ -791,19 +798,19 @@ export default function DynamicForm() {
                     <span className="mode-name">{modeName}</span>
                     <span className="mode-description">{modeDescription}</span>
                     <span className="mode-tradeoff">{modeTradeoff}</span>
-                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''} ${showLowAvailabilityWarning ? 'low-availability' : ''}`}>
+                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''} ${showLowPointsWarning ? 'low-availability' : ''}`}>
                       {isExhausted ? (
                         <>
-                          <span>Esaurita</span>
-                          <span className="availability-count">Disponibili: 0</span>
+                          <span>Punti insufficienti</span>
+                          <span className="availability-count">Costo: {cost} punti</span>
                         </>
-                      ) : showLowAvailabilityWarning ? (
+                      ) : showLowPointsWarning ? (
                         <>
-                          <span className="availability-warning-hint">Pochi disponibili</span>
-                          <span className="availability-count">Disponibili: {availability}</span>
+                          <span className="availability-warning-hint">Ultimo uso disponibile</span>
+                          <span className="availability-count">Costo: {cost} {cost === 1 ? 'punto' : 'punti'}</span>
                         </>
                       ) : (
-                        <span className="availability-count">Disponibili: {availability}</span>
+                        <span className="availability-count">Costo: {cost} {cost === 1 ? 'punto' : 'punti'}</span>
                       )}
                     </span>
                   </button>
