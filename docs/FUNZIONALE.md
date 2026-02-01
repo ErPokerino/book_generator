@@ -12,9 +12,10 @@
 8. [Condivisione Libri tra Utenti](#condivisione-libri-tra-utenti)
 9. [Sistema di Connessioni e Social](#sistema-di-connessioni-e-social)
 10. [Sistema di Notifiche](#sistema-di-notifiche)
-11. [Statistiche e Analytics](#statistiche-e-analytics)
-12. [Validazioni e Regole](#validazioni-e-regole)
-13. [GDPR Compliance](#gdpr-compliance)
+11. [Sistema Crediti](#sistema-crediti)
+12. [Statistiche e Analytics](#statistiche-e-analytics)
+13. [Validazioni e Regole](#validazioni-e-regole)
+14. [GDPR Compliance](#gdpr-compliance)
 
 ## Flusso Generazione Libro
 
@@ -1349,6 +1350,97 @@ Il sistema gestisce notifiche in-app per eventi sociali (condivisioni libri, con
 - Toast notification per azioni (mark as read, mark all as read)
 
 **File**: `frontend/src/components/NotificationBell.tsx`, `frontend/src/contexts/NotificationContext.tsx`, `backend/app/api/routers/notifications.py`, `backend/app/agent/notification_store.py`
+
+## Sistema Crediti
+
+Il sistema gestisce i crediti degli utenti necessari per la generazione di libri.
+
+### Panoramica
+
+Gli utenti utilizzano "crediti" per generare libri. Ogni modalità di generazione ha un costo diverso in crediti:
+- **Flash**: 1 credito (generazione veloce)
+- **Pro**: 3 crediti (qualità superiore)
+- **Ultra**: 5 crediti (libri estesi)
+
+### Pacchetti Crediti
+
+I pacchetti disponibili per la ricarica crediti:
+
+| Pacchetto | Crediti | Prezzo | Descrizione |
+|-----------|---------|--------|-------------|
+| Starter | 5 | Gratis | Pacchetto base per iniziare |
+| Pro | 10 | Gratis | Per chi crea libri regolarmente |
+| Premium | 50 | Gratis | Per scrittori prolifici |
+
+**Note**: Attualmente tutti i pacchetti sono gratuiti (modalità free). Il sistema è predisposto per l'integrazione con gateway di pagamento (Stripe/PayPal) in futuro.
+
+### Pagina Wallet
+
+**Route**: `/wallet`
+
+**Funzionalità**:
+- Visualizzazione saldo crediti corrente
+- Lista pacchetti disponibili per l'acquisto
+- Storico transazioni (acquisti, consumi, bonus)
+- Costi per modalità di generazione
+
+**Accesso**: Dal menu principale (icona Wallet/Crediti) sia su desktop che mobile
+
+### Flusso Acquisto
+
+**Processo**:
+1. Utente accede alla pagina Wallet (`/wallet`)
+2. Visualizza pacchetti disponibili con crediti e prezzo
+3. Click su "Acquista" per il pacchetto desiderato
+4. Sistema verifica e processa l'acquisto (attualmente gratuito)
+5. Crediti aggiunti al saldo utente
+6. Transazione registrata nello storico
+7. Toast notification di conferma
+
+**Validazioni**:
+- Pacchetto deve essere attivo (`is_active: true`)
+- Utente deve essere autenticato
+
+### Storico Transazioni
+
+Ogni transazione registra:
+- **Tipo**: purchase (acquisto), consumption (consumo), bonus, refund, reset
+- **Importo**: Crediti aggiunti o sottratti
+- **Saldo dopo**: Saldo crediti dopo la transazione
+- **Descrizione**: Dettaglio dell'operazione
+- **Data**: Timestamp della transazione
+
+**Tipi Transazione**:
+- `purchase`: Acquisto pacchetto crediti
+- `consumption`: Consumo per generazione libro
+- `bonus`: Crediti bonus (es. referral, promozioni)
+- `refund`: Rimborso crediti
+- `reset`: Reset crediti (es. reset settimanale)
+
+### Integrazione Generazione Libro
+
+Il consumo crediti avviene all'avvio della generazione:
+1. Sistema verifica saldo sufficiente
+2. Sottrae crediti in base alla modalità selezionata
+3. Registra transazione di tipo `consumption`
+4. Avvia generazione libro
+
+**Bypass Admin**: Gli utenti admin hanno crediti illimitati.
+
+### Navigazione
+
+**Desktop**: Link "Crediti" nella navbar con icona wallet
+
+**Mobile**: Link "Crediti" nel menu profilo della bottom navigation
+
+### Configurazione
+
+I pacchetti sono configurati in `config/credit_packages.yaml`:
+- Modificabile senza modificare codice
+- Caricato automaticamente all'avvio backend
+- Supporta disabilitazione pacchetti (`is_active: false`)
+
+**File**: `frontend/src/components/wallet/WalletPage.tsx`, `backend/app/api/routers/credits.py`, `backend/app/agent/credit_store.py`, `config/credit_packages.yaml`
 
 ## Statistiche e Analytics
 

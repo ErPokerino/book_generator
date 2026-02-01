@@ -465,10 +465,10 @@ async def generate_book_endpoint(
             is_admin = current_user.role == "admin"
             success, message, remaining_points, consumed_cost = await user_store.consume_points(current_user.id, mode, is_admin=is_admin)
             
-            print(f"[BOOK GENERATION] Risultato consumo punti: success={success}, message={message}, remaining={remaining_points}")
+            print(f"[BOOK GENERATION] Risultato consumo crediti: success={success}, message={message}, remaining={remaining_points}")
             
             if not success:
-                # Punti insufficienti - ritorna errore HTTP
+                # Crediti insufficienti - ritorna errore HTTP
                 _, _, next_reset = await user_store.get_user_points(current_user.id)
                 raise HTTPException(
                     status_code=402,  # Payment Required
@@ -482,7 +482,7 @@ async def generate_book_endpoint(
                     }
                 )
         else:
-            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, punti NON consumati")
+            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
         
         # Parsa l'outline e inizializza il progresso IMMEDIATAMENTE
         try:

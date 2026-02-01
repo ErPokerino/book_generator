@@ -133,6 +133,17 @@ export default function Navigation() {
               <span className="nav-user-badge">Admin</span>
             )}
             <NavLink
+              to="/wallet"
+              className="nav-wallet-link"
+              title="Crediti"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M16 12a2 2 0 1 0 0 0" />
+                <path d="M2 10h20" />
+              </svg>
+            </NavLink>
+            <NavLink
               to="/settings/privacy"
               className="nav-privacy-link"
               title="Impostazioni Privacy"

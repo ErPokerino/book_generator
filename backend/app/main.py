@@ -29,7 +29,7 @@ from app.core.config import (
     get_tokens_per_page, get_model_pricing, get_image_generation_cost,
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
-from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr
+from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr, credits
 from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
     ConfigResponse,
@@ -144,6 +144,7 @@ app.include_router(admin.router)
 app.include_router(health.router)
 app.include_router(files.router)
 app.include_router(gdpr.router)
+app.include_router(credits.router)
 
 
 # Lifecycle hooks per MongoDB
@@ -185,6 +186,17 @@ async def startup_db():
         referral_store = get_referral_store()
         await referral_store.connect()
         print("[STARTUP] MongoDB (referrals) connesso con successo")
+        
+        # Inizializza anche CreditStore e carica pacchetti
+        from app.agent.credit_store import get_credit_store
+        from pathlib import Path
+        credit_store = get_credit_store()
+        await credit_store.connect()
+        # Carica pacchetti crediti da YAML
+        config_path = Path(__file__).parent.parent.parent / "config" / "credit_packages.yaml"
+        if config_path.exists():
+            await credit_store.load_packages_from_yaml(str(config_path))
+        print("[STARTUP] MongoDB (credits) connesso con successo")
     except Exception as e:
         print(f"[STARTUP] Avviso: MongoDB non disponibile: {e}")
 
@@ -227,6 +239,12 @@ async def shutdown_db():
         referral_store = get_referral_store()
         await referral_store.disconnect()
         print("[SHUTDOWN] MongoDB (referrals) disconnesso")
+        
+        # Chiudi anche CreditStore
+        from app.agent.credit_store import get_credit_store
+        credit_store = get_credit_store()
+        await credit_store.disconnect()
+        print("[SHUTDOWN] MongoDB (credits) disconnesso")
     except Exception as e:
         print(f"[SHUTDOWN] Errore nella disconnessione MongoDB: {e}")
 

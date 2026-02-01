@@ -582,14 +582,14 @@ class UserStore:
         if is_admin:
             print(f"[UserStore] Utente admin {user_id} - bypass controllo punti per modalità {mode}", file=sys.stderr)
             points, _, _ = await self.get_user_points(user_id)
-            return True, "Admin - punti illimitati", points, cost
+            return True, "Admin - crediti illimitati", points, cost
         
-        # Ottieni punti (con lazy reset)
+        # Ottieni crediti (con lazy reset)
         points, _, _ = await self.get_user_points(user_id)
         
         if points < cost:
             mode_names = {"flash": "Flash", "pro": "Pro", "ultra": "Ultra"}
-            return False, f"Punti insufficienti per la modalità {mode_names[mode]}. Servono {cost} punti, ne hai {points}. I punti si ricaricano automaticamente ogni lunedì.", points, cost
+            return False, f"Crediti insufficienti per la modalità {mode_names[mode]}. Servono {cost} crediti, ne hai {points}. I crediti si ricaricano automaticamente ogni lunedì.", points, cost
         
         # Decrementa
         new_points = points - cost
@@ -604,8 +604,8 @@ class UserStore:
             }
         )
         
-        print(f"[UserStore] Punti consumati per utente {user_id}: {points} -> {new_points} (costo: {cost} per {mode})", file=sys.stderr)
-        return True, f"Consumati {cost} punti per modalità {mode}", new_points, cost
+        print(f"[UserStore] Crediti consumati per utente {user_id}: {points} -> {new_points} (costo: {cost} per {mode})", file=sys.stderr)
+        return True, f"Consumati {cost} crediti per modalità {mode}", new_points, cost
     
     async def reset_user_points(self, user_id: str) -> int:
         """

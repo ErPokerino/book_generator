@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield } from 'lucide-react';
+import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield, Wallet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { getPendingConnectionsCount } from '../api/client';
@@ -106,6 +106,11 @@ export default function BottomNavigation() {
     navigate('/settings/privacy');
   };
 
+  const handleNavigateToWallet = () => {
+    setIsProfileMenuOpen(false);
+    navigate('/wallet');
+  };
+
   if (!user) {
     return null;
   }
@@ -175,6 +180,14 @@ export default function BottomNavigation() {
                 )}
               </div>
               <div className="profile-menu-divider" />
+              <button
+                type="button"
+                onClick={handleNavigateToWallet}
+                className="profile-menu-item"
+              >
+                <Wallet size={18} />
+                <span>Crediti</span>
+              </button>
               {user.role === 'admin' && (
                 <button
                   type="button"

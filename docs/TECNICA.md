@@ -35,6 +35,7 @@ graph TB
         ConnectionStore[Connection Store]
         NotificationStore[Notification Store]
         ReferralStore[Referral Store]
+        CreditStore[Credit Store]
     end
     
     subgraph Storage["Persistenza"]
@@ -161,6 +162,7 @@ backend/app/
 │   ├── connection_store.py        # Connessioni tra utenti
 │   ├── notification_store.py      # Notifiche in-app
 │   ├── referral_store.py          # Sistema referral/inviti
+│   ├── credit_store.py            # Gestione crediti e pacchetti
 │   └── state.py                   # Gestione stato applicazione
 ├── api/                   # Layer API
 │   ├── deps.py            # Dependency injection FastAPI
@@ -180,6 +182,7 @@ backend/app/
 │       ├── outline.py     # Generazione/modifica struttura
 │       ├── questions.py   # Domande preliminari
 │       ├── referrals.py   # Sistema inviti referral
+│       ├── credits.py     # Gestione crediti e pacchetti
 │       ├── session.py     # Gestione sessioni libro
 │       └── submission.py  # Creazione nuova sessione
 ├── analytics/             # Tools analisi dati
@@ -199,7 +202,8 @@ backend/app/
 │   ├── library_service.py         # Gestione libreria
 │   ├── pdf_service.py             # Generazione PDF
 │   ├── stats_service.py           # Calcolo statistiche
-│   └── storage_service.py         # Storage GCS/locale
+│   ├── storage_service.py         # Storage GCS/locale
+│   └── payment_service.py         # Servizio pagamenti (stub)
 ├── utils/                 # Utility functions
 │   └── stats_utils.py     # Utility statistiche
 ├── static/                # File statici (CSS PDF)
@@ -256,6 +260,9 @@ frontend/src/
 │   ├── routing/           # Route Guards
 │   │   ├── RequireAuth.tsx     # Guard autenticazione
 │   │   └── RequireAdmin.tsx    # Guard ruolo admin
+│   ├── wallet/            # Componenti wallet/crediti
+│   │   ├── WalletPage.tsx      # Pagina wallet principale
+│   │   └── WalletPage.css      # Stili wallet
 │   └── ui/                # Componenti UI riutilizzabili
 │       ├── FadeIn.tsx         # Animazione fade-in
 │       ├── ProgressBar.tsx    # Barra progresso
@@ -281,6 +288,7 @@ config/
 ├── inputs.yaml            # Configurazione form dinamico
 ├── app.yaml               # Configurazione applicazione (timeout, retry, costi)
 ├── literary_critic.yaml   # Configurazione critico letterario
+├── credit_packages.yaml   # Configurazione pacchetti crediti
 ├── agent_context.md       # Context per question generator
 ├── draft_agent_context.md # Context per draft generator
 ├── outline_agent_context.md # Context per outline generator
@@ -1044,6 +1052,98 @@ class Referral:
 - Filtro duplicati: Map con email lowercase come chiave, mantiene solo ultimo per data creazione
 
 **File**: `backend/app/agent/referral_store.py`, `backend/app/api/routers/referrals.py`, `frontend/src/components/ConnectionsView.tsx`
+
+### Sistema Crediti
+
+Il sistema gestisce i crediti degli utenti per le funzionalità di generazione.
+
+**Architettura CreditStore**:
+- Pattern similar a SessionStore (factory + interface)
+- Persistenza in MongoDB (collections `credit_packages`, `credit_transactions`)
+- Implementazione: MongoCreditStore (async)
+
+**Struttura CreditPackage**:
+```python
+class CreditPackage(BaseModel):
+    id: str  # ID univoco pacchetto (starter, pro, premium)
+    name: str  # Nome visualizzato
+    credits: int  # Crediti inclusi
+    price_eur: float  # Prezzo in EUR (0.00 = gratuito)
+    bonus_credits: int = 0  # Crediti bonus
+    description: Optional[str] = None
+    is_active: bool = True
+    sort_order: int = 0
+    icon: Optional[str] = None  # Emoji icona
+```
+
+**Struttura CreditTransaction**:
+```python
+class CreditTransaction(BaseModel):
+    id: str  # UUID
+    user_id: str
+    type: Literal["purchase", "consumption", "bonus", "refund", "reset"]
+    amount: int  # Positivo per crediti aggiunti, negativo per consumati
+    balance_after: int  # Saldo dopo transazione
+    package_id: Optional[str] = None
+    description: str
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime
+```
+
+**Indici MongoDB**:
+- Index su `user_id`, `type`, `created_at`
+- Index unico su `_id` per pacchetti
+
+**Endpoint API**:
+- `GET /api/credits/balance`: Saldo crediti utente corrente
+- `GET /api/credits/packages`: Lista pacchetti attivi
+- `POST /api/credits/purchase`: Acquista pacchetto (attualmente gratuito)
+- `GET /api/credits/transactions`: Storico transazioni utente
+- `POST /api/credits/reload-packages`: Ricarica pacchetti da YAML (admin)
+
+**Configurazione Pacchetti** (`config/credit_packages.yaml`):
+```yaml
+packages:
+  - id: starter
+    name: Starter
+    credits: 5
+    bonus_credits: 0
+    price_eur: 0.00
+    description: "Pacchetto base per iniziare"
+    icon: "🚀"
+    is_active: true
+    sort_order: 1
+  - id: pro
+    name: Pro
+    credits: 10
+    # ...
+  - id: premium
+    name: Premium
+    credits: 50
+    # ...
+```
+
+**Caricamento Automatico**:
+- All'avvio del backend, i pacchetti vengono caricati da YAML
+- Upsert: aggiorna esistenti o crea nuovi
+- Pacchetti disabilitati (`is_active: false`) non mostrati nel frontend
+
+**Integrazione User Model**:
+```python
+class User(BaseModel):
+    # ... campi esistenti ...
+    credits: int = DEFAULT_CREDITS  # Saldo crediti (default: 10)
+    credits_reset_at: Optional[datetime] = None
+    total_credits_purchased: int = 0
+    total_credits_consumed: int = 0
+```
+
+**PaymentService** (stub per futuro):
+- Attualmente modalità "free" (acquisti gratuiti)
+- Predisposto per integrazione Stripe/PayPal
+- Metodi: `create_checkout_session`, `verify_payment`, `handle_webhook`, `refund_payment`
+
+**File**: `backend/app/agent/credit_store.py`, `backend/app/api/routers/credits.py`, `backend/app/services/payment_service.py`, `config/credit_packages.yaml`
 
 ### Storage Service (GCS)
 

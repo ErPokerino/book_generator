@@ -47,6 +47,58 @@ export interface CreditsExhaustedResponse {
   next_reset_at: string;
 }
 
+// ===== Credit System Types =====
+export interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  price_eur: number;
+  bonus_credits: number;
+  description?: string;
+  is_active: boolean;
+  sort_order: number;
+  icon?: string;
+}
+
+export interface CreditTransaction {
+  id: string;
+  user_id: string;
+  type: 'purchase' | 'consumption' | 'bonus' | 'refund' | 'reset';
+  amount: number;
+  balance_after: number;
+  package_id?: string;
+  description: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CreditBalanceResponse {
+  credits: number;
+  credits_reset_at: string | null;
+  next_reset_at: string;
+  mode_costs: Record<string, number>;
+  total_purchased: number;
+  total_consumed: number;
+}
+
+export interface CreditPackagesResponse {
+  packages: CreditPackage[];
+}
+
+export interface CreditTransactionResponse {
+  transactions: CreditTransaction[];
+  total: number;
+  has_more: boolean;
+}
+
+export interface CreditPurchaseResponse {
+  success: boolean;
+  message: string;
+  credits_added: number;
+  new_balance: number;
+  transaction_id?: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -1568,6 +1620,91 @@ export async function getUserCredits(): Promise<UserCreditsResponse | null> {
     console.error('[API] Errore nel recupero crediti utente:', error);
     return null;
   }
+}
+
+// ===== Credit System API =====
+
+export async function getCreditBalance(): Promise<CreditBalanceResponse> {
+  const response = await fetch(`${API_BASE}/credits/balance`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    // Fallback con valori di default
+    return {
+      credits: 10,
+      credits_reset_at: null,
+      next_reset_at: new Date().toISOString(),
+      mode_costs: { flash: 1, pro: 3, ultra: 5 },
+      total_purchased: 0,
+      total_consumed: 0,
+    };
+  }
+
+  return response.json();
+}
+
+export async function getCreditPackages(): Promise<CreditPackagesResponse> {
+  const response = await fetch(`${API_BASE}/credits/packages`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    return { packages: [] };
+  }
+
+  return response.json();
+}
+
+export async function purchasePackage(packageId: string): Promise<CreditPurchaseResponse> {
+  const response = await fetch(`${API_BASE}/credits/purchase`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ package_id: packageId }),
+  });
+
+  if (!response.ok) {
+    let errorDetail = 'Errore durante l\'acquisto';
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || errorDetail;
+    } catch {
+      // Ignora errori di parsing
+    }
+    throw new Error(errorDetail);
+  }
+
+  return response.json();
+}
+
+export async function getCreditTransactions(
+  skip: number = 0,
+  limit: number = 20,
+  type?: string
+): Promise<CreditTransactionResponse> {
+  const params = new URLSearchParams({
+    skip: skip.toString(),
+    limit: limit.toString(),
+  });
+  if (type) {
+    params.append('tx_type', type);
+  }
+
+  const response = await fetch(`${API_BASE}/credits/transactions?${params}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    return { transactions: [], total: 0, has_more: false };
+  }
+
+  return response.json();
 }
 
 export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {

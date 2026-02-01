@@ -1,0 +1,60 @@
+# Configurazione pacchetti crediti
+# Questi pacchetti sono acquistabili dagli utenti per ricaricare i crediti.
+# Per ora tutti i pacchetti sono gratuiti (modalità free).
+
+packages:
+  # Pacchetto Starter - ideale per provare il servizio
+  - id: starter
+    name: Starter
+    credits: 5
+    bonus_credits: 0
+    price_eur: 0.00
+    description: "Pacchetto base per iniziare"
+    icon: "🚀"
+    is_active: true
+    sort_order: 1
+
+  # Pacchetto Pro - per utilizzo regolare
+  - id: pro
+    name: Pro
+    credits: 10
+    bonus_credits: 0
+    price_eur: 0.00
+    description: "Per chi crea libri regolarmente"
+    icon: "⭐"
+    is_active: true
+    sort_order: 2
+
+  # Pacchetto Premium - per utilizzo intensivo
+  - id: premium
+    name: Premium
+    credits: 50
+    bonus_credits: 0
+    price_eur: 0.00
+    description: "Per scrittori prolifici"
+    icon: "👑"
+    is_active: true
+    sort_order: 3
+
+  # Pacchetto Ultra - DISABILITATO
+  - id: ultra
+    name: Ultra
+    credits: 0
+    bonus_credits: 0
+    price_eur: 0.00
+    description: ""
+    icon: "💎"
+    is_active: false
+    sort_order: 99
+
+# NOTE:
+# - credits: numero di crediti inclusi nel pacchetto
+# - bonus_credits: crediti extra (verranno aggiunti ai credits base)
+# - price_eur: prezzo in EUR (0.00 = gratuito)
+# - description: descrizione mostrata all'utente
+# - icon: emoji/icona per il pacchetto
+# - is_active: se false, il pacchetto non è acquistabile
+# - sort_order: ordine di visualizzazione (crescente)
+
+# FUTURO: Quando si integra il sistema di pagamento reale:
+# - Aggiornare price_eur con i prezzi reali

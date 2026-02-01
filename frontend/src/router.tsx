@@ -18,6 +18,7 @@ import Navigation from './components/Navigation';
 import BottomNavigation from './components/BottomNavigation';
 import Footer from './components/Footer';
 import PrivacySettings from './components/PrivacySettings';
+import WalletPage from './components/wallet/WalletPage';
 import PrivacyPolicy from './components/legal/PrivacyPolicy';
 import CookiePolicy from './components/legal/CookiePolicy';
 import TermsOfService from './components/legal/TermsOfService';
@@ -165,6 +166,17 @@ export const router = createBrowserRouter([
       <RequireAuth>
         <ProtectedLayout>
           <ConnectionsView />
+        </ProtectedLayout>
+      </RequireAuth>
+    ),
+  },
+  // Wallet (Crediti)
+  {
+    path: '/wallet',
+    element: (
+      <RequireAuth>
+        <ProtectedLayout>
+          <WalletPage />
         </ProtectedLayout>
       </RequireAuth>
     ),

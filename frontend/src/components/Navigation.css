@@ -323,6 +323,29 @@
   cursor: not-allowed;
 }
 
+.nav-wallet-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: var(--radius-md);
+  color: rgba(255, 255, 255, 0.95);
+  transition: all var(--transition-fast);
+}
+
+.nav-wallet-link:hover {
+  background: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: white;
+}
+
+.nav-wallet-link svg {
+  width: 18px;
+  height: 18px;
+}
+
 .nav-privacy-link {
   display: flex;
   align-items: center;

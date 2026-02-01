@@ -383,9 +383,73 @@ class PdfEntry(BaseModel):
     size_bytes: Optional[int] = None
 
 
-# Costanti per sistema punti
+# Costanti per sistema crediti
 MODE_COSTS: Dict[str, int] = {"flash": 1, "pro": 3, "ultra": 5}
-DEFAULT_POINTS: int = 10
+DEFAULT_CREDITS: int = 10
+DEFAULT_POINTS: int = DEFAULT_CREDITS  # Alias per retrocompatibilità
+
+
+# Modelli per pacchetti crediti acquistabili
+class CreditPackage(BaseModel):
+    """Pacchetto crediti acquistabile."""
+    id: str
+    name: str  # "Starter", "Pro", "Premium"
+    credits: int  # Quantità crediti inclusi
+    price_eur: float  # Prezzo in EUR (0 per pacchetti gratuiti)
+    bonus_credits: int = 0  # Crediti bonus aggiuntivi
+    description: Optional[str] = None  # Descrizione pacchetto
+    is_active: bool = True  # Se il pacchetto è attivo/acquistabile
+    sort_order: int = 0  # Ordine di visualizzazione
+    icon: Optional[str] = None  # Icona/emoji per il pacchetto
+
+
+class CreditTransaction(BaseModel):
+    """Transazione crediti (acquisto/consumo/bonus/reset)."""
+    id: str  # UUID
+    user_id: str  # Utente associato
+    type: Literal["purchase", "consumption", "bonus", "refund", "reset"]
+    amount: int  # Positivo=aggiunta, Negativo=consumo
+    balance_after: int  # Saldo crediti dopo la transazione
+    package_id: Optional[str] = None  # ID pacchetto se type=purchase
+    description: str  # Descrizione transazione
+    metadata: Optional[Dict[str, Any]] = None  # Dati extra (es. session_id per consumption)
+    created_at: datetime
+
+
+class CreditTransactionResponse(BaseModel):
+    """Risposta con lista transazioni crediti."""
+    transactions: list[CreditTransaction]
+    total: int
+    has_more: bool = False
+
+
+class CreditBalanceResponse(BaseModel):
+    """Risposta con saldo crediti utente."""
+    credits: int  # Saldo crediti corrente
+    credits_reset_at: Optional[datetime] = None  # Data ultimo reset
+    next_reset_at: datetime  # Prossimo reset (lunedì)
+    mode_costs: Dict[str, int] = Field(default_factory=lambda: MODE_COSTS.copy())
+    total_purchased: int = 0  # Totale crediti acquistati storicamente
+    total_consumed: int = 0  # Totale crediti consumati storicamente
+
+
+class CreditPackagesResponse(BaseModel):
+    """Risposta con lista pacchetti crediti disponibili."""
+    packages: list[CreditPackage]
+
+
+class CreditPurchaseRequest(BaseModel):
+    """Richiesta acquisto pacchetto crediti."""
+    package_id: str = Field(..., min_length=1, description="ID del pacchetto da acquistare")
+
+
+class CreditPurchaseResponse(BaseModel):
+    """Risposta acquisto pacchetto crediti."""
+    success: bool
+    message: str
+    credits_added: int = 0  # Crediti aggiunti (incluso bonus)
+    new_balance: int = 0  # Nuovo saldo crediti
+    transaction_id: Optional[str] = None  # ID transazione creata
 
 
 # Modelli per crediti modalità generazione (DEPRECATO - mantenuto per retrocompatibilità)
@@ -412,12 +476,16 @@ class User(BaseModel):
     password_reset_expires: Optional[datetime] = None
     verification_token: Optional[str] = None
     verification_expires: Optional[datetime] = None
-    # Sistema punti unificato (sostituisce mode_credits)
-    points: int = DEFAULT_POINTS  # Punti disponibili per generazione
-    points_reset_at: Optional[datetime] = None  # Data ultimo reset punti
+    # Sistema crediti unificato (sostituisce mode_credits)
+    credits: int = DEFAULT_CREDITS  # Crediti disponibili per generazione
+    credits_reset_at: Optional[datetime] = None  # Data ultimo reset crediti
+    total_credits_purchased: int = 0  # Totale crediti acquistati storicamente
+    total_credits_consumed: int = 0  # Totale crediti consumati storicamente
+    # DEPRECATO: alias per retrocompatibilità
+    points: int = DEFAULT_CREDITS  # Alias per credits
+    points_reset_at: Optional[datetime] = None  # Alias per credits_reset_at
     # DEPRECATO: mantenuto per migrazione dati esistenti
     mode_credits: Optional[ModeCredits] = None
-    credits_reset_at: Optional[datetime] = None
     # GDPR: Consensi privacy
     privacy_accepted_at: Optional[datetime] = None  # Timestamp accettazione Privacy Policy
     terms_accepted_at: Optional[datetime] = None  # Timestamp accettazione Terms of Service
