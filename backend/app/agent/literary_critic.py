@@ -45,7 +45,7 @@ def map_critic_model_name(use_fallback: bool = False) -> str:
     if use_fallback:
         model_name = cfg.get("fallback_model", "gemini-3-flash-preview")
     else:
-        model_name = cfg.get("default_model", "gemini-3-pro-preview")
+        model_name = cfg.get("default_model", "gemini-3.1-pro-preview")
     
     # Normalizza il nome del modello
     return normalize_critic_model_name(model_name)

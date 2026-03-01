@@ -19,7 +19,7 @@ async def generate_book_cover(
     cover_style: Optional[str] = None,
 ) -> str:
     """
-    Genera la copertina completa del libro (con titolo, autore e immagine) usando gemini-3-pro-image-preview.
+    Genera la copertina completa del libro (con titolo, autore e immagine) usando gemini-3.1-flash-image-preview.
     Se fallisce, prova con gemini-2.5-flash-image come fallback.
     
     Args:
@@ -81,7 +81,7 @@ La copertina deve essere:
     # NOTA: response_modalities=["IMAGE"] è fondamentale per ricevere immagini
     models_to_try = [
         {
-            'name': 'gemini-3-pro-image-preview',
+            'name': 'gemini-3.1-flash-image-preview',
             'type': 'primario',
             'config': {
                 'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine

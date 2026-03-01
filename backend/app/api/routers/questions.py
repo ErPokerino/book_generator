@@ -67,7 +67,7 @@ async def generate_questions_endpoint(
                 phase="questions",
                 input_tokens=token_usage.get("input_tokens", 0),
                 output_tokens=token_usage.get("output_tokens", 0),
-                model=token_usage.get("model", "gemini-3-pro-preview"),
+                model=token_usage.get("model", "gemini-3.1-pro-preview"),
             )
             print(f"[DEBUG] Sessione {response.session_id} creata nel session store dopo generazione domande")
         except Exception as session_error:

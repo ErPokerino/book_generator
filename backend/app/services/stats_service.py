@@ -91,6 +91,8 @@ def get_model_abbreviation(model_name: str) -> str:
         return "g25p"
     elif "gemini-3-flash" in model_lower:
         return "g3f"
+    elif "gemini-3.1-pro" in model_lower:
+        return "g31p"
     elif "gemini-3-pro" in model_lower:
         return "g3p"
     else:
@@ -119,7 +121,7 @@ def mode_to_llm_models(mode: str) -> list[str]:
     if mode_lower == "flash":
         return ["gemini-2.5-flash", "gemini-3-flash"]
     elif mode_lower == "pro":
-        return ["gemini-2.5-pro", "gemini-3-pro"]
+        return ["gemini-2.5-pro", "gemini-3-pro", "gemini-3.1-pro"]
     elif mode_lower == "ultra":
         return ["gemini-3-ultra"]
     else:

@@ -65,7 +65,7 @@ async def background_generate_questions(
                 phase="questions",
                 input_tokens=token_usage.get("input_tokens", 0),
                 output_tokens=token_usage.get("output_tokens", 0),
-                model=token_usage.get("model", "gemini-3-pro-preview"),
+                model=token_usage.get("model", "gemini-3.1-pro-preview"),
             )
             
             # Aggiorna progresso: completed
@@ -154,7 +154,7 @@ async def background_generate_draft(
             phase="draft",
             input_tokens=token_usage.get("input_tokens", 0),
             output_tokens=token_usage.get("output_tokens", 0),
-            model=token_usage.get("model", "gemini-3-pro-preview"),
+            model=token_usage.get("model", "gemini-3.1-pro-preview"),
         )
         
         # Aggiorna progresso: completed
@@ -256,7 +256,7 @@ async def background_generate_outline(
                 phase="outline",
                 input_tokens=token_usage.get("input_tokens", 0),
                 output_tokens=token_usage.get("output_tokens", 0),
-                model=token_usage.get("model", "gemini-3-pro-preview"),
+                model=token_usage.get("model", "gemini-3.1-pro-preview"),
             )
             
             # Recupera la sessione aggiornata per avere la versione corretta

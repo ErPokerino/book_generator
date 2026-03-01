@@ -399,7 +399,7 @@ Descrizione sottosezione...
 7. Aggiornamento `critique_status` (pending → running → completed/failed)
 
 **Configurazione**:
-- Modello default: `gemini-3-pro-preview` (configurabile in `literary_critic.yaml`)
+- Modello default: `gemini-3.1-pro-preview` (configurabile in `literary_critic.yaml`)
 - Fallback: `gemini-3-flash-preview`
 - Temperatura: 0.3 (configurabile)
 - Input: PDF finale (multimodale)
@@ -462,6 +462,12 @@ Se la generazione fallisce o viene interrotta:
 3. **Ripresa**: `POST /api/book/resume/{session_id}` riprende dal capitolo fallito
 4. **Context recovery**: Ricostruzione contesto autoregressivo da capitoli salvati
 
+### Generazione Audio (TTS)
+
+L'applicazione supporta la sintesi vocale per la lettura delle critiche letterarie e dei capitoli del libro tramite Google Cloud Text-to-Speech (`tts_service.py`).
+- **Caching dei capitoli**: Per ottimizzare costi e latenza, l'audio MP3 dei capitoli viene salvato su GCS (o in locale) nel path `books/audio/{session_id}_chapter_{index}.mp3`. Le richieste successive per lo stesso capitolo restituiscono direttamente il file in cache.
+- **Chunking del testo**: Per aggirare i limiti API di Google TTS (5000 byte per richiesta), testi lunghi vengono suddivisi e inviati sequenzialmente, per poi combinare l'audio restituito in un unico blob.
+
 ### Calcolo Costi
 
 Il calcolo dei costi considera **solo la generazione dei capitoli**, escludendo:
@@ -503,7 +509,7 @@ cost_eur = cost_usd * exchange_rate
 - `exchange_rate_usd_to_eur`: 0.92 (default)
 
 **Esempio**:
-- Libro: 10 capitoli, 200 pagine, modello `gemini-3-pro-preview`
+- Libro: 10 capitoli, 200 pagine, modello `gemini-3.1-pro-preview`
 - Input cost: $2.00 / 1M token
 - Output cost: $12.00 / 1M token
 - Context base: 8000 token/capitolo

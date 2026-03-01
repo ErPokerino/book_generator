@@ -10,9 +10,9 @@ from app.agent.session_store_helpers import get_session_async
 from app.agent.book_share_store import get_book_share_store
 from app.middleware.auth import get_current_user_optional
 from app.services.critique_service import (
-    generate_critique_audio,
     analyze_pdf_from_bytes,
 )
+from app.services.tts_service import generate_critique_audio
 
 router = APIRouter(prefix="/api/critique", tags=["critique"])
 

@@ -64,7 +64,7 @@ def calculate_cost_from_tokens(
     Args:
         input_tokens: Numero di token in input
         output_tokens: Numero di token in output
-        model_name: Nome del modello (es: "gemini-3-pro-preview")
+        model_name: Nome del modello (es: "gemini-3.1-pro-preview")
         currency: Valuta di output (default: "EUR")
     
     Returns:
@@ -121,7 +121,7 @@ def calculate_total_cost(token_usage: Dict[str, Any]) -> float:
                 phase_cost = calculate_cost_from_tokens(input_tokens, output_tokens, model)
             else:
                 # Fallback a modello default se non specificato
-                phase_cost = calculate_cost_from_tokens(input_tokens, output_tokens, "gemini-3-pro-preview")
+                phase_cost = calculate_cost_from_tokens(input_tokens, output_tokens, "gemini-3.1-pro-preview")
             total_cost += phase_cost
     
     return round(total_cost, 6)

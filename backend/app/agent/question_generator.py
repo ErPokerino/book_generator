@@ -188,8 +188,8 @@ Genera domande pertinenti in formato JSON come specificato nel contesto. Rispond
 
     # Inizializza il modello Gemini
     # Usa sempre il modello PRO per la generazione delle domande, indipendentemente dalla modalità selezionata
-    gemini_model = "gemini-3-pro-preview"  # Default: Gemini 3 Pro
-    print(f"[QUESTION_GENERATOR] Usando modello PRO (gemini-3-pro-preview) per generazione domande, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
+    gemini_model = "gemini-3.1-pro-preview"  # Default: Gemini 3 Pro
+    print(f"[QUESTION_GENERATOR] Usando modello PRO (gemini-3.1-pro-preview) per generazione domande, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
     
     temperature = get_temperature_for_agent("question_generator", gemini_model)
     llm = ChatGoogleGenerativeAI(

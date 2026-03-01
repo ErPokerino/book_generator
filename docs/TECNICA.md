@@ -597,7 +597,7 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 
 **Variabili Opzionali (Google Cloud Text-to-Speech)**:
 ```env
-# TTS (per audiobook critica)
+# TTS (per audiobook critica e lettura capitoli)
 # Se non configurato, usa fallback a credentials/narrai-app-credentials.json
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
@@ -619,7 +619,7 @@ llm_models:
   - "gemini-2.5-flash"
   - "gemini-2.5-pro"
   - "gemini-3-flash-preview"
-  - "gemini-3-pro-preview"
+  - "gemini-3.1-pro-preview"
 ```
 
 ## Gestione Dati

@@ -22,7 +22,7 @@ def get_model_abbreviation(model_name: str) -> str:
     Converte il nome completo del modello in una versione abbreviata per il nome del PDF.
     
     Args:
-        model_name: Nome completo del modello (es: "gemini-2.5-flash", "gemini-3-pro-preview")
+        model_name: Nome completo del modello (es: "gemini-2.5-flash", "gemini-3.1-pro-preview")
     
     Returns:
         Abbreviazione del modello (es: "g25f", "g3p")

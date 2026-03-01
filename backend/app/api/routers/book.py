@@ -51,6 +51,8 @@ def get_model_abbreviation(model_name: str) -> str:
         return "g25p"
     elif "gemini-3-flash" in model_lower:
         return "g3f"
+    elif "gemini-3.1-pro" in model_lower:
+        return "g31p"
     elif "gemini-3-pro" in model_lower:
         return "g3p"
     else:
@@ -964,6 +966,55 @@ async def download_book_pdf_endpoint(
     return await generate_book_pdf(session_id, current_user)
 
 
+@router.get("/audio/{session_id}/{chapter_index}")
+async def get_chapter_audio_endpoint(
+    session_id: str,
+    chapter_index: int,
+    voice_name: Optional[str] = None,
+    current_user = Depends(get_current_user_optional),
+):
+    """
+    Restituisce l'audio (Text-to-Speech) di un capitolo specifico.
+    """
+    from app.services.tts_service import generate_chapter_audio
+    
+    session_store = get_session_store()
+    session = await get_session_async(session_store, session_id, user_id=None)
+    
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
+        
+    # Verifica accesso
+    if current_user and session.user_id and session.user_id != current_user.id:
+        from app.agent.book_share_store import get_book_share_store
+        book_share_store = get_book_share_store()
+        await book_share_store.connect()
+        has_access = await book_share_store.check_user_has_access(
+            book_session_id=session_id,
+            user_id=current_user.id,
+            owner_id=session.user_id,
+        )
+        if not has_access:
+            raise HTTPException(status_code=403, detail="Accesso negato")
+
+    try:
+        audio_content = await generate_chapter_audio(session_id, chapter_index, voice_name)
+        return Response(
+            content=audio_content,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": f'attachment; filename="chapter_{chapter_index}.mp3"'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[CHAPTER AUDIO] Errore: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/export/{session_id}")
 async def export_book_endpoint(
     session_id: str,
@@ -1109,7 +1160,7 @@ async def regenerate_book_critique_endpoint(
     from app.agent.literary_critic import generate_literary_critique_from_pdf
     
     critic_cfg = get_literary_critic_config()
-    model_name = normalize_critic_model_name(critic_cfg.get("default_model", "gemini-3-pro-preview"))
+    model_name = normalize_critic_model_name(critic_cfg.get("default_model", "gemini-3.1-pro-preview"))
     provider = detect_critic_provider(model_name)
     print(f"[REGENERATE_CRITIQUE] Endpoint chiamato per sessione {session_id}", file=sys.stderr)
     print(f"[REGENERATE_CRITIQUE] Configurazione critico: modello={model_name}, provider={provider.upper()}", file=sys.stderr)
@@ -1136,7 +1187,7 @@ async def regenerate_book_critique_endpoint(
         phase="critique",
         input_tokens=token_usage.get("input_tokens", 0),
         output_tokens=token_usage.get("output_tokens", 0),
-        model=token_usage.get("model", "gemini-3-pro-preview"),
+        model=token_usage.get("model", "gemini-3.1-pro-preview"),
     )
     
     return critique

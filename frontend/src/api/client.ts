@@ -909,6 +909,29 @@ export async function getCritiqueAudio(sessionId: string): Promise<Blob> {
   return await response.blob();
 }
 
+export async function getChapterAudio(sessionId: string, chapterIndex: number): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/book/audio/${sessionId}/${chapterIndex}`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    let errorMessage = `Errore nella generazione audio: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      const text = await response.text().catch(() => '');
+      if (text) {
+        errorMessage = `Errore: ${text.substring(0, 100)}`;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+  
+  return await response.blob();
+}
+
 export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(`${API_BASE}/book/pdf/${sessionId}`);
   

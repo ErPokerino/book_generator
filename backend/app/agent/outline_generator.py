@@ -126,7 +126,7 @@ def map_model_name(model_name: str) -> str:
     elif "gemini-3-flash" in model_name:
         return "gemini-3-flash-preview"
     elif "gemini-3-pro" in model_name:
-        return "gemini-3-pro-preview"
+        return "gemini-3.1-pro-preview"
     else:
         return "gemini-2.5-flash"  # default
 
@@ -173,8 +173,8 @@ async def generate_outline(
     )
     
     # Usa sempre il modello PRO per la generazione della struttura, indipendentemente dalla modalità selezionata
-    gemini_model = "gemini-3-pro-preview"
-    print(f"[OUTLINE_GENERATOR] Usando modello PRO (gemini-3-pro-preview) per generazione struttura, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
+    gemini_model = "gemini-3.1-pro-preview"
+    print(f"[OUTLINE_GENERATOR] Usando modello PRO (gemini-3.1-pro-preview) per generazione struttura, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
     
     # Crea il prompt
     system_prompt = SystemMessage(content=agent_context)

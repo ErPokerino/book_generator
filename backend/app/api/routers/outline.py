@@ -84,7 +84,7 @@ async def generate_outline_endpoint(
             phase="outline",
             input_tokens=token_usage.get("input_tokens", 0),
             output_tokens=token_usage.get("output_tokens", 0),
-            model=token_usage.get("model", "gemini-3-pro-preview"),
+            model=token_usage.get("model", "gemini-3.1-pro-preview"),
         )
         
         session = await get_session_async(session_store, request.session_id)  # Re-fetch per versione aggiornata

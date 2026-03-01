@@ -436,11 +436,11 @@ def map_model_name(model_name: str) -> str:
         return "gemini-2.5-pro"
     elif "gemini-3-flash" in model_name.lower():
         return "gemini-3-flash-preview"
-    elif "gemini-3-pro" in model_name.lower():
-        return "gemini-3-pro-preview"
+    elif "gemini-3-pro" in model_name.lower() or "gemini-3.1-pro" in model_name.lower():
+        return "gemini-3.1-pro-preview"
     elif "gemini-3-ultra" in model_name.lower():
         # Gemini 3 Ultra usa Gemini 3 Pro come motore sottostante
-        return "gemini-3-pro-preview"
+        return "gemini-3.1-pro-preview"
     else:
         return "gemini-2.5-flash"  # default
 
@@ -592,7 +592,7 @@ async def generate_chapter(
     # Determina se siamo in modalità Long Form
     is_long_form = form_data.llm_model.lower() == "gemini-3-ultra"
     
-    # Mappa il modello (gemini-3-ultra -> gemini-3-pro-preview)
+    # Mappa il modello (gemini-3-ultra -> gemini-3.1-pro-preview)
     gemini_model = map_model_name(form_data.llm_model)
     
     print(f"[WRITER] Modello originale: {form_data.llm_model}, mappato a: {gemini_model}, Long Form: {is_long_form}")
@@ -882,7 +882,7 @@ async def generate_full_book(
                     phase="chapters",
                     input_tokens=chapter_token_usage.get("input_tokens", 0),
                     output_tokens=chapter_token_usage.get("output_tokens", 0),
-                    model=chapter_token_usage.get("model", "gemini-3-pro-preview"),
+                    model=chapter_token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
                 
                 # Verifica che il contenuto sia valido

@@ -232,7 +232,7 @@ async def background_book_generation(
                     phase="critique",
                     input_tokens=token_usage.get("input_tokens", 0),
                     output_tokens=token_usage.get("output_tokens", 0),
-                    model=token_usage.get("model", "gemini-3-pro-preview"),
+                    model=token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
                 
                 print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
@@ -477,7 +477,7 @@ async def background_resume_book_generation(
                     phase="critique",
                     input_tokens=token_usage.get("input_tokens", 0),
                     output_tokens=token_usage.get("output_tokens", 0),
-                    model=token_usage.get("model", "gemini-3-pro-preview"),
+                    model=token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
                 
                 print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getCompleteBook, BookResponse } from '../api/client';
 import AlertModal from './AlertModal';
+import AudioPlayer from './AudioPlayer';
 import ExportDropdown from './ExportDropdown';
 import './BookViewer.css';
 
@@ -149,6 +150,13 @@ export default function BookViewer({ sessionId, onBack }: BookViewerProps) {
                 <span className="chapter-page-count">{currentChapter.page_count} pagine</span>
               )}
             </div>
+            
+            <AudioPlayer 
+              sessionId={sessionId} 
+              type="chapter" 
+              chapterIndex={selectedChapterIndex} 
+            />
+
             <div className="chapter-navigation">
               <button
                 onClick={() => setSelectedChapterIndex(Math.max(0, selectedChapterIndex - 1))}

@@ -109,7 +109,7 @@ def load_literary_critic_config() -> LiteraryCriticConfig:
 
     # Normalizza valori base e default minimi
     return {
-        "default_model": data.get("default_model", "gemini-3-pro-preview"),
+        "default_model": data.get("default_model", "gemini-3.1-pro-preview"),
         "fallback_model": data.get("fallback_model", "gemini-3-flash-preview"),
         "temperature": float(data.get("temperature", 0.3)),
         "max_retries": int(data.get("max_retries", 2)),
@@ -235,7 +235,7 @@ def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
     
     Args:
         agent_name: Nome dell'agente (es: "writer_generator", "draft_generator", etc.)
-        model_name: Nome del modello Gemini (es: "gemini-2.5-flash", "gemini-3-pro-preview")
+        model_name: Nome del modello Gemini (es: "gemini-2.5-flash", "gemini-3.1-pro-preview")
     
     Returns:
         Temperatura da utilizzare (float tra 0.0 e 1.0)
@@ -281,7 +281,7 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     Restituisce i costi per input/output per il modello specificato.
     
     Args:
-        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3-pro-preview", "gpt-5.2")
+        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3.1-pro-preview", "gpt-5.2")
     
     Returns:
         Dizionario con 'input_cost_per_million' e 'output_cost_per_million' in USD
@@ -303,7 +303,7 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     elif "gemini-3-flash" in model_normalized:
         costs = model_costs.get("gemini-3-flash-preview", {})
     elif "gemini-3-pro" in model_normalized:
-        costs = model_costs.get("gemini-3-pro-preview", {})
+        costs = model_costs.get("gemini-3.1-pro-preview", {})
     # OpenAI GPT 5.2 models
     elif "gpt-5.2-pro" in model_normalized:
         costs = model_costs.get("gpt-5.2-pro", {})
@@ -369,7 +369,7 @@ def detect_critic_provider(model_name: str) -> Literal["google", "openai"]:
     Rileva il provider LLM dal nome del modello per l'agente critico.
     
     Args:
-        model_name: Nome del modello (es: "gemini-3-pro-preview", "gpt-5.2", "gpt-5.2-pro")
+        model_name: Nome del modello (es: "gemini-3.1-pro-preview", "gpt-5.2", "gpt-5.2-pro")
     
     Returns:
         "google" per modelli Gemini, "openai" per modelli OpenAI
@@ -398,13 +398,13 @@ def normalize_critic_model_name(model_name: str) -> str:
         Nome modello normalizzato per l'API (Gemini o OpenAI)
     """
     if not model_name:
-        return "gemini-3-pro-preview"  # Default
+        return "gemini-3.1-pro-preview"  # Default
     
     model_lower = model_name.lower()
     
     # Mapping modelli Gemini (mantiene formato esistente)
-    if "gemini-3-pro" in model_lower or model_lower == "gemini-3-pro-preview":
-        return "gemini-3-pro-preview"
+    if "gemini-3-pro" in model_lower or model_lower == "gemini-3.1-pro-preview":
+        return "gemini-3.1-pro-preview"
     elif "gemini-3-flash" in model_lower or model_lower == "gemini-3-flash-preview":
         return "gemini-3-flash-preview"
     elif "gemini-3-ultra" in model_lower:
@@ -440,7 +440,7 @@ def detect_critic_provider(model_name: str) -> Literal["google", "openai"]:
     Rileva il provider LLM dal nome del modello per l'agente critico.
     
     Args:
-        model_name: Nome del modello (es: "gemini-3-pro-preview", "gpt-5.2", "gpt-5.2-pro")
+        model_name: Nome del modello (es: "gemini-3.1-pro-preview", "gpt-5.2", "gpt-5.2-pro")
     
     Returns:
         "google" per modelli Gemini, "openai" per modelli OpenAI
@@ -469,13 +469,13 @@ def normalize_critic_model_name(model_name: str) -> str:
         Nome modello normalizzato per l'API (Gemini o OpenAI)
     """
     if not model_name:
-        return "gemini-3-pro-preview"  # Default
+        return "gemini-3.1-pro-preview"  # Default
     
     model_lower = model_name.lower()
     
     # Mapping modelli Gemini (mantiene formato esistente)
-    if "gemini-3-pro" in model_lower or model_lower == "gemini-3-pro-preview":
-        return "gemini-3-pro-preview"
+    if "gemini-3-pro" in model_lower or model_lower == "gemini-3.1-pro-preview":
+        return "gemini-3.1-pro-preview"
     elif "gemini-3-flash" in model_lower or model_lower == "gemini-3-flash-preview":
         return "gemini-3-flash-preview"
     elif "gemini-3-ultra" in model_lower:

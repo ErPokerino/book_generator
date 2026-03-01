@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getBookCritique, LiteraryCritique } from '../api/client';
-import CritiqueAudioPlayer from './CritiqueAudioPlayer';
+import AudioPlayer from './AudioPlayer';
 import './CritiqueModal.css';
 
 interface CritiqueModalProps {
@@ -127,7 +127,7 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
               </div>
               
               {/* Player audio per ascoltare la critica */}
-              <CritiqueAudioPlayer sessionId={sessionId} />
+              <AudioPlayer sessionId={sessionId} type="critique" />
               
               {critique.summary && (
                 <div className="critique-summary">
