@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCompleteBook, BookResponse, Chapter, getCoverImageUrl } from '../api/client';
-import { SkeletonBox, SkeletonText, SkeletonChapter } from './Skeleton';
+import { getCompleteBook, BookResponse, getCoverImageUrl } from '../api/client';
+import { SkeletonBox, SkeletonChapter } from './Skeleton';
 import { useToast } from '../hooks/useToast';
 import PageTransition from './ui/PageTransition';
+import AudioPlayer from './AudioPlayer';
 import './BookReader.css';
 
 export default function BookReader() {
@@ -281,6 +282,13 @@ export default function BookReader() {
             <header className="chapter-header">
               <span className="chapter-label">Capitolo {currentChapterIndex + 1} di {book.chapters.length}</span>
               <h2 className="chapter-title">{currentChapter.title}</h2>
+              <div className="chapter-audio-container" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
+                <AudioPlayer 
+                  sessionId={sessionId!} 
+                  type="chapter" 
+                  chapterIndex={currentChapterIndex} 
+                />
+              </div>
             </header>
             
             <div 
