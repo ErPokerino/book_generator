@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dockerignore
+.cursor/
+node_modules/
+backend/.venv/
+backend/__pycache__/
+backend/books/
+backend/sessions/
+backend/test_images/
+frontend/node_modules/
+frontend/dist/
+.env
+chapter_timings_export.csv
