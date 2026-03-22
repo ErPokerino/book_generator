@@ -181,6 +181,12 @@ class SessionStore:
     def get_session(self, session_id: str) -> Optional[SessionData]:
         """Recupera una sessione esistente."""
         return self._sessions.get(session_id)
+
+    def save_session(self, session: SessionData) -> SessionData:
+        """Salva una sessione nello store corrente."""
+        session.update_timestamp()
+        self._sessions[session.session_id] = session
+        return session
     
     def update_draft(
         self,
@@ -311,6 +317,17 @@ class SessionStore:
         new_progress["is_complete"] = is_complete
         new_progress["is_paused"] = is_paused
         new_progress["error"] = error
+        new_progress["job_id"] = existing_progress.get("job_id", f"book:{session_id}")
+        new_progress["job_type"] = "book"
+        new_progress["updated_at"] = datetime.utcnow().isoformat()
+        if is_complete:
+            new_progress["status"] = "completed"
+        elif is_paused:
+            new_progress["status"] = "paused"
+        elif error:
+            new_progress["status"] = "failed"
+        else:
+            new_progress["status"] = existing_progress.get("status", "running")
         
         # Aggiorna campi opzionali solo se passati esplicitamente
         if total_pages is not None:
@@ -703,6 +720,12 @@ class FileSessionStore(SessionStore):
     ) -> SessionData:
         """Crea una nuova sessione e salva su file."""
         session = super().create_session(session_id, form_data, question_answers)
+        self._save_sessions()
+        return session
+
+    def save_session(self, session: SessionData) -> SessionData:
+        """Salva una sessione su file."""
+        super().save_session(session)
         self._save_sessions()
         return session
     

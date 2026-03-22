@@ -42,6 +42,13 @@ async def create_session_async(
         return session
 
 
+async def save_session_async(session_store: SessionStore, session: SessionData) -> SessionData:
+    """Helper per salvare una sessione in modo async-compatibile."""
+    if hasattr(session_store, 'connect'):
+        return await session_store.save_session(session)
+    return session_store.save_session(session)
+
+
 async def update_draft_async(
     session_store: SessionStore,
     session_id: str,

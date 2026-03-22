@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import toast, { Toast } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 interface ToastOptions {
   duration?: number;

@@ -160,6 +160,7 @@ export interface ResendVerificationResponse {
 export interface ForgotPasswordResponse {
   success: boolean;
   message: string;
+  token?: string;
 }
 
 export interface ResetPasswordResponse {
@@ -511,7 +512,16 @@ export interface OutlineGenerateRequest {
 
 // ===== Process Progress Types =====
 export interface ProcessProgress {
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  job_id?: string;
+  job_type?: string;
+  recoverable?: boolean;
+  attempt?: number;
+  updated_at?: string;
+  queued_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  job_metrics?: Record<string, unknown>;
   current_step?: number;
   total_steps?: number;
   progress_percentage?: number;
@@ -524,6 +534,9 @@ export interface ProcessStartResponse {
   success: boolean;
   session_id: string;
   message: string;
+  job_id?: string;
+  job_type?: string;
+  already_running?: boolean;
 }
 
 // ===== Async Process Start Functions =====
@@ -744,6 +757,16 @@ export interface LiteraryCritique {
 
 export interface BookProgress {
   session_id: string;
+  status?: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  job_id?: string;
+  job_type?: string;
+  recoverable?: boolean;
+  attempt?: number;
+  updated_at?: string;
+  queued_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  job_metrics?: Record<string, unknown>;
   current_step: number;
   total_steps: number;
   current_section_name?: string;
@@ -769,6 +792,9 @@ export interface BookGenerationResponse {
   success: boolean;
   session_id: string;
   message: string;
+  job_id?: string;
+  job_type?: string;
+  already_running?: boolean;
 }
 
 export async function startBookGeneration(request: BookGenerationRequest): Promise<BookGenerationResponse> {

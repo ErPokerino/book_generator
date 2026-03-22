@@ -58,7 +58,7 @@ export function useProcessPolling({
         consecutiveFailuresRef.current = 0;
         setConsecutiveFailures(0);
 
-        // Ferma il polling se completato o fallito
+        // Ferma il polling se completato o in stato terminale
         if (currentProgress.status === 'completed') {
           stoppedRef.current = true;
           setIsPolling(false);
@@ -67,11 +67,11 @@ export function useProcessPolling({
             completedCalledRef.current = true;
             onComplete(currentProgress);
           }
-        } else if (currentProgress.status === 'failed') {
+        } else if (currentProgress.status === 'failed' || currentProgress.status === 'paused' || currentProgress.status === 'cancelled') {
           stoppedRef.current = true;
           setIsPolling(false);
           if (onError) {
-            onError(currentProgress.error || 'Processo fallito');
+            onError(currentProgress.error || 'Processo interrotto');
           }
         }
       } catch (err) {

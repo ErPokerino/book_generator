@@ -1,52 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import './Navigation.css';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import ConfirmModal from './ConfirmModal';
 import NotificationBell from './NotificationBell';
-import { getPendingConnectionsCount } from '../api/client';
 
 export default function Navigation() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { pendingConnectionsCount } = useNotifications();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [pendingConnectionsCount, setPendingConnectionsCount] = useState(0);
-
-  // Carica conteggio richieste pendenti incoming
-  useEffect(() => {
-    if (!user) {
-      setPendingConnectionsCount(0);
-      return;
-    }
-
-    let isSessionValid = true;
-
-    const loadPendingCount = async () => {
-      if (!isSessionValid) return; // Non fare polling se sessione non valida
-      
-      try {
-        const response = await getPendingConnectionsCount();
-        setPendingConnectionsCount(response.pending_count);
-      } catch (error: unknown) {
-        // Se errore 401, smetti di fare polling (sessione scaduta)
-        if (error instanceof Error && error.message.includes('401')) {
-          isSessionValid = false;
-          console.warn('[Navigation] Sessione scaduta, polling interrotto');
-        } else {
-          console.error('Errore nel recupero conteggio richieste pendenti:', error);
-        }
-      }
-    };
-
-    loadPendingCount();
-
-    // Polling ogni 30 secondi per aggiornare il badge
-    const interval = setInterval(loadPendingCount, 30000);
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);

@@ -4,12 +4,72 @@
   margin: 0 auto;
 }
 
-.analytics-title {
-  font-size: 2rem;
+.analytics-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.analytics-overview-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-light, #e0e0e0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.analytics-overview-card strong {
+  display: block;
+  margin: 0.45rem 0 0.35rem;
+  font-size: 1.9rem;
   font-weight: 700;
   color: var(--text-primary, #213547);
-  margin-bottom: 2rem;
-  text-align: center;
+}
+
+.analytics-overview-card p {
+  margin: 0;
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.analytics-overview-card-warm {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.15), rgba(255, 255, 255, 0.95));
+}
+
+.analytics-overview-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #666);
+}
+
+.analytics-primary-action,
+.analytics-inline-action {
+  padding: 0.75rem 1.15rem;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analytics-primary-action {
+  background: var(--accent, #6366f1);
+  color: white;
+}
+
+.analytics-primary-action:hover,
+.analytics-inline-action:hover {
+  transform: translateY(-1px);
+}
+
+.analytics-inline-action {
+  background: var(--surface-alt, #f8fafc);
+  color: var(--text-primary, #213547);
+  border: 1px solid var(--border-light, #e0e0e0);
 }
 
 .analytics-section {
@@ -83,11 +143,12 @@
 }
 
 .skeleton-stat-value {
-  margin: 0 auto;
+  margin: 0.75rem auto 0;
 }
 
 .skeleton-chart-subtitle {
   display: block;
+  margin-bottom: 1rem;
 }
 
 .error-message {
@@ -115,8 +176,8 @@
     padding: 1rem;
   }
 
-  .analytics-title {
-    font-size: 1.5rem;
+  .analytics-overview-grid {
+    grid-template-columns: 1fr;
   }
 
   .analytics-section {

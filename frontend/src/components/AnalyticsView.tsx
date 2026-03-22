@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { getLibraryStats, getAdvancedStats, getUsersStats, deleteUserAdmin, getPendingBooks, LibraryStats, AdvancedStats, UsersStats, PendingBooksResponse } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
-import { SkeletonBox, SkeletonText, SkeletonChart } from './Skeleton';
+import { SkeletonBox, SkeletonChart } from './Skeleton';
 import { useToast } from '../hooks/useToast';
+import ConfirmModal from './ConfirmModal';
+import PageHeader from './ui/PageHeader';
+import EmptyState from './ui/EmptyState';
 import {
   LineChart,
   Line,
@@ -24,16 +27,21 @@ export default function AnalyticsView() {
   const [pendingBooks, setPendingBooks] = useState<PendingBooksResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<{ email: string; name: string } | null>(null);
 
   const handleDeleteUser = async (email: string, name: string) => {
-    if (!confirm(`Sei sicuro di voler eliminare l'utente "${name}" (${email})?\n\nQuesta azione è irreversibile.`)) {
+    setPendingDeleteUser({ email, name });
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!pendingDeleteUser) {
       return;
     }
     
-    setDeletingUser(email);
+    setDeletingUser(pendingDeleteUser.email);
     try {
-      await deleteUserAdmin(email);
-      toast.success(`Utente ${email} eliminato con successo`);
+      await deleteUserAdmin(pendingDeleteUser.email);
+      toast.success(`Utente ${pendingDeleteUser.email} eliminato con successo`);
       // Ricarica le statistiche utenti
       const usersData = await getUsersStats();
       setUsersStats(usersData);
@@ -41,6 +49,7 @@ export default function AnalyticsView() {
       toast.error(err instanceof Error ? err.message : 'Errore nell\'eliminazione dell\'utente');
     } finally {
       setDeletingUser(null);
+      setPendingDeleteUser(null);
     }
   };
 
@@ -135,7 +144,11 @@ export default function AnalyticsView() {
   if (loading) {
     return (
       <div className="analytics-view">
-        <h1 className="analytics-title">📊 Analisi e Statistiche</h1>
+        <PageHeader
+          eyebrow="Admin Analytics"
+          title="Analisi e statistiche"
+          description="Panoramica operativa su libreria, utenti e libri in sospeso."
+        />
         
         {/* Skeleton Statistiche Base */}
         <section className="analytics-section">
@@ -144,7 +157,7 @@ export default function AnalyticsView() {
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="stat-card-skeleton">
                 <SkeletonBox width="100%" height="1rem" className="skeleton-stat-label" />
-                <SkeletonBox width="60%" height="2rem" className="skeleton-stat-value" style={{ marginTop: '0.75rem' }} />
+                <SkeletonBox width="60%" height="2rem" className="skeleton-stat-value" />
               </div>
             ))}
           </div>
@@ -154,7 +167,7 @@ export default function AnalyticsView() {
         <section className="analytics-section">
           <h2 className="section-title">Tendenze Temporali</h2>
           <div className="chart-container">
-            <SkeletonBox width="200px" height="1.5rem" className="skeleton-chart-subtitle" style={{ marginBottom: '1rem' }} />
+            <SkeletonBox width="200px" height="1.5rem" className="skeleton-chart-subtitle" />
             <SkeletonChart height="300px" />
           </div>
         </section>
@@ -165,16 +178,49 @@ export default function AnalyticsView() {
   if (!stats) {
     return (
       <div className="analytics-view">
-        <div className="empty-state">
-          <p>Nessun dato disponibile per le analisi.</p>
-        </div>
+        <EmptyState
+          title="Nessun dato disponibile"
+          description="Le metriche appariranno qui non appena saranno disponibili libri e utenti da analizzare."
+        />
       </div>
     );
   }
 
   return (
     <div className="analytics-view">
-      <h1 className="analytics-title">📊 Analisi e Statistiche</h1>
+      <PageHeader
+        eyebrow="Admin Analytics"
+        title="Analisi e statistiche"
+        description="Monitora volumi, utenti, trend e anomalie operative da un unico cruscotto."
+        actions={(
+          <button type="button" className="analytics-primary-action" onClick={exportUsersToCSV}>
+            Esporta utenti CSV
+          </button>
+        )}
+      />
+
+      <section className="analytics-overview-grid">
+        <article className="analytics-overview-card">
+          <span className="analytics-overview-label">Libri totali</span>
+          <strong>{stats.total_books}</strong>
+          <p>{stats.completed_books} completati</p>
+        </article>
+        <article className="analytics-overview-card">
+          <span className="analytics-overview-label">Utenti monitorati</span>
+          <strong>{usersStats?.total_users ?? 0}</strong>
+          <p>{usersStats?.users_with_books.length ?? 0} con almeno un libro</p>
+        </article>
+        <article className="analytics-overview-card analytics-overview-card-warm">
+          <span className="analytics-overview-label">Libri in sospeso</span>
+          <strong>{pendingBooks?.total ?? 0}</strong>
+          <p>{pendingBooks?.with_errors ?? 0} con errori da verificare</p>
+        </article>
+        <article className="analytics-overview-card">
+          <span className="analytics-overview-label">Voto medio</span>
+          <strong>{stats.average_score?.toFixed(1) ?? 'N/A'}</strong>
+          <p>{stats.average_pages.toFixed(1)} pagine medie</p>
+        </article>
+      </section>
       
       {/* Statistiche Base */}
       <section className="analytics-section">
@@ -252,7 +298,10 @@ export default function AnalyticsView() {
                     domain={[0, 10]}
                   />
                   <Tooltip
-                    formatter={(value: number) => [value.toFixed(2), 'Voto medio']}
+                    formatter={(value: number | string | undefined) => [
+                      typeof value === 'number' ? value.toFixed(2) : (value ?? 'N/A'),
+                      'Voto medio',
+                    ]}
                     contentStyle={{
                       backgroundColor: 'var(--surface)',
                       border: '1px solid var(--border-light)',
@@ -303,31 +352,7 @@ export default function AnalyticsView() {
             }}>
               👥 Totale Utenti: {usersStats.total_users}
             </div>
-            <button
-              onClick={exportUsersToCSV}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'background 0.2s ease, transform 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--accent-hover)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--accent)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
+            <button onClick={exportUsersToCSV} className="analytics-inline-action">
               📥 Esporta CSV
             </button>
           </div>
@@ -553,6 +578,16 @@ export default function AnalyticsView() {
           </div>
         </section>
       )}
+      <ConfirmModal
+        isOpen={!!pendingDeleteUser}
+        title="Conferma eliminazione utente"
+        message={pendingDeleteUser ? `Sei sicuro di voler eliminare l'utente "${pendingDeleteUser.name}" (${pendingDeleteUser.email})? Questa azione è irreversibile.` : ''}
+        confirmText="Elimina utente"
+        cancelText="Annulla"
+        onConfirm={confirmDeleteUser}
+        onCancel={() => setPendingDeleteUser(null)}
+        variant="warning"
+      />
     </div>
   );
 }

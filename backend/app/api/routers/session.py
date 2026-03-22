@@ -138,6 +138,16 @@ async def restore_session_endpoint(
             
             writing_progress = BookProgress(
                 session_id=session_id,
+                status=progress.get('status'),
+                job_id=progress.get('job_id'),
+                job_type=progress.get('job_type'),
+                recoverable=progress.get('recoverable', False),
+                attempt=progress.get('attempt'),
+                updated_at=progress.get('updated_at'),
+                queued_at=progress.get('queued_at'),
+                started_at=progress.get('started_at'),
+                completed_at=progress.get('completed_at'),
+                job_metrics=progress.get('job_metrics'),
                 current_step=progress.get('current_step', 0),
                 total_steps=progress.get('total_steps', 0),
                 current_section_name=progress.get('current_section_name'),

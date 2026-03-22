@@ -50,6 +50,12 @@ export default function BookReader() {
     loadBook();
   }, [sessionId]);
 
+  useEffect(() => {
+    if (book && !coverImageUrl && currentChapterIndex === -1) {
+      setCurrentChapterIndex(0);
+    }
+  }, [book, coverImageUrl, currentChapterIndex]);
+
   // Helper functions (defined before useCallbacks that use them)
   const scrollToTop = () => {
     const readerContent = document.querySelector('.reader-content');
@@ -100,14 +106,16 @@ export default function BookReader() {
   // Navigation functions with useCallback
   const goToPreviousChapter = useCallback(() => {
     if (currentChapterIndex === -1) return; // Alla copertina, non si può andare indietro
-    if (currentChapterIndex === 0) {
+    if (currentChapterIndex === 0 && coverImageUrl) {
       // Dal primo capitolo, vai alla copertina
       setCurrentChapterIndex(-1);
-    } else {
+    } else if (currentChapterIndex > 0) {
       setCurrentChapterIndex(prev => prev - 1);
+    } else {
+      return;
     }
     scrollToTop();
-  }, [currentChapterIndex]);
+  }, [currentChapterIndex, coverImageUrl]);
 
   const goToNextChapter = useCallback(() => {
     if (!book) return;
@@ -185,12 +193,15 @@ export default function BookReader() {
     );
   }
 
-  const isShowingCover = currentChapterIndex === -1;
-  const currentChapter = isShowingCover ? null : book.chapters[currentChapterIndex];
+  const hasCover = Boolean(coverImageUrl);
+  const isShowingCover = hasCover && currentChapterIndex === -1;
+  const currentChapter = isShowingCover ? null : book.chapters[Math.max(currentChapterIndex, 0)];
   const totalPages = book.chapters.length + (coverImageUrl ? 1 : 0);
   const progress = coverImageUrl 
     ? ((currentChapterIndex + 2) / totalPages) * 100
     : ((currentChapterIndex + 1) / book.chapters.length) * 100;
+  const readingProgress = Math.max(0, Math.min(100, Math.round(progress)));
+  const currentLocation = isShowingCover ? 'Copertina' : `Capitolo ${currentChapterIndex + 1}`;
 
   return (
     <PageTransition>
@@ -236,6 +247,11 @@ export default function BookReader() {
       <div className="reading-progress">
         <div className="progress-fill" style={{ width: `${progress}%` }}></div>
       </div>
+      <div className="reader-progress-meta">
+        <span>{currentLocation}</span>
+        <span>{readingProgress}% completato</span>
+        <span>Testo {fontSize}px</span>
+      </div>
 
       {/* Table of Contents Sidebar */}
       {showToc && (
@@ -275,7 +291,22 @@ export default function BookReader() {
       <main className={`reader-content ${showToc ? 'with-toc' : ''}`}>
         {isShowingCover && coverImageUrl ? (
           <div className="cover-page">
-            <img src={coverImageUrl} alt={`Copertina di ${book.title}`} className="cover-image" />
+            <div className="cover-page-shell">
+              <img src={coverImageUrl} alt={`Copertina di ${book.title}`} className="cover-image" />
+              <aside className="cover-summary">
+                <span className="cover-summary-eyebrow">Esperienza di lettura</span>
+                <h2>{book.title}</h2>
+                <p>di {book.author}</p>
+                <div className="cover-summary-stats">
+                  <span>{book.chapters.length} capitoli</span>
+                  <span>{typeof book.total_pages === 'number' && book.total_pages > 0 ? `${book.total_pages} pagine` : 'Pagine in aggiornamento'}</span>
+                  <span>{book.writing_time_minutes ? `${book.writing_time_minutes} min stimati` : 'Tempo di lettura non disponibile'}</span>
+                </div>
+                <button type="button" className="cover-summary-action" onClick={goToNextChapter}>
+                  Inizia dal primo capitolo
+                </button>
+              </aside>
+            </div>
           </div>
         ) : currentChapter ? (
           <article className="chapter" style={{ fontSize: `${fontSize}px` }}>
@@ -303,10 +334,10 @@ export default function BookReader() {
       <footer className="reader-footer">
         <button 
           onClick={goToPreviousChapter}
-          disabled={currentChapterIndex === -1}
+          disabled={currentChapterIndex === -1 || (!hasCover && currentChapterIndex === 0)}
           className="nav-btn prev-btn"
         >
-          {currentChapterIndex === 0 ? '← Copertina' : '← Capitolo precedente'}
+          {hasCover && currentChapterIndex === 0 ? '← Copertina' : '← Capitolo precedente'}
         </button>
         
         <div className="chapter-indicator">

@@ -119,11 +119,6 @@ export default function BenchmarkView() {
     }
   };
 
-  const handleButtonClick = () => {
-    // Trigger click sull'input file nascosto
-    fileInputRef.current?.click();
-  };
-
   return (
     <div className="benchmark-view">
       <div className="benchmark-container">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
@@ -17,7 +17,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const toast = useToast();
   const [progress, setProgress] = useState<BookProgress | null>(null);
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   const [isPolling, setIsPolling] = useState(true);
   const [isRetryingCritique, setIsRetryingCritique] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
@@ -77,7 +76,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
         setProgress(currentProgress);
         latestProgressRef.current = currentProgress;
         consecutiveFailuresRef.current = 0;
-        setConsecutiveFailures(0);
 
         const critiqueStatus = currentProgress.critique_status;
         const isCritiqueDone = critiqueStatus === 'completed' && !!currentProgress.critique;
@@ -105,7 +103,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
         // Non bloccare tutto al primo glitch: spesso è un micro-restart del backend o un timeout di rete.
         const next = consecutiveFailuresRef.current + 1;
         consecutiveFailuresRef.current = next;
-        setConsecutiveFailures(next);
         
         // Mostra toast solo ogni 3 tentativi per evitare spam
         if (next % 3 === 1) {

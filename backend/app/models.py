@@ -212,6 +212,16 @@ class LiteraryCritique(BaseModel):
 class BookProgress(BaseModel):
     """Stato di avanzamento della scrittura del romanzo."""
     session_id: str
+    status: Optional[Literal["pending", "running", "paused", "completed", "failed", "cancelled"]] = None
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    recoverable: bool = False
+    attempt: Optional[int] = None
+    updated_at: Optional[datetime] = None
+    queued_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    job_metrics: Optional[Dict[str, Any]] = None
     current_step: int  # Indice del capitolo corrente in scrittura (0-based)
     total_steps: int  # Numero totale di sezioni da scrivere
     current_section_name: Optional[str] = None  # Nome/titolo della sezione in corso
@@ -251,11 +261,23 @@ class BookGenerationResponse(BaseModel):
     success: bool
     session_id: str
     message: str
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    already_running: bool = False
 
 
 class ProcessProgress(BaseModel):
     """Stato di avanzamento di un processo AI."""
-    status: Literal["pending", "running", "completed", "failed"]
+    status: Literal["pending", "running", "paused", "completed", "failed", "cancelled"]
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    recoverable: bool = False
+    attempt: Optional[int] = None
+    updated_at: Optional[datetime] = None
+    queued_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    job_metrics: Optional[Dict[str, Any]] = None
     current_step: Optional[int] = None
     total_steps: Optional[int] = None
     progress_percentage: Optional[float] = None
@@ -269,6 +291,9 @@ class ProcessStartResponse(BaseModel):
     success: bool
     session_id: str
     message: str
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    already_running: bool = False
 
 
 class BookResponse(BaseModel):

@@ -302,6 +302,17 @@ class MongoSessionStore(SessionStore):
         new_progress["is_complete"] = is_complete
         new_progress["is_paused"] = is_paused
         new_progress["error"] = error
+        new_progress["job_id"] = existing_progress.get("job_id", f"book:{session_id}")
+        new_progress["job_type"] = "book"
+        new_progress["updated_at"] = datetime.utcnow().isoformat()
+        if is_complete:
+            new_progress["status"] = "completed"
+        elif is_paused:
+            new_progress["status"] = "paused"
+        elif error:
+            new_progress["status"] = "failed"
+        else:
+            new_progress["status"] = existing_progress.get("status", "running")
         
         # Aggiorna campi opzionali solo se passati esplicitamente
         if total_pages is not None:

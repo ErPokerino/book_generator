@@ -10,11 +10,12 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ onFiltersChange, availableModes, availableGenres }: FilterBarProps) {
-  const [filters, setFilters] = useState<LibraryFilters>({
+  const defaultFilters: LibraryFilters = {
     status: 'all',
     sort_by: 'created_at',
     sort_order: 'desc',
-  });
+  };
+  const [filters, setFilters] = useState<LibraryFilters>(defaultFilters);
   const [searchText, setSearchText] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
@@ -28,7 +29,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
   ].filter(Boolean).length;
 
   const handleFilterChange = (key: keyof LibraryFilters, value: string) => {
-    const newFilters = {
+    const newFilters: LibraryFilters = {
       ...filters,
       [key]: value === '' || value === 'all' ? undefined : value,
     };
@@ -38,7 +39,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
 
   const handleSearch = (value: string) => {
     setSearchText(value);
-    const newFilters = {
+    const newFilters: LibraryFilters = {
       ...filters,
       search: value.trim() || undefined,
     };
@@ -47,11 +48,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
   };
 
   const clearFilters = () => {
-    const newFilters = {
-      status: 'all',
-      sort_by: 'created_at',
-      sort_order: 'desc',
-    };
+    const newFilters: LibraryFilters = { ...defaultFilters };
     setFilters(newFilters);
     setSearchText('');
     onFiltersChange(newFilters);

@@ -1,5 +1,5 @@
 import React from 'react'
-import { BookOpen, PenLine, RefreshCw, Zap, Star, Rocket, Library } from 'lucide-react'
+import { BookOpen, PenLine, RefreshCw, Rocket, Library } from 'lucide-react'
 
 interface IconProps {
   className?: string

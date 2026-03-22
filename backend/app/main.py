@@ -29,6 +29,14 @@ from app.core.config import (
     get_tokens_per_page, get_model_pricing, get_image_generation_cost,
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
+from app.core.environment import (
+    DEFAULT_MONGODB_URI,
+    DEFAULT_SESSION_SECRET,
+    allow_detailed_diagnostics,
+    get_environment,
+    is_production,
+)
+from app.core.logging import configure_logging, get_logger
 from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr, credits
 from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
@@ -88,6 +96,7 @@ from app.services.stats_service import (
     llm_model_to_mode,
 )
 from app.utils.stats_utils import get_generation_method
+from app.services.process_job_service import recover_interrupted_processes_async
 
 
 # Carica variabili d'ambiente dal file .env
@@ -101,8 +110,12 @@ load_dotenv(dotenv_path=env_path)
 
 # Carica anche dalla directory corrente come fallback
 load_dotenv()
+configure_logging()
+logger = get_logger("app.main")
 
 app = FastAPI(title="Scrittura Libro API", version="0.1.0")
+app.state.environment = get_environment()
+app.state.allow_detailed_diagnostics = allow_detailed_diagnostics()
 
 # CORS per sviluppo locale e produzione
 frontend_url = os.getenv("FRONTEND_URL", "")
@@ -152,6 +165,17 @@ app.include_router(credits.router)
 async def startup_db():
     """Connette al database MongoDB all'avvio se configurato."""
     try:
+        if os.getenv("SESSION_SECRET", DEFAULT_SESSION_SECRET) == DEFAULT_SESSION_SECRET:
+            logger.warning(
+                "SESSION_SECRET di default in uso",
+                context={"environment": app.state.environment},
+            )
+        if os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI) == DEFAULT_MONGODB_URI:
+            logger.warning(
+                "MONGODB_URI di default in uso",
+                context={"environment": app.state.environment},
+            )
+
         session_store = get_session_store()
         if hasattr(session_store, 'connect'):
             await session_store.connect()
@@ -197,8 +221,17 @@ async def startup_db():
         if config_path.exists():
             await credit_store.load_packages_from_yaml(str(config_path))
         print("[STARTUP] MongoDB (credits) connesso con successo")
+
+        recovered_jobs = await recover_interrupted_processes_async(session_store)
+        if recovered_jobs:
+            logger.warning(
+                "Job interrotti recuperati allo startup",
+                context={"count": recovered_jobs},
+            )
     except Exception as e:
         print(f"[STARTUP] Avviso: MongoDB non disponibile: {e}")
+        if is_production():
+            raise
 
 
 @app.on_event("shutdown")

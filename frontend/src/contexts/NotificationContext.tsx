@@ -6,14 +6,17 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   deleteNotification as apiDeleteNotification,
+  getPendingConnectionsCount,
 } from '../api/client';
 import { useAuth } from './AuthContext';
 
 interface NotificationContextType {
   unreadCount: number;
+  pendingConnectionsCount: number;
   notifications: Notification[];
   isLoading: boolean;
   fetchUnreadCount: () => Promise<void>;
+  fetchPendingConnectionsCount: () => Promise<void>;
   fetchNotifications: (limit?: number, skip?: number, unreadOnly?: boolean) => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -38,15 +41,54 @@ interface NotificationProviderProps {
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const { isAuthenticated } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingConnectionsCount, setPendingConnectionsCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Polling periodico per aggiornare il conteggio non lette (ogni 30 secondi)
+  const fetchActivitySnapshotSafe = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      const [unreadResult, pendingResult] = await Promise.allSettled([
+        getUnreadCount(),
+        getPendingConnectionsCount(),
+      ]);
+
+      if (unreadResult.status === 'fulfilled') {
+        setUnreadCount(unreadResult.value.unread_count);
+      } else if (unreadResult.reason instanceof Error && unreadResult.reason.message.includes('401')) {
+        console.warn('[NotificationContext] Sessione scaduta, polling interrotto');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        return;
+      } else if (unreadResult.status === 'rejected') {
+        console.error('[NotificationContext] Errore nel recupero conteggio notifiche:', unreadResult.reason);
+      }
+
+      if (pendingResult.status === 'fulfilled') {
+        setPendingConnectionsCount(pendingResult.value.pending_count);
+      } else if (pendingResult.reason instanceof Error && pendingResult.reason.message.includes('401')) {
+        console.warn('[NotificationContext] Sessione scaduta, polling connessioni interrotto');
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } else if (pendingResult.status === 'rejected') {
+        console.error('[NotificationContext] Errore nel recupero richieste pendenti:', pendingResult.reason);
+      }
+    } catch (error: unknown) {
+      console.error('[NotificationContext] Errore nel recupero snapshot attività:', error);
+    }
+  }, [isAuthenticated]);
+
+  // Polling periodico per aggiornare il conteggio attività (ogni 30 secondi)
   useEffect(() => {
     if (!isAuthenticated) {
-      // Reset se non autenticato
       setUnreadCount(0);
+      setPendingConnectionsCount(0);
       setNotifications([]);
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -55,43 +97,19 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       return;
     }
 
-    // Fetch iniziale
-    fetchUnreadCountSafe();
+    void fetchActivitySnapshotSafe();
 
-    // Avvia polling ogni 30 secondi
     pollingIntervalRef.current = setInterval(() => {
-      fetchUnreadCountSafe();
-    }, 30000); // 30 secondi
+      void fetchActivitySnapshotSafe();
+    }, 30000);
 
-    // Cleanup al dismount o quando isAuthenticated cambia
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
     };
-  }, [isAuthenticated]);
-
-  const fetchUnreadCountSafe = useCallback(async () => {
-    if (!isAuthenticated) return;
-
-    try {
-      const response = await getUnreadCount();
-      setUnreadCount(response.unread_count);
-    } catch (error: unknown) {
-      // Se errore 401, ferma il polling (sessione scaduta)
-      if (error instanceof Error && error.message.includes('401')) {
-        console.warn('[NotificationContext] Sessione scaduta, polling interrotto');
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-      } else {
-        console.error('[NotificationContext] Errore nel recupero conteggio notifiche:', error);
-      }
-      // Non bloccare l'app se fallisce, mantieni il valore precedente
-    }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchActivitySnapshotSafe]);
 
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -105,6 +123,18 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       throw error;
     } finally {
       setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  const fetchPendingConnectionsCount = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    try {
+      const response = await getPendingConnectionsCount();
+      setPendingConnectionsCount(response.pending_count);
+    } catch (error) {
+      console.error('[NotificationContext] Errore nel recupero richieste pendenti:', error);
+      throw error;
     }
   }, [isAuthenticated]);
 
@@ -143,13 +173,13 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         setUnreadCount((prev) => Math.max(0, prev - 1));
         
         // Refresh conteggio per sicurezza
-        await fetchUnreadCountSafe();
+        await fetchActivitySnapshotSafe();
       } catch (error) {
         console.error('[NotificationContext] Errore nel marcare notifica come letta:', error);
         throw error;
       }
     },
-    [isAuthenticated, fetchUnreadCountSafe]
+    [isAuthenticated, fetchActivitySnapshotSafe]
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -157,21 +187,21 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     try {
       setIsLoading(true);
-      const response = await markAllNotificationsRead();
+      await markAllNotificationsRead();
       
       // Aggiorna stato locale
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
       
       // Refresh per sicurezza
-      await fetchUnreadCountSafe();
+      await fetchActivitySnapshotSafe();
     } catch (error) {
       console.error('[NotificationContext] Errore nel marcare tutte le notifiche come lette:', error);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, fetchUnreadCountSafe]);
+  }, [isAuthenticated, fetchActivitySnapshotSafe]);
 
   const deleteNotification = useCallback(
     async (notificationId: string) => {
@@ -190,26 +220,28 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         }
         
         // Refresh conteggio per sicurezza
-        await fetchUnreadCountSafe();
+        await fetchActivitySnapshotSafe();
       } catch (error) {
         console.error('[NotificationContext] Errore nell\'eliminazione notifica:', error);
         throw error;
       }
     },
-    [isAuthenticated, notifications, fetchUnreadCountSafe]
+    [isAuthenticated, notifications, fetchActivitySnapshotSafe]
   );
 
   const refreshNotifications = useCallback(async () => {
     if (!isAuthenticated) return;
     await fetchNotifications();
-    await fetchUnreadCountSafe();
-  }, [isAuthenticated, fetchNotifications, fetchUnreadCountSafe]);
+    await fetchActivitySnapshotSafe();
+  }, [isAuthenticated, fetchNotifications, fetchActivitySnapshotSafe]);
 
   const value: NotificationContextType = {
     unreadCount,
+    pendingConnectionsCount,
     notifications,
     isLoading,
     fetchUnreadCount,
+    fetchPendingConnectionsCount,
     fetchNotifications,
     markAsRead,
     markAllAsRead,

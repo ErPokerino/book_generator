@@ -8,13 +8,20 @@ from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async,
     update_outline_async,
-    update_outline_progress_async,
     update_token_usage_async,
 )
+from app.core.logging import get_logger
 from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_outline
+from app.services.process_job_service import (
+    begin_process_job_async,
+    mark_process_completed_async,
+    mark_process_failed_async,
+    mark_process_running_async,
+)
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
+logger = get_logger("outline-router")
 
 
 @router.post("/generate", response_model=OutlineResponse)
@@ -59,9 +66,14 @@ async def generate_outline_endpoint(
                 detail="La bozza deve essere validata prima di generare la struttura."
             )
         
-        print(f"[DEBUG OUTLINE] Inizio generazione outline per sessione {request.session_id}")
-        print(f"[DEBUG OUTLINE] Draft length: {len(session.current_draft) if session.current_draft else 0}")
-        print(f"[DEBUG OUTLINE] Titolo: {session.current_title}")
+        await mark_process_running_async(
+            session_store,
+            request.session_id,
+            "outline",
+            current_step=0,
+            total_steps=1,
+            progress_percentage=0.0,
+        )
         
         outline_text, token_usage = await generate_outline(
             form_data=session.form_data,
@@ -71,10 +83,7 @@ async def generate_outline_endpoint(
             draft_title=session.current_title,
             api_key=api_key,
         )
-        
-        print(f"[DEBUG OUTLINE] Outline generato, length: {len(outline_text) if outline_text else 0}")
-        print(f"[DEBUG OUTLINE] Preview: {outline_text[:200] if outline_text else 'None'}...")
-        
+
         await update_outline_async(session_store, request.session_id, outline_text)
         
         # Salva token usage per la fase outline
@@ -88,7 +97,21 @@ async def generate_outline_endpoint(
         )
         
         session = await get_session_async(session_store, request.session_id)  # Re-fetch per versione aggiornata
-        print(f"[DEBUG OUTLINE] Outline salvato nella sessione")
+        await mark_process_completed_async(
+            session_store,
+            request.session_id,
+            "outline",
+            current_step=1,
+            total_steps=1,
+            progress_percentage=100.0,
+            result={
+                "success": True,
+                "session_id": request.session_id,
+                "outline_text": outline_text,
+                "version": session.outline_version if session else 1,
+                "message": "Struttura generata con successo",
+            },
+        )
         
         return OutlineResponse(
             success=True,
@@ -101,6 +124,13 @@ async def generate_outline_endpoint(
     except HTTPException:
         raise
     except Exception as e:
+        await mark_process_failed_async(
+            get_session_store(),
+            request.session_id,
+            "outline",
+            f"Errore nella generazione della struttura: {str(e)}",
+            recoverable=True,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Errore nella generazione della struttura: {str(e)}"
@@ -282,17 +312,21 @@ async def start_outline_generation_endpoint(
                 detail="La bozza deve essere validata prima di generare la struttura."
             )
         
-        # Inizializza progresso: pending
-        await update_outline_progress_async(
+        started, job = await begin_process_job_async(
             session_store,
             request.session_id,
-            {
-                "status": "pending",
-                "current_step": 0,
-                "total_steps": 1,
-                "progress_percentage": 0.0,
-            }
+            "outline",
+            total_steps=1,
         )
+        if not started:
+            return ProcessStartResponse(
+                success=True,
+                session_id=request.session_id,
+                message="Generazione della struttura già in corso.",
+                job_id=job.get("job_id"),
+                job_type="outline",
+                already_running=True,
+            )
         
         # Avvia il task in background
         background_tasks.add_task(
@@ -300,21 +334,20 @@ async def start_outline_generation_endpoint(
             session_id=request.session_id,
             api_key=api_key,
         )
-        
-        print(f"[OUTLINE GENERATION] Task di generazione outline avviato per sessione {request.session_id}")
-        
+
         return ProcessStartResponse(
             success=True,
             session_id=request.session_id,
             message="Generazione della struttura avviata. Usa /api/outline/progress/{session_id} per monitorare lo stato.",
+            job_id=job.get("job_id"),
+            job_type="outline",
+            already_running=False,
         )
     
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Errore nell'avvio generazione outline: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore nell'avvio generazione outline", context={"session_id": request.session_id})
         raise HTTPException(
             status_code=500,
             detail=f"Errore nell'avvio della generazione della struttura: {str(e)}"

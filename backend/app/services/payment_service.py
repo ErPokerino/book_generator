@@ -3,9 +3,13 @@
 Questo servizio è un STUB per la modalità gratuita.
 In futuro sarà sostituito con un'integrazione reale (Stripe, PayPal, etc.).
 """
-import sys
 from typing import Optional, Dict, Any
 from datetime import datetime
+
+from app.core.logging import get_logger
+
+
+logger = get_logger("payment-service")
 
 
 class PaymentService:
@@ -30,7 +34,7 @@ class PaymentService:
                 - "paypal": Integrazione PayPal (futuro)
         """
         self.mode = mode
-        print(f"[PaymentService] Inizializzato in modalità: {mode}", file=sys.stderr)
+        logger.info("Payment service inizializzato", context={"mode": mode})
     
     async def create_checkout_session(
         self,
@@ -64,7 +68,10 @@ class PaymentService:
         """
         if self.mode == "free":
             # Modalità gratuita: simula pagamento immediato
-            print(f"[PaymentService] FREE MODE - Checkout simulato per user={user_id}, package={package_id}", file=sys.stderr)
+            logger.info(
+                "Checkout simulato in free mode",
+                context={"user_id": user_id, "package_id": package_id},
+            )
             return {
                 "success": True,
                 "redirect_url": None,
@@ -133,7 +140,10 @@ class PaymentService:
         """
         if self.mode == "free":
             # Modalità gratuita: sempre verificato
-            print(f"[PaymentService] FREE MODE - Pagamento verificato per user={user_id}, package={package_id}", file=sys.stderr)
+            logger.info(
+                "Pagamento verificato in free mode",
+                context={"user_id": user_id, "package_id": package_id},
+            )
             return {
                 "verified": True,
                 "message": "Modalità gratuita - pagamento automaticamente verificato",
@@ -238,7 +248,7 @@ class PaymentService:
             Dict con risultato del rimborso
         """
         if self.mode == "free":
-            print(f"[PaymentService] FREE MODE - Rimborso simulato per payment={payment_id}", file=sys.stderr)
+            logger.info("Rimborso simulato in free mode", context={"payment_id": payment_id})
             return {
                 "success": True,
                 "refund_id": f"refund_{payment_id}",

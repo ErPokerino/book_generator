@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { generateDraft, modifyDraft, validateDraft, generateOutline, updateDraftManually, DraftResponse, DraftModificationRequest, DraftValidationRequest, DraftManualUpdateRequest, OutlineResponse, SubmissionRequest, QuestionAnswer, startOutlineGeneration, getOutlineProgress, ProcessProgress } from '../api/client';
+import { useState, useEffect } from 'react';
+import { startDraftGeneration, getDraftProgress, modifyDraft, validateDraft, updateDraftManually, DraftResponse, DraftModificationRequest, DraftValidationRequest, DraftManualUpdateRequest, OutlineResponse, SubmissionRequest, QuestionAnswer, startOutlineGeneration, getOutlineProgress, ProcessProgress } from '../api/client';
 import { useProcessPolling } from '../hooks/useProcessPolling';
 import DraftViewer from './DraftViewer';
 import DraftChat from './DraftChat';
@@ -19,12 +19,31 @@ interface DraftStepProps {
 export default function DraftStep({ sessionId, formData, questionAnswers, onDraftValidated, onBack, onOutlineGenerationStart, initialDraft }: DraftStepProps) {
   const [draft, setDraft] = useState<DraftResponse | null>(initialDraft || null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [draftProgress, setDraftProgress] = useState<ProcessProgress | null>(null);
   const [isModifying, setIsModifying] = useState(false);
   const [isManualSaving, setIsManualSaving] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [outlineProgress, setOutlineProgress] = useState<ProcessProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Polling per generazione bozza
+  const { progress: draftPollingProgress } = useProcessPolling({
+    sessionId: sessionId,
+    progressEndpoint: getDraftProgress,
+    pollingInterval: 2500,
+    enabled: isGenerating && !!sessionId,
+    onComplete: (progress) => {
+      setIsGenerating(false);
+      if (progress.result && 'draft_text' in progress.result) {
+        setDraft(progress.result as DraftResponse);
+      }
+    },
+    onError: (errorMsg) => {
+      setIsGenerating(false);
+      setError(errorMsg);
+    },
+  });
 
   // Polling per generazione outline
   const { progress: outlinePollingProgress } = useProcessPolling({
@@ -49,6 +68,12 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
 
   // Aggiorna outlineProgress quando cambia il polling
   useEffect(() => {
+    if (draftPollingProgress) {
+      setDraftProgress(draftPollingProgress);
+    }
+  }, [draftPollingProgress]);
+
+  useEffect(() => {
     if (outlinePollingProgress) {
       setOutlineProgress(outlinePollingProgress);
     }
@@ -62,23 +87,24 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
     } else if (!draft && !isGenerating) {
       handleGenerateDraft();
     }
-  }, [initialDraft]);
+  }, [initialDraft, draft, isGenerating]);
 
   const handleGenerateDraft = async () => {
     setIsGenerating(true);
+    setDraftProgress(null);
     setError(null);
     
     try {
-      const response = await generateDraft({
+      await startDraftGeneration({
         form_data: formData,
         question_answers: questionAnswers,
         session_id: sessionId,
       });
-      setDraft(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nella generazione della bozza');
-    } finally {
       setIsGenerating(false);
+    } finally {
+      // Il loading viene chiuso dal polling o dall'errore.
     }
   };
 
@@ -144,28 +170,16 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
       // Dopo la validazione, mostra loading per generazione outline
       setIsValidating(false);
       setIsGeneratingOutline(true);
+      setOutlineProgress(null);
       
-      // Genera automaticamente l'outline dopo la validazione
-      let outline: OutlineResponse | null = null;
       try {
-        console.log('[DEBUG] Inizio generazione outline per sessione:', sessionId);
-        outline = await generateOutline({ session_id: sessionId });
-        console.log('[DEBUG] Outline generato con successo:', outline);
-        console.log('[DEBUG] Outline text length:', outline?.outline_text?.length || 0);
+        await startOutlineGeneration({ session_id: sessionId });
       } catch (outlineErr) {
-        console.error('[ERROR] Errore nella generazione della struttura:', outlineErr);
         if (outlineErr instanceof Error) {
-          console.error('[ERROR] Messaggio:', outlineErr.message);
-          console.error('[ERROR] Stack:', outlineErr.stack);
-          // Mostra il messaggio di errore all'utente, specialmente per timeout
           setError(outlineErr.message);
         }
-        // Non blocchiamo il flusso se l'outline fallisce, ma mostriamo l'errore
-      } finally {
         setIsGeneratingOutline(false);
       }
-      
-      onDraftValidated(draft, outline);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nella validazione della bozza');
       setIsValidating(false);
@@ -177,10 +191,11 @@ export default function DraftStep({ sessionId, formData, questionAnswers, onDraf
     return (
       <div className="draft-step-loading">
         <h2>Generazione Bozza Estesa</h2>
-        <p>Sto generando la bozza estesa della trama...</p>
-        <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-          Questo richiederà circa un minuto
-        </p>
+        <ProcessProgressIndicator
+          progress={draftProgress}
+          processName="bozza"
+          onRetry={handleGenerateDraft}
+        />
       </div>
     );
   }

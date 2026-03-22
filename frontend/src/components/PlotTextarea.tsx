@@ -136,10 +136,14 @@ export default function PlotTextarea({
   useEffect(() => {
     if (isExpanded && expandedTextareaRef.current) {
       setTimeout(() => {
-        expandedTextareaRef.current?.focus();
+        const expandedTextarea = expandedTextareaRef.current;
+        if (!expandedTextarea) {
+          return;
+        }
+        expandedTextarea.focus();
         // Posiziona il cursore alla fine
-        const len = expandedTextareaRef.current.value.length;
-        expandedTextareaRef.current.setSelectionRange(len, len);
+        const len = expandedTextarea.value.length;
+        expandedTextarea.setSelectionRange(len, len);
       }, 100);
     }
   }, [isExpanded]);

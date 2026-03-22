@@ -1,7 +1,7 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, getAppConfig, AppConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionsResponse, QuestionAnswer, SessionRestoreResponse, getUserCredits, MODE_COSTS, ModeType } from '../api/client';
+import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, MODE_COSTS, ModeType } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
@@ -9,9 +9,10 @@ import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
 import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
-import AlertModal from './AlertModal';
 import PlotTextarea from './PlotTextarea';
 import PageTransition from './ui/PageTransition';
+import CreationJourneyPanel from './CreationJourneyPanel';
+import { useUserPoints } from '../hooks/useUserPoints';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -20,11 +21,17 @@ const OutlineEditor = lazy(() => import('./OutlineEditor'));
 const SESSION_STORAGE_KEY = 'current_book_session_id';
 const FORM_DATA_STORAGE_KEY = 'dynamicForm.formData';
 
+function getModeFromModel(modelName?: string | null): ModeType {
+  const normalized = (modelName || '').toLowerCase();
+  if (normalized.includes('ultra')) return 'ultra';
+  if (normalized.includes('pro')) return 'pro';
+  return 'flash';
+}
+
 export default function DynamicForm() {
   const { user } = useAuth();
   const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
-  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -43,8 +50,9 @@ export default function DynamicForm() {
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [userPoints, setUserPoints] = useState<number | null>(null);
-  const [nextPointsReset, setNextPointsReset] = useState<string | null>(null);
+  const [restoreStatus, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
+  const { userPoints, nextPointsReset, refreshUserPoints } = useUserPoints(currentStep);
+  const selectedMode = getModeFromModel(formData.llm_model || formPayload?.llm_model);
 
   useEffect(() => {
     loadConfig();
@@ -72,46 +80,6 @@ export default function DynamicForm() {
       // Ignora errori localStorage
     }
   }, []);
-
-  // Carica crediti utente quando autenticato (al mount e quando user cambia)
-  useEffect(() => {
-    const loadUserCredits = async () => {
-      if (user) {
-        try {
-          console.log('[DynamicForm] Caricamento crediti utente (mount/user change)...');
-          const creditsResponse = await getUserCredits();
-          if (creditsResponse) {
-            setUserPoints(creditsResponse.points);
-            setNextPointsReset(creditsResponse.next_reset_at);
-            console.log('[DynamicForm] Crediti caricati:', creditsResponse.points);
-          }
-        } catch (err) {
-          console.warn('[DynamicForm] Errore nel caricamento crediti:', err);
-        }
-      } else {
-        // Utente non autenticato: resetta i crediti
-        setUserPoints(null);
-        setNextPointsReset(null);
-      }
-    };
-    loadUserCredits();
-  }, [user]);
-
-  // Refresh crediti quando si torna al form (dopo aver completato un libro)
-  useEffect(() => {
-    if (currentStep === 'form' && user) {
-      console.log('[DynamicForm] Refresh crediti (ritorno al form)...');
-      getUserCredits().then(response => {
-        if (response) {
-          setUserPoints(response.points);
-          setNextPointsReset(response.next_reset_at);
-          console.log('[DynamicForm] Crediti refreshati:', response.points);
-        }
-      }).catch(err => {
-        console.warn('[DynamicForm] Errore refresh crediti:', err);
-      });
-    }
-  }, [currentStep, user]);
 
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {
@@ -194,12 +162,14 @@ export default function DynamicForm() {
         
         // Ripristina lo step corrente DOPO aver impostato tutti gli stati
         setCurrentStep(restoreData.current_step);
+        setRestoreStatus('restored');
         
         console.log('[DynamicForm] Sessione ripristinata con successo, step:', restoreData.current_step);
       } catch (err) {
         console.error('[DynamicForm] Errore nel ripristino sessione:', err);
         // Se la sessione non esiste o c'è un errore, rimuovi da localStorage
         localStorage.removeItem(SESSION_STORAGE_KEY);
+        setRestoreStatus('failed');
         // Mostra form vuoto
       }
     };
@@ -255,16 +225,12 @@ export default function DynamicForm() {
         setTimeout(() => reject(new Error('Timeout: impossibile caricare la configurazione. Verifica che il backend sia in esecuzione.')), 30000)
       );
       
-      const [data, appCfg] = await Promise.all([
-        Promise.race([
-          fetchConfig(),
-          timeoutPromise,
-        ]),
-        getAppConfig().catch(() => null),
+      const data = await Promise.race([
+        fetchConfig(),
+        timeoutPromise,
       ]);
       
       setConfig(data);
-      setAppConfig(appCfg);
       
       // Inizializza formData con valori vuoti (solo se non c'è già formData salvato)
       const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
@@ -316,6 +282,7 @@ export default function DynamicForm() {
     setAnswersSubmitted(false);
     setQuestionAnswers([]);
     setCurrentStep('form');
+    setRestoreStatus('idle');
     setValidatedDraft(null);
     setOutline(null);
     setIsStartingWriting(false);
@@ -460,11 +427,7 @@ export default function DynamicForm() {
             duration: 6000,
           });
           // Ricarica i crediti per aggiornare la UI
-          const creditsResponse = await getUserCredits();
-          if (creditsResponse) {
-            setUserCredits(creditsResponse.credits);
-            setNextCreditsReset(creditsResponse.next_reset_at);
-          }
+          await refreshUserPoints();
           return;
         }
         
@@ -478,10 +441,7 @@ export default function DynamicForm() {
         
         // Ricarica i crediti per aggiornare la UI dopo il consumo
         if (user) {
-          const creditsResponse = await getUserCredits();
-          if (creditsResponse) {
-            setUserCredits(creditsResponse.credits);
-          }
+          await refreshUserPoints();
         }
       } catch (err) {
         console.error('[DynamicForm] Errore nella generazione domande:', err);
@@ -531,7 +491,6 @@ export default function DynamicForm() {
       // Prova a recuperare l'outline se non è stato passato
       if (sessionId) {
         try {
-          const { getOutline } = await import('../api/client');
           const retrievedOutline = await getOutline(sessionId);
           if (retrievedOutline && retrievedOutline.outline_text) {
             setOutline(retrievedOutline.outline_text);
@@ -996,27 +955,6 @@ export default function DynamicForm() {
       isEditingOutline,
     });
 
-    // Crea una mappa per i label dei campi
-    const fieldLabelMap: Record<string, string> = {};
-    if (config) {
-      config.fields.forEach(field => {
-        fieldLabelMap[field.id] = field.label;
-      });
-    }
-
-    // Helper per ottenere il label di un campo
-    const getFieldLabel = (fieldId: string): string => {
-      return fieldLabelMap[fieldId] || fieldId;
-    };
-
-    // Helper per formattare il valore
-    const formatValue = (value: any): string => {
-      if (value === null || value === undefined || value === '') {
-        return '—';
-      }
-      return String(value);
-    };
-
     return (
       <div className="dynamic-form-layout">
         <div className="step-indicator-wrapper">
@@ -1149,11 +1087,7 @@ export default function DynamicForm() {
                 // Ricarica i crediti per aggiornare la UI dopo il consumo
                 if (user) {
                   try {
-                    const creditsResponse = await getUserCredits();
-                    if (creditsResponse) {
-                      setUserCredits(creditsResponse.credits);
-                      setNextCreditsReset(creditsResponse.next_reset_at);
-                    }
+                    await refreshUserPoints();
                   } catch (creditsErr) {
                     console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
                   }
@@ -1171,11 +1105,7 @@ export default function DynamicForm() {
                   // Ricarica i crediti per aggiornare la UI
                   if (user) {
                     try {
-                      const creditsResponse = await getUserCredits();
-                      if (creditsResponse) {
-                        setUserCredits(creditsResponse.credits);
-                        setNextCreditsReset(creditsResponse.next_reset_at);
-                      }
+                      await refreshUserPoints();
                     } catch (creditsErr) {
                       console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
                     }
@@ -1256,6 +1186,14 @@ export default function DynamicForm() {
           <div className="dynamic-form-container">
             <h1>NarrAI</h1>
             <p className="subtitle">La tua storia, generata con l'AI</p>
+            <CreationJourneyPanel
+              currentStep={currentStep}
+              selectedMode={selectedMode}
+              sessionId={sessionId}
+              restoreStatus={restoreStatus}
+              userPoints={userPoints}
+              nextPointsReset={nextPointsReset}
+            />
           
           {loading ? (
             <div className="form-loading-skeleton" role="status" aria-label="Caricamento configurazione">

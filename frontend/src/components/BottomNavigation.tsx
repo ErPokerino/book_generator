@@ -1,52 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield, Wallet } from 'lucide-react';
+import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield, Wallet, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
-import { getPendingConnectionsCount } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import './BottomNavigation.css';
 
 export default function BottomNavigation() {
   const { user, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, pendingConnectionsCount } = useNotifications();
   const navigate = useNavigate();
-  const [pendingConnectionsCount, setPendingConnectionsCount] = useState(0);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
-
-  // Carica conteggio richieste pendenti
-  useEffect(() => {
-    if (!user) {
-      setPendingConnectionsCount(0);
-      return;
-    }
-
-    let isSessionValid = true;
-
-    const loadPendingCount = async () => {
-      if (!isSessionValid) return; // Non fare polling se sessione non valida
-      
-      try {
-        const response = await getPendingConnectionsCount();
-        setPendingConnectionsCount(response.pending_count);
-      } catch (error: unknown) {
-        // Se errore 401, smetti di fare polling (sessione scaduta)
-        if (error instanceof Error && error.message.includes('401')) {
-          isSessionValid = false;
-          console.warn('[BottomNavigation] Sessione scaduta, polling interrotto');
-        } else {
-          console.error('Errore nel recupero conteggio richieste pendenti:', error);
-        }
-      }
-    };
-
-    loadPendingCount();
-    const interval = setInterval(loadPendingCount, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
 
   // Chiudi menu profilo se si clicca fuori
   useEffect(() => {
@@ -92,8 +59,7 @@ export default function BottomNavigation() {
 
   const handleNavigateToNotifications = () => {
     setIsProfileMenuOpen(false);
-    // Naviga a una pagina notifiche o mostra dropdown notifiche
-    // Per ora, chiudiamo solo il menu
+    navigate('/notifications');
   };
 
   const handleNavigateToAnalytics = () => {
@@ -180,6 +146,17 @@ export default function BottomNavigation() {
                 )}
               </div>
               <div className="profile-menu-divider" />
+              <button
+                type="button"
+                onClick={handleNavigateToNotifications}
+                className="profile-menu-item"
+              >
+                <Bell size={18} />
+                <span>Notifiche</span>
+                {unreadCount > 0 && (
+                  <span className="profile-menu-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={handleNavigateToWallet}

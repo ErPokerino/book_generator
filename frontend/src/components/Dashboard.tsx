@@ -182,8 +182,8 @@ export default function Dashboard({ stats }: DashboardProps) {
                   tickFormatter={(value) => formatTimeShort(value)}
                 />
                 <Tooltip
-                  formatter={(value: number) => [
-                    formatTimeShort(value),
+                  formatter={(value: number | string | undefined) => [
+                    formatTimeShort(typeof value === 'number' ? value : Number(value ?? 0)),
                     chartView === 'book' ? 'Tempo medio libro' : 'Tempo medio per pagina'
                   ]}
                   contentStyle={{
@@ -260,8 +260,8 @@ export default function Dashboard({ stats }: DashboardProps) {
                   tickFormatter={(value) => `€${value.toFixed(2)}`}
                 />
                 <Tooltip
-                  formatter={(value: number) => [
-                    `€${value.toFixed(4)}`,
+                  formatter={(value: number | string | undefined) => [
+                    `€${(typeof value === 'number' ? value : Number(value ?? 0)).toFixed(4)}`,
                     costChartView === 'total' ? 'Costo medio libro' : 'Costo medio per pagina'
                   ]}
                   contentStyle={{
@@ -309,7 +309,10 @@ export default function Dashboard({ stats }: DashboardProps) {
                   domain={[0, 'dataMax + 10']}
                 />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(1)} pagine`, 'Pagine medie']}
+                  formatter={(value: number | string | undefined) => [
+                    `${(typeof value === 'number' ? value : Number(value ?? 0)).toFixed(1)} pagine`,
+                    'Pagine medie',
+                  ]}
                   contentStyle={{
                     backgroundColor: 'var(--surface)',
                     border: '1px solid var(--border-light)',

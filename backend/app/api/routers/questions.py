@@ -16,11 +16,11 @@ from app.agent.session_store_helpers import (
     create_session_async,
     save_generated_questions_async,
     get_session_async,
-    update_questions_progress_async,
     update_token_usage_async,
 )
 from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_questions
+from app.services.process_job_service import begin_process_job_async
 
 router = APIRouter(prefix="/api/questions", tags=["questions"])
 
@@ -184,17 +184,21 @@ async def start_questions_generation_endpoint(
             user_id=user_id,
         )
         
-        # Inizializza progresso: pending
-        await update_questions_progress_async(
+        started, job = await begin_process_job_async(
             session_store,
             session_id,
-            {
-                "status": "pending",
-                "current_step": 0,
-                "total_steps": 1,
-                "progress_percentage": 0.0,
-            }
+            "questions",
+            total_steps=1,
         )
+        if not started:
+            return ProcessStartResponse(
+                success=True,
+                session_id=session_id,
+                message="Generazione delle domande già in corso.",
+                job_id=job.get("job_id"),
+                job_type="questions",
+                already_running=True,
+            )
         
         # Avvia il task in background
         background_tasks.add_task(
@@ -210,6 +214,9 @@ async def start_questions_generation_endpoint(
             success=True,
             session_id=session_id,
             message="Generazione delle domande avviata. Usa /api/questions/progress/{session_id} per monitorare lo stato.",
+            job_id=job.get("job_id"),
+            job_type="questions",
+            already_running=False,
         )
     
     except HTTPException:

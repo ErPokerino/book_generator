@@ -54,10 +54,14 @@ export default function ProcessProgressIndicator({
           return `${processName} in corso... ${current_step}/${total_steps}`;
         }
         return `${processName} in corso...`;
+      case 'paused':
+        return `${processName} in pausa`;
       case 'completed':
         return `${processName} completato!`;
       case 'failed':
         return `Errore durante ${processName}`;
+      case 'cancelled':
+        return `${processName} annullato`;
       default:
         return `${processName}...`;
     }
@@ -70,6 +74,8 @@ export default function ProcessProgressIndicator({
           {status === 'running' && <Loader2 className="process-progress-icon spinning" size={20} />}
           {status === 'completed' && <CheckCircle className="process-progress-icon success" size={20} />}
           {status === 'failed' && <XCircle className="process-progress-icon error" size={20} />}
+          {status === 'paused' && <AlertCircle className="process-progress-icon error" size={20} />}
+          {status === 'cancelled' && <XCircle className="process-progress-icon error" size={20} />}
           {status === 'pending' && <Loader2 className="process-progress-icon" size={20} />}
           <span className="process-progress-text">{getStatusText()}</span>
         </div>
@@ -88,13 +94,13 @@ export default function ProcessProgressIndicator({
         )}
       </div>
 
-      {(status === 'running' || status === 'pending') && (
+      {(status === 'running' || status === 'pending' || status === 'paused') && (
         <div className="process-progress-bar-wrapper">
           <ProgressBar percentage={percentage} />
         </div>
       )}
 
-      {status === 'failed' && error && (
+      {(status === 'failed' || status === 'paused') && error && (
         <div className="process-progress-error">
           <AlertCircle size={16} />
           <span>{error}</span>
@@ -107,6 +113,13 @@ export default function ProcessProgressIndicator({
               Riprova
             </button>
           )}
+        </div>
+      )}
+
+      {status === 'cancelled' && (
+        <div className="process-progress-error">
+          <AlertCircle size={16} />
+          <span>{error || 'Processo annullato'}</span>
         </div>
       )}
 

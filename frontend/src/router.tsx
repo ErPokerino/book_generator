@@ -1,34 +1,58 @@
+import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import RequireAuth from './components/routing/RequireAuth';
 import RequireAdmin from './components/routing/RequireAdmin';
-import DynamicForm from './components/DynamicForm';
-import LibraryView from './components/LibraryView';
-import BookReader from './components/BookReader';
-import BenchmarkView from './components/BenchmarkView';
-import AnalyticsView from './components/AnalyticsView';
-import ConnectionsView from './components/ConnectionsView';
-import LoginPage from './components/LoginPage';
-import RegisterPage from './components/RegisterPage';
-import ForgotPasswordPage from './components/ForgotPasswordPage';
-import ResetPasswordPage from './components/ResetPasswordPage';
-import VerifyEmailPage from './components/VerifyEmailPage';
-import OnboardingCarousel from './components/Onboarding/OnboardingCarousel';
 import Navigation from './components/Navigation';
 import BottomNavigation from './components/BottomNavigation';
 import Footer from './components/Footer';
-import PrivacySettings from './components/PrivacySettings';
-import WalletPage from './components/wallet/WalletPage';
-import PrivacyPolicy from './components/legal/PrivacyPolicy';
-import CookiePolicy from './components/legal/CookiePolicy';
-import TermsOfService from './components/legal/TermsOfService';
 import { useAuth } from './contexts/AuthContext';
 import { useOnboarding } from './hooks/useOnboarding';
+
+const DynamicForm = lazy(() => import('./components/DynamicForm'));
+const LibraryView = lazy(() => import('./components/LibraryView'));
+const BookReader = lazy(() => import('./components/BookReader'));
+const BenchmarkView = lazy(() => import('./components/BenchmarkView'));
+const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
+const ConnectionsView = lazy(() => import('./components/ConnectionsView'));
+const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
+const LoginPage = lazy(() => import('./components/LoginPage'));
+const RegisterPage = lazy(() => import('./components/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('./components/VerifyEmailPage'));
+const OnboardingCarousel = lazy(() => import('./components/Onboarding/OnboardingCarousel'));
+const PrivacySettings = lazy(() => import('./components/PrivacySettings'));
+const WalletPage = lazy(() => import('./components/wallet/WalletPage'));
+const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
+const CookiePolicy = lazy(() => import('./components/legal/CookiePolicy'));
+const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
+
+function RouteFallback() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '40vh',
+        fontSize: '1rem',
+        color: 'var(--text-secondary)',
+      }}
+    >
+      Caricamento...
+    </div>
+  );
+}
+
+function LazyPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+}
 
 /**
  * Layout per route protette (con Navigation e gestione onboarding)
  */
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
+function ProtectedLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const { hasSeenCarousel, completeCarousel } = useOnboarding();
 
@@ -36,10 +60,12 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
   if (isAuthenticated && !hasSeenCarousel) {
     return (
       <ErrorBoundary>
-        <OnboardingCarousel 
-          onComplete={completeCarousel}
-          onSkip={completeCarousel}
-        />
+        <LazyPage>
+          <OnboardingCarousel 
+            onComplete={completeCarousel}
+            onSkip={completeCarousel}
+          />
+        </LazyPage>
       </ErrorBoundary>
     );
   }
@@ -74,7 +100,9 @@ export const router = createBrowserRouter([
     path: '/login',
     element: (
       <ErrorBoundary>
-        <LoginPage />
+        <LazyPage>
+          <LoginPage />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -82,7 +110,9 @@ export const router = createBrowserRouter([
     path: '/register',
     element: (
       <ErrorBoundary>
-        <RegisterPage />
+        <LazyPage>
+          <RegisterPage />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -90,7 +120,9 @@ export const router = createBrowserRouter([
     path: '/forgot-password',
     element: (
       <ErrorBoundary>
-        <ForgotPasswordPage />
+        <LazyPage>
+          <ForgotPasswordPage />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -98,7 +130,9 @@ export const router = createBrowserRouter([
     path: '/reset-password',
     element: (
       <ErrorBoundary>
-        <ResetPasswordPage />
+        <LazyPage>
+          <ResetPasswordPage />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -106,7 +140,9 @@ export const router = createBrowserRouter([
     path: '/verify',
     element: (
       <ErrorBoundary>
-        <VerifyEmailPage />
+        <LazyPage>
+          <VerifyEmailPage />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -115,7 +151,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <DynamicForm />
+          <LazyPage>
+            <DynamicForm />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -125,7 +163,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <LibraryView />
+          <LazyPage>
+            <LibraryView />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -135,7 +175,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ErrorBoundary>
-          <BookReader />
+          <LazyPage>
+            <BookReader />
+          </LazyPage>
         </ErrorBoundary>
       </RequireAuth>
     ),
@@ -145,7 +187,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <BenchmarkView />
+          <LazyPage>
+            <BenchmarkView />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -155,9 +199,23 @@ export const router = createBrowserRouter([
     element: (
       <RequireAdmin>
         <ProtectedLayout>
-          <AnalyticsView />
+          <LazyPage>
+            <AnalyticsView />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAdmin>
+    ),
+  },
+  {
+    path: '/notifications',
+    element: (
+      <RequireAuth>
+        <ProtectedLayout>
+          <LazyPage>
+            <NotificationsPage />
+          </LazyPage>
+        </ProtectedLayout>
+      </RequireAuth>
     ),
   },
   {
@@ -165,7 +223,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <ConnectionsView />
+          <LazyPage>
+            <ConnectionsView />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -176,7 +236,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <WalletPage />
+          <LazyPage>
+            <WalletPage />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -187,7 +249,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <ProtectedLayout>
-          <PrivacySettings />
+          <LazyPage>
+            <PrivacySettings />
+          </LazyPage>
         </ProtectedLayout>
       </RequireAuth>
     ),
@@ -197,7 +261,9 @@ export const router = createBrowserRouter([
     path: '/privacy',
     element: (
       <ErrorBoundary>
-        <PrivacyPolicy />
+        <LazyPage>
+          <PrivacyPolicy />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -205,7 +271,9 @@ export const router = createBrowserRouter([
     path: '/cookies',
     element: (
       <ErrorBoundary>
-        <CookiePolicy />
+        <LazyPage>
+          <CookiePolicy />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },
@@ -213,7 +281,9 @@ export const router = createBrowserRouter([
     path: '/terms',
     element: (
       <ErrorBoundary>
-        <TermsOfService />
+        <LazyPage>
+          <TermsOfService />
+        </LazyPage>
       </ErrorBoundary>
     ),
   },

@@ -393,7 +393,7 @@ export default function LibraryView() {
                       >
                         <BookCard
                           book={book}
-                          onDelete={undefined}
+                          onDelete={() => {}}
                           onContinue={undefined}
                           onResume={undefined}
                           onRead={book.status === 'complete' ? handleReadBook : undefined}

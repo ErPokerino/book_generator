@@ -128,7 +128,7 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
     }
   };
 
-  const getFormatLabel = (format: 'pdf' | 'epub' | 'docx') => {
+  const getFormatLabel = (format: string) => {
     switch (format) {
       case 'pdf':
         return 'PDF';
@@ -136,9 +136,8 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
         return 'EPUB';
       case 'docx':
         return 'DOCX';
-      default:
-        return format.toUpperCase();
     }
+    return format.toUpperCase();
   };
 
   // Render del menu tramite Portal (fuori dal DOM della card)

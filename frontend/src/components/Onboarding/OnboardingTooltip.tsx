@@ -31,7 +31,7 @@ export const OnboardingTooltip: React.FC<OnboardingTooltipProps> = ({
   const [actualPosition, setActualPosition] = useState(initialPosition)
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
   const [arrowStyle, setArrowStyle] = useState<React.CSSProperties>({})
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
 
@@ -64,9 +64,6 @@ export const OnboardingTooltip: React.FC<OnboardingTooltipProps> = ({
       if (!wrapper) return
 
       const wrapperRect = wrapper.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-
       // Stima dell'altezza del tooltip (circa 150-200px con contenuto)
       const estimatedTooltipHeight = 180
       const minSpace = estimatedTooltipHeight + 30 // Spazio minimo richiesto

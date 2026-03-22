@@ -39,6 +39,7 @@ from app.services.book_generation_service import (
     background_resume_book_generation,
 )
 from app.core.config import get_app_config
+from app.services.process_job_service import begin_process_job_async
 from app.services.stats_service import llm_model_to_mode
 
 # Helper functions (temporarily defined here, will be moved to utils later)
@@ -498,6 +499,23 @@ async def generate_book_endpoint(
                     detail="Nessuna sezione trovata nella struttura. Verifica che la struttura sia in formato Markdown corretto."
                 )
             
+            started, job = await begin_process_job_async(
+                session_store,
+                request.session_id,
+                "book",
+                total_steps=total_sections,
+                current_section_name=sections[0]['title'] if sections else None,
+            )
+            if not started:
+                return BookGenerationResponse(
+                    success=True,
+                    session_id=request.session_id,
+                    message="Generazione del libro già in corso. Usa /api/book/progress per monitorare lo stato.",
+                    job_id=job.get("job_id"),
+                    job_type="book",
+                    already_running=True,
+                )
+
             # Inizializza il progresso PRIMA di avviare il task
             await update_writing_progress_async(
                 session_store,
@@ -541,6 +559,9 @@ async def generate_book_endpoint(
             success=True,
             session_id=request.session_id,
             message="Generazione del libro avviata. Usa /api/book/progress per monitorare lo stato.",
+            job_id=job.get("job_id"),
+            job_type="book",
+            already_running=False,
         )
     
     except HTTPException:
@@ -595,9 +616,37 @@ async def resume_book_generation_endpoint(
             )
         
         if not session.writing_progress.get('is_paused', False):
+            current_status = session.writing_progress.get("status")
+            if current_status in {"pending", "running"}:
+                return BookGenerationResponse(
+                    success=True,
+                    session_id=session_id,
+                    message="Ripresa già in corso. Usa /api/book/progress per monitorare lo stato.",
+                    job_id=session.writing_progress.get("job_id"),
+                    job_type="book",
+                    already_running=True,
+                )
             raise HTTPException(
                 status_code=400,
                 detail="La sessione non è in stato di pausa. Non è possibile riprendere."
+            )
+
+        started, job = await begin_process_job_async(
+            session_store,
+            session_id,
+            "book",
+            total_steps=session.writing_progress.get("total_steps", 1),
+            current_step=session.writing_progress.get("current_step", 0),
+            current_section_name=session.writing_progress.get("current_section_name"),
+        )
+        if not started:
+            return BookGenerationResponse(
+                success=True,
+                session_id=session_id,
+                message="Ripresa già in corso. Usa /api/book/progress per monitorare lo stato.",
+                job_id=job.get("job_id"),
+                job_type="book",
+                already_running=True,
             )
         
         # Avvia la ripresa in background con callback per PDF
@@ -614,6 +663,9 @@ async def resume_book_generation_endpoint(
             success=True,
             session_id=session_id,
             message="Ripresa della generazione avviata. Usa /api/book/progress per monitorare lo stato.",
+            job_id=job.get("job_id"),
+            job_type="book",
+            already_running=False,
         )
     
     except HTTPException:
@@ -798,6 +850,16 @@ async def get_book_progress_endpoint(
         
         return BookProgress(
             session_id=session_id,
+            status=progress.get('status'),
+            job_id=progress.get('job_id'),
+            job_type=progress.get('job_type'),
+            recoverable=progress.get('recoverable', False),
+            attempt=progress.get('attempt'),
+            updated_at=progress.get('updated_at'),
+            queued_at=progress.get('queued_at'),
+            started_at=progress.get('started_at'),
+            completed_at=progress.get('completed_at'),
+            job_metrics=progress.get('job_metrics'),
             current_step=progress.get('current_step', 0),
             total_steps=final_total_steps,
             current_section_name=progress.get('current_section_name'),

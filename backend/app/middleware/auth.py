@@ -1,20 +1,22 @@
 """Middleware per autenticazione e autorizzazione."""
-import os
-import sys
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status, Request, Cookie
 from fastapi.security import HTTPBearer
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from app.agent.user_store import get_user_store, UserStore
+from app.core.environment import get_mongodb_uri, get_session_secret
+from app.core.logging import get_logger
 from app.models import User
 
 # Serializer per session token
-SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production-secret-key")
+import os
+SESSION_SECRET = get_session_secret()
 SESSION_EXPIRE_DAYS = int(os.getenv("SESSION_EXPIRE_DAYS", "7"))
 
 serializer = URLSafeTimedSerializer(SESSION_SECRET)
 security = HTTPBearer(auto_error=False)
+logger = get_logger("auth-middleware")
 
 # MongoDB collection per sessioni auth
 _auth_sessions_collection = None
@@ -25,14 +27,14 @@ async def get_auth_sessions_collection():
     global _auth_sessions_collection
     if _auth_sessions_collection is None:
         from motor.motor_asyncio import AsyncIOMotorClient
-        mongo_uri = os.getenv("MONGODB_URI", "mongodb://admin:admin123@localhost:27017/narrai?authSource=admin")
+        mongo_uri = get_mongodb_uri()
         try:
             client = AsyncIOMotorClient(mongo_uri)
             db = client.get_database("narrai")
             _auth_sessions_collection = db["sessions_auth"]
-            print(f"[AUTH] Collection sessioni auth inizializzata con MongoDB: {mongo_uri.split('@')[-1] if '@' in mongo_uri else mongo_uri}", file=sys.stderr)
+            logger.info("Collection sessioni auth inizializzata", context={"database": "narrai"})
         except Exception as e:
-            print(f"[AUTH] ERRORE nella connessione MongoDB per sessioni auth: {e}", file=sys.stderr)
+            logger.exception("Errore nella connessione MongoDB per sessioni auth")
             raise
     return _auth_sessions_collection
 

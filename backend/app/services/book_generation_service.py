@@ -18,8 +18,19 @@ from app.agent.session_store_helpers import (
     update_token_usage_async,
     set_real_cost_async,
 )
+from app.core.logging import get_logger
 from app.services.storage_service import get_storage_service
 from app.services.cost_service import calculate_real_generation_cost
+from app.services.process_job_service import (
+    mark_process_completed_async,
+    mark_process_failed_async,
+    mark_process_paused_async,
+    mark_process_running_async,
+    refresh_process_metrics_async,
+)
+
+
+logger = get_logger("book-generation-service")
 
 
 async def background_book_generation(
@@ -47,12 +58,12 @@ async def background_book_generation(
     """
     session_store = get_session_store()
     try:
-        print(f"[BOOK GENERATION] Avvio generazione libro per sessione {session_id}")
+        logger.info("Avvio generazione libro", context={"session_id": session_id})
         
         # Verifica che il progresso sia stato inizializzato
         session = await get_session_async(session_store, session_id)
         if not session or not session.writing_progress:
-            print(f"[BOOK GENERATION] WARNING: Progresso non inizializzato per sessione {session_id}, inizializzo ora...")
+            logger.warning("Progresso scrittura non inizializzato, applico fallback", context={"session_id": session_id})
             # Fallback: inizializza il progresso se non è stato fatto
             sections = parse_outline_sections(outline_text)
             await update_writing_progress_async(
@@ -64,11 +75,19 @@ async def background_book_generation(
                 is_complete=False,
                 is_paused=False,
             )
+
+        await mark_process_running_async(
+            session_store,
+            session_id,
+            "book",
+            recoverable=False,
+            error=None,
+        )
         
         # Registra timestamp inizio scrittura capitoli
         start_time = datetime.now()
         await update_writing_times_async(session_store, session_id, start_time=start_time)
-        print(f"[BOOK GENERATION] Timestamp inizio scrittura: {start_time.isoformat()}")
+        logger.info("Timestamp inizio scrittura registrato", context={"session_id": session_id, "started_at": start_time.isoformat()})
         
         await generate_full_book(
             session_id=session_id,
@@ -83,17 +102,30 @@ async def background_book_generation(
         # Verifica se la generazione è stata messa in pausa
         session = await get_session_async(session_store, session_id)
         if session and session.writing_progress and session.writing_progress.get('is_paused', False):
-            print(f"[BOOK GENERATION] Generazione messa in pausa per sessione {session_id}")
+            logger.warning("Generazione libro messa in pausa", context={"session_id": session_id})
+            await mark_process_paused_async(
+                session_store,
+                session_id,
+                "book",
+                session.writing_progress.get("error") or "Generazione temporaneamente in pausa.",
+            )
             # Non continuare con copertina e critica se è in pausa
             return
         
-        print(f"[BOOK GENERATION] Generazione completata per sessione {session_id}")
+        logger.info("Generazione capitoli completata", context={"session_id": session_id})
         
         # Registra timestamp fine scrittura capitoli e calcola tempo
         end_time = datetime.now()
         await update_writing_times_async(session_store, session_id, end_time=end_time)
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
-        print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
+        logger.info(
+            "Timestamp fine scrittura registrato",
+            context={
+                "session_id": session_id,
+                "completed_at": end_time.isoformat(),
+                "writing_time_minutes": round(writing_time_minutes, 2),
+            },
+        )
         
         # Invia notifica di completamento libro (subito dopo la scrittura)
         try:
@@ -115,9 +147,12 @@ async def background_book_generation(
                         "book_title": book_title,
                     }
                 )
-                print(f"[BOOK GENERATION] Notifica di completamento inviata a utente {session.user_id}")
+                logger.info("Notifica completamento inviata", context={"session_id": session_id, "user_id": session.user_id})
         except Exception as notif_err:
-            print(f"[BOOK GENERATION] WARNING: Errore nell'invio notifica: {notif_err}")
+            logger.warning(
+                "Errore non bloccante nell'invio notifica completamento",
+                context={"session_id": session_id, "error": str(notif_err)},
+            )
         
         # Aggiorna writing_progress con il tempo calcolato
         session = await get_session_async(session_store, session_id)
@@ -140,21 +175,17 @@ async def background_book_generation(
             # FileSessionStore salverà automaticamente al prossimo update o possiamo forzare il salvataggio
             if hasattr(session_store, '_save_sessions'):
                 session_store._save_sessions()
-        
-        # Calcola e salva il costo reale basato sui token effettivi
-        try:
-            session = await get_session_async(session_store, session_id)
-            if session:
-                real_cost = calculate_real_generation_cost(session)
-                if real_cost is not None:
-                    await set_real_cost_async(session_store, session_id, real_cost)
-                    print(f"[BOOK GENERATION] Costo reale calcolato e salvato: €{real_cost:.6f}")
-        except Exception as cost_err:
-            print(f"[BOOK GENERATION] WARNING: Errore nel calcolo costo reale: {cost_err}")
+
+        await mark_process_completed_async(
+            session_store,
+            session_id,
+            "book",
+            recoverable=False,
+        )
         
         # Genera la copertina dopo che il libro è stato completato
         try:
-            print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
+            logger.info("Avvio generazione copertina", context={"session_id": session_id})
             session = await get_session_async(session_store, session_id)
             if session:
                 cover_path = await generate_book_cover(
@@ -179,20 +210,21 @@ async def background_book_generation(
                         user_id=user_id,
                     )
                     await update_cover_image_path_async(session_store, session_id, gcs_path)
-                    print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
+                    logger.info("Copertina caricata su storage", context={"session_id": session_id, "cover_path": gcs_path})
                 except Exception as e:
-                    print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+                    logger.warning(
+                        "Caricamento copertina su storage fallito, uso file locale",
+                        context={"session_id": session_id, "error": str(e)},
+                    )
                     await update_cover_image_path_async(session_store, session_id, cover_path)
-                    print(f"[BOOK GENERATION] Copertina generata e salvata: {cover_path}")
+                    logger.info("Copertina salvata localmente", context={"session_id": session_id, "cover_path": cover_path})
         except Exception as e:
-            print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Errore non bloccante nella generazione copertina", context={"session_id": session_id})
             # Non blocchiamo il processo se la copertina fallisce
         
         # Genera la valutazione critica dopo che il libro è stato completato
         try:
-            print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
+            logger.info("Avvio valutazione critica", context={"session_id": session_id})
             session = await get_session_async(session_store, session_id)
             if session and session.book_chapters and len(session.book_chapters) > 0:
                 # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
@@ -235,22 +267,42 @@ async def background_book_generation(
                     model=token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
                 
-                print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
+                logger.info(
+                    "Valutazione critica completata",
+                    context={"session_id": session_id, "score": critique.get("score", 0)},
+                )
         except Exception as e:
-            print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Errore non bloccante nella valutazione critica", context={"session_id": session_id})
             # Niente placeholder: settiamo status failed e salviamo errore per UI (stop polling + retry).
             try:
                 await update_critique_status_async(session_store, session_id, "failed", error=str(e))
             except Exception as _e:
-                print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
+                logger.warning(
+                    "Impossibile salvare critique_status failed",
+                    context={"session_id": session_id, "error": str(_e)},
+                )
+
+        # Calcola il costo reale a fine pipeline per includere anche la critica.
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session:
+                real_cost = calculate_real_generation_cost(session)
+                if real_cost is not None:
+                    await set_real_cost_async(session_store, session_id, real_cost)
+                    await refresh_process_metrics_async(session_store, session_id, "book")
+                    logger.info(
+                        "Costo reale calcolato e metriche job aggiornate",
+                        context={"session_id": session_id, "real_cost_eur": round(real_cost, 6)},
+                    )
+        except Exception as cost_err:
+            logger.warning(
+                "Errore non bloccante nel calcolo costo reale",
+                context={"session_id": session_id, "error": str(cost_err)},
+            )
     except ValueError as e:
         # Errore di validazione (es. outline non valido)
         error_msg = f"Errore di validazione: {str(e)}"
-        print(f"[BOOK GENERATION] ERRORE (ValueError): {error_msg}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore di validazione nella generazione libro", context={"session_id": session_id})
         # Salva l'errore nel progresso mantenendo il total_steps se già impostato
         session = await get_session_async(session_store, session_id)
         existing_total = 0
@@ -267,11 +319,10 @@ async def background_book_generation(
             is_paused=False,
             error=error_msg,
         )
+        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
     except Exception as e:
         error_msg = f"Errore nella generazione: {str(e)}"
-        print(f"[BOOK GENERATION] ERRORE (Exception): {error_msg}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore inatteso nella generazione libro", context={"session_id": session_id})
         # Salva l'errore nel progresso mantenendo il total_steps se già impostato
         session = await get_session_async(session_store, session_id)
         existing_total = 0
@@ -288,6 +339,7 @@ async def background_book_generation(
             is_paused=False,
             error=error_msg,
         )
+        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
 
 
 async def background_resume_book_generation(
@@ -305,7 +357,7 @@ async def background_resume_book_generation(
     """
     session_store = get_session_store()
     try:
-        print(f"[BOOK GENERATION] Ripresa generazione libro per sessione {session_id}")
+        logger.info("Avvio ripresa generazione libro", context={"session_id": session_id})
         
         # Recupera la sessione per verificare lo stato
         session = await get_session_async(session_store, session_id)
@@ -318,6 +370,14 @@ async def background_resume_book_generation(
         progress = session.writing_progress
         if not progress.get("is_paused", False):
             raise ValueError(f"Sessione {session_id} non è in stato di pausa")
+
+        await mark_process_running_async(
+            session_store,
+            session_id,
+            "book",
+            recoverable=False,
+            error=None,
+        )
         
         # Recupera il timestamp di inizio se esiste, altrimenti usa quello corrente
         start_time = session.writing_start_time or datetime.now()
@@ -332,16 +392,29 @@ async def background_resume_book_generation(
         # Verifica se la generazione è stata completata o rimessa in pausa
         session = await get_session_async(session_store, session_id)
         if session and session.writing_progress and session.writing_progress.get('is_paused', False):
-            print(f"[BOOK GENERATION] Generazione rimessa in pausa per sessione {session_id}")
+            logger.warning("Generazione libro nuovamente in pausa", context={"session_id": session_id})
+            await mark_process_paused_async(
+                session_store,
+                session_id,
+                "book",
+                session.writing_progress.get("error") or "Generazione nuovamente in pausa.",
+            )
             return
         
-        print(f"[BOOK GENERATION] Ripresa generazione completata per sessione {session_id}")
+        logger.info("Ripresa generazione capitoli completata", context={"session_id": session_id})
         
         # Registra timestamp fine scrittura capitoli e calcola tempo
         end_time = datetime.now()
         await update_writing_times_async(session_store, session_id, end_time=end_time)
         writing_time_minutes = (end_time - start_time).total_seconds() / 60
-        print(f"[BOOK GENERATION] Timestamp fine scrittura: {end_time.isoformat()}, tempo totale: {writing_time_minutes:.2f} minuti")
+        logger.info(
+            "Timestamp fine ripresa registrato",
+            context={
+                "session_id": session_id,
+                "completed_at": end_time.isoformat(),
+                "writing_time_minutes": round(writing_time_minutes, 2),
+            },
+        )
         
         # Invia notifica di completamento libro (subito dopo la scrittura)
         try:
@@ -363,9 +436,12 @@ async def background_resume_book_generation(
                         "book_title": book_title,
                     }
                 )
-                print(f"[BOOK GENERATION] Notifica di completamento inviata a utente {session.user_id}")
+                logger.info("Notifica completamento inviata", context={"session_id": session_id, "user_id": session.user_id})
         except Exception as notif_err:
-            print(f"[BOOK GENERATION] WARNING: Errore nell'invio notifica: {notif_err}")
+            logger.warning(
+                "Errore non bloccante nell'invio notifica completamento",
+                context={"session_id": session_id, "error": str(notif_err)},
+            )
         
         # Aggiorna writing_progress con il tempo calcolato
         session = await get_session_async(session_store, session_id)
@@ -385,21 +461,17 @@ async def background_resume_book_generation(
             session.writing_progress['writing_time_minutes'] = writing_time_minutes
             if hasattr(session_store, '_save_sessions'):
                 session_store._save_sessions()
-        
-        # Calcola e salva il costo reale basato sui token effettivi
-        try:
-            session = await get_session_async(session_store, session_id)
-            if session:
-                real_cost = calculate_real_generation_cost(session)
-                if real_cost is not None:
-                    await set_real_cost_async(session_store, session_id, real_cost)
-                    print(f"[BOOK GENERATION] Costo reale calcolato e salvato: €{real_cost:.6f}")
-        except Exception as cost_err:
-            print(f"[BOOK GENERATION] WARNING: Errore nel calcolo costo reale: {cost_err}")
+
+        await mark_process_completed_async(
+            session_store,
+            session_id,
+            "book",
+            recoverable=False,
+        )
         
         # Genera la copertina dopo che il libro è stato completato
         try:
-            print(f"[BOOK GENERATION] Avvio generazione copertina per sessione {session_id}")
+            logger.info("Avvio generazione copertina", context={"session_id": session_id})
             session = await get_session_async(session_store, session_id)
             if session:
                 cover_path = await generate_book_cover(
@@ -425,19 +497,20 @@ async def background_resume_book_generation(
                             user_id=user_id,
                         )
                         await update_cover_image_path_async(session_store, session_id, gcs_path)
-                        print(f"[BOOK GENERATION] Copertina generata e caricata su GCS: {gcs_path}")
+                        logger.info("Copertina caricata su storage", context={"session_id": session_id, "cover_path": gcs_path})
                     except Exception as e:
-                        print(f"[BOOK GENERATION] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+                        logger.warning(
+                            "Caricamento copertina su storage fallito, uso file locale",
+                            context={"session_id": session_id, "error": str(e)},
+                        )
                         await update_cover_image_path_async(session_store, session_id, cover_path)
-                        print(f"[BOOK GENERATION] Copertina generata: {cover_path}")
+                        logger.info("Copertina salvata localmente", context={"session_id": session_id, "cover_path": cover_path})
         except Exception as e:
-            print(f"[BOOK GENERATION] ERRORE nella generazione copertina: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Errore non bloccante nella generazione copertina", context={"session_id": session_id})
         
         # Genera la valutazione critica dopo che il libro è stato completato
         try:
-            print(f"[BOOK GENERATION] Avvio valutazione critica per sessione {session_id}")
+            logger.info("Avvio valutazione critica", context={"session_id": session_id})
             session = await get_session_async(session_store, session_id)
             if session and session.book_chapters and len(session.book_chapters) > 0:
                 # Critica: genera prima il PDF finale (e lo salva su disco), poi passa il PDF al modello multimodale.
@@ -480,21 +553,40 @@ async def background_resume_book_generation(
                     model=token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
                 
-                print(f"[BOOK GENERATION] Valutazione critica completata: score={critique.get('score', 0)}")
+                logger.info(
+                    "Valutazione critica completata",
+                    context={"session_id": session_id, "score": critique.get("score", 0)},
+                )
         except Exception as e:
-            print(f"[BOOK GENERATION] ERRORE nella valutazione critica: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Errore non bloccante nella valutazione critica", context={"session_id": session_id})
             # Niente placeholder: settiamo status failed e salviamo errore per UI (stop polling + retry).
             try:
                 await update_critique_status_async(session_store, session_id, "failed", error=str(e))
             except Exception as _e:
-                print(f"[BOOK GENERATION] WARNING: impossibile salvare critique_status failed: {_e}")
+                logger.warning(
+                    "Impossibile salvare critique_status failed",
+                    context={"session_id": session_id, "error": str(_e)},
+                )
+
+        try:
+            session = await get_session_async(session_store, session_id)
+            if session:
+                real_cost = calculate_real_generation_cost(session)
+                if real_cost is not None:
+                    await set_real_cost_async(session_store, session_id, real_cost)
+                    await refresh_process_metrics_async(session_store, session_id, "book")
+                    logger.info(
+                        "Costo reale calcolato e metriche job aggiornate",
+                        context={"session_id": session_id, "real_cost_eur": round(real_cost, 6)},
+                    )
+        except Exception as cost_err:
+            logger.warning(
+                "Errore non bloccante nel calcolo costo reale",
+                context={"session_id": session_id, "error": str(cost_err)},
+            )
     except ValueError as e:
         error_msg = f"Errore di validazione: {str(e)}"
-        print(f"[BOOK GENERATION] ERRORE (ValueError): {error_msg}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore di validazione nella ripresa generazione libro", context={"session_id": session_id})
         session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
@@ -510,11 +602,10 @@ async def background_resume_book_generation(
             is_paused=False,
             error=error_msg,
         )
+        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
     except Exception as e:
         error_msg = f"Errore nella ripresa generazione: {str(e)}"
-        print(f"[BOOK GENERATION] ERRORE (Exception): {error_msg}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore inatteso nella ripresa generazione libro", context={"session_id": session_id})
         session = await get_session_async(session_store, session_id)
         existing_total = 0
         if session and session.writing_progress:
@@ -530,3 +621,4 @@ async def background_resume_book_generation(
             is_paused=False,
             error=error_msg,
         )
+        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)

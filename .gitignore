@@ -49,6 +49,10 @@ Thumbs.db
 # Session storage
 backend/sessions.json
 backend/sessions.json.tmp
+backend/.sessions.json
+backend/.sessions.json.tmp
+backend/books/
+backend/sessions/
 
 # Credenziali GCP
 credentials/

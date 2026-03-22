@@ -13,7 +13,6 @@ import {
   getReferralStats,
   UserSearchResponse,
   Connection,
-  ConnectionResponse,
   Referral,
   ReferralStats,
 } from '../api/client';
@@ -224,11 +223,6 @@ export default function ConnectionsView() {
     } catch (error) {
       toast.error(`Errore nella rimozione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   // Separa richieste pendenti in incoming e outgoing

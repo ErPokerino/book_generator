@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { 
   getCreditBalance, 
@@ -11,10 +10,11 @@ import {
   CreditPackage,
   CreditTransaction
 } from '../../api/client';
+import PageHeader from '../ui/PageHeader';
+import EmptyState from '../ui/EmptyState';
 import './WalletPage.css';
 
 export default function WalletPage() {
-  const { user } = useAuth();
   const toast = useToast();
   
   const [loading, setLoading] = useState(true);
@@ -118,6 +118,10 @@ export default function WalletPage() {
     return amount >= 0 ? 'positive' : 'negative';
   };
 
+  const flashCost = balance?.mode_costs?.flash ?? 1;
+  const proCost = balance?.mode_costs?.pro ?? 3;
+  const ultraCost = balance?.mode_costs?.ultra ?? 5;
+
   if (loading) {
     return (
       <div className="wallet-page">
@@ -131,13 +135,18 @@ export default function WalletPage() {
 
   return (
     <div className="wallet-page">
-      <header className="wallet-header">
-        <h1>Crediti</h1>
-        <p className="wallet-subtitle">Gestisci i tuoi crediti per la generazione di libri</p>
-      </header>
+      <PageHeader
+        eyebrow="Wallet"
+        title="Crediti e punti"
+        description="Controlla il saldo, confronta i costi di generazione e valuta il pacchetto piu adatto prima di avviare un nuovo libro."
+        actions={(
+          <Link to="/settings/privacy" className="wallet-settings-link">
+            Impostazioni account
+          </Link>
+        )}
+      />
 
-      {/* Saldo crediti */}
-      <section className="balance-section">
+      <section className="wallet-overview-grid">
         <div className="balance-card">
           <div className="balance-icon">💎</div>
           <div className="balance-info">
@@ -153,90 +162,145 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* Statistiche */}
-        {(balance?.total_purchased || balance?.total_consumed) ? (
-          <div className="balance-stats">
-            <div className="stat-item">
-              <span className="stat-value">{balance?.total_purchased ?? 0}</span>
-              <span className="stat-label">Acquistati</span>
+        <div className="wallet-guide-card">
+          <div className="wallet-guide-header">
+            <span className="wallet-guide-badge">Guida rapida</span>
+            <h2>Come leggere il wallet</h2>
+          </div>
+          <div className="wallet-guide-list">
+            <div className="wallet-guide-item">
+              <strong>Flash</strong>
+              <span>Per bozze veloci e test rapidi.</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-value">{balance?.total_consumed ?? 0}</span>
-              <span className="stat-label">Utilizzati</span>
+            <div className="wallet-guide-item">
+              <strong>Pro</strong>
+              <span>Buon equilibrio fra costo e qualita narrativa.</span>
+            </div>
+            <div className="wallet-guide-item">
+              <strong>Ultra</strong>
+              <span>Per i casi in cui vuoi il massimo approfondimento.</span>
             </div>
           </div>
-        ) : null}
+          <p className="wallet-guide-note">
+            {packages.every((pkg) => pkg.price_eur === 0)
+              ? 'I pacchetti sono attualmente in modalita sandbox: puoi validare l\'esperienza senza pagamento reale.'
+              : 'Il costo viene addebitato solo quando avvii la scrittura del libro.'}
+          </p>
+        </div>
+      </section>
 
-        {/* Costi per modalità */}
-        <div className="mode-costs">
-          <h3>Costo per generazione</h3>
-          <div className="costs-grid">
-            <div className="cost-item flash">
-              <span className="mode-name">Flash</span>
-              <span className="mode-cost">{balance?.mode_costs?.flash ?? 1} credito</span>
-            </div>
-            <div className="cost-item pro">
-              <span className="mode-name">Pro</span>
-              <span className="mode-cost">{balance?.mode_costs?.pro ?? 3} crediti</span>
-            </div>
-            <div className="cost-item ultra">
-              <span className="mode-name">Ultra</span>
-              <span className="mode-cost">{balance?.mode_costs?.ultra ?? 5} crediti</span>
-            </div>
+      {/* Statistiche */}
+      {(balance?.total_purchased || balance?.total_consumed) ? (
+        <div className="balance-stats">
+          <div className="stat-item">
+            <span className="stat-value">{balance?.total_purchased ?? 0}</span>
+            <span className="stat-label">Acquistati</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value">{balance?.total_consumed ?? 0}</span>
+            <span className="stat-label">Utilizzati</span>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Costi per modalità */}
+      <section className="mode-costs">
+        <div className="wallet-section-header">
+          <h2>Confronto modalita</h2>
+          <p>Vedi subito quante generazioni puoi permetterti con il saldo attuale.</p>
+        </div>
+        <div className="costs-grid">
+          <div className="cost-item flash">
+            <span className="mode-name">Flash</span>
+            <span className="mode-cost">{flashCost} credito</span>
+            <span className="mode-detail">{Math.floor((balance?.credits ?? 0) / flashCost)} avvii con il saldo attuale</span>
+          </div>
+          <div className="cost-item pro">
+            <span className="mode-name">Pro</span>
+            <span className="mode-cost">{proCost} crediti</span>
+            <span className="mode-detail">{Math.floor((balance?.credits ?? 0) / proCost)} avvii con il saldo attuale</span>
+          </div>
+          <div className="cost-item ultra">
+            <span className="mode-name">Ultra</span>
+            <span className="mode-cost">{ultraCost} crediti</span>
+            <span className="mode-detail">{Math.floor((balance?.credits ?? 0) / ultraCost)} avvii con il saldo attuale</span>
           </div>
         </div>
       </section>
 
       {/* Pacchetti crediti */}
       <section className="packages-section">
-        <h2>Ricarica crediti</h2>
-        <p className="packages-subtitle">Scegli un pacchetto per ricaricare i tuoi crediti</p>
+        <div className="wallet-section-header">
+          <h2>Ricarica crediti</h2>
+          <p>Confronta subito capienza, bonus e valore pratico per ogni modalita.</p>
+        </div>
         
         <div className="packages-grid">
-          {packages.map((pkg) => (
-            <div key={pkg.id} className={`package-card ${pkg.id}`}>
-              <div className="package-icon">{pkg.icon || '📦'}</div>
-              <h3 className="package-name">{pkg.name}</h3>
-              <div className="package-credits">
-                <span className="credits-amount">{pkg.credits}</span>
-                <span className="credits-label">crediti</span>
-                {pkg.bonus_credits > 0 && (
-                  <span className="bonus-badge">+{pkg.bonus_credits} bonus</span>
+          {packages.map((pkg) => {
+            const totalCredits = pkg.credits + pkg.bonus_credits;
+            const flashRuns = Math.floor(totalCredits / flashCost);
+            const proRuns = Math.floor(totalCredits / proCost);
+            const ultraRuns = Math.floor(totalCredits / ultraCost);
+
+            return (
+              <div key={pkg.id} className={`package-card ${pkg.id}`}>
+                <div className="package-topline">
+                  <div className="package-icon">{pkg.icon || '📦'}</div>
+                  <span className="package-tag">{pkg.price_eur === 0 ? 'Sandbox' : 'Pacchetto'}</span>
+                </div>
+                <h3 className="package-name">{pkg.name}</h3>
+                <div className="package-credits">
+                  <span className="credits-amount">{totalCredits}</span>
+                  <span className="credits-label">crediti totali</span>
+                  {pkg.bonus_credits > 0 && (
+                    <span className="bonus-badge">+{pkg.bonus_credits} bonus</span>
+                  )}
+                </div>
+                {pkg.description && (
+                  <p className="package-description">{pkg.description}</p>
                 )}
+                <div className="package-price">
+                  {pkg.price_eur === 0 ? (
+                    <span className="price-free">Gratis</span>
+                  ) : (
+                    <span className="price-amount">€{pkg.price_eur.toFixed(2)}</span>
+                  )}
+                </div>
+                <div className="package-value-grid">
+                  <span>Flash: {flashRuns}</span>
+                  <span>Pro: {proRuns}</span>
+                  <span>Ultra: {ultraRuns}</span>
+                </div>
+                <button
+                  className="purchase-button"
+                  onClick={() => handlePurchase(pkg.id)}
+                  disabled={purchasing !== null}
+                >
+                  {purchasing === pkg.id ? (
+                    <span className="purchasing">Acquisto...</span>
+                  ) : (
+                    <span>Ottieni</span>
+                  )}
+                </button>
               </div>
-              {pkg.description && (
-                <p className="package-description">{pkg.description}</p>
-              )}
-              <div className="package-price">
-                {pkg.price_eur === 0 ? (
-                  <span className="price-free">Gratis</span>
-                ) : (
-                  <span className="price-amount">€{pkg.price_eur.toFixed(2)}</span>
-                )}
-              </div>
-              <button
-                className="purchase-button"
-                onClick={() => handlePurchase(pkg.id)}
-                disabled={purchasing !== null}
-              >
-                {purchasing === pkg.id ? (
-                  <span className="purchasing">Acquisto...</span>
-                ) : (
-                  <span>Ottieni</span>
-                )}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       {/* Storico transazioni */}
       <section className="transactions-section">
-        <h2>Storico transazioni</h2>
+        <div className="wallet-section-header">
+          <h2>Storico transazioni</h2>
+          <p>Ultimi movimenti del saldo, con dettaglio di acquisti e consumi.</p>
+        </div>
         
         {transactions.length === 0 ? (
           <div className="transactions-empty">
-            <p>Nessuna transazione ancora</p>
+            <EmptyState
+              title="Nessuna transazione ancora"
+              description="Quando inizierai ad acquistare o consumare crediti, lo storico comparira qui."
+            />
           </div>
         ) : (
           <>
@@ -265,13 +329,6 @@ export default function WalletPage() {
             )}
           </>
         )}
-      </section>
-
-      {/* Link alle impostazioni */}
-      <section className="wallet-footer">
-        <Link to="/settings/privacy" className="settings-link">
-          Impostazioni account →
-        </Link>
       </section>
     </div>
   );

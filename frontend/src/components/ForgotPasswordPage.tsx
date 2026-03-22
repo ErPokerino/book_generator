@@ -10,6 +10,7 @@ const isDevelopment = import.meta.env.DEV;
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const onNavigateToLogin = () => navigate('/login');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -104,7 +105,7 @@ export default function ForgotPasswordPage() {
           <div className="auth-links">
             <button
               type="button"
-              onClick={() => navigate('/login')}
+                onClick={onNavigateToLogin}
               className="auth-link-button"
             >
               Torna al login

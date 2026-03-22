@@ -1,6 +1,6 @@
 """Router per gli endpoint delle bozze."""
 import os
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from app.models import (
     DraftGenerationRequest,
     DraftResponse,
@@ -9,6 +9,7 @@ from app.models import (
     DraftValidationRequest,
     DraftValidationResponse,
     ProcessProgress,
+    ProcessStartResponse,
 )
 from app.agent.draft_generator import generate_draft
 from app.agent.session_store import get_session_store
@@ -19,9 +20,18 @@ from app.agent.session_store_helpers import (
     validate_session_async,
     update_token_usage_async,
 )
+from app.core.logging import get_logger
 from app.middleware.auth import get_current_user_optional
+from app.services.generation_service import background_generate_draft
+from app.services.process_job_service import (
+    begin_process_job_async,
+    mark_process_completed_async,
+    mark_process_failed_async,
+    mark_process_running_async,
+)
 
 router = APIRouter(prefix="/api/draft", tags=["draft"])
+logger = get_logger("draft-router")
 
 
 @router.post("/generate", response_model=DraftResponse)
@@ -30,22 +40,19 @@ async def generate_draft_endpoint(
     current_user = Depends(get_current_user_optional)
 ):
     """Genera una bozza estesa della trama."""
-    print(f"[DEBUG] Generazione bozza per sessione {request.session_id}")
+    session_store = get_session_store()
     try:
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            print("[DEBUG] GOOGLE_API_KEY mancante!")
             raise HTTPException(
                 status_code=500,
                 detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
             )
         
-        session_store = get_session_store()
         user_id = current_user.id if current_user else None
         session = await get_session_async(session_store, request.session_id, user_id=user_id)
         
         if not session:
-            print(f"[DEBUG] Sessione {request.session_id} non trovata, creazione nuova...")
             session = await create_session_async(
                 session_store=session_store,
                 session_id=request.session_id,
@@ -59,7 +66,15 @@ async def generate_draft_endpoint(
                 detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
-        print("[DEBUG] Chiamata a generate_draft...")
+        await mark_process_running_async(
+            session_store,
+            request.session_id,
+            "draft",
+            current_step=0,
+            total_steps=1,
+            progress_percentage=0.0,
+        )
+
         draft_text, title, version, token_usage = await generate_draft(
             form_data=request.form_data,
             question_answers=request.question_answers,
@@ -67,7 +82,6 @@ async def generate_draft_endpoint(
             api_key=api_key,
         )
         
-        print(f"[DEBUG] Bozza generata: {title}, v{version}")
         await update_draft_async(session_store, request.session_id, draft_text, version, title)
         
         # Salva token usage per la fase draft
@@ -79,6 +93,23 @@ async def generate_draft_endpoint(
             output_tokens=token_usage.get("output_tokens", 0),
             model=token_usage.get("model", "gemini-3.1-pro-preview"),
         )
+
+        await mark_process_completed_async(
+            session_store,
+            request.session_id,
+            "draft",
+            current_step=1,
+            total_steps=1,
+            progress_percentage=100.0,
+            result={
+                "success": True,
+                "session_id": request.session_id,
+                "draft_text": draft_text,
+                "title": title,
+                "version": version,
+                "message": "Bozza generata con successo",
+            },
+        )
         
         return DraftResponse(
             success=True,
@@ -88,14 +119,95 @@ async def generate_draft_endpoint(
             version=version,
             message="Bozza generata con successo",
         )
-    
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[ERROR] Errore critico in generate_draft_endpoint: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Errore critico in generate_draft_endpoint", context={"session_id": request.session_id})
+        await mark_process_failed_async(
+            session_store,
+            request.session_id,
+            "draft",
+            f"Errore nella generazione della bozza: {str(e)}",
+            recoverable=True,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Errore nella generazione della bozza: {str(e)}"
+        )
+
+
+@router.post("/generate/start", response_model=ProcessStartResponse)
+async def start_draft_generation_endpoint(
+    request: DraftGenerationRequest,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user_optional),
+):
+    """Avvia la generazione della bozza in background in modo idempotente."""
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
+            )
+
+        session_store = get_session_store()
+        user_id = current_user.id if current_user else None
+        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+
+        if not session:
+            session = await create_session_async(
+                session_store=session_store,
+                session_id=request.session_id,
+                form_data=request.form_data,
+                question_answers=request.question_answers,
+                user_id=user_id,
+            )
+        elif current_user and session.user_id and session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Accesso negato: questa sessione appartiene a un altro utente"
+            )
+
+        started, job = await begin_process_job_async(
+            session_store,
+            request.session_id,
+            "draft",
+            total_steps=1,
+        )
+        if not started:
+            return ProcessStartResponse(
+                success=True,
+                session_id=request.session_id,
+                message="Generazione della bozza già in corso.",
+                job_id=job.get("job_id"),
+                job_type="draft",
+                already_running=True,
+            )
+
+        background_tasks.add_task(
+            background_generate_draft,
+            session_id=request.session_id,
+            form_data=request.form_data,
+            question_answers=request.question_answers,
+            api_key=api_key,
+        )
+
+        return ProcessStartResponse(
+            success=True,
+            session_id=request.session_id,
+            message="Generazione della bozza avviata. Usa /api/draft/progress/{session_id} per monitorare lo stato.",
+            job_id=job.get("job_id"),
+            job_type="draft",
+            already_running=False,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Errore nell'avvio generazione bozza", context={"session_id": request.session_id})
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nell'avvio della generazione della bozza: {str(e)}"
         )
 
 
@@ -218,7 +330,10 @@ async def update_draft_manually_endpoint(
             new_title
         )
         
-        print(f"[DEBUG] Bozza aggiornata manualmente: v{new_version}")
+        logger.info(
+            "Bozza aggiornata manualmente",
+            context={"session_id": request.session_id, "version": new_version},
+        )
         
         return DraftResponse(
             success=True,
@@ -269,9 +384,14 @@ async def validate_draft_endpoint(
         
         if request.validated:
             await validate_session_async(session_store, request.session_id)
-            print(f"[DEBUG] Bozza validata per sessione {request.session_id}")
-            print(f"[DEBUG] Draft presente: {bool(session.current_draft)}")
-            print(f"[DEBUG] Titolo: {session.current_title}")
+            logger.info(
+                "Bozza validata",
+                context={
+                    "session_id": request.session_id,
+                    "has_draft": bool(session.current_draft),
+                    "title": session.current_title or "",
+                },
+            )
             return DraftValidationResponse(
                 success=True,
                 session_id=request.session_id,
@@ -368,7 +488,7 @@ async def get_draft_progress_endpoint(session_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ERROR] Errore nel recupero progresso bozza: {e}")
+        logger.exception("Errore nel recupero progresso bozza", context={"session_id": session_id})
         raise HTTPException(
             status_code=500,
             detail=f"Errore nel recupero del progresso: {str(e)}"

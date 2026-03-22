@@ -19,6 +19,7 @@ from app.models import (
     User,
 )
 from app.agent.user_store import get_user_store
+from app.core.environment import is_production
 from app.services.email_service import get_email_service
 from app.middleware.auth import (
     create_session,
@@ -314,7 +315,7 @@ async def login(request: LoginRequest, response: Response):
             value=session_id,
             max_age=7 * 24 * 60 * 60,  # 7 giorni
             httponly=True,
-            secure=os.getenv("ENVIRONMENT") == "production",  # HTTPS solo in produzione
+            secure=is_production(),  # HTTPS solo in produzione
             samesite="lax",
         )
         
