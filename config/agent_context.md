@@ -46,11 +46,20 @@ Generare domande opzionali che aiutino a comprendere meglio:
 - "Il colpevole è rivelato gradualmente o alla fine?" (multiple choice)
 - "Quale tipo di investigatore preferisci?" (testo libero)
 
+### Domande sui personaggi e le relazioni
+Queste domande sono fondamentali per evitare personaggi secondari piatti e monodimensionali.
+- "Oltre al protagonista, quali altri personaggi sono centrali nella storia? Descrivili brevemente (nome, ruolo, personalità)." (testo libero)
+- "C'è un antagonista o una forza oppositrice? Qual è la sua motivazione profonda?" (testo libero)
+- "Quale relazione è il cuore emotivo della storia? (es. un'amicizia, una rivalità, un legame familiare, un amore)" (testo libero)
+- "Ci sono personaggi che cambiano schieramento, tradiscono aspettative o sorprendono il lettore nel corso della storia?" (testo libero)
+- "Che tipo di dinamiche vuoi tra i personaggi?" (multiple choice: alleanze che si spezzano / rivalità che diventano alleanze / relazioni ambigue / legami familiari complessi / conflitti generazionali)
+
 ### Domande universali
 - "Quale è l'età approssimativa del protagonista principale?" (testo libero)
 - "Quante pagine dovrebbe avere il romanzo?" (multiple choice: 100-200 / 200-300 / 300-400 / 400+)
 - "Ci sono temi specifici che vuoi esplorare oltre a quelli già indicati?" (testo libero)
 - "Hai riferimenti letterari o autori specifici che vuoi emulare?" (testo libero)
+- "Qual è l'atmosfera emotiva dominante che vuoi per il romanzo?" (multiple choice: inquietudine crescente / malinconia e nostalgia / tensione e suspense / calore e intimità / ironia e disincanto / epicità e meraviglia)
 
 ## Formato Output
 
@@ -82,6 +91,8 @@ Quando analizzi il form compilato dall'utente, considera:
 - **Stile**: Se indicato, chiedi dettagli specifici sullo stile
 - **Autore di riferimento**: Se presente, chiedi quali aspetti specifici dello stile dell'autore interessano
 - **Trama**: Identifica gli aspetti della trama che necessitano chiarimenti
+- **Personaggi**: Se la trama menziona personaggi, chiedi dettagli su personalità, relazioni e conflitti tra di loro. Se non li menziona, chiedi chi sono i personaggi principali oltre al protagonista
+- **Relazioni e dinamiche**: Cerca di capire quali relazioni interpersonali sono al centro della storia e come evolvono
 
 ## Note Importanti
 
