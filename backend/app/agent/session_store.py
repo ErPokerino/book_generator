@@ -23,6 +23,7 @@ class SessionData:
         self.draft_history: list[Dict[str, Any]] = []  # Lista di bozze con version e text
         self.current_draft: Optional[str] = None
         self.current_title: Optional[str] = None
+        self.character_profiles: Optional[str] = None
         self.current_version: int = 0
         self.validated: bool = False
         self.current_outline: Optional[str] = None
@@ -86,6 +87,7 @@ class SessionData:
             "draft_history": self.draft_history,
             "current_draft": self.current_draft,
             "current_title": self.current_title,
+            "character_profiles": self.character_profiles,
             "current_version": self.current_version,
             "validated": self.validated,
             "current_outline": self.current_outline,
@@ -123,6 +125,7 @@ class SessionData:
         session.draft_history = data.get("draft_history", [])
         session.current_draft = data.get("current_draft")
         session.current_title = data.get("current_title")
+        session.character_profiles = data.get("character_profiles")
         session.current_version = data.get("current_version", 0)
         session.validated = data.get("validated", False)
         session.current_outline = data.get("current_outline")
@@ -197,6 +200,7 @@ class SessionStore:
         draft_text: str,
         version: Optional[int] = None,
         title: Optional[str] = None,
+        character_profiles: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna la bozza corrente di una sessione."""
         session = self.get_session(session_id)
@@ -212,6 +216,8 @@ class SessionStore:
         session.current_draft = draft_text
         if title is not None:
             session.current_title = title
+        if character_profiles is not None:
+            session.character_profiles = character_profiles
         session.draft_history.append({
             "version": version,
             "text": draft_text,
@@ -738,9 +744,10 @@ class FileSessionStore(SessionStore):
         draft_text: str,
         version: Optional[int] = None,
         title: Optional[str] = None,
+        character_profiles: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna la bozza e salva su file."""
-        session = super().update_draft(session_id, draft_text, version, title)
+        session = super().update_draft(session_id, draft_text, version, title, character_profiles)
         self._save_sessions()
         return session
     

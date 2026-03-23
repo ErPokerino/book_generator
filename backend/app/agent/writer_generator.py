@@ -165,6 +165,7 @@ async def refresh_story_bible_for_session(
         completed_chapters=session.book_chapters or [],
         draft_version=session.current_version,
         outline_version=session.outline_version,
+        character_profiles=getattr(session, "character_profiles", None),
     )
     await save_session_async(session_store, session)
     return session.story_bible
@@ -374,6 +375,11 @@ def format_chapter_review_context(
     ]
 
     if story_bible:
+        character_profiles = story_bible.get("character_profiles")
+        if character_profiles:
+            lines.append("\n### Profili personaggi")
+            lines.append(character_profiles)
+
         creative_brief = story_bible.get("creative_brief", [])
         if creative_brief:
             lines.append("\n### Brief creativo")
@@ -836,6 +842,12 @@ def format_writer_context(
             lines.append("### Brief creativo")
             for item in creative_brief:
                 lines.append(f"- {item}")
+
+        character_profiles = story_bible.get("character_profiles")
+        if character_profiles:
+            lines.append("\n### Profili Personaggi")
+            lines.append("Usa questi profili per mantenere voce, tratti e arco coerenti per ogni personaggio.")
+            lines.append(character_profiles)
 
         premise = story_bible.get("premise")
         if premise:

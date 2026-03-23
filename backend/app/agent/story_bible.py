@@ -144,6 +144,7 @@ def build_story_bible(
     completed_chapters: Optional[list[dict[str, Any]]] = None,
     draft_version: int = 0,
     outline_version: int = 0,
+    character_profiles: Optional[str] = None,
 ) -> dict[str, Any]:
     """Costruisce una story bible strutturata e persistibile partendo dai dati di sessione."""
     completed_chapters = completed_chapters or []
@@ -152,7 +153,7 @@ def build_story_bible(
         f"{note['title']}: {note['summary']}" for note in continuity_notes[-DEFAULT_RECENT_DEVELOPMENTS_COUNT:]
     ]
 
-    return {
+    bible: dict[str, Any] = {
         "title": draft_title or "Romanzo",
         "source_versions": {
             "draft_version": int(draft_version),
@@ -166,11 +167,13 @@ def build_story_bible(
             DEFAULT_DRAFT_SUMMARY_MAX_CHARS,
             max_sentences=6,
         ),
+        "character_profiles": character_profiles or "",
         "chapter_cards": _build_chapter_cards(outline_sections),
         "continuity_notes": continuity_notes,
         "recent_developments": recent_developments,
         "updated_at": datetime.utcnow().isoformat(),
     }
+    return bible
 
 
 def is_story_bible_stale(

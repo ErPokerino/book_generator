@@ -117,50 +117,58 @@ def _coerce_llm_content_to_text(content: Any) -> str:
     return str(content)
 
 
-def parse_draft_output(llm_output: str) -> tuple[str, str]:
+def parse_draft_output(llm_output: str) -> tuple[str, str, str]:
     """
-    Estrae titolo e trama dall'output del LLM.
+    Estrae titolo, profili personaggi e trama dall'output del LLM.
     
     Args:
         llm_output: Output completo del LLM
     
     Returns:
-        Tupla (title, draft_text)
+        Tupla (title, draft_text, character_profiles)
     """
     lines = llm_output.split('\n')
     title = None
+    character_profiles = ""
     draft_text = ""
     found_title = False
+    found_personaggi = False
     found_trama = False
     
     for i, line in enumerate(lines):
         line_stripped = line.strip()
         
-        # Cerca "TITOLO:"
         if not found_title and line_stripped.upper().startswith("TITOLO:"):
-            title = line_stripped[7:].strip()  # Rimuove "TITOLO:"
+            title = line_stripped[7:].strip()
             found_title = True
             continue
         
-        # Cerca "TRAMA:" o "TRAMA"
+        if not found_personaggi and not found_trama and (
+            line_stripped.upper().startswith("PERSONAGGI:") or line_stripped.upper() == "PERSONAGGI"
+        ):
+            found_personaggi = True
+            if line_stripped.upper().startswith("PERSONAGGI:"):
+                remaining = line_stripped[11:].strip()
+                if remaining:
+                    character_profiles = remaining + "\n"
+            continue
+        
         if not found_trama and (line_stripped.upper().startswith("TRAMA:") or line_stripped.upper() == "TRAMA"):
+            found_personaggi = False
             found_trama = True
-            # Se c'è testo dopo "TRAMA:", includilo
             if line_stripped.upper().startswith("TRAMA:"):
                 remaining = line_stripped[6:].strip()
                 if remaining:
                     draft_text = remaining + "\n"
             continue
         
-        # Se abbiamo trovato "TRAMA:", aggiungi tutte le righe successive
         if found_trama:
             draft_text += line + "\n"
+        elif found_personaggi:
+            character_profiles += line + "\n"
     
-    # Se non abbiamo trovato il formato previsto, usa tutto come draft_text
     if not found_title or not found_trama:
-        # Fallback: cerca il primo titolo markdown (# Titolo) o usa tutto come draft
         if not found_title:
-            # Prova a estrarre un titolo markdown
             for line in lines:
                 if line.strip().startswith("# "):
                     title = line.strip()[2:].strip()
@@ -171,7 +179,7 @@ def parse_draft_output(llm_output: str) -> tuple[str, str]:
         if not found_trama:
             draft_text = llm_output
     
-    return title or "Titolo non specificato", draft_text.strip()
+    return title or "Titolo non specificato", draft_text.strip(), character_profiles.strip()
 
 
 async def generate_draft(
@@ -181,7 +189,7 @@ async def generate_draft(
     api_key: Optional[str] = None,
     previous_draft: Optional[str] = None,
     user_feedback: Optional[str] = None,
-) -> tuple[str, str, int, dict[str, int]]:
+) -> tuple[str, str, int, dict[str, int], str]:
     """
     Genera o rigenera una bozza estesa della trama.
     
@@ -276,8 +284,8 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         token_usage["model"] = gemini_model
         print(f"[DRAFT_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
         
-        # Estrai titolo e trama dall'output
-        title, draft_text = parse_draft_output(llm_output)
+        # Estrai titolo, profili personaggi e trama dall'output
+        title, draft_text, character_profiles = parse_draft_output(llm_output)
         
         # Recupera la sessione per determinare la versione
         session_store = get_session_store()
@@ -288,7 +296,7 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
         else:
             new_version = 1
         
-        return draft_text, title, new_version, token_usage
+        return draft_text, title, new_version, token_usage, character_profiles
         
     except Exception as e:
         raise Exception(f"Errore nella generazione della bozza: {str(e)}")

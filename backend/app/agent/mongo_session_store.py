@@ -173,6 +173,7 @@ class MongoSessionStore(SessionStore):
         draft_text: str,
         version: Optional[int] = None,
         title: Optional[str] = None,
+        character_profiles: Optional[str] = None,
     ) -> SessionData:
         """Aggiorna la bozza corrente di una sessione."""
         session = await self.get_session(session_id)
@@ -188,6 +189,8 @@ class MongoSessionStore(SessionStore):
         session.current_draft = draft_text
         if title is not None:
             session.current_title = title
+        if character_profiles is not None:
+            session.character_profiles = character_profiles
         session.draft_history.append({
             "version": version,
             "text": draft_text,

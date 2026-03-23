@@ -133,7 +133,7 @@ async def background_generate_draft(
         )
         
         # Genera la bozza
-        draft_text, title, version, token_usage = await generate_draft(
+        draft_text, title, version, token_usage, character_profiles = await generate_draft(
             form_data=form_data,
             question_answers=question_answers,
             session_id=session_id,
@@ -141,7 +141,7 @@ async def background_generate_draft(
         )
         
         # Salva la bozza nella sessione
-        await update_draft_async(session_store, session_id, draft_text, version, title=title)
+        await update_draft_async(session_store, session_id, draft_text, version, title=title, character_profiles=character_profiles)
         
         # Salva token usage per la fase draft
         await update_token_usage_async(

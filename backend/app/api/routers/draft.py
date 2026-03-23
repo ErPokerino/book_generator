@@ -75,14 +75,14 @@ async def generate_draft_endpoint(
             progress_percentage=0.0,
         )
 
-        draft_text, title, version, token_usage = await generate_draft(
+        draft_text, title, version, token_usage, character_profiles = await generate_draft(
             form_data=request.form_data,
             question_answers=request.question_answers,
             session_id=request.session_id,
             api_key=api_key,
         )
         
-        await update_draft_async(session_store, request.session_id, draft_text, version, title)
+        await update_draft_async(session_store, request.session_id, draft_text, version, title, character_profiles)
         
         # Salva token usage per la fase draft
         await update_token_usage_async(
@@ -247,7 +247,7 @@ async def modify_draft_endpoint(
                 detail="Nessuna bozza esistente da modificare"
             )
         
-        draft_text, title, version, token_usage = await generate_draft(
+        draft_text, title, version, token_usage, character_profiles = await generate_draft(
             form_data=session.form_data,
             question_answers=session.question_answers,
             session_id=request.session_id,
@@ -256,7 +256,7 @@ async def modify_draft_endpoint(
             user_feedback=request.user_feedback,
         )
         
-        await update_draft_async(session_store, request.session_id, draft_text, version, title)
+        await update_draft_async(session_store, request.session_id, draft_text, version, title, character_profiles)
         
         # Salva token usage per la fase draft (rigenerazione)
         await update_token_usage_async(

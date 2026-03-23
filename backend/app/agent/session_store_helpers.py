@@ -55,12 +55,13 @@ async def update_draft_async(
     draft_text: str,
     version: Optional[int] = None,
     title: Optional[str] = None,
+    character_profiles: Optional[str] = None,
 ) -> SessionData:
     """Helper per aggiornare una bozza in modo async-compatibile."""
     if hasattr(session_store, 'connect'):
-        return await session_store.update_draft(session_id, draft_text, version, title)
+        return await session_store.update_draft(session_id, draft_text, version, title, character_profiles)
     else:
-        return session_store.update_draft(session_id, draft_text, version, title)
+        return session_store.update_draft(session_id, draft_text, version, title, character_profiles)
 
 
 async def validate_session_async(session_store: SessionStore, session_id: str) -> SessionData:

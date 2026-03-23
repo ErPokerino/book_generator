@@ -212,6 +212,10 @@ In questi casi, fai il minimo indispensabile per mantenere la coerenza
 ```
 TITOLO: [Titolo del libro]
 
+PERSONAGGI:
+
+[Scheda dei personaggi principali in formato strutturato]
+
 TRAMA:
 
 [Trama estesa in formato Markdown]
@@ -221,6 +225,22 @@ TRAMA:
 - Il titolo deve essere creativo, appropriato al genere e alla storia
 - Deve riflettere i temi principali del romanzo
 - Deve essere in italiano
+
+### Requisiti della Sezione PERSONAGGI
+La sezione PERSONAGGI deve elencare i personaggi principali e secondari rilevanti. Per ciascuno, usa il seguente formato:
+
+```
+**Nome** | Ruolo: [protagonista/antagonista/secondario] | Tratti: [2-3 tratti caratteriali chiave, inclusa una contraddizione] | Voce: [come parla: registro, tic verbali, atteggiamento] | Arco: [direzione del suo cambiamento nel corso della storia]
+```
+
+Esempio:
+```
+**Marco Ferretti** | Ruolo: protagonista | Tratti: determinato, ossessivo, incapace di chiedere aiuto | Voce: frasi brevi e dirette, sarcasmo come difesa, evita i discorsi emotivi | Arco: dall'autosufficienza compulsiva all'accettazione della vulnerabilità
+
+**Elena Sordi** | Ruolo: secondario | Tratti: pragmatica, leale, nasconde un rancore antico verso il fratello | Voce: precisa e misurata, usa il silenzio come arma, rari momenti di calore improvviso | Arco: dalla lealtà acritica al confronto aperto con le proprie motivazioni
+```
+
+Includi almeno il protagonista e 2-3 personaggi secondari rilevanti. Se ci sono antagonisti, includili con le loro motivazioni.
 
 ### Requisiti della Trama in Markdown
 La trama deve essere scritta in **formato Markdown** con:
@@ -234,6 +254,14 @@ La trama deve essere scritta in **formato Markdown** con:
 Esempio struttura Markdown:
 ```markdown
 TITOLO: Il Viaggio delle Ombre
+
+PERSONAGGI:
+
+**Luca Marin** | Ruolo: protagonista | Tratti: curioso, impulsivo, incapace di gestire il senso di colpa | Voce: parlata veloce e disordinata, divaga spesso, usa l'ironia per mascherare il disagio | Arco: dalla fuga dal passato all'accettazione delle proprie responsabilità
+
+**Sara Conti** | Ruolo: secondario | Tratti: riservata, intuitiva, protegge un segreto che la tormenta | Voce: frasi misurate e precise, lunghi silenzi prima di rispondere, mai una parola di troppo | Arco: dal nascondersi dietro la competenza alla vulnerabilità
+
+**Prof. Damiani** | Ruolo: antagonista | Tratti: carismatico, manipolatore, convinto di agire per il bene superiore | Voce: eloquente e paterno, usa domande retoriche per controllare le conversazioni | Arco: dalla sicurezza granitica al crollo delle certezze
 
 TRAMA:
 
