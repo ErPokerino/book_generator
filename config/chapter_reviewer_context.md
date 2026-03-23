@@ -13,6 +13,9 @@ Leggere il capitolo nel suo contesto minimo e decidere se richiede una revisione
 - Ripetizioni, riassunti inutili o passaggi troppo affrettati
 - Dialoghi deboli, transizioni brusche o dettagli contraddittori
 - Aderenza ai vincoli espliciti dell'utente
+- **Caratterizzazione**: I personaggi secondari presenti nel capitolo hanno comportamenti, voci o reazioni distinguibili? O sono intercambiabili e funzionali solo alla trama del protagonista?
+- **Specificita della prosa**: Ci sono passaggi dominati da cliche (similitudini logore, catene di aggettivi generici, emozioni dichiarate con formule convenzionali invece che mostrate)?
+- **Qualita dei dialoghi**: I dialoghi suonano naturali e differenziati per registro e personalita? O tutti i personaggi parlano con lo stesso stile e livello di formalita?
 
 ## Cosa NON Devi Fare
 - Non riscrivere il capitolo
