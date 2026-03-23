@@ -48,7 +48,6 @@ export default function DynamicForm() {
   const [outline, setOutline] = useState<string | null>(null);
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
-  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
   const { userPoints, nextPointsReset, refreshUserPoints } = useUserPoints(currentStep);
@@ -475,9 +474,6 @@ export default function DynamicForm() {
       version: draft.version,
     });
     
-    // Reset isGeneratingOutline quando l'outline è completato
-    setIsGeneratingOutline(false);
-    
     // Log per debug
     console.log('[DEBUG DynamicForm] Draft validato:', draft);
     console.log('[DEBUG DynamicForm] Outline data ricevuta:', outlineData);
@@ -867,26 +863,6 @@ export default function DynamicForm() {
     );
   }
 
-  // Mostra loading durante generazione outline (prima delle domande per priorità)
-  if (isGeneratingOutline) {
-    return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep="summary" />
-        </div>
-        <div className="dynamic-form-main-content">
-          <div className="loading">
-            <h2>Generazione Struttura del Libro</h2>
-            <p>Sto generando la struttura del libro...</p>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-              Questo richiederà circa un minuto
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Mostra le domande se generate
   if (currentStep === 'questions' && questions && sessionId) {
     return (
@@ -920,10 +896,6 @@ export default function DynamicForm() {
             questionAnswers={questionAnswers}
             onDraftValidated={handleDraftValidated}
             onBack={() => setCurrentStep('questions')}
-            onOutlineGenerationStart={() => {
-              setCurrentStep('summary');
-              setIsGeneratingOutline(true);
-            }}
             initialDraft={validatedDraft ? {
               success: true,
               session_id: sessionId || '',

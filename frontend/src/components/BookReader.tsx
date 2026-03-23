@@ -94,6 +94,32 @@ export default function BookReader() {
     setFontSize(prev => Math.max(prev - 2, 12));
   };
 
+  const normalizeDisplayTitle = (rawTitle: string): string => {
+    let title = rawTitle.trim();
+
+    const wrappers = [
+      /^\*\*(.+)\*\*$/,
+      /^__(.+)__$/,
+      /^\*(.+)\*$/,
+      /^_(.+)_$/,
+      /^#+\s*(.+)$/,
+    ];
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const pattern of wrappers) {
+        const match = title.match(pattern);
+        if (match) {
+          title = match[1].trim();
+          changed = true;
+        }
+      }
+    }
+
+    return title;
+  };
+
   const formatContent = (content: string): string => {
     // Converte i newline in paragrafi HTML
     return content
@@ -202,6 +228,10 @@ export default function BookReader() {
     : ((currentChapterIndex + 1) / book.chapters.length) * 100;
   const readingProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const currentLocation = isShowingCover ? 'Copertina' : `Capitolo ${currentChapterIndex + 1}`;
+  const displayTitle = normalizeDisplayTitle(book.title);
+  const estimatedMinutes = typeof book.writing_time_minutes === 'number' && book.writing_time_minutes > 0
+    ? Math.max(1, Math.round(book.writing_time_minutes))
+    : null;
 
   return (
     <PageTransition>
@@ -213,7 +243,7 @@ export default function BookReader() {
               ← Chiudi
             </button>
           <div className="book-info">
-            <h1 className="book-title">{book.title}</h1>
+            <h1 className="book-title">{displayTitle}</h1>
             <span className="book-author">di {book.author}</span>
           </div>
         </div>
@@ -292,15 +322,15 @@ export default function BookReader() {
         {isShowingCover && coverImageUrl ? (
           <div className="cover-page">
             <div className="cover-page-shell">
-              <img src={coverImageUrl} alt={`Copertina di ${book.title}`} className="cover-image" />
+              <img src={coverImageUrl} alt={`Copertina di ${displayTitle}`} className="cover-image" />
               <aside className="cover-summary">
                 <span className="cover-summary-eyebrow">Esperienza di lettura</span>
-                <h2>{book.title}</h2>
+                <h2>{displayTitle}</h2>
                 <p>di {book.author}</p>
                 <div className="cover-summary-stats">
                   <span>{book.chapters.length} capitoli</span>
                   <span>{typeof book.total_pages === 'number' && book.total_pages > 0 ? `${book.total_pages} pagine` : 'Pagine in aggiornamento'}</span>
-                  <span>{book.writing_time_minutes ? `${book.writing_time_minutes} min stimati` : 'Tempo di lettura non disponibile'}</span>
+                  <span>{estimatedMinutes ? `${estimatedMinutes} min stimati` : 'Tempo di lettura non disponibile'}</span>
                 </div>
                 <button type="button" className="cover-summary-action" onClick={goToNextChapter}>
                   Inizia dal primo capitolo

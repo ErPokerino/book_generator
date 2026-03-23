@@ -1,7 +1,7 @@
 """Router per gli endpoint degli outline."""
 import os
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest, ProcessStartResponse
+from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest, ProcessProgress, ProcessStartResponse
 from app.agent.outline_generator import generate_outline
 from app.agent.writer_generator import regenerate_outline_markdown
 from app.agent.session_store import get_session_store
@@ -351,4 +351,38 @@ async def start_outline_generation_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Errore nell'avvio della generazione della struttura: {str(e)}"
+        )
+
+
+@router.get("/progress/{session_id}", response_model=ProcessProgress)
+async def get_outline_progress_endpoint(session_id: str):
+    """Restituisce lo stato di avanzamento della generazione struttura."""
+    try:
+        session_store = get_session_store()
+        session = await get_session_async(session_store, session_id)
+
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sessione {session_id} non trovata"
+            )
+
+        progress = session.outline_progress
+        if not progress:
+            return ProcessProgress(
+                status="pending",
+                current_step=0,
+                total_steps=1,
+                progress_percentage=0.0,
+            )
+
+        return ProcessProgress(**progress)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Errore nel recupero progresso outline", context={"session_id": session_id})
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel recupero del progresso: {str(e)}"
         )
