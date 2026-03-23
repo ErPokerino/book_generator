@@ -1,4 +1,4 @@
-import { Clock3, Coins, RefreshCw, Save } from 'lucide-react';
+import { Clock3, Coins, RefreshCw, Save, type LucideIcon } from 'lucide-react';
 import { MODE_COSTS, ModeType } from '../api/client';
 import './CreationJourneyPanel.css';
 
@@ -9,6 +9,14 @@ interface CreationJourneyPanelProps {
   restoreStatus?: 'restored' | 'failed' | 'idle';
   userPoints?: number | null;
   nextPointsReset?: string | null;
+}
+
+interface SummaryItem {
+  key: string;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint?: string;
 }
 
 const MODE_COPY: Record<ModeType, { label: string; duration: string }> = {
@@ -23,6 +31,14 @@ const STEP_LABELS: Record<CreationJourneyPanelProps['currentStep'], string> = {
   draft: 'Bozza',
   summary: 'Struttura',
   writing: 'Scrittura',
+};
+
+const STEP_DESCRIPTIONS: Record<CreationJourneyPanelProps['currentStep'], string> = {
+  form: 'Compila i campi essenziali per impostare il libro.',
+  questions: 'Aggiungi i dettagli che guideranno il progetto narrativo.',
+  draft: 'Rifinisci la bozza prima di passare alla struttura.',
+  summary: 'Controlla la struttura finale prima di avviare la scrittura.',
+  writing: 'Segui l avanzamento della generazione e delle revisioni.',
 };
 
 function formatResetDate(value?: string | null) {
@@ -48,16 +64,59 @@ export default function CreationJourneyPanel({
   nextPointsReset = null,
 }: CreationJourneyPanelProps) {
   const modeInfo = MODE_COPY[selectedMode];
+  const sessionSummary: SummaryItem | null =
+    restoreStatus === 'restored' && sessionId
+      ? {
+          key: 'session',
+          icon: RefreshCw,
+          label: 'Sessione',
+          value: `Ripresa ${sessionId.slice(0, 8)}`,
+          hint: 'Continui dal punto salvato.',
+        }
+      : restoreStatus === 'failed'
+        ? {
+            key: 'session',
+            icon: RefreshCw,
+            label: 'Sessione',
+            value: 'Nuova sessione',
+            hint: 'Ripristino non disponibile.',
+          }
+        : null;
+
+  const summaryItems: SummaryItem[] = [
+    {
+      key: 'mode',
+      icon: Coins,
+      label: 'Modalita',
+      value: modeInfo.label,
+      hint: `${MODE_COSTS[selectedMode]} ${MODE_COSTS[selectedMode] === 1 ? 'punto' : 'punti'}`,
+    },
+    {
+      key: 'duration',
+      icon: Clock3,
+      label: 'Tempo',
+      value: modeInfo.duration,
+      hint: 'Stima media',
+    },
+    ...(sessionSummary ? [sessionSummary] : []),
+    {
+      key: 'balance',
+      icon: Coins,
+      label: 'Saldo',
+      value: userPoints == null ? '...' : String(userPoints),
+      hint: nextPointsReset ? `Reset ${formatResetDate(nextPointsReset)}` : 'Punti disponibili',
+    },
+  ];
 
   return (
     <section className="creation-journey-panel" aria-label="Stato creazione libro">
       <div className="creation-journey-card creation-journey-card-highlight">
         <div className="creation-journey-copy">
-          <span className="creation-journey-eyebrow">Percorso attivo</span>
-          <strong>{STEP_LABELS[currentStep]}</strong>
-          <p>
-            La sessione viene salvata automaticamente nel browser e pu{'\u00f2'} essere ripresa se torni in seguito.
-          </p>
+          <div className="creation-journey-heading">
+            <span className="creation-journey-eyebrow">Percorso attivo</span>
+            <strong>{STEP_LABELS[currentStep]}</strong>
+          </div>
+          <p>{STEP_DESCRIPTIONS[currentStep]}</p>
         </div>
         <span className="creation-journey-chip">
           <Save size={16} />
@@ -65,58 +124,23 @@ export default function CreationJourneyPanel({
         </span>
       </div>
 
-      <div className="creation-journey-grid">
-        <article className="creation-journey-card">
-          <div className="creation-journey-icon">
-            <Coins size={18} />
-          </div>
-          <div>
-            <span className="creation-journey-label">Modalit{'\u00e0'} selezionata</span>
-            <strong>{modeInfo.label}</strong>
-            <p>{MODE_COSTS[selectedMode]} punti per avviare la scrittura.</p>
-          </div>
-        </article>
+      <div className="creation-journey-summary" aria-label="Riepilogo rapido">
+        {summaryItems.map((item) => {
+          const Icon = item.icon;
 
-        <article className="creation-journey-card">
-          <div className="creation-journey-icon">
-            <Clock3 size={18} />
-          </div>
-          <div>
-            <span className="creation-journey-label">Tempo atteso</span>
-            <strong>{modeInfo.duration}</strong>
-            <p>Stima media per outline, scrittura e critica finale.</p>
-          </div>
-        </article>
-
-        <article className="creation-journey-card">
-          <div className="creation-journey-icon">
-            <RefreshCw size={18} />
-          </div>
-          <div>
-            <span className="creation-journey-label">Ripristino sessione</span>
-            <strong>
-              {restoreStatus === 'restored' && sessionId ? `Ripresa ${sessionId.slice(0, 8)}` : restoreStatus === 'failed' ? 'Ripristino fallito' : 'Nuova sessione'}
-            </strong>
-            <p>
-              {restoreStatus === 'restored'
-                ? 'Hai ripreso il flusso dal punto salvato.'
-                : restoreStatus === 'failed'
-                ? 'La sessione precedente non era piu disponibile.'
-                : 'Verra creata una nuova sessione quando inizi il flusso.'}
-            </p>
-          </div>
-        </article>
-
-        <article className="creation-journey-card">
-          <div className="creation-journey-icon">
-            <Coins size={18} />
-          </div>
-          <div>
-            <span className="creation-journey-label">Saldo disponibile</span>
-            <strong>{userPoints ?? '...'}</strong>
-            <p>Reset previsto: {formatResetDate(nextPointsReset)}</p>
-          </div>
-        </article>
+          return (
+            <article className="creation-journey-summary-item" key={item.key}>
+              <div className="creation-journey-summary-icon">
+                <Icon size={16} />
+              </div>
+              <div className="creation-journey-summary-copy">
+                <span className="creation-journey-summary-label">{item.label}</span>
+                <strong className="creation-journey-summary-value">{item.value}</strong>
+                {item.hint ? <span className="creation-journey-summary-hint">{item.hint}</span> : null}
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

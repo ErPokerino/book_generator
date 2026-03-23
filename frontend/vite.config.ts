@@ -88,61 +88,6 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes('node_modules')) {
-            return undefined;
-          }
-
-          if (
-            id.includes('/react/') ||
-            id.includes('/react-dom/') ||
-            id.includes('/scheduler/')
-          ) {
-            return 'vendor-react';
-          }
-
-          if (id.includes('/react-router/') || id.includes('/react-router-dom/')) {
-            return 'vendor-router';
-          }
-
-          if (id.includes('/framer-motion/')) {
-            return 'vendor-motion';
-          }
-
-          if (id.includes('/recharts/') || id.includes('/victory-vendor/')) {
-            return 'vendor-charts';
-          }
-
-          if (id.includes('/@dnd-kit/')) {
-            return 'vendor-dnd';
-          }
-
-          if (
-            id.includes('/react-markdown/') ||
-            id.includes('/remark-gfm/') ||
-            id.includes('/remark-') ||
-            id.includes('/rehype-') ||
-            id.includes('/unified/') ||
-            id.includes('/micromark/') ||
-            id.includes('/mdast-util-') ||
-            id.includes('/hast-util-') ||
-            id.includes('/vfile/')
-          ) {
-            return 'vendor-markdown';
-          }
-
-          if (id.includes('/lucide-react/')) {
-            return 'vendor-ui';
-          }
-
-          return 'vendor-misc';
-        },
-      },
-    },
-  },
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

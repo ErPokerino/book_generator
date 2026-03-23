@@ -546,6 +546,7 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
 # Serve static files for frontend (only in production/Docker)
 static_path = os.path.join(os.path.dirname(__file__), "..", "static")
 if os.path.exists(static_path):
+    static_root = Path(static_path).resolve()
     # Mount assets directory for Vite build assets
     assets_path = os.path.join(static_path, "assets")
     if os.path.exists(assets_path):
@@ -613,17 +614,28 @@ if os.path.exists(static_path):
     # Serve index.html for all non-API routes (SPA routing)
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Skip if it's an API route, favicon, manifest, or PWA icons/logos
-        if (full_path.startswith("api/") or 
-            full_path == "favicon.svg" or 
-            full_path == "manifest.webmanifest" or
-            full_path in ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "favicon.png", "logo-narrai.png", "logo-narrai-header.png"]):
+        if full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="Not found")
+
+        normalized_path = full_path.lstrip("/\\")
+        if normalized_path:
+            requested_file = (static_root / normalized_path).resolve()
+            try:
+                requested_file.relative_to(static_root)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail="Not found") from exc
+
+            if requested_file.is_file():
+                return FileResponse(str(requested_file))
+
+            if Path(normalized_path).suffix:
+                raise HTTPException(status_code=404, detail="Static asset not found")
+
         # Serve index.html for SPA routing with no-cache to ensure fresh code
-        index_path = os.path.join(static_path, "index.html")
-        if os.path.exists(index_path):
+        index_path = static_root / "index.html"
+        if index_path.exists():
             return FileResponse(
-                index_path,
+                str(index_path),
                 headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
             )
         raise HTTPException(status_code=404, detail="Frontend not found")
