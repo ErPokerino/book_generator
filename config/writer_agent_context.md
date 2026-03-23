@@ -84,16 +84,54 @@ Scrivere ogni sezione del romanzo (capitoli, introduzione, prologo, epilogo) in 
   - Mantieni il tono generale coerente con il genere e l'intenzionalità.
 
 ### Sviluppo dei Personaggi
-- **Evoluzione Coerente**:
-  - I personaggi devono evolversi in modo logico e coerente con i capitoli precedenti.
-  - Rispetta gli archi caratteriali già stabiliti.
-  - Mantieni la voce e le caratteristiche dei personaggi già introdotti.
+
+- **Differenziazione vocale**: Ogni personaggio deve avere un modo di parlare riconoscibile. Non basta cambiare il contenuto dei dialoghi: cambia registro, lunghezza delle frasi, intercalari, livello di formalità. Un professore non parla come un meccanico, un adolescente non parla come un anziano. Il lettore deve poter capire chi parla anche senza "disse Marco".
+
+- **Mostrare attraverso azioni e scelte, non etichette**: Non scrivere "Maria era coraggiosa". Mostra Maria che fa qualcosa di coraggioso in una situazione concreta, con le mani che tremano e la voce che le si spezza. Il carattere emerge da ciò che un personaggio FA, soprattutto quando è difficile.
+
+- **Interiorità specifica, non generica**: Non "provava una grande tristezza". Invece: cosa guardava in quel momento? Cosa gli tornava in mente? Che gesto faceva con le mani? La specificità è ciò che distingue la narrativa viva dalla parafrasi.
+
+- **Relazioni dinamiche, non statiche**: Le relazioni tra personaggi cambiano scena per scena. Due alleati possono avere un momento di attrito; due rivali possono condividere un istante di comprensione. Evita relazioni che restano identiche dall'inizio alla fine del capitolo.
+
+- **I personaggi secondari hanno vita propria**: Quando un personaggio secondario entra in scena, chiediti: da dove arriva? Cosa stava facendo prima? Cosa farà dopo? Dagli un obiettivo nella scena che non sia solo "supportare il protagonista". Anche se non lo mostri esplicitamente, questa consapevolezza trasparirà nella scrittura.
+
+- **Dialogo come conflitto e sottotesto**: Nei dialoghi significativi, i personaggi dovrebbero volere cose diverse. Il dialogo diventa interessante quando c'è tensione tra ciò che si dice e ciò che si pensa, tra ciò che si vuole e ciò che si ottiene. Non tutto deve essere detto esplicitamente: il non-detto è potente quanto il detto.
+
+- **Evoluzione coerente**: I personaggi devono evolversi in modo logico e coerente con i capitoli precedenti. Rispetta gli archi caratteriali già stabiliti. Il cambiamento è graduale: una persona non diventa coraggiosa dall'oggi al domani.
 
 ### Temi e Profondità
 - **Elaborazione dei Temi**:
   - Esplora i temi indicati nella configurazione e nella struttura.
   - Integra riflessioni e approfondimenti quando appropriato.
   - Non essere didascalico: mostra, non dire.
+
+### Qualità della Prosa: Specificità e Autenticità
+
+**REGOLA D'ORO**: La specificità è il nemico della banalità. Ogni volta che scrivi qualcosa di generico, chiediti: posso essere più preciso, più concreto, più vicino all'esperienza reale?
+
+**ANTI-PATTERN DA EVITARE ASSOLUTAMENTE**:
+
+1. **Catene di aggettivi generici**: "I suoi occhi erano profondi, intensi e magnetici" — Scegli UN dettaglio specifico e concreto. Meno è di più.
+
+2. **Emozioni dichiarate invece che mostrate**: "Un'ondata di emozioni lo travolse", "Il cuore gli si strinse" — Mostra cosa FA il personaggio, cosa SENTE fisicamente, cosa PENSA in quel momento preciso.
+
+3. **Similitudini e metafore logore**: "come un fulmine a ciel sereno", "un silenzio tombale", "con il cuore in gola", "un nodo allo stomaco", "lacrime che scendevano come fiumi" — Se l'immagine ti viene in mente immediatamente, è un cliché. Trova un'immagine originale oppure elimina la similitudine e descrivi direttamente.
+
+4. **Riassunti emotivi al posto di scene**: "I giorni successivi furono difficili per Marco" — Mostra UNA scena specifica che incarni quella difficoltà. Una scena vale più di dieci riassunti.
+
+5. **Aperture di capitolo con ambientazione meteorologica generica**: "Il sole splendeva alto nel cielo" / "La pioggia batteva contro i vetri" — Se usi il meteo, collegalo all'interiorità del personaggio in modo non ovvio, o parti da altro.
+
+6. **Dialoghi espositivi**: Personaggi che si spiegano a vicenda cose che entrambi già sanno, solo per informare il lettore. Trova modi più naturali per trasmettere informazioni di contesto.
+
+7. **Eccesso di avverbi nei dialoghi**: "disse dolcemente", "rispose bruscamente", "mormorò tristemente" — Il dialogo stesso e il contesto devono trasmettere il tono. Usa "disse" in modo neutro e lascia che le parole parlino da sole.
+
+8. **Simmetria emotiva artificiosa**: Non ogni capitolo deve avere un momento di tristezza seguito da speranza, o un conflitto perfettamente bilanciato da una riconciliazione. La vita è asimmetrica, la buona narrativa anche.
+
+**COSA FARE INVECE**:
+- **Dettagli sensoriali specifici**: non "un buon profumo" ma "odore di caffè bruciato e bucce d'arancia". Non "era una bella giornata" ma il modo in cui la luce colpiva un oggetto specifico.
+- **Variare la lunghezza delle frasi**: frasi brevi e secche per la tensione. Frasi lunghe, che si distendono e si avvolgono su se stesse, per la riflessione o la descrizione. Il ritmo della prosa è musica.
+- **Lascia spazio al non-detto**: non tutto deve essere spiegato. Il lettore è intelligente. Un personaggio che cambia discorso dice più di un paragrafo di introspezione.
+- **Usa il concreto per dire l'astratto**: un personaggio che sistema ossessivamente gli oggetti sulla scrivania comunica più sulla sua ansia di qualsiasi spiegazione diretta. Un personaggio che cucina per gli altri invece di dire "ti voglio bene" è più vero.
 
 ## Formato Output
 
