@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import asyncio
 from datetime import datetime
@@ -11,9 +12,15 @@ from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async, update_writing_progress_async, start_chapter_timing_async, 
     end_chapter_timing_async, update_book_chapter_async, pause_writing_async, resume_writing_async,
-    update_token_usage_async,
+    save_session_async, update_token_usage_async,
 )
 from app.core.config import get_app_config, get_temperature_for_agent
+from app.agent.story_bible import (
+    build_story_bible,
+    get_nearby_chapter_cards,
+    get_recent_full_chapters,
+    get_relevant_continuity_notes,
+)
 from app.utils.token_tracker import extract_token_usage
 from app.services.pdf_service import calculate_page_count
 import math
@@ -23,6 +30,9 @@ import httpx
 CHAPTER_GENERATION_MAX_RETRIES = 3  # Numero massimo di tentativi per generare un capitolo
 CHAPTER_GENERATION_RETRY_DELAY = 5  # Delay base in secondi tra tentativi (con backoff)
 CHAPTER_GENERATION_TIMEOUT = 300  # Timeout in secondi per la generazione (5 minuti)
+DEFAULT_MIN_CHAPTER_LENGTH = 1200
+DEFAULT_MIN_CHAPTER_WORDS = 180
+DEFAULT_DISALLOWED_OUTPUT_MARKERS = ("[ERRORE:", "[ERROR:")
 
 # Errori di rete che giustificano un retry
 RETRYABLE_EXCEPTIONS = (
@@ -50,23 +60,143 @@ def _is_retryable_error(error: Exception) -> bool:
     return any(pattern in error_msg for pattern in retryable_patterns)
 
 
-def load_writer_agent_context() -> str:
-    """Carica il contesto dell'agente scrittore dal file Markdown."""
+def _count_words(text: str) -> int:
+    """Conta le parole in modo robusto anche con apostrofi e lettere accentate."""
+    return len(re.findall(r"\b[\wÀ-ÖØ-öø-ÿ'-]+\b", text, flags=re.UNICODE))
+
+
+def _get_chapter_validation_settings(app_config: Optional[dict[str, Any]] = None) -> tuple[int, int, list[str]]:
+    """Restituisce le soglie di validazione per i capitoli."""
+    if app_config is None:
+        app_config = get_app_config()
+
+    validation_config = app_config.get("validation", {})
+    min_chars = int(validation_config.get("min_chapter_length", DEFAULT_MIN_CHAPTER_LENGTH))
+    min_words = int(validation_config.get("min_chapter_words", DEFAULT_MIN_CHAPTER_WORDS))
+    disallowed_markers = validation_config.get(
+        "disallowed_output_markers",
+        list(DEFAULT_DISALLOWED_OUTPUT_MARKERS),
+    )
+    if not isinstance(disallowed_markers, list):
+        disallowed_markers = list(DEFAULT_DISALLOWED_OUTPUT_MARKERS)
+
+    return min_chars, min_words, [str(marker) for marker in disallowed_markers if marker]
+
+
+def _find_blocked_output_marker(text: str, disallowed_markers: list[str]) -> Optional[str]:
+    """Cerca marker che indicano output tecnico o placeholder non narrativi."""
+    text_lower = text.lower()
+    for marker in disallowed_markers:
+        if marker.lower() in text_lower:
+            return marker
+    return None
+
+
+def validate_generated_chapter_text(
+    chapter_text: str,
+    current_section_title: str,
+    app_config: Optional[dict[str, Any]] = None,
+) -> str:
+    """Valida che un capitolo abbia contenuto narrativo sufficiente e nessun placeholder tecnico."""
+    if not chapter_text or not chapter_text.strip():
+        raise ValueError(f"Capitolo vuoto per '{current_section_title}'")
+
+    text = chapter_text.strip()
+    min_chars, min_words, disallowed_markers = _get_chapter_validation_settings(app_config)
+
+    blocked_marker = _find_blocked_output_marker(text, disallowed_markers)
+    if blocked_marker:
+        raise ValueError(
+            f"Capitolo non valido per '{current_section_title}': contiene il marker non narrativo '{blocked_marker}'"
+        )
+
+    char_count = len(text)
+    word_count = _count_words(text)
+    alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", text))
+
+    if alnum_count < 20:
+        raise ValueError(
+            f"Capitolo non valido per '{current_section_title}': contenuto non significativo ({alnum_count} caratteri alfanumerici)"
+        )
+
+    if char_count < min_chars:
+        raise ValueError(
+            f"Capitolo troppo corto per '{current_section_title}': {char_count} caratteri "
+            f"(minimo richiesto: {min_chars})"
+        )
+
+    if word_count < min_words:
+        raise ValueError(
+            f"Capitolo troppo breve per '{current_section_title}': {word_count} parole "
+            f"(minimo richiesto: {min_words})"
+        )
+
+    return text
+
+
+def _format_question_answers_for_writer(question_answers: List[QuestionAnswer]) -> Optional[str]:
+    """Formatta le risposte alle domande preliminari come vincoli espliciti per lo scrittore."""
+    if not question_answers:
+        return None
+
+    answered_lines = []
+    for qa in question_answers:
+        if qa.answer and qa.answer.strip():
+            answered_lines.append(f"- {qa.question_id}: {qa.answer.strip()}")
+
+    if not answered_lines:
+        return None
+
+    return "\n".join(answered_lines)
+
+
+async def refresh_story_bible_for_session(
+    session_store: Any,
+    session: Any,
+    outline_sections: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Rigenera e persiste la story bible della sessione usando outline e capitoli già completati."""
+    session.story_bible = build_story_bible(
+        form_data=session.form_data,
+        question_answers=session.question_answers,
+        validated_draft=session.current_draft or "",
+        draft_title=session.current_title,
+        outline_sections=outline_sections,
+        completed_chapters=session.book_chapters or [],
+        draft_version=session.current_version,
+        outline_version=session.outline_version,
+    )
+    await save_session_async(session_store, session)
+    return session.story_bible
+
+
+def _load_agent_prompt(prompt_filename: str, agent_label: str) -> str:
+    """Carica un prompt agente dalla cartella config."""
     # In locale: __file__ = backend/app/agent/writer_generator.py -> root = .parent.parent.parent.parent
     # Nel container: __file__ = /app/app/agent/writer_generator.py -> root = .parent.parent.parent
     base_path = Path(__file__).parent.parent.parent
-    config_path = base_path / "config" / "writer_agent_context.md"
+    config_path = base_path / "config" / prompt_filename
     
     # Se non esiste, prova un livello sopra (per ambiente locale)
     if not config_path.exists():
         base_path = base_path.parent
-        config_path = base_path / "config" / "writer_agent_context.md"
+        config_path = base_path / "config" / prompt_filename
     
     if not config_path.exists():
-        raise FileNotFoundError(f"File di contesto agente scrittore non trovato: {config_path}")
+        raise FileNotFoundError(f"File prompt {agent_label} non trovato: {config_path}")
     
     with open(config_path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def load_writer_agent_context() -> str:
+    """Carica il contesto dell'agente scrittore dal file Markdown."""
+    return _load_agent_prompt("writer_agent_context.md", "scrittore")
+
+
+def load_chapter_reviewer_context() -> str:
+    """Carica il contesto dell'agente reviewer del capitolo dal file Markdown."""
+    return _load_agent_prompt("chapter_reviewer_context.md", "reviewer capitolo")
 
 
 def _coerce_llm_content_to_text(content: Any) -> str:
@@ -95,6 +225,341 @@ def _coerce_llm_content_to_text(content: Any) -> str:
                 parts.append(str(item))
         return "\n".join(parts)
     return str(content)
+
+
+def _resolve_generation_mode(model_name: str) -> str:
+    """Converte il nome modello in una modalità di prodotto."""
+    model_lower = (model_name or "").lower()
+    if "ultra" in model_lower:
+        return "ultra"
+    if "pro" in model_lower:
+        return "pro"
+    return "flash"
+
+
+def _get_chapter_review_settings(app_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Restituisce la configurazione del review flow dei capitoli."""
+    if app_config is None:
+        app_config = get_app_config()
+
+    review_config = app_config.get("review", {})
+    chapters_config = review_config.get("chapters", {}) if isinstance(review_config, dict) else {}
+
+    target_modes = chapters_config.get("target_modes", ["pro", "ultra"])
+    if not isinstance(target_modes, list):
+        target_modes = ["pro", "ultra"]
+
+    return {
+        "enabled": bool(chapters_config.get("enabled", True)),
+        "target_modes": [str(mode) for mode in target_modes],
+        "min_chapter_words": int(chapters_config.get("min_chapter_words", 220)),
+        "max_issues": int(chapters_config.get("max_issues", 5)),
+        "reviewer_max_output_tokens": int(chapters_config.get("reviewer_max_output_tokens", 2048)),
+        "allow_fallback_to_original": bool(chapters_config.get("allow_fallback_to_original", True)),
+    }
+
+
+def should_run_chapter_review(
+    form_data: SubmissionRequest,
+    chapter_text: str,
+    app_config: Optional[dict[str, Any]] = None,
+) -> bool:
+    """Determina se attivare il pass review->revise per il capitolo."""
+    settings = _get_chapter_review_settings(app_config)
+    if not settings["enabled"]:
+        return False
+
+    mode = _resolve_generation_mode(form_data.llm_model)
+    if mode not in settings["target_modes"]:
+        return False
+
+    return _count_words(chapter_text) >= settings["min_chapter_words"]
+
+
+def _coerce_review_points(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [line.lstrip("-•* ").strip() for line in value.splitlines() if line.strip()]
+    coerced = str(value).strip()
+    return [coerced] if coerced else []
+
+
+def _extract_first_json_object(response_text: str) -> dict[str, Any]:
+    """Estrae il primo oggetto JSON valido trovato nel testo."""
+    if not response_text or not response_text.strip():
+        raise ValueError("Risposta vuota del reviewer.")
+
+    candidate_blocks: list[str] = []
+    stripped_text = response_text.strip()
+    if stripped_text.startswith("{") and stripped_text.endswith("}"):
+        candidate_blocks.append(stripped_text)
+
+    if "```" in response_text:
+        segments = response_text.split("```")
+        for idx, segment in enumerate(segments):
+            if idx % 2 == 1:
+                cleaned = segment.strip()
+                if cleaned.lower().startswith("json"):
+                    cleaned = cleaned[4:].strip()
+                if cleaned:
+                    candidate_blocks.append(cleaned)
+
+    for candidate in candidate_blocks:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            continue
+
+    decoder = json.JSONDecoder()
+    for start_index, char in enumerate(response_text):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(response_text[start_index:])
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError("Nessun JSON valido trovato nella risposta del reviewer.")
+
+
+def parse_chapter_review_response(response_text: str, max_issues: int = 5) -> dict[str, Any]:
+    """Parsa l'output JSON del reviewer capitolo."""
+    parsed = _extract_first_json_object(response_text)
+    issues = _coerce_review_points(parsed.get("issues"))[:max_issues]
+    preserve = _coerce_review_points(parsed.get("preserve"))[:max_issues]
+    needs_revision = bool(parsed.get("needs_revision")) or bool(issues)
+
+    if not issues:
+        needs_revision = False
+
+    return {
+        "needs_revision": needs_revision,
+        "issues": issues,
+        "preserve": preserve,
+    }
+
+
+def _combine_token_usage(*token_usages: dict[str, int]) -> dict[str, int]:
+    """Somma il token usage di più chiamate LLM."""
+    combined = {"input_tokens": 0, "output_tokens": 0, "model": None}
+    for usage in token_usages:
+        if not usage:
+            continue
+        combined["input_tokens"] += int(usage.get("input_tokens", 0) or 0)
+        combined["output_tokens"] += int(usage.get("output_tokens", 0) or 0)
+        if usage.get("model"):
+            combined["model"] = usage.get("model")
+    return combined
+
+
+def format_chapter_review_context(
+    form_data: SubmissionRequest,
+    current_section: Dict[str, Any],
+    story_bible: Optional[Dict[str, Any]],
+    chapter_text: str,
+) -> str:
+    """Costruisce il contesto compatto per l'editor reviewer."""
+    lines = [
+        f"## Modalità: {_resolve_generation_mode(form_data.llm_model)}",
+        f"## Sezione corrente: {current_section.get('title', 'Sezione senza titolo')}",
+        "### Descrizione della sezione",
+        current_section.get("description", "Nessuna descrizione disponibile."),
+    ]
+
+    if story_bible:
+        creative_brief = story_bible.get("creative_brief", [])
+        if creative_brief:
+            lines.append("\n### Brief creativo")
+            for item in creative_brief:
+                lines.append(f"- {item}")
+
+        user_constraints = story_bible.get("user_constraints", [])
+        if user_constraints:
+            lines.append("\n### Vincoli utente")
+            for item in user_constraints:
+                lines.append(f"- {item}")
+
+        nearby_cards = get_nearby_chapter_cards(
+            story_bible,
+            current_section.get("section_index"),
+        )
+        if nearby_cards:
+            lines.append("\n### Chapter cards rilevanti")
+            for card in nearby_cards:
+                lines.append(f"- {card.get('title', '')}: {card.get('description', '')}")
+
+        continuity_notes = get_relevant_continuity_notes(story_bible, [])
+        if continuity_notes:
+            lines.append("\n### Continuità consolidata")
+            for note in continuity_notes:
+                lines.append(f"- {note.get('title', '')}: {note.get('summary', '')}")
+
+        recent_developments = story_bible.get("recent_developments", [])
+        if recent_developments:
+            lines.append("\n### Ultimi sviluppi")
+            for item in recent_developments:
+                lines.append(f"- {item}")
+
+    lines.append("\n## Capitolo da valutare")
+    lines.append(chapter_text)
+    return "\n".join(lines)
+
+
+async def _invoke_messages_with_retry(
+    messages: list[Any],
+    gemini_model: str,
+    api_key: str,
+    temperature: float,
+    max_output_tokens: int,
+    request_label: str,
+) -> tuple[str, dict[str, int]]:
+    """Invoca il modello Gemini con retry e restituisce testo + token usage."""
+    llm = ChatGoogleGenerativeAI(
+        model=gemini_model,
+        google_api_key=api_key,
+        temperature=temperature,
+        max_output_tokens=max_output_tokens,
+        timeout=CHAPTER_GENERATION_TIMEOUT,
+    )
+
+    last_error = None
+    for attempt in range(CHAPTER_GENERATION_MAX_RETRIES):
+        try:
+            response = await llm.ainvoke(messages)
+            response_text = _coerce_llm_content_to_text(response.content).strip()
+            token_usage = extract_token_usage(response)
+            token_usage["model"] = gemini_model
+
+            if not response_text:
+                raise ValueError(f"Risposta vuota per {request_label}")
+
+            if attempt > 0:
+                print(f"[WRITER] Chiamata riuscita al tentativo {attempt + 1} per {request_label}")
+            return response_text, token_usage
+
+        except Exception as e:
+            last_error = e
+            is_retryable = _is_retryable_error(e)
+            if is_retryable and attempt < CHAPTER_GENERATION_MAX_RETRIES - 1:
+                delay = CHAPTER_GENERATION_RETRY_DELAY * (attempt + 1)
+                print(f"[WRITER] Tentativo {attempt + 1}/{CHAPTER_GENERATION_MAX_RETRIES} fallito per {request_label}: {type(e).__name__}")
+                print(f"[WRITER] Errore recuperabile, riprovo tra {delay}s...")
+                await asyncio.sleep(delay)
+            else:
+                raise
+
+    raise last_error if last_error else Exception(f"Invocazione fallita per {request_label}")
+
+
+async def review_and_maybe_revise_chapter(
+    *,
+    agent_context: str,
+    formatted_context: str,
+    gemini_model: str,
+    api_key: str,
+    form_data: SubmissionRequest,
+    current_section: Dict[str, Any],
+    story_bible: Optional[Dict[str, Any]],
+    chapter_text: str,
+) -> tuple[str, dict[str, int]]:
+    """Esegue un pass review->revise non bloccante su un capitolo già valido."""
+    app_config = get_app_config()
+    if not should_run_chapter_review(form_data, chapter_text, app_config):
+        return chapter_text, {"input_tokens": 0, "output_tokens": 0, "model": gemini_model}
+
+    settings = _get_chapter_review_settings(app_config)
+    reviewer_context = load_chapter_reviewer_context()
+    review_payload = format_chapter_review_context(
+        form_data=form_data,
+        current_section=current_section,
+        story_bible=story_bible,
+        chapter_text=chapter_text,
+    )
+
+    try:
+        review_response_text, review_token_usage = await _invoke_messages_with_retry(
+            messages=[
+                SystemMessage(content=reviewer_context),
+                HumanMessage(
+                    content=(
+                        "Valuta il capitolo seguente come editor tecnico e restituisci SOLO JSON valido.\n\n"
+                        f"{review_payload}"
+                    )
+                ),
+            ],
+            gemini_model=gemini_model,
+            api_key=api_key,
+            temperature=get_temperature_for_agent("chapter_reviewer", gemini_model),
+            max_output_tokens=min(get_max_output_tokens(gemini_model), settings["reviewer_max_output_tokens"]),
+            request_label=f"review capitolo '{current_section['title']}'",
+        )
+
+        review_result = parse_chapter_review_response(
+            review_response_text,
+            max_issues=settings["max_issues"],
+        )
+
+        if not review_result["needs_revision"]:
+            return chapter_text, review_token_usage
+
+        revision_prompt = f"""Rivedi il capitolo seguente mantenendo voce, continuità e materiale già efficace.
+
+{formatted_context}
+
+## CAPITOLO DA REVISIONARE
+{chapter_text}
+
+## PROBLEMI DA CORREGGERE
+{chr(10).join(f"- {issue}" for issue in review_result["issues"])}
+"""
+
+        if review_result["preserve"]:
+            revision_prompt += f"""
+## ELEMENTI DA PRESERVARE
+{chr(10).join(f"- {item}" for item in review_result["preserve"])}
+"""
+
+        revision_prompt += """
+## ISTRUZIONI FINALI
+- Correggi solo i problemi segnalati, senza cambiare inutilmente il resto.
+- Mantieni coerenza con continuità, chapter cards e vincoli utente.
+- Restituisci SOLO la versione finale del capitolo, senza note editoriali o spiegazioni.
+"""
+
+        revised_text, revision_token_usage = await _invoke_messages_with_retry(
+            messages=[
+                SystemMessage(content=agent_context),
+                HumanMessage(content=revision_prompt),
+            ],
+            gemini_model=gemini_model,
+            api_key=api_key,
+            temperature=get_temperature_for_agent("chapter_reviser", gemini_model),
+            max_output_tokens=get_max_output_tokens(gemini_model),
+            request_label=f"revisione capitolo '{current_section['title']}'",
+        )
+
+        revised_text = validate_generated_chapter_text(
+            revised_text,
+            current_section["title"],
+            app_config=app_config,
+        )
+        return revised_text, _combine_token_usage(review_token_usage, revision_token_usage)
+
+    except Exception as e:
+        if settings["allow_fallback_to_original"]:
+            print(
+                f"[WRITER] WARNING: review flow non bloccante fallito per '{current_section['title']}': {e}. "
+                f"Uso il capitolo originale valido."
+            )
+            return chapter_text, {"input_tokens": 0, "output_tokens": 0, "model": gemini_model}
+        raise
 
 
 def parse_outline_sections(outline_text: str) -> List[Dict[str, str]]:
@@ -254,6 +719,9 @@ def parse_outline_sections(outline_text: str) -> List[Dict[str, str]]:
             f"Verifica che la struttura contenga capitoli con intestazioni Markdown (## o ###)."
         )
     
+    for index, section in enumerate(filtered_sections):
+        section["section_index"] = index
+
     print(f"[PARSE OUTLINE] Restituisco {len(filtered_sections)} sezioni da scrivere")
     return filtered_sections
 
@@ -306,6 +774,7 @@ def format_writer_context(
     outline_text: str,
     previous_chapters: List[Dict[str, Any]],
     current_section: Dict[str, str],
+    story_bible: Optional[Dict[str, Any]] = None,
     is_long_form_part1: bool = False,
     is_long_form_part2: bool = False,
     part1_text: Optional[str] = None,
@@ -335,10 +804,14 @@ def format_writer_context(
         "Tema": form_data.theme,
         "Protagonista": form_data.protagonist,
         "Archetipo Protagonista": form_data.protagonist_archetype,
+        "Arco del personaggio": form_data.character_arc,
         "Punto di vista": form_data.point_of_view,
         "Voce narrante": form_data.narrative_voice,
         "Ritmo": form_data.pace,
+        "Struttura temporale": form_data.temporal_structure,
         "Realismo": form_data.realism,
+        "Ambiguità": form_data.ambiguity,
+        "Intenzionalità": form_data.intentionality,
     }
     
     for label, value in optional_fields.items():
@@ -346,19 +819,82 @@ def format_writer_context(
             lines.append(f"**{label}**: {value}")
     
     lines.append("\n---\n")
+
+    formatted_answers = _format_question_answers_for_writer(question_answers)
+    if formatted_answers:
+        lines.append("## RISPOSTE ALLE DOMANDE PRELIMINARI")
+        lines.append("Questi chiarimenti esprimono preferenze e vincoli specifici dell'utente.")
+        lines.append(formatted_answers)
+        lines.append("\n---\n")
     
-    # Trama Estesa Validata
-    lines.append("## TRAMA ESTESA VALIDATA")
-    lines.append("Questa è la fonte di verità per gli eventi principali e lo sviluppo narrativo.")
-    lines.append(validated_draft)
-    lines.append("\n---\n")
-    
-    # Struttura Completa (per riferimento)
-    lines.append("## STRUTTURA COMPLETA DEL ROMANZO")
-    lines.append("Questa è la struttura completa. La sezione che devi scrivere è indicata di seguito.")
-    lines.append(outline_text)
-    lines.append("\n---\n")
-    
+    if story_bible:
+        lines.append("## STORY BIBLE DEL ROMANZO")
+        lines.append("Usa questa memoria strutturata come guida primaria per mantenere continuità, vincoli e direzione narrativa.")
+
+        creative_brief = story_bible.get("creative_brief", [])
+        if creative_brief:
+            lines.append("### Brief creativo")
+            for item in creative_brief:
+                lines.append(f"- {item}")
+
+        premise = story_bible.get("premise")
+        if premise:
+            lines.append("\n### Premessa")
+            lines.append(premise)
+
+        draft_summary = story_bible.get("draft_summary")
+        if draft_summary:
+            lines.append("\n### Sintesi della bozza validata")
+            lines.append(draft_summary)
+
+        user_constraints = story_bible.get("user_constraints", [])
+        if user_constraints:
+            lines.append("\n### Vincoli espliciti dell'utente")
+            for item in user_constraints:
+                lines.append(f"- {item}")
+
+        nearby_cards = get_nearby_chapter_cards(
+            story_bible,
+            current_section.get("section_index"),
+        )
+        if nearby_cards:
+            lines.append("\n### Chapter Cards Rilevanti")
+            for card in nearby_cards:
+                relation = "Capitolo attuale"
+                card_index = int(card.get("section_index", -1))
+                current_index = current_section.get("section_index")
+                if current_index is not None:
+                    if card_index < current_index:
+                        relation = "Contesto immediatamente precedente"
+                    elif card_index > current_index:
+                        relation = "Sviluppo immediatamente successivo"
+                lines.append(f"- [{relation}] {card.get('title', '')}: {card.get('description', '')}")
+
+        continuity_notes = get_relevant_continuity_notes(story_bible, previous_chapters)
+        if continuity_notes:
+            lines.append("\n### Continuità Consolidata")
+            for note in continuity_notes:
+                lines.append(f"- {note.get('title', '')}: {note.get('summary', '')}")
+
+        recent_developments = story_bible.get("recent_developments", [])
+        if recent_developments:
+            lines.append("\n### Ultimi sviluppi già avvenuti")
+            for item in recent_developments:
+                lines.append(f"- {item}")
+
+        lines.append("\n---\n")
+    else:
+        # Fallback legacy: usa bozza e outline completi se la story bible non è disponibile
+        lines.append("## TRAMA ESTESA VALIDATA")
+        lines.append("Questa è la fonte di verità per gli eventi principali e lo sviluppo narrativo.")
+        lines.append(validated_draft)
+        lines.append("\n---\n")
+
+        lines.append("## STRUTTURA COMPLETA DEL ROMANZO")
+        lines.append("Questa è la struttura completa. La sezione che devi scrivere è indicata di seguito.")
+        lines.append(outline_text)
+        lines.append("\n---\n")
+
     # Capitoli Precedenti (CONTESTO AUTOREGRESSIVO)
     if previous_chapters:
         lines.append("## CAPITOLI PRECEDENTI SCRITTI")
@@ -368,14 +904,19 @@ def format_writer_context(
         lines.append("- Atmosfere e toni già introdotti")
         lines.append("- Dettagli di ambientazione già forniti")
         lines.append("- Stile narrativo già utilizzato\n")
-        
-        for i, chapter in enumerate(previous_chapters, 1):
+
+        chapters_for_prompt = previous_chapters
+        if story_bible:
+            chapters_for_prompt = get_recent_full_chapters(previous_chapters)
+            lines.append("Per evitare ridondanza, hai il testo integrale solo degli ultimi capitoli; per il resto usa la continuità sintetica della story bible.\n")
+
+        for i, chapter in enumerate(chapters_for_prompt, 1):
             title = chapter.get('title', f'Capitolo {i}')
             content = chapter.get('content', '')
             lines.append(f"### {title}")
             lines.append(content)
             lines.append("\n")
-        
+
         lines.append("---\n")
     
     # Sezione Corrente da Scrivere
@@ -563,6 +1104,7 @@ async def generate_chapter(
     outline_text: str,
     previous_chapters: List[Dict[str, Any]],
     current_section: Dict[str, str],
+    story_bible: Optional[Dict[str, Any]],
     api_key: str,
 ) -> tuple[str, dict[str, int]]:
     """
@@ -580,6 +1122,7 @@ async def generate_chapter(
         outline_text: Struttura completa del romanzo
         previous_chapters: Lista di capitoli già scritti (per autoregressione)
         current_section: Dizionario con 'title' e 'description' della sezione corrente
+        story_bible: Memoria narrativa strutturata della sessione
         api_key: API key per Gemini
     
     Returns:
@@ -611,6 +1154,7 @@ async def generate_chapter(
             outline_text=outline_text,
             previous_chapters=previous_chapters,
             current_section=current_section,
+            story_bible=story_bible,
             is_long_form_part1=True,
         )
         
@@ -636,6 +1180,7 @@ async def generate_chapter(
             outline_text=outline_text,
             previous_chapters=previous_chapters,
             current_section=current_section,
+            story_bible=story_bible,
             is_long_form_part2=True,
             part1_text=part1_text,
         )
@@ -663,18 +1208,34 @@ async def generate_chapter(
         }
         
         # Validazione finale
-        alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
-        is_effectively_empty = (alnum_count < 20)
-        
         app_config = get_app_config()
-        min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
-        
-        if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
-            raise ValueError(
-                f"Capitolo Long Form generato vuoto o troppo corto per '{current_section['title']}': "
-                f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
-                f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
-            )
+        chapter_text = validate_generated_chapter_text(
+            chapter_text,
+            current_section['title'],
+            app_config=app_config,
+        )
+
+        review_context = format_writer_context(
+            form_data=form_data,
+            question_answers=question_answers,
+            validated_draft=validated_draft,
+            draft_title=draft_title,
+            outline_text=outline_text,
+            previous_chapters=previous_chapters,
+            current_section=current_section,
+            story_bible=story_bible,
+        )
+        chapter_text, review_token_usage = await review_and_maybe_revise_chapter(
+            agent_context=agent_context,
+            formatted_context=review_context,
+            gemini_model=gemini_model,
+            api_key=api_key,
+            form_data=form_data,
+            current_section=current_section,
+            story_bible=story_bible,
+            chapter_text=chapter_text,
+        )
+        token_usage = _combine_token_usage(token_usage, review_token_usage)
         
         print(f"[WRITER] Capitolo Long Form '{current_section['title']}' generato con successo: {len(chapter_text)} caratteri totali (Parte 1: {len(part1_text)}, Parte 2: {len(part2_text)})")
         print(f"[WRITER] Token totali capitolo: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
@@ -690,6 +1251,7 @@ async def generate_chapter(
             outline_text=outline_text,
             previous_chapters=previous_chapters,
             current_section=current_section,
+            story_bible=story_bible,
         )
         
         # Determina max_output_tokens in base al modello
@@ -727,20 +1289,23 @@ Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. Inizia
                 token_usage = extract_token_usage(response)
                 token_usage["model"] = gemini_model
                 
-                # Validazione: considera vuoto anche output tipo "..." o solo punteggiatura
-                alnum_count = len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]", chapter_text))
-                # Se contiene pochissimi caratteri alfanumerici, è di fatto vuoto/degradato
-                is_effectively_empty = (alnum_count < 20)
-
                 app_config = get_app_config()
-                min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
-                
-                if not chapter_text or len(chapter_text.strip()) < min_chapter_length or is_effectively_empty:
-                    raise ValueError(
-                        f"Capitolo generato vuoto o troppo corto per '{current_section['title']}': "
-                        f"{len(chapter_text) if chapter_text else 0} caratteri, {alnum_count} alfanumerici "
-                        f"(minimo richiesto: {min_chapter_length} caratteri e contenuto significativo)"
-                    )
+                chapter_text = validate_generated_chapter_text(
+                    chapter_text,
+                    current_section['title'],
+                    app_config=app_config,
+                )
+                chapter_text, review_token_usage = await review_and_maybe_revise_chapter(
+                    agent_context=agent_context,
+                    formatted_context=formatted_context,
+                    gemini_model=gemini_model,
+                    api_key=api_key,
+                    form_data=form_data,
+                    current_section=current_section,
+                    story_bible=story_bible,
+                    chapter_text=chapter_text,
+                )
+                token_usage = _combine_token_usage(token_usage, review_token_usage)
                 
                 # Successo
                 if attempt > 0:
@@ -828,6 +1393,11 @@ async def generate_full_book(
             is_paused=False,
         )
     
+    session = await get_session_async(session_store, session_id, user_id=None)
+    if not session:
+        raise ValueError(f"Sessione {session_id} non trovata durante la preparazione della story bible")
+    story_bible = await refresh_story_bible_for_session(session_store, session, sections)
+
     completed_chapters = []
     
     # Loop autoregressivo: per ogni sezione
@@ -872,6 +1442,7 @@ async def generate_full_book(
                     outline_text=outline_text,
                     previous_chapters=completed_chapters,  # Passa i capitoli già scritti
                     current_section=section,
+                    story_bible=story_bible,
                     api_key=api_key,
                 )
                 
@@ -887,38 +1458,24 @@ async def generate_full_book(
                 
                 # Verifica che il contenuto sia valido
                 app_config = get_app_config()
-                min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
-                
-                if chapter_content and len(chapter_content.strip()) >= min_chapter_length:
-                    print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
-                    # Termina tracciamento tempo capitolo
-                    await end_chapter_timing_async(session_store, session_id)
-                    session = await get_session_async(session_store, session_id, user_id=None)
-                    if session and session.chapter_timings:
-                        print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
-                        # Logging dettagliato per Ultra
-                        if form_data.llm_model.lower() == "gemini-3-ultra":
-                            last_timing = session.chapter_timings[-1]
-                            print(f"[WRITER] [ULTRA] Timing capitolo '{section['title']}' salvato: {last_timing:.1f} secondi")
-                            print(f"[WRITER] [ULTRA] Questo timing include entrambe le chiamate API (part1 + part2)")
-                            print(f"[WRITER] [ULTRA] Totale timings salvati: {len(session.chapter_timings)}")
-                    break
-                else:
-                    # Contenuto ancora vuoto o troppo corto
-                    if retry < max_retries - 1:
-                        print(f"[WRITER] WARNING: Capitolo vuoto o troppo corto ({len(chapter_content) if chapter_content else 0} caratteri), retry...")
-                        continue
-                    else:
-                        # Ultimo tentativo fallito, usa placeholder
-                        print(f"[WRITER] ERRORE: Impossibile generare contenuto valido dopo {max_retries} tentativi")
-                        # Termina tracciamento tempo anche in caso di errore
-                        await end_chapter_timing_async(session_store, session_id)
-                        chapter_content = (
-                            f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
-                            f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
-                            f"Si prega di rigenerare il libro o contattare il supporto.]"
-                        )
-                        break
+                chapter_content = validate_generated_chapter_text(
+                    chapter_content,
+                    section['title'],
+                    app_config=app_config,
+                )
+                print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
+                # Termina tracciamento tempo capitolo
+                await end_chapter_timing_async(session_store, session_id)
+                session = await get_session_async(session_store, session_id, user_id=None)
+                if session and session.chapter_timings:
+                    print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
+                    # Logging dettagliato per Ultra
+                    if form_data.llm_model.lower() == "gemini-3-ultra":
+                        last_timing = session.chapter_timings[-1]
+                        print(f"[WRITER] [ULTRA] Timing capitolo '{section['title']}' salvato: {last_timing:.1f} secondi")
+                        print(f"[WRITER] [ULTRA] Questo timing include entrambe le chiamate API (part1 + part2)")
+                        print(f"[WRITER] [ULTRA] Totale timings salvati: {len(session.chapter_timings)}")
+                break
                         
             except ValueError as ve:
                 # Errore di validazione (capitolo vuoto)
@@ -926,16 +1483,19 @@ async def generate_full_book(
                     print(f"[WRITER] WARNING: {str(ve)}, retry {retry + 1}/{max_retries - 1}...")
                     continue
                 else:
-                    # Ultimo tentativo fallito
-                    print(f"[WRITER] ERRORE: {str(ve)} dopo {max_retries} tentativi")
-                    # Termina tracciamento tempo anche in caso di errore
+                    error_msg = f"Contenuto non valido per la sezione '{section['title']}' dopo {max_retries} tentativi: {str(ve)}"
+                    print(f"[WRITER] ERRORE: {error_msg} - Mettendo in pausa la generazione")
                     await end_chapter_timing_async(session_store, session_id)
-                    chapter_content = (
-                        f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
-                        f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
-                        f"Si prega di rigenerare il libro o contattare il supporto.]"
+                    await pause_writing_async(
+                        session_store,
+                        session_id=session_id,
+                        current_step=index,
+                        total_steps=total_sections,
+                        current_section_name=section['title'],
+                        error_msg=error_msg,
                     )
-                    break
+                    print(f"[WRITER] Generazione messa in pausa. Capitoli completati: {len(completed_chapters)}/{total_sections}")
+                    return completed_chapters
                     
             except Exception as e:
                 # Altri errori: se non è l'ultimo tentativo, riprova
@@ -973,7 +1533,7 @@ async def generate_full_book(
                 'section_index': index,
             }
             
-            await update_book_chapter_async(
+            session = await update_book_chapter_async(
                 session_store,
                 session_id=session_id,
                 chapter_title=section['title'],
@@ -983,6 +1543,7 @@ async def generate_full_book(
             print(f"[WRITER] Capitolo salvato nella sessione")
             
             completed_chapters.append(chapter_dict)
+            story_bible = await refresh_story_bible_for_session(session_store, session, sections)
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
     # Calcola total_pages per la libreria (ottimizzazione performance)
@@ -1057,6 +1618,7 @@ async def resume_book_generation(
     
     # Recupera i capitoli già completati
     completed_chapters = session.book_chapters.copy()
+    story_bible = await refresh_story_bible_for_session(session_store, session, sections)
     
     # Identifica il capitolo da cui riprendere (quello fallito)
     failed_step = progress.get("current_step", 0)
@@ -1103,7 +1665,7 @@ async def resume_book_generation(
                 else:
                     print(f"[WRITER] Chiamata a generate_chapter per '{section['title']}'...")
                 
-                chapter_content = await generate_chapter(
+                chapter_content, chapter_token_usage = await generate_chapter(
                     form_data=form_data,
                     question_answers=question_answers,
                     validated_draft=validated_draft,
@@ -1111,46 +1673,51 @@ async def resume_book_generation(
                     outline_text=outline_text,
                     previous_chapters=completed_chapters,
                     current_section=section,
+                    story_bible=story_bible,
                     api_key=api_key,
                 )
-                
+
+                await update_token_usage_async(
+                    session_store,
+                    session_id,
+                    phase="chapters",
+                    input_tokens=chapter_token_usage.get("input_tokens", 0),
+                    output_tokens=chapter_token_usage.get("output_tokens", 0),
+                    model=chapter_token_usage.get("model", "gemini-3.1-pro-preview"),
+                )
+
                 # Verifica che il contenuto sia valido
-                min_chapter_length = app_config.get("validation", {}).get("min_chapter_length", 50)
-                
-                if chapter_content and len(chapter_content.strip()) >= min_chapter_length:
-                    print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
-                    await end_chapter_timing_async(session_store, session_id)
-                    session = await get_session_async(session_store, session_id, user_id=None)
-                    if session and session.chapter_timings:
-                        print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
-                    break
-                else:
-                    if retry < max_retries - 1:
-                        print(f"[WRITER] WARNING: Capitolo vuoto o troppo corto ({len(chapter_content) if chapter_content else 0} caratteri), retry...")
-                        continue
-                    else:
-                        print(f"[WRITER] ERRORE: Impossibile generare contenuto valido dopo {max_retries} tentativi")
-                        await end_chapter_timing_async(session_store, session_id)
-                        chapter_content = (
-                            f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
-                            f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
-                            f"Si prega di rigenerare il libro o contattare il supporto.]"
-                        )
-                        break
+                chapter_content = validate_generated_chapter_text(
+                    chapter_content,
+                    section['title'],
+                    app_config=app_config,
+                )
+
+                print(f"[WRITER] Capitolo generato con successo: {len(chapter_content)} caratteri")
+                await end_chapter_timing_async(session_store, session_id)
+                session = await get_session_async(session_store, session_id, user_id=None)
+                if session and session.chapter_timings:
+                    print(f"[WRITER] Tempo capitolo salvato: {session.chapter_timings[-1]:.1f} secondi. Totale timings: {len(session.chapter_timings)}")
+                break
                         
             except ValueError as ve:
                 if retry < max_retries - 1:
                     print(f"[WRITER] WARNING: {str(ve)}, retry {retry + 1}/{max_retries - 1}...")
                     continue
                 else:
-                    print(f"[WRITER] ERRORE: {str(ve)} dopo {max_retries} tentativi")
+                    error_msg = f"Contenuto non valido per la sezione '{section['title']}' dopo {max_retries} tentativi: {str(ve)}"
+                    print(f"[WRITER] ERRORE: {error_msg} - Mettendo in pausa la generazione")
                     await end_chapter_timing_async(session_store, session_id)
-                    chapter_content = (
-                        f"[ERRORE: Impossibile generare contenuto per la sezione '{section['title']}'. "
-                        f"Questo potrebbe essere dovuto a limitazioni temporanee del modello. "
-                        f"Si prega di rigenerare il libro o contattare il supporto.]"
+                    await pause_writing_async(
+                        session_store,
+                        session_id=session_id,
+                        current_step=index,
+                        total_steps=total_sections,
+                        current_section_name=section['title'],
+                        error_msg=error_msg,
                     )
-                    break
+                    print(f"[WRITER] Generazione messa in pausa. Capitoli completati: {len(completed_chapters)}/{total_sections}")
+                    return completed_chapters
                     
             except Exception as e:
                 if retry < max_retries - 1:
@@ -1177,7 +1744,7 @@ async def resume_book_generation(
                     print(f"[WRITER] Generazione messa in pausa. Capitoli completati: {len(completed_chapters)}/{total_sections}")
                     return completed_chapters
         
-        # Se siamo arrivati qui, abbiamo un contenuto (valido o placeholder)
+        # Se siamo arrivati qui, abbiamo un contenuto valido
         if chapter_content:
             # Salva il capitolo completato
             chapter_dict = {
@@ -1185,7 +1752,7 @@ async def resume_book_generation(
                 'content': chapter_content,
                 'section_index': index,
             }
-            await update_book_chapter_async(
+            session = await update_book_chapter_async(
                 session_store,
                 session_id=session_id,
                 chapter_title=section['title'],
@@ -1193,6 +1760,7 @@ async def resume_book_generation(
                 section_index=index,
             )
             completed_chapters.append(chapter_dict)
+            story_bible = await refresh_story_bible_for_session(session_store, session, sections)
             print(f"[WRITER] OK - Sezione {index + 1}/{total_sections} completata: {len(chapter_content)} caratteri")
     
     # Calcola total_pages per la libreria (ottimizzazione performance)

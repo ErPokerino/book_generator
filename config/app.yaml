@@ -8,7 +8,7 @@ api_timeouts:
 retry:
   chapter_generation:
     max_retries: 2
-    min_chapter_length: 50
+    min_chapter_length: 1200
   questions_generation:
     max_retries: 2
   draft_generation:
@@ -16,7 +16,11 @@ retry:
   outline_generation:
     max_retries: 2
 validation:
-  min_chapter_length: 50
+  min_chapter_length: 1200
+  min_chapter_words: 180
+  disallowed_output_markers:
+    - "[ERRORE:"
+    - "[ERROR:"
   words_per_page: 250
   toc_chapters_per_page: 30
 frontend:
@@ -60,8 +64,24 @@ llm_models:
     default: 65536
 cover_generation:
   aspect_ratio: '2:3'
+review:
+  chapters:
+    enabled: true
+    target_modes:
+      - pro
+      - ultra
+    min_chapter_words: 220
+    max_issues: 5
+    reviewer_max_output_tokens: 2048
+    allow_fallback_to_original: true
 temperature:
-  agents: null
+  agents:
+    question_generator: 0.2
+    draft_generator: 0.45
+    outline_generator: 0.3
+    writer_generator: 0.65
+    chapter_reviewer: 0.1
+    chapter_reviser: 0.45
 database:
   type: mongodb
   mongodb:

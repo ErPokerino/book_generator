@@ -142,6 +142,7 @@ class AppConfig(TypedDict, total=False):
     frontend: dict[str, int]
     time_estimation: dict[str, Any]
     cover_generation: dict[str, Any]
+    review: dict[str, Any]
     cost_estimation: dict[str, Any]
 
 
@@ -176,11 +177,13 @@ def load_app_config() -> AppConfig:
             "retry": {
                 "chapter_generation": {
                     "max_retries": 2,
-                    "min_chapter_length": 50,
+                    "min_chapter_length": 1200,
                 }
             },
             "validation": {
-                "min_chapter_length": 50,
+                "min_chapter_length": 1200,
+                "min_chapter_words": 180,
+                "disallowed_output_markers": ["[ERRORE:", "[ERROR:"],
                 "words_per_page": 250,
                 "toc_chapters_per_page": 30,
             },
@@ -192,7 +195,26 @@ def load_app_config() -> AppConfig:
                 "min_chapters_for_reliable_avg": 3,
                 "use_session_avg_if_available": True,
             },
-            "temperature": {},
+            "review": {
+                "chapters": {
+                    "enabled": True,
+                    "target_modes": ["pro", "ultra"],
+                    "min_chapter_words": 220,
+                    "max_issues": 5,
+                    "reviewer_max_output_tokens": 2048,
+                    "allow_fallback_to_original": True,
+                }
+            },
+            "temperature": {
+                "agents": {
+                    "question_generator": 0.2,
+                    "draft_generator": 0.45,
+                    "outline_generator": 0.3,
+                    "writer_generator": 0.65,
+                    "chapter_reviewer": 0.1,
+                    "chapter_reviser": 0.45,
+                }
+            },
             "cost_estimation": {},
         }
     
@@ -207,6 +229,7 @@ def load_app_config() -> AppConfig:
         "frontend": data.get("frontend", {}),
         "time_estimation": data.get("time_estimation", {}),
         "cover_generation": data.get("cover_generation", {}),
+        "review": data.get("review", {}),
         "temperature": data.get("temperature", {}),
         "cost_estimation": data.get("cost_estimation", {}),
     }

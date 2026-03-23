@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
+from app.models import LiteraryCritique
 from app.utils.token_tracker import extract_token_usage
 
 
@@ -164,79 +165,66 @@ def parse_critique_response(response_text: str) -> Dict[str, Any]:
     
     Restituisce un dizionario con: score, pros, cons, summary
     """
-    # Prova a parsare come JSON
+    if not response_text or not response_text.strip():
+        raise ValueError("Risposta del critico vuota.")
+
+    candidate_blocks: list[str] = []
+    stripped_text = response_text.strip()
+
+    if stripped_text.startswith("{") and stripped_text.endswith("}"):
+        candidate_blocks.append(stripped_text)
+
+    fence_marker = "```"
+    if fence_marker in response_text:
+        segments = response_text.split(fence_marker)
+        for idx, segment in enumerate(segments):
+            if idx % 2 == 1:
+                cleaned = segment.strip()
+                if cleaned.lower().startswith("json"):
+                    cleaned = cleaned[4:].strip()
+                if cleaned:
+                    candidate_blocks.append(cleaned)
+
+    decoder = json.JSONDecoder()
+    parsed: Optional[dict[str, Any]] = None
+
+    for candidate in candidate_blocks:
+        try:
+            maybe_parsed = json.loads(candidate)
+            if isinstance(maybe_parsed, dict):
+                parsed = maybe_parsed
+                break
+        except json.JSONDecodeError:
+            continue
+
+    if parsed is None:
+        for start_index, char in enumerate(response_text):
+            if char != "{":
+                continue
+            try:
+                maybe_parsed, _ = decoder.raw_decode(response_text[start_index:])
+                if isinstance(maybe_parsed, dict):
+                    parsed = maybe_parsed
+                    break
+            except json.JSONDecodeError:
+                continue
+
+    if parsed is None:
+        raise ValueError("Nessun JSON valido trovato nella risposta del critico.")
+
     try:
-        # Cerca un blocco JSON nella risposta
-        json_start = response_text.find("{")
-        json_end = response_text.rfind("}") + 1
-        if json_start >= 0 and json_end > json_start:
-            json_str = response_text[json_start:json_end]
-            parsed = json.loads(json_str)
-            return {
-                "score": float(parsed.get("score", 0)),
-                "pros": _coerce_points_to_list(parsed.get("pros", [])),
-                "cons": _coerce_points_to_list(parsed.get("cons", [])),
-                "summary": str(parsed.get("summary", "") or "")
-            }
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"[LITERARY_CRITIC] Errore nel parsing JSON: {e}")
-    
-    # Fallback: parsing manuale
-    score = 5.0  # Default
-    pros = ""
-    cons = ""
-    summary = ""
-    
-    lines = response_text.split('\n')
-    current_section = None
-    
-    for line in lines:
-        line_lower = line.lower().strip()
-        
-        # Cerca score
-        if "score" in line_lower or "voto" in line_lower or "valutazione" in line_lower:
-            # Cerca un numero tra 0 e 10
-            import re
-            numbers = re.findall(r'\d+\.?\d*', line)
-            if numbers:
-                try:
-                    score = float(numbers[0])
-                    if score > 10:
-                        score = 10.0
-                    if score < 0:
-                        score = 0.0
-                except ValueError:
-                    pass
-        
-        # Cerca sezioni
-        if "pro" in line_lower or "punti di forza" in line_lower or "pregi" in line_lower:
-            current_section = "pros"
-            continue
-        elif "contro" in line_lower or "punti di debolezza" in line_lower or "difetti" in line_lower:
-            current_section = "cons"
-            continue
-        elif "sintesi" in line_lower or "riassunto" in line_lower or "summary" in line_lower:
-            current_section = "summary"
-            continue
-        
-        # Aggiungi contenuto alla sezione corrente
-        if current_section == "pros" and line.strip():
-            pros += line.strip() + "\n"
-        elif current_section == "cons" and line.strip():
-            cons += line.strip() + "\n"
-        elif current_section == "summary" and line.strip():
-            summary += line.strip() + "\n"
-    
-    # Se non abbiamo trovato nulla, usa tutto come summary
-    if not summary and not pros and not cons:
-        summary = response_text
-    
-    return {
-        "score": score,
-        "pros": _coerce_points_to_list(pros.strip()),
-        "cons": _coerce_points_to_list(cons.strip()),
-        "summary": summary.strip()
-    }
+        critique = LiteraryCritique.model_validate(parsed)
+    except Exception as exc:
+        raise ValueError(f"JSON critica non valido: {exc}") from exc
+
+    if not critique.summary.strip():
+        raise ValueError("JSON critica privo di summary.")
+    if not critique.pros:
+        raise ValueError("JSON critica privo di punti di forza.")
+    if not critique.cons:
+        raise ValueError("JSON critica privo di punti di debolezza.")
+
+    return critique.model_dump()
 
 
 def _extract_token_usage_google_genai(response: Any, model_name: str) -> Dict[str, int]:

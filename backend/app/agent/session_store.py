@@ -27,6 +27,7 @@ class SessionData:
         self.validated: bool = False
         self.current_outline: Optional[str] = None
         self.outline_version: int = 0
+        self.story_bible: Optional[Dict[str, Any]] = None  # Memoria narrativa strutturata per la scrittura
         self.book_chapters: list[Dict[str, Any]] = []  # Lista di capitoli completati
         self.writing_progress: Optional[Dict[str, Any]] = None  # Stato di avanzamento scrittura
         self.cover_image_path: Optional[str] = None  # Path dell'immagine copertina
@@ -89,6 +90,7 @@ class SessionData:
             "validated": self.validated,
             "current_outline": self.current_outline,
             "outline_version": self.outline_version,
+            "story_bible": self.story_bible,
             "book_chapters": self.book_chapters,
             "writing_progress": self.writing_progress,
             "cover_image_path": self.cover_image_path,
@@ -125,6 +127,7 @@ class SessionData:
         session.validated = data.get("validated", False)
         session.current_outline = data.get("current_outline")
         session.outline_version = data.get("outline_version", 0)
+        session.story_bible = data.get("story_bible")
         session.book_chapters = data.get("book_chapters", [])
         session.writing_progress = data.get("writing_progress")
         session.cover_image_path = data.get("cover_image_path")
