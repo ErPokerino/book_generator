@@ -41,13 +41,27 @@ Questo NON è un solo capitolo. Va scomposto in capitoli che coprano:
 - La rottura (decisione, azione, conseguenze immediate)
 - Le conseguenze (rielaborazione, impatto su altre relazioni, nuove scelte)
 
+## Tracciamento Archi dei Personaggi Secondari
+
+Prima di generare la struttura capitolo per capitolo, identifica i 2-4 personaggi secondari più importanti dalla bozza e pianifica esplicitamente il loro arco nell'intera struttura:
+- **Punto di ingresso**: In quale capitolo appaiono per la prima volta e con quale impatto?
+- **Evoluzione**: Come cambiano nel corso della storia? Quali eventi li trasformano?
+- **Momento di rivelazione**: In quale capitolo il lettore (o il protagonista) scopre qualcosa di inaspettato su di loro?
+- **Risoluzione**: Come si conclude il loro arco? È coerente con il loro percorso?
+
+Questi archi devono essere distribuiti lungo l'intera struttura, non concentrati in 1-2 capitoli. Inserisci questo piano come sezione iniziale della struttura generata.
+
 ## Elementi da Includere per Capitolo
 Per ogni capitolo devi specificare:
 1. **Titolo del Capitolo**: Un titolo evocativo.
 2. **Eventi Chiave**: Lista puntata di cosa accade.
-3. **Focus Personaggi**: Come evolve il protagonista o altri personaggi in questo capitolo.
-4. **Atmosfera e Temi**: Il tono del capitolo e i concetti esplorati.
-5. **Collegamenti Narrativi**: Come il capitolo si collega al precedente e prepara il successivo (cosa cambia, cosa resta aperto).
+3. **Focus Protagonista**: Come evolve il protagonista in questo capitolo (emotivamente, nelle sue relazioni, nelle sue scelte).
+4. **Focus Personaggi Secondari**: Per ogni personaggio secondario PRESENTE nel capitolo, indica:
+   - Cosa vuole in questa scena (il suo obiettivo locale)
+   - Come la sua presenza cambia la dinamica
+   - Se il suo arco narrativo avanza, e in che direzione
+5. **Atmosfera e Temi**: Il tono del capitolo e i concetti esplorati.
+6. **Collegamenti Narrativi**: Come il capitolo si collega al precedente e prepara il successivo (cosa cambia, cosa resta aperto).
 
 ## Linee Guida per la Generazione
 - **Completezza**: Definisci l'intera sequenza dei capitoli necessaria per scrivere il libro completo.
@@ -64,14 +78,20 @@ Per ogni capitolo devi specificare:
 ```markdown
 # Struttura del Romanzo: [Titolo]
 
+## Archi Personaggi Secondari
+- **Elena** (amica del protagonista): Appare Cap.2 come alleata → Cap.8 scopre un tradimento del protagonista → Cap.14 lo confronta e si allontana → Cap.19 torna con una scelta propria. Arco: dalla lealtà acritica alla fiducia consapevole.
+- **Dott. Ferri** (antagonista): Appare Cap.3 come figura autorevole → Cap.10 prime crepe nella sua facciata → Cap.15 rivelazione delle sue motivazioni reali → Cap.20 resa dei conti. Arco: dall'autorità al crollo morale.
+
 ## Parte I: L'Inizio del Mistero
 ### Capitolo 1: L'Ultima Lettera
 - **Eventi Chiave**
-- Introduzione del protagonista e della sua routine monotona.
-- Ricezione di una lettera dal futuro che predice un evento tragico.
-- Conflitto interiore sulla veridicità della lettera.
-- **Focus Personaggi**
-  - Il protagonista mostra scetticismo e curiosità; emerge un suo limite caratteriale.
+  - Introduzione del protagonista e della sua routine monotona.
+  - Ricezione di una lettera dal futuro che predice un evento tragico.
+  - Conflitto interiore sulla veridicità della lettera.
+- **Focus Protagonista**
+  - Mostra scetticismo e curiosità; emerge un suo limite caratteriale (tendenza a evitare le decisioni).
+- **Focus Personaggi Secondari**
+  - Nessun secondario presente; il capitolo è intimo e centrato sul protagonista.
 - **Atmosfera e Temi**
   - Mistero e inquietudine; tema della scelta e dell'incertezza.
 - **Collegamenti Narrativi**
@@ -79,15 +99,17 @@ Per ogni capitolo devi specificare:
 
 ### Capitolo 2: La Decisione
 - **Eventi Chiave**
-- Il protagonista decide di agire contro le istruzioni della lettera.
-- Prime azioni per alterare il futuro.
-- Introduzione di un personaggio secondario che complicherà le cose.
-- **Focus Personaggi**
+  - Il protagonista decide di agire contro le istruzioni della lettera.
+  - Prime azioni per alterare il futuro.
+  - Introduzione di Elena, che nota il suo comportamento strano.
+- **Focus Protagonista**
   - Passaggio dalla passività all'azione; primo costo emotivo della scelta.
+- **Focus Personaggi Secondari**
+  - Elena: vuole capire cosa turba il protagonista (obiettivo locale: proteggere un amico). La sua insistenza costringe il protagonista a mentire per la prima volta, creando la premessa per il conflitto futuro tra loro.
 - **Atmosfera e Temi**
   - Tensione crescente; responsabilità e conseguenze.
 - **Collegamenti Narrativi**
-  - Trasforma la minaccia in percorso; prepara l'escalation.
+  - Trasforma la minaccia in percorso; prepara l'escalation. Pianta il seme della dinamica protagonista-Elena.
 
 ...
 ```
