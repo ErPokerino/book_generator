@@ -73,10 +73,23 @@ La bozza deve includere **obbligatoriamente**:
    - Almeno una sottotrama interiore (il "fatal flaw" del protagonista, un conflitto morale) che richiede tempo per svilupparsi
    - Queste sottotrame devono avere i loro momenti di climax e risoluzione, non essere solo accennate
 
-2. **Personaggi Secondari Attivi**:
-   - Non semplici comparse, ma personaggi con obiettivi propri che entrano in conflitto o collaborano con il protagonista
-   - Ogni personaggio secondario importante deve avere almeno un momento narrativo significativo dove la sua presenza cambia la direzione della storia
-   - Gli archi dei personaggi secondari devono essere completi, non lasciati a metà
+2. **Personaggi Secondari: Identità, Non Funzione**:
+   Ogni personaggio secondario rilevante deve essere sviluppato come persona, non come strumento della trama.
+
+   Per ciascuno, definisci nella bozza:
+   - **Un obiettivo proprio** che non sia solo "aiutare/ostacolare il protagonista". Deve volere qualcosa di suo, anche se in contrasto con la trama principale
+   - **Una voce riconoscibile**: modo di parlare, registro linguistico, atteggiamento dominante. Il lettore deve poterlo distinguere dagli altri personaggi anche solo dal dialogo
+   - **Un dettaglio fisico o comportamentale distintivo**: non una lista di aggettivi, ma un tratto concreto che il lettore ricorda (un gesto ricorrente, un oggetto che porta sempre con sé, un'abitudine specifica)
+   - **Una contraddizione interna**: nessuno è monodimensionale. Un personaggio coraggioso che ha paura dell'intimità; un personaggio gentile con un rancore inconfessato. Questa tensione lo rende reale
+   - **Almeno un momento in cui il suo punto di vista cambia la comprensione della storia** per il lettore o per il protagonista
+   - **Un arco narrativo completo**: punto di ingresso, evoluzione, risoluzione. Non lasciare archi a metà
+
+   **ANTI-PATTERN DA EVITARE**:
+   - Il "personaggio spalla" che esiste solo per dare consigli o battute comiche
+   - Il "saggio mentore" senza difetti, dubbi o agenda propria
+   - L'antagonista che è cattivo "perché sì", senza motivazioni comprensibili o almeno coerenti
+   - Personaggi femminili definiti solo dalla relazione romantica col protagonista
+   - Gruppi di personaggi (amici, colleghi, compagni) indistinguibili tra loro: se ne hai più di due nello stesso ruolo, differenziali in modo netto o riducili
 
 3. **Momenti di Sviluppo Graduale**:
    - Scene intermedie che mostrano il passaggio del tempo e l'evoluzione delle situazioni
@@ -108,6 +121,12 @@ Invece di scrivere:
 
 Scrivi:
 > "Mario scopre il tradimento attraverso una serie di indizi che si accumulano gradualmente. Prima nota piccole discrepanze, poi trova prove concrete. La scoperta genera in lui una reazione complessa: inizialmente rifiuto, poi rabbia, poi dolore. Deve confrontarsi con Luigi, ma il confronto non è immediato: prima c'è un periodo di tensione non detta, poi un'esplosione, poi tentativi di riconciliazione che falliscono. La separazione non è un evento singolo ma un processo che si sviluppa nel tempo, con conseguenze che si manifestano anche dopo: solitudine, riflessioni, cambiamenti nelle relazioni con altri personaggi."
+
+### Evitare la banalità narrativa
+- **Niente colpi di scena gratuiti**: ogni rivelazione o svolta deve essere preparata (anche sottilmente) e avere conseguenze
+- **Niente risoluzioni facili**: i conflitti reali non si risolvono con un discorso ispirato o una singola azione eroica. Mostra il costo delle scelte
+- **Motivazioni stratificate**: nessun personaggio agisce per un solo motivo. Le decisioni importanti nascono dalla convergenza di motivazioni diverse, alcune nobili, alcune egoistiche
+- **Sorpresa nella coerenza**: le svolte migliori sono quelle che sorprendono il lettore ma che, ripensandoci, erano inevitabili. Semina indizi sottili prima dei momenti cruciali
 
 ### Coerenza narrativa
 - Assicura che tutti gli elementi siano coerenti tra loro
