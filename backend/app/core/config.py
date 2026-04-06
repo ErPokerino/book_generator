@@ -142,6 +142,7 @@ class AppConfig(TypedDict, total=False):
     frontend: dict[str, int]
     time_estimation: dict[str, Any]
     llm_models: dict[str, Any]
+    google_llm: dict[str, Any]
     llm_tracing: dict[str, Any]
     cover_generation: dict[str, Any]
     review: dict[str, Any]
@@ -209,6 +210,10 @@ def load_app_config() -> AppConfig:
                 },
                 "structured_output_method": "json_schema",
             },
+            "google_llm": {
+                "provider": "vertex",
+                "location": "global",
+            },
             "llm_tracing": {
                 "enabled": True,
                 "sample_rate": 1.0,
@@ -253,6 +258,7 @@ def load_app_config() -> AppConfig:
         "frontend": data.get("frontend", {}),
         "time_estimation": data.get("time_estimation", {}),
         "llm_models": data.get("llm_models", {}),
+        "google_llm": data.get("google_llm", {}),
         "llm_tracing": data.get("llm_tracing", {}),
         "cover_generation": data.get("cover_generation", {}),
         "review": data.get("review", {}),

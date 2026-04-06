@@ -2,11 +2,13 @@ import json
 
 import pytest
 from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.agent.draft_generator import parse_draft_output
 from app.agent.outline_generator import render_outline_markdown
 from app.agent.question_generator import parse_questions_from_llm_response
 from app.agent.writer_generator import parse_outline_sections
+from app.llm.google_backend import get_google_backend_config
 from app.llm import (
     OutlineGenerationPayload,
     OutlineSectionPayload,
@@ -14,6 +16,7 @@ from app.llm import (
     invoke_chat_model,
     invoke_structured_chat_model,
 )
+from app.llm.runtime import build_google_chat_model
 from app.llm.model_routing import get_stage_model
 from app.llm.tracing import LLMTraceRecorder
 
@@ -137,6 +140,77 @@ def test_trace_recorder_persists_jsonl_events(tmp_path, monkeypatch) -> None:
     assert events[0]["session_id"] == "session-1"
     assert events[0]["schema_version"] == 2
     assert events[0]["export_target"] == "jsonl"
+
+
+def test_google_backend_config_prefers_vertex_when_project_is_available(monkeypatch) -> None:
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "narrai-483022")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west1")
+
+    backend = get_google_backend_config()
+
+    assert backend.provider == "vertex"
+    assert backend.project == "narrai-483022"
+    assert backend.location == "europe-west1"
+
+
+def test_google_backend_config_falls_back_to_api_key_when_vertex_lacks_project(monkeypatch) -> None:
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    monkeypatch.delenv("VERTEX_AI_LOCATION", raising=False)
+    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "dev-key")
+
+    backend = get_google_backend_config()
+
+    assert backend.provider == "developer_api"
+    assert backend.api_key == "dev-key"
+
+
+def test_build_google_chat_model_uses_vertex_client_when_configured(monkeypatch) -> None:
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "narrai-483022")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west1")
+
+    llm = build_google_chat_model(
+        model_name="gemini-2.5-flash",
+        api_key=None,
+        temperature=0.2,
+        max_output_tokens=1024,
+    )
+
+    assert isinstance(llm, ChatGoogleGenerativeAI)
+    assert llm.vertexai is True
+    assert getattr(llm, "_google_backend_provider") == "vertex"
+    assert getattr(llm, "_google_structured_output_method") == "json_mode"
+
+
+def test_build_google_chat_model_keeps_api_key_fallback_for_local_dev(monkeypatch) -> None:
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    monkeypatch.delenv("VERTEX_AI_LOCATION", raising=False)
+    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+    monkeypatch.setenv("GOOGLE_API_KEY", "dev-key")
+
+    llm = build_google_chat_model(
+        model_name="gemini-2.5-flash",
+        api_key=None,
+        temperature=0.2,
+        max_output_tokens=1024,
+    )
+
+    assert isinstance(llm, ChatGoogleGenerativeAI)
+    assert llm.vertexai in (False, None)
+    assert getattr(llm, "_google_backend_provider") == "developer_api"
+    assert getattr(llm, "_google_structured_output_method") == "json_schema"
 
 
 @pytest.mark.asyncio

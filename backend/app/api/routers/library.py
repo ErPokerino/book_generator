@@ -742,12 +742,7 @@ async def regenerate_cover_endpoint(
                 detail="Il libro deve essere completato per rigenerare la copertina"
             )
         
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         print(f"[REGENERATE COVER] Avvio rigenerazione copertina per sessione {session_id}")
         

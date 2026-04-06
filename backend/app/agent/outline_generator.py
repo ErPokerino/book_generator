@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -126,18 +125,12 @@ async def generate_outline(
         validated_draft: Bozza estesa validata dall'utente (fonte di verità)
         session_id: ID della sessione
         draft_title: Titolo del libro (se disponibile)
-        api_key: API key per Gemini (se None, usa variabile d'ambiente)
+        api_key: API key opzionale per fallback Gemini Developer API locale
     
     Returns:
         Tupla (outline_text, token_usage)
         token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    if api_key is None:
-        api_key = os.getenv("GOOGLE_API_KEY")
-
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-
     agent_context = load_outline_agent_context()
     formatted_input = format_input_for_outline(
         form_data,

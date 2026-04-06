@@ -414,13 +414,7 @@ async def generate_book_endpoint(
 ):
     """Avvia la generazione del libro completo in background."""
     try:
-        # Verifica che l'API key sia configurata
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         # Recupera la sessione
         session_store = get_session_store()
@@ -584,13 +578,7 @@ async def resume_book_generation_endpoint(
 ):
     """Riprende la generazione del libro dal capitolo fallito."""
     try:
-        # Verifica che l'API key sia configurata
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         # Recupera la sessione
         session_store = get_session_store()

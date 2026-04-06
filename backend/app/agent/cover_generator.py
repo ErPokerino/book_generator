@@ -4,12 +4,11 @@ from pathlib import Path
 from typing import Optional
 from io import BytesIO
 import asyncio
-from google import genai
 from google.genai import types
 from PIL import Image as PILImage
 from app.core.config import get_app_config
 from app.core.logging import get_logger
-from app.llm import LLMTraceRecorder
+from app.llm import LLMTraceRecorder, build_google_genai_client, get_google_backend_config
 
 
 logger = get_logger("cover-generator")
@@ -20,7 +19,7 @@ async def generate_book_cover(
     title: str,
     author: str,
     plot: str,
-    api_key: str,
+    api_key: Optional[str] = None,
     cover_style: Optional[str] = None,
 ) -> str:
     """
@@ -32,17 +31,23 @@ async def generate_book_cover(
         title: Titolo del libro
         author: Nome dell'autore (user_name, non autore di riferimento)
         plot: Trama estesa del libro
-        api_key: API key per Gemini
+        api_key: API key opzionale per fallback Gemini Developer API locale
     
     Returns:
         Path del file immagine salvato
     """
-    # Inizializza il client con la nuova API
-    client = genai.Client(api_key=api_key)
+    backend = get_google_backend_config(api_key=api_key)
+    client = build_google_genai_client(api_key=api_key)
     trace = LLMTraceRecorder(
         stage="cover",
         session_id=session_id,
         request_id=title,
+    )
+    trace.record(
+        "cover_backend_resolved",
+        provider=backend.provider,
+        project=backend.project,
+        location=backend.location,
     )
     
     # Leggi la configurazione per l'aspect ratio

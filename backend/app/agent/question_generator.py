@@ -1,4 +1,3 @@
-import os
 import uuid
 from typing import Any, Optional
 
@@ -100,19 +99,13 @@ async def generate_questions(
     
     Args:
         form_data: Dati del form compilato dall'utente
-        api_key: API key per Gemini (se None, usa variabile d'ambiente)
+        api_key: API key opzionale per fallback Gemini Developer API locale
         session_id: ID della sessione (opzionale, usato solo per logging)
     
     Returns:
         Tupla (QuestionsResponse, token_usage_dict)
         token_usage_dict contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    if api_key is None:
-        api_key = os.getenv("GOOGLE_API_KEY")
-
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-
     if session_id is None:
         session_id = str(uuid.uuid4())
 

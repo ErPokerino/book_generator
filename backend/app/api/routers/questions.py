@@ -32,15 +32,9 @@ async def generate_questions_endpoint(
 ):
     """Genera domande preliminari basate sul form compilato."""
     try:
-        # Verifica che l'API key sia configurata
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
-        
-        # Genera le domande (la funzione userà automaticamente la variabile d'ambiente se non passata)
+        api_key = os.getenv("GOOGLE_API_KEY") or None
+
+        # Genera le domande usando Vertex AI o il fallback API key locale
         response, token_usage = await generate_questions(request.form_data, api_key=api_key)
         
         # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande
@@ -156,12 +150,7 @@ async def start_questions_generation_endpoint(
 ):
     """Avvia la generazione delle domande in background."""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         # Ottieni user_id dall'utente corrente (se autenticato)
         user_id = current_user.id if current_user else None

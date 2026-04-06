@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.config import get_app_config
 from app.core.logging import get_logger
+from app.llm.google_backend import get_google_backend_config, get_google_structured_output_method
 from app.llm.model_routing import get_structured_output_method
 from app.llm.structured_outputs import coerce_llm_content_to_text
 from app.llm.tracing import LLMTraceRecorder
@@ -87,21 +88,39 @@ def _get_structured_output_retry_settings() -> dict[str, int]:
 def build_google_chat_model(
     *,
     model_name: str,
-    api_key: str,
+    api_key: str | None,
     temperature: float,
     max_output_tokens: int | None = None,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
-) -> ChatGoogleGenerativeAI:
-    """Costruisce il client LangChain Gemini con configurazione uniforme."""
-    kwargs: dict[str, Any] = {
-        "model": model_name,
-        "google_api_key": api_key,
-        "temperature": temperature,
-        "timeout": timeout_seconds,
-    }
-    if max_output_tokens is not None:
-        kwargs["max_output_tokens"] = max_output_tokens
-    return ChatGoogleGenerativeAI(**kwargs)
+) -> Any:
+    """Costruisce il client LangChain Google usando Vertex AI o Gemini API."""
+    backend = get_google_backend_config(api_key=api_key)
+    if backend.provider == "vertex":
+        kwargs: dict[str, Any] = {
+            "model": model_name,
+            "vertexai": True,
+            "project": backend.project,
+            "location": backend.location,
+            "temperature": temperature,
+            "timeout": timeout_seconds,
+        }
+        if max_output_tokens is not None:
+            kwargs["max_output_tokens"] = max_output_tokens
+        llm = ChatGoogleGenerativeAI(**kwargs)
+    else:
+        kwargs = {
+            "model": model_name,
+            "google_api_key": backend.api_key,
+            "temperature": temperature,
+            "timeout": timeout_seconds,
+        }
+        if max_output_tokens is not None:
+            kwargs["max_output_tokens"] = max_output_tokens
+        llm = ChatGoogleGenerativeAI(**kwargs)
+
+    setattr(llm, "_google_backend_provider", backend.provider)
+    setattr(llm, "_google_structured_output_method", get_google_structured_output_method(api_key=api_key))
+    return llm
 
 
 def _preview_or_omit(trace: LLMTraceRecorder, text: str, *, preview_kind: str) -> str | None:
@@ -366,7 +385,11 @@ async def invoke_structured_chat_model(
         if repair_attempts is not None
         else retry_settings["repair_attempts"]
     )
-    structured_method = method or get_structured_output_method()
+    structured_method = (
+        method
+        or getattr(llm, "_google_structured_output_method", None)
+        or get_structured_output_method()
+    )
     structured_llm = llm.with_structured_output(
         schema,
         method=structured_method,

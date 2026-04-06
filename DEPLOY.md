@@ -1,6 +1,7 @@
 # Guida Deploy su Google Cloud Run
 
 Questa guida descrive come deployare NarrAI su Google Cloud Run.
+Il setup di produzione usa Vertex AI tramite ADC del service account di Cloud Run; non richiede una Gemini API key nel servizio.
 
 ## Prerequisiti
 
@@ -22,6 +23,7 @@ gcloud services enable run.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable secretmanager.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
+gcloud services enable aiplatform.googleapis.com
 ```
 
 ### 2. Creare Artifact Registry
@@ -37,28 +39,26 @@ gcloud artifacts repositories create narrai \
 
 ```bash
 # Creare i secrets
-gcloud secrets create gemini-api-key --replication-policy="automatic"
 gcloud secrets create mongodb-uri --replication-policy="automatic"
 gcloud secrets create jwt-secret --replication-policy="automatic"
 gcloud secrets create smtp-password --replication-policy="automatic"
 
 # Aggiungere i valori (sostituisci con i tuoi valori reali)
 # IMPORTANTE: Non committare mai i valori reali in questo file!
-echo -n "YOUR_GEMINI_API_KEY_HERE" | gcloud secrets versions add gemini-api-key --data-file=-
 echo -n "mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/DATABASE?retryWrites=true&w=majority" | gcloud secrets versions add mongodb-uri --data-file=-
 echo -n "your-super-secret-session-key-minimum-32-characters-long" | gcloud secrets versions add jwt-secret --data-file=-
 echo -n "YOUR_SMTP_APP_PASSWORD" | gcloud secrets versions add smtp-password --data-file=-
 ```
 
 **Secrets utilizzati**:
-- `gemini-api-key`: Chiave API Google Gemini
 - `mongodb-uri`: Connection string MongoDB Atlas
 - `jwt-secret`: Chiave segreta per sessioni (SESSION_SECRET)
 - `smtp-password`: Password/App Password per invio email SMTP
 
-**Nota**: Per GCP credentials, puoi:
-- Includere il file JSON nel container (attuale)
-- Oppure usare Workload Identity (consigliato per produzione)
+**Nota**:
+- In Cloud Run, Vertex AI usa ADC del service account associato al servizio.
+- `GOOGLE_API_KEY` resta solo un fallback opzionale per sviluppo locale o ambienti non-Vertex.
+- Non e' necessario montare `GOOGLE_APPLICATION_CREDENTIALS` dentro Cloud Run per il path standard di produzione.
 
 ### 4. Configurare IAM per Cloud Build
 
@@ -84,11 +84,22 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
 
 ```bash
 # Concedi permessi al service account di Cloud Run per accedere ai secrets
-gcloud run services add-iam-policy-binding narrai \
-    --region=europe-west1 \
+gcloud projects add-iam-policy-binding $PROJECT_ID \
     --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
+
+# Concedi permessi per invocare i publisher models su Vertex AI
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/aiplatform.user"
+
+# Se usi GCS per libri/copertine, concedi accesso allo storage
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/storage.objectAdmin"
 ```
+
+Se usi un service account custom su Cloud Run, sostituisci `${PROJECT_NUMBER}-compute@developer.gserviceaccount.com` con il service account reale del servizio.
 
 ## Deploy
 
@@ -103,7 +114,7 @@ gcloud builds submit --config=cloudbuild.yaml
 Il file `cloudbuild.yaml` contiene tutti i passi necessari:
 1. Build immagine Docker con tag BUILD_ID e latest
 2. Push a Artifact Registry
-3. Deploy su Cloud Run con secrets e env vars configurati
+3. Deploy su Cloud Run con secrets e env vars configurati per Vertex AI (`GOOGLE_LLM_PROVIDER=vertex`, `GOOGLE_CLOUD_LOCATION=global`)
 
 **Nota**: `cloudbuild.yaml` contiene configurazioni specifiche (bucket, email). Modifica prima del deploy se necessario.
 
@@ -126,8 +137,8 @@ gcloud run deploy narrai \
     --memory=2Gi \
     --cpu=2 \
     --timeout=3600 \
-    --set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest \
-    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=YOUR_BUCKET_NAME,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=your_email@gmail.com,FRONTEND_URL=https://YOUR_SERVICE_URL
+    --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest \
+    --set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=YOUR_BUCKET_NAME,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=your_email@gmail.com,FRONTEND_URL=https://YOUR_SERVICE_URL,GOOGLE_LLM_PROVIDER=vertex,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID,GOOGLE_CLOUD_LOCATION=global
 ```
 
 **Variabili d'ambiente**:
@@ -135,6 +146,10 @@ gcloud run deploy narrai \
 - `GCS_BUCKET_NAME`: Nome bucket GCS per libri e copertine
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`: Configurazione email SMTP
 - `FRONTEND_URL`: URL del servizio Cloud Run (per link in email)
+- `GOOGLE_LLM_PROVIDER=vertex`: forza il backend Google su Vertex AI
+- `GOOGLE_GENAI_USE_VERTEXAI=true`: allinea il Google GenAI SDK al path Vertex
+- `GOOGLE_CLOUD_PROJECT`: progetto usato per quote e publisher models
+- `GOOGLE_CLOUD_LOCATION=global`: endpoint consigliato e richiesto dai modelli Gemini 3.1/2.5 usati dalla pipeline
 
 ## Configurazioni Aggiuntive
 
@@ -168,7 +183,7 @@ gsutil cors set cors.json gs://YOUR_BUCKET_NAME
 
 ### Aggiornare FRONTEND_URL dopo il deploy
 
-Dopo il primo deploy, ottieni l'URL di Cloud Run e aggiorna il secret:
+Dopo il primo deploy, ottieni l'URL di Cloud Run e aggiorna la env var:
 
 ```bash
 SERVICE_URL=$(gcloud run services describe narrai --region=europe-west1 --format="value(status.url)")
@@ -202,6 +217,13 @@ gcloud run services describe narrai --region=europe-west1
 - Verifica che MongoDB Atlas permetta accesso da `0.0.0.0/0`
 - Controlla che `MONGODB_URI` nel secret sia corretto
 - Verifica la connection string nel secret
+
+### Errori Vertex AI / modelli non trovati
+
+- Se vedi `404 NOT_FOUND` su `publishers/google/models/...`, verifica prima `GOOGLE_CLOUD_LOCATION`
+- Per i modelli Gemini 3.1 e 2.5 usati da NarrAI il location di riferimento e' `global`
+- Controlla che il service account di Cloud Run abbia `roles/aiplatform.user`
+- Verifica che `aiplatform.googleapis.com` sia abilitata sul progetto
 
 ### File statici non serviti
 

@@ -28,7 +28,7 @@ logger = get_logger("generation-service")
 async def background_generate_questions(
     session_id: str,
     form_data: SubmissionRequest,
-    api_key: str,
+    api_key: str | None = None,
 ):
     """Funzione eseguita in background per generare le domande."""
     session_store = get_session_store()
@@ -116,7 +116,7 @@ async def background_generate_draft(
     session_id: str,
     form_data: SubmissionRequest,
     question_answers: list[QuestionAnswer],
-    api_key: str,
+    api_key: str | None = None,
 ):
     """Funzione eseguita in background per generare la bozza."""
     session_store = get_session_store()
@@ -186,7 +186,7 @@ async def background_generate_draft(
 
 async def background_generate_outline(
     session_id: str,
-    api_key: str,
+    api_key: str | None = None,
 ):
     """Funzione eseguita in background per generare l'outline."""
     session_store = get_session_store()

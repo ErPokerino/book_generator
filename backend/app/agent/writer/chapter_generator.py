@@ -38,7 +38,7 @@ async def _generate_chapter_part(
     agent_context: str,
     formatted_context: str,
     gemini_model: str,
-    api_key: str,
+    api_key: Optional[str] = None,
     current_section_title: str,
     session_id: str | None = None,
     request_label: str,
@@ -85,7 +85,7 @@ async def generate_chapter(
     previous_chapters: list[dict[str, Any]],
     current_section: dict[str, Any],
     story_bible: Optional[dict[str, Any]],
-    api_key: str,
+    api_key: Optional[str] = None,
     session_id: str | None = None,
 ) -> tuple[str, dict[str, int]]:
     """

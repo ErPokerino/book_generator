@@ -31,12 +31,7 @@ async def generate_outline_endpoint(
 ):
     """Genera la struttura/indice del libro basandosi sulla bozza validata."""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
@@ -283,12 +278,7 @@ async def start_outline_generation_endpoint(
 ):
     """Avvia la generazione dell'outline in background."""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         # Recupera la sessione
         session_store = get_session_store()

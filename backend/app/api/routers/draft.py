@@ -42,12 +42,7 @@ async def generate_draft_endpoint(
     """Genera una bozza estesa della trama."""
     session_store = get_session_store()
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         user_id = current_user.id if current_user else None
         session = await get_session_async(session_store, request.session_id, user_id=user_id)
@@ -144,12 +139,7 @@ async def start_draft_generation_endpoint(
 ):
     """Avvia la generazione della bozza in background in modo idempotente."""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
 
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
@@ -218,12 +208,7 @@ async def modify_draft_endpoint(
 ):
     """Rigenera la bozza con le modifiche richieste dall'utente."""
     try:
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="GOOGLE_API_KEY non configurata. Verifica il file .env nella root del progetto."
-            )
+        api_key = os.getenv("GOOGLE_API_KEY") or None
         
         session_store = get_session_store()
         user_id = current_user.id if current_user else None

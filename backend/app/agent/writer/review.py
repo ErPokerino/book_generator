@@ -135,7 +135,7 @@ async def review_and_maybe_revise_chapter(
     agent_context: str,
     formatted_context: str,
     gemini_model: str,
-    api_key: str,
+    api_key: Optional[str] = None,
     form_data: SubmissionRequest,
     current_section: dict[str, Any],
     story_bible: Optional[dict[str, Any]],

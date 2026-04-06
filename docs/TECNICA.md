@@ -17,6 +17,7 @@
 ### Panoramica
 
 NarrAI è un'applicazione full-stack per la generazione automatica di libri utilizzando modelli LLM (Large Language Models) della famiglia Google Gemini.
+In produzione il backend usa Vertex AI tramite ADC; in sviluppo locale e' disponibile anche un fallback compatibile via Gemini Developer API.
 
 ```mermaid
 graph TB
@@ -44,7 +45,7 @@ graph TB
     end
     
     subgraph External["Servizi Esterni"]
-        Gemini[Google Gemini API]
+        Gemini[Vertex AI / Gemini API]
         EmailService[Email Service SMTP]
     end
     
@@ -103,7 +104,8 @@ L'applicazione adotta una **Clean Architecture** semplificata con separazione de
   - Fallback: File JSON (FileSessionStore)
 - **LLM Integration**: 
   - `langchain-google-genai` 2.0.0+
-  - `google-generativeai` 0.8.0+
+  - `google-genai` 1.0.0+
+  - Resolver runtime Google unificato: Vertex AI in Cloud Run, fallback Gemini Developer API in locale
 - **Text-to-Speech**: 
   - `google-cloud-texttospeech` 2.16.0+ (audiobook critica)
 - **PDF Generation**: 
@@ -137,7 +139,7 @@ L'applicazione adotta una **Clean Architecture** semplificata con separazione de
 - **Orchestrazione**: Docker Compose (sviluppo locale)
 - **Email Service**: SMTP (Gmail o altro provider)
 - **Cloud Storage**: Google Cloud Storage (opzionale, produzione)
-- **Deploy**: Google Cloud Run (con Cloud Build)
+- **Deploy**: Google Cloud Run + Cloud Build + Vertex AI (ADC, endpoint `global`)
 
 ## Struttura del Codice
 
@@ -560,7 +562,20 @@ def reload_config() -> ConfigResponse:
 
 File `.env` nella root del progetto:
 
-**Variabili Obbligatorie**:
+**Configurazione consigliata (Vertex AI)**:
+```env
+GOOGLE_LLM_PROVIDER=vertex
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=true
+
+# Credenziali locali via ADC:
+# gcloud auth application-default login
+# oppure:
+# GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+```
+
+**Fallback compatibile (Gemini Developer API)**:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key_here
 ```
@@ -592,7 +607,6 @@ FRONTEND_URL=http://localhost:5173
 # GCS (per produzione/cloud storage)
 GCS_ENABLED=false
 GCS_BUCKET_NAME=your-bucket-name
-GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
 
 **Variabili Opzionali (Google Cloud Text-to-Speech)**:
@@ -603,16 +617,34 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
 
 **Note**:
-- `GOOGLE_API_KEY`: Obbligatoria per chiamate LLM
+- `GOOGLE_API_KEY`: Non e' obbligatoria in produzione; resta un fallback utile in locale
+- `GOOGLE_LLM_PROVIDER=vertex` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION=global`: configurazione standard del backend Google in Cloud Run
+- `GOOGLE_GENAI_USE_VERTEXAI=true`: allinea il Google GenAI SDK al path Vertex
 - `MONGODB_URI`: Opzionale, se non configurata usa FileSessionStore (JSON file)
 - `SESSION_SECRET`: Opzionale, default generato (cambiare in produzione)
 - `SMTP_*`: Opzionali, se non configurate email non vengono inviate (processo continua)
 - `GCS_*`: Opzionali, fallback a storage locale se non configurato
-- `GOOGLE_APPLICATION_CREDENTIALS`: Condiviso tra GCS e TTS, fallback a `credentials/narrai-app-credentials.json`
+- `GOOGLE_APPLICATION_CREDENTIALS`: utile per sviluppo locale con service account JSON; in Cloud Run si usa ADC del service account del servizio
 
 ### Configurazione Modelli LLM
 
-I modelli supportati sono configurati in `config/inputs.yaml`:
+I modelli supportati sono configurati in `config/inputs.yaml`, mentre il backend Google e il location di esecuzione sono configurati in `config/app.yaml`:
+
+```yaml
+google_llm:
+  provider: vertex
+  location: global
+```
+
+Il runtime seleziona automaticamente il backend corretto:
+- `Vertex AI` quando trova `GOOGLE_LLM_PROVIDER=vertex` oppure un progetto/location GCP validi
+- `Gemini Developer API` solo come fallback di compatibilita' locale quando e' presente `GOOGLE_API_KEY`
+
+Per gli structured outputs il runtime adatta anche la modalita' nativa in base al backend:
+- `json_mode` su Vertex AI
+- `json_schema` su Gemini Developer API
+
+I modelli applicativi restano definiti in `config/inputs.yaml`:
 
 ```yaml
 llm_models:

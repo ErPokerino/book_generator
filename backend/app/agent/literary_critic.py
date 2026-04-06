@@ -4,14 +4,15 @@ import sys
 from io import BytesIO
 from typing import Any, Optional, Dict
 
-from google import genai
 from google.genai import types
 
 from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
 from app.core.logging import get_logger
 from app.llm import (
     LLMTraceRecorder,
+    build_google_genai_client,
     coerce_llm_content_to_text,
+    get_google_backend_config,
     invoke_chat_model,
     parse_json_model,
 )
@@ -261,19 +262,14 @@ async def generate_literary_critique_from_pdf(
             
             if provider == "google":
                 # Comportamento originale: PDF diretto con Gemini
-                print(f"[LITERARY_CRITIC] 🟢 USANDO GEMINI - PDF diretto (multimodale)", file=sys.stderr)
-                provider_api_key = _resolve_provider_api_key(
-                    provider,
-                    api_key=api_key,
-                    google_api_key=google_api_key,
-                    openai_api_key=openai_api_key,
+                provider_api_key = google_api_key or api_key
+                backend = get_google_backend_config(api_key=provider_api_key)
+                backend_label = "VERTEX AI (ADC)" if backend.provider == "vertex" else "GEMINI API KEY"
+                print(
+                    f"[LITERARY_CRITIC] 🟢 USANDO GOOGLE - PDF diretto (multimodale) via {backend_label}",
+                    file=sys.stderr,
                 )
-
-                if not provider_api_key:
-                    raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-
-                print(f"[LITERARY_CRITIC] API Key Google trovata: {'Sì' if provider_api_key else 'No'}", file=sys.stderr)
-                client = genai.Client(api_key=provider_api_key)
+                client = build_google_genai_client(api_key=provider_api_key)
                 
                 pdf_part = types.Part(
                     inline_data=types.Blob(
@@ -299,7 +295,10 @@ async def generate_literary_critique_from_pdf(
                     )
                 ]
 
-                print(f"[LITERARY_CRITIC] Invio PDF diretto a Gemini API (multimodale)...", file=sys.stderr)
+                print(
+                    f"[LITERARY_CRITIC] Invio PDF diretto a Google GenAI ({backend.provider})...",
+                    file=sys.stderr,
+                )
                 response = await asyncio.to_thread(
                     client.models.generate_content,
                     model=model_name,

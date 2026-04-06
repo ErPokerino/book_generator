@@ -71,6 +71,9 @@ llm_models:
   max_output_tokens:
     gemini_2_5_flash: 8192
     default: 65536
+google_llm:
+  provider: vertex
+  location: global
 llm_tracing:
   enabled: true
   sample_rate: 1.0

@@ -31,8 +31,8 @@ steps:
       - '--memory=2Gi'
       - '--cpu=2'
       - '--timeout=3600'
-      - '--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest,MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest'
-      - '--set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=narrai-books-483022,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=marcello.gomitoni@gmail.com,FRONTEND_URL=https://narrai.it'
+      - '--set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET_KEY=jwt-secret:latest,SMTP_PASSWORD=smtp-password:latest'
+      - '--set-env-vars=GCS_ENABLED=true,GCS_BUCKET_NAME=narrai-books-483022,SMTP_HOST=smtp.gmail.com,SMTP_PORT=587,SMTP_USER=marcello.gomitoni@gmail.com,FRONTEND_URL=https://narrai.it,GOOGLE_LLM_PROVIDER=vertex,GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=global'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/narrai/backend:$BUILD_ID'

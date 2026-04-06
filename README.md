@@ -1,6 +1,7 @@
 # NarrAI - Agente di Scrittura Romanzi
 
 Sistema per la creazione di romanzi personalizzati utilizzando modelli LLM della famiglia Google Gemini.
+In produzione il backend usa Vertex AI; in sviluppo locale e' disponibile un fallback compatibile via Gemini Developer API.
 
 ## Documentazione
 
@@ -27,8 +28,16 @@ Questa documentazione (README.md) contiene informazioni essenziali per setup e u
 Crea un file `.env` nella root del progetto:
 
 ```env
-# Obbligatorio
-GOOGLE_API_KEY=your_gemini_api_key_here
+# Opzione A (consigliata): sviluppo locale con Vertex AI
+GOOGLE_LLM_PROVIDER=vertex
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+GOOGLE_CLOUD_LOCATION=global
+GOOGLE_GENAI_USE_VERTEXAI=true
+# Autenticazione locale via ADC:
+# gcloud auth application-default login
+
+# Opzione B (fallback compatibilita'): Gemini Developer API
+# GOOGLE_API_KEY=your_gemini_api_key_here
 
 # Opzionale (MongoDB - se non configurato usa File JSON)
 MONGODB_URI=mongodb://admin:admin123@localhost:27017/narrai?authSource=admin
@@ -50,9 +59,14 @@ GCS_BUCKET_NAME=your-bucket-name
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 
 # Opzionale (Google Cloud Text-to-Speech - per audiobook critica)
-# Se non configurato, usa il fallback a credentials/narrai-app-credentials.json
-GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+# Riusa GOOGLE_APPLICATION_CREDENTIALS se stai usando un service account locale
 ```
+
+Per lo sviluppo locale puoi quindi scegliere tra due modalita':
+- `Vertex AI`: usa `GOOGLE_LLM_PROVIDER=vertex`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION=global` e ADC (`gcloud auth application-default login` o un service account JSON).
+- `Gemini Developer API`: lascia assenti le variabili Vertex e imposta solo `GOOGLE_API_KEY`.
+
+In Cloud Run non e' necessaria `GOOGLE_API_KEY`: il servizio usa ADC tramite il service account associato e Vertex AI con endpoint `global`.
 
 ### 2. Backend (FastAPI)
 
@@ -116,20 +130,25 @@ docker-compose up -d
 
 ### Variabili d'Ambiente Minime
 
-**Per funzionamento base** (senza autenticazione email e storage cloud):
-- `GOOGLE_API_KEY`: Obbligatoria per chiamate LLM
+**Per funzionamento base in locale** (senza autenticazione email e storage cloud):
+- `GOOGLE_API_KEY`, oppure
+- `GOOGLE_LLM_PROVIDER=vertex` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION=global` + credenziali ADC
 
 **Per autenticazione completa**:
-- `GOOGLE_API_KEY`: Obbligatoria
+- Una configurazione LLM valida tra quelle sopra
 - `MONGODB_URI`: Consigliata (altrimenti usa File JSON)
 - `SESSION_SECRET`: Consigliata per produzione
 - `SMTP_*`: Opzionali (per email verification e password reset)
 
 **Per produzione/cloud**:
-- `GOOGLE_API_KEY`: Obbligatoria
+- `GOOGLE_LLM_PROVIDER=vertex`
+- `GOOGLE_GENAI_USE_VERTEXAI=true`
+- `GOOGLE_CLOUD_PROJECT`: Obbligatoria
+- `GOOGLE_CLOUD_LOCATION=global`: Obbligatoria
 - `MONGODB_URI`: Obbligatoria
 - `SESSION_SECRET`: Obbligatoria
 - `GCS_*`: Opzionali (per storage cloud)
+- `GOOGLE_API_KEY`: Non richiesta sul path Cloud Run/Vertex standard
 
 Per dettagli completi sulla configurazione, consulta [Documentazione Tecnica - Configurazione](docs/TECNICA.md#configurazione).
 

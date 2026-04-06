@@ -1,7 +1,5 @@
 """Service per la generazione di libri in background."""
-import os
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 from app.models import SubmissionRequest, QuestionAnswer
 from app.agent.writer_generator import generate_full_book, parse_outline_sections, resume_book_generation
@@ -153,7 +151,7 @@ async def _generate_cover_artifact(
     session_store,
     session_id: str,
     *,
-    api_key: str,
+    api_key: str | None = None,
     title_fallback: Optional[str] = None,
     author_fallback: Optional[str] = None,
     plot_fallback: Optional[str] = None,
@@ -288,7 +286,7 @@ async def _run_post_book_completion_pipeline(
     session_id: str,
     *,
     writing_time_minutes: float,
-    api_key: str,
+    api_key: str | None = None,
     title_fallback: Optional[str] = None,
     author_fallback: Optional[str] = None,
     plot_fallback: Optional[str] = None,
@@ -342,7 +340,7 @@ async def background_book_generation(
     validated_draft: str,
     draft_title: Optional[str],
     outline_text: str,
-    api_key: str,
+    api_key: str | None = None,
     generate_pdf_callback=None,  # Callback per generare PDF (per evitare dipendenza circolare)
 ):
     """
@@ -355,7 +353,7 @@ async def background_book_generation(
         validated_draft: Bozza validata
         draft_title: Titolo del libro
         outline_text: Testo dell'outline
-        api_key: API key per Gemini
+        api_key: API key opzionale per fallback Gemini Developer API locale
         generate_pdf_callback: Funzione opzionale per generare PDF (evita dipendenza circolare)
     """
     session_store = get_session_store()
@@ -484,7 +482,7 @@ async def background_book_generation(
 
 async def background_resume_book_generation(
     session_id: str,
-    api_key: str,
+    api_key: str | None = None,
     generate_pdf_callback=None,  # Callback per generare PDF
 ):
     """
@@ -492,7 +490,7 @@ async def background_resume_book_generation(
     
     Args:
         session_id: ID della sessione
-        api_key: API key per Gemini
+        api_key: API key opzionale per fallback Gemini Developer API locale
         generate_pdf_callback: Funzione opzionale per generare PDF
     """
     session_store = get_session_store()

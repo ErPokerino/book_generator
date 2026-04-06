@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -98,7 +97,7 @@ async def generate_draft(
         form_data: Dati del form compilato
         question_answers: Risposte alle domande preliminari
         session_id: ID della sessione
-        api_key: API key per Gemini (se None, usa variabile d'ambiente)
+        api_key: API key opzionale per fallback Gemini Developer API locale
         previous_draft: Bozza precedente (se rigenerazione)
         user_feedback: Feedback dell'utente per modifiche
     
@@ -106,12 +105,6 @@ async def generate_draft(
         Tupla (draft_text, title, version, token_usage)
         token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    if api_key is None:
-        api_key = os.getenv("GOOGLE_API_KEY")
-
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-
     agent_context = load_draft_agent_context()
     formatted_form_data = format_form_data_for_draft(form_data)
     formatted_answers = format_question_answers(question_answers)

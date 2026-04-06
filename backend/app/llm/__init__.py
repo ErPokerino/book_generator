@@ -7,6 +7,12 @@ from app.llm.contracts import (
     OutlineSectionPayload,
     QuestionsPayload,
 )
+from app.llm.google_backend import (
+    build_google_genai_client,
+    get_google_backend_config,
+    get_google_structured_output_method,
+    uses_vertex_ai,
+)
 from app.llm.model_routing import (
     get_max_output_tokens,
     get_stage_model,
@@ -43,8 +49,11 @@ __all__ = [
     "QuestionsPayload",
     "append_contract_instructions",
     "build_google_chat_model",
+    "build_google_genai_client",
     "build_json_schema_prompt",
     "coerce_llm_content_to_text",
+    "get_google_backend_config",
+    "get_google_structured_output_method",
     "get_max_output_tokens",
     "get_stage_model",
     "get_structured_output_method",
@@ -55,4 +64,5 @@ __all__ = [
     "map_book_model_name",
     "parse_json_model",
     "resolve_generation_mode",
+    "uses_vertex_ai",
 ]

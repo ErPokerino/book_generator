@@ -119,7 +119,7 @@ async def _run_book_generation_loop(
     outline_text: str,
     sections: list[dict[str, Any]],
     story_bible: dict[str, Any],
-    api_key: str,
+    api_key: Optional[str] = None,
     start_index: int,
     completed_chapters: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -267,7 +267,7 @@ async def generate_full_book(
     validated_draft: str,
     draft_title: Optional[str],
     outline_text: str,
-    api_key: str,
+    api_key: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Genera l'intero romanzo sezione per sezione in modo autoregressivo."""
     sections = parse_outline_sections(outline_text)
@@ -298,7 +298,7 @@ async def generate_full_book(
 
 async def resume_book_generation(
     session_id: str,
-    api_key: str,
+    api_key: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Riprende la generazione del libro dal capitolo fallito."""
     session_store = get_session_store()
