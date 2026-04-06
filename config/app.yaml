@@ -9,6 +9,10 @@ retry:
   chapter_generation:
     max_retries: 2
     min_chapter_length: 1200
+  structured_output:
+    max_retries: 2
+    repair_attempts: 1
+    base_delay_seconds: 2
   questions_generation:
     max_retries: 2
   draft_generation:
@@ -59,9 +63,23 @@ time_estimation:
       a: 1.1
       b: 44.3
 llm_models:
+  stage_model_overrides:
+    questions: gemini-3.1-pro-preview
+    draft: gemini-3.1-pro-preview
+    outline: gemini-3.1-pro-preview
+  structured_output_method: json_schema
   max_output_tokens:
     gemini_2_5_flash: 8192
     default: 65536
+llm_tracing:
+  enabled: true
+  sample_rate: 1.0
+  schema_version: 2
+  preview_char_limit: 0
+  record_message_previews: false
+  record_response_previews: false
+  redact_text: true
+  export_target: jsonl
 cover_generation:
   aspect_ratio: '2:3'
 review:

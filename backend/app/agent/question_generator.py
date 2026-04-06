@@ -1,33 +1,53 @@
-import json
 import os
 import uuid
-from pathlib import Path
 from typing import Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
+
 from langchain_core.messages import SystemMessage, HumanMessage
-from app.models import SubmissionRequest, Question, QuestionsResponse
-from app.agent.state import AgentState
+
 from app.core.config import get_temperature_for_agent
-from app.utils.token_tracker import extract_token_usage
+from app.core.logging import get_logger
+from app.llm import (
+    LLMTraceRecorder,
+    QuestionsPayload,
+    append_contract_instructions,
+    build_google_chat_model,
+    coerce_llm_content_to_text,
+    get_stage_model,
+    invoke_chat_model,
+    invoke_structured_chat_model,
+    load_prompt_file,
+    parse_json_model,
+)
+from app.models import SubmissionRequest, Question, QuestionsResponse
+
+
+logger = get_logger("question-generator")
+
+
+def _validate_questions_payload(payload: QuestionsPayload) -> QuestionsPayload:
+    if not payload.questions:
+        raise ValueError("Il modello non ha restituito alcuna domanda valida.")
+    return payload
+
+
+def _questions_from_payload(payload: QuestionsPayload) -> list[Question]:
+    questions: list[Question] = []
+    for index, item in enumerate(payload.questions, start=1):
+        options = item.options if item.type == "multiple_choice" else None
+        questions.append(
+            Question(
+                id=item.id or f"q{index}",
+                text=item.text.strip(),
+                type=item.type,
+                options=options,
+            )
+        )
+    return questions
 
 
 def load_agent_context() -> str:
     """Carica il contesto dell'agente dal file Markdown."""
-    # In locale: __file__ = backend/app/agent/question_generator.py -> root = .parent.parent.parent.parent
-    # Nel container: __file__ = /app/app/agent/question_generator.py -> root = .parent.parent.parent
-    base_path = Path(__file__).parent.parent.parent
-    config_path = base_path / "config" / "agent_context.md"
-    
-    # Se non esiste, prova un livello sopra (per ambiente locale)
-    if not config_path.exists():
-        base_path = base_path.parent
-        config_path = base_path / "config" / "agent_context.md"
-    
-    if not config_path.exists():
-        raise FileNotFoundError(f"File di contesto agente non trovato: {config_path}")
-    
-    with open(config_path, "r", encoding="utf-8") as f:
-        return f.read()
+    return load_prompt_file("agent_context.md", "question generator", anchor_file=__file__)
 
 
 def format_form_data(form_data: SubmissionRequest) -> str:
@@ -62,89 +82,12 @@ def format_form_data(form_data: SubmissionRequest) -> str:
     return "\n".join(lines)
 
 
-def _coerce_llm_content_to_text(content: Any) -> str:
-    """
-    Normalizza `response.content` (Gemini/LangChain) a stringa.
-
-    In alcuni casi `content` può essere una lista di "parts" invece che una stringa.
-    """
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if item is None:
-                continue
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                # Gemini può restituire parti tipo {"type": "...", "text": "..."}
-                txt = item.get("text")
-                if isinstance(txt, str):
-                    parts.append(txt)
-                else:
-                    parts.append(str(item))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    # fallback per dict / altri tipi
-    return str(content)
-
-
 def parse_questions_from_llm_response(response_text: Any) -> list[Question]:
-    """Parsa le domande dal response del LLM."""
-    questions = []
-    response_text = _coerce_llm_content_to_text(response_text)
-    
-    # Cerca un blocco JSON nel response
-    try:
-        # Prova a estrarre JSON se è racchiuso in markdown code blocks
-        if "```json" in response_text:
-            json_start = response_text.find("```json") + 7
-            json_end = response_text.find("```", json_start)
-            json_text = response_text[json_start:json_end].strip()
-        elif "```" in response_text:
-            json_start = response_text.find("```") + 3
-            json_end = response_text.find("```", json_start)
-            json_text = response_text[json_start:json_end].strip()
-        else:
-            # Cerca direttamente un oggetto JSON
-            json_start = response_text.find("{")
-            json_end = response_text.rfind("}") + 1
-            json_text = response_text[json_start:json_end]
-        
-        data = json.loads(json_text)
-        
-        # Estrae le domande
-        questions_data = data.get("questions", [])
-        for i, q_data in enumerate(questions_data, 1):
-            question = Question(
-                id=q_data.get("id", f"q{i}"),
-                text=q_data.get("text", ""),
-                type=q_data.get("type", "text"),
-                options=q_data.get("options") if q_data.get("type") == "multiple_choice" else None,
-            )
-            questions.append(question)
-    
-    except (json.JSONDecodeError, KeyError, ValueError) as e:
-        # Fallback: genera domande di default se il parsing fallisce
-        questions = [
-            Question(
-                id="q1",
-                text="Quale è l'età approssimativa del protagonista principale?",
-                type="text"
-            ),
-            Question(
-                id="q2",
-                text="Quante pagine dovrebbe avere approssimativamente il romanzo?",
-                type="multiple_choice",
-                options=["100-200", "200-300", "300-400", "400+"]
-            ),
-        ]
-    
-    return questions
+    """Valida le domande contro il contratto JSON e normalizza i campi applicativi."""
+    payload = _validate_questions_payload(
+        parse_json_model(coerce_llm_content_to_text(response_text), QuestionsPayload)
+    )
+    return _questions_from_payload(payload)
 
 
 async def generate_questions(
@@ -153,7 +96,7 @@ async def generate_questions(
     session_id: Optional[str] = None,
 ) -> tuple[QuestionsResponse, dict[str, int]]:
     """
-    Genera domande usando LangGraph e Gemini.
+    Genera domande usando Gemini con contratto JSON tipizzato.
     
     Args:
         form_data: Dati del form compilato dall'utente
@@ -164,67 +107,81 @@ async def generate_questions(
         Tupla (QuestionsResponse, token_usage_dict)
         token_usage_dict contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
         api_key = os.getenv("GOOGLE_API_KEY")
-    
+
     if not api_key:
         raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-    
-    # Carica il contesto
+
+    if session_id is None:
+        session_id = str(uuid.uuid4())
+
     context = load_agent_context()
-    
-    # Formatta i dati del form
     formatted_data = format_form_data(form_data)
-    
-    # Crea il prompt
-    system_prompt = f"{context}\n\nAnalizza le seguenti informazioni fornite dall'utente e genera domande appropriate."
-    
+    system_prompt = append_contract_instructions(
+        f"{context}\n\nAnalizza le seguenti informazioni fornite dall'utente e genera domande appropriate.",
+        (
+            "IMPORTANTE: il runtime applica uno schema strutturato nativo. "
+            "Compila solo i campi richiesti per le domande senza aggiungere wrapper o testo extra."
+        ),
+    )
+
     user_prompt = f"""Informazioni fornite dall'utente:
 
 {formatted_data}
 
-Genera domande pertinenti in formato JSON come specificato nel contesto. Rispondi SOLO con il JSON, senza testo aggiuntivo."""
+Genera solo domande davvero utili e non ridondanti rispetto ai dati già presenti.
+Rispondi esclusivamente con il JSON finale."""
 
-    # Inizializza il modello Gemini
-    # Usa sempre il modello PRO per la generazione delle domande, indipendentemente dalla modalità selezionata
-    gemini_model = "gemini-3.1-pro-preview"  # Default: Gemini 3 Pro
-    print(f"[QUESTION_GENERATOR] Usando modello PRO (gemini-3.1-pro-preview) per generazione domande, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
-    
+    gemini_model = get_stage_model("questions", form_data.llm_model)
     temperature = get_temperature_for_agent("question_generator", gemini_model)
-    llm = ChatGoogleGenerativeAI(
-        model=gemini_model,
-        google_api_key=api_key,
+    trace = LLMTraceRecorder(
+        stage="questions",
+        session_id=session_id,
+        request_id="generate-questions",
+    )
+    llm = build_google_chat_model(
+        model_name=gemini_model,
+        api_key=api_key,
         temperature=temperature,
     )
-    
-    # Genera le domande
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt),
     ]
-    
-    response = await llm.ainvoke(messages)
-    response_text = _coerce_llm_content_to_text(response.content)
-    
-    # Estrai token usage dalla risposta
-    token_usage = extract_token_usage(response)
-    token_usage["model"] = gemini_model
-    print(f"[QUESTION_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
-    
-    # Parsa le domande
-    questions = parse_questions_from_llm_response(response_text)
-    
-    # Genera session_id se non fornito
-    if session_id is None:
-        session_id = str(uuid.uuid4())
-    
+
+    payload, token_usage, _raw_output = await invoke_structured_chat_model(
+        llm=llm,
+        schema=QuestionsPayload,
+        messages=messages,
+        model_name=gemini_model,
+        stage="questions",
+        request_label="generate questions",
+        session_id=session_id,
+        trace_recorder=trace,
+        parsed_validator=_validate_questions_payload,
+    )
+    questions = _questions_from_payload(payload)
+    trace.record(
+        "questions_parsed",
+        count=len(questions),
+        question_ids=[question.id for question in questions],
+    )
+    logger.info(
+        "Domande generate con successo",
+        context={
+            "session_id": session_id,
+            "question_count": len(questions),
+            "model": gemini_model,
+            "trace_file": str(trace.file_path),
+        },
+    )
+
     questions_response = QuestionsResponse(
         success=True,
         session_id=session_id,
         questions=questions,
         message="Domande generate con successo",
     )
-    
     return questions_response, token_usage
 

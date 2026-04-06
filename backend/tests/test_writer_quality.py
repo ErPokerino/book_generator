@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from app.agent.session_store import SessionData
@@ -11,6 +14,12 @@ from app.agent.writer_generator import (
     validate_generated_chapter_text,
 )
 from app.models import QuestionAnswer, SubmissionRequest
+
+
+def _load_eval_cases() -> list[dict]:
+    evals_path = Path(__file__).resolve().parents[2] / "evals" / "representative_books.json"
+    with open(evals_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 @pytest.fixture
@@ -287,4 +296,56 @@ def test_parse_critique_response_requires_valid_json_structure() -> None:
     with pytest.raises(ValueError, match="Nessun JSON valido trovato"):
         parse_critique_response(
             "Valutazione: 8/10\nPregi: buona struttura\nDifetti: pochi\nSintesi: testo promettente."
+        )
+
+
+@pytest.mark.parametrize("case", _load_eval_cases(), ids=lambda case: case["id"])
+def test_eval_regression_cases_cover_outline_context_and_quality(case: dict) -> None:
+    form_data = SubmissionRequest(**case["form_data"])
+    question_answers = [QuestionAnswer(**item) for item in case["question_answers"]]
+    outline_sections = parse_outline_sections(case["outline_markdown"])
+
+    assert [section["title"] for section in outline_sections] == case["expected_section_titles"]
+
+    story_bible = build_story_bible(
+        form_data=form_data,
+        question_answers=question_answers,
+        validated_draft=case["validated_draft"],
+        draft_title=case["draft_title"],
+        outline_sections=outline_sections,
+        completed_chapters=case["previous_chapters"],
+        draft_version=1,
+        outline_version=1,
+    )
+    current_section = outline_sections[case["current_section_index"]]
+    context = format_writer_context(
+        form_data=form_data,
+        question_answers=question_answers,
+        validated_draft=case["validated_draft"],
+        draft_title=case["draft_title"],
+        outline_text=case["outline_markdown"],
+        previous_chapters=case["previous_chapters"],
+        current_section=current_section,
+        story_bible=story_bible,
+    )
+
+    for fragment in case["expected_context_fragments"]:
+        assert fragment in context
+
+    validation_app_config = {"validation": case["validation_config"]}
+    validated_chapter = validate_generated_chapter_text(
+        case["sample_valid_chapter"],
+        current_section["title"],
+        app_config=validation_app_config,
+    )
+    for marker in case["validation_config"]["disallowed_output_markers"]:
+        assert marker not in validated_chapter
+    for style_marker in case["style_markers"]:
+        assert style_marker in validated_chapter.lower()
+
+    with pytest.raises(ValueError):
+        validate_generated_chapter_text(
+            case["sample_placeholder_output"],
+            current_section["title"],
+            app_config=validation_app_config,
         )

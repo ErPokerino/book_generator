@@ -1,5 +1,4 @@
 import os
-import json
 import asyncio
 import sys
 from io import BytesIO
@@ -9,8 +8,17 @@ from google import genai
 from google.genai import types
 
 from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
+from app.core.logging import get_logger
+from app.llm import (
+    LLMTraceRecorder,
+    coerce_llm_content_to_text,
+    invoke_chat_model,
+    parse_json_model,
+)
 from app.models import LiteraryCritique
 from app.utils.token_tracker import extract_token_usage
+
+logger = get_logger("literary-critic")
 
 
 def _coerce_points_to_list(value: Any) -> list[str]:
@@ -59,22 +67,7 @@ def _response_to_text(response: Any) -> str:
     
     # Supporto per risposte LangChain OpenAI
     if hasattr(response, "content"):
-        content = response.content
-        if isinstance(content, str):
-            return content
-        elif isinstance(content, list):
-            # Lista di messaggi/parti
-            texts = []
-            for item in content:
-                if isinstance(item, str):
-                    texts.append(item)
-                elif hasattr(item, "text"):
-                    texts.append(str(item.text))
-                elif isinstance(item, dict) and "text" in item:
-                    texts.append(str(item["text"]))
-                else:
-                    texts.append(str(item))
-            return "\n".join(texts).strip()
+        return coerce_llm_content_to_text(response.content).strip()
     
     # Supporto per risposte google-genai (comportamento esistente)
     txt = getattr(response, "text", None)
@@ -168,53 +161,11 @@ def parse_critique_response(response_text: str) -> Dict[str, Any]:
     if not response_text or not response_text.strip():
         raise ValueError("Risposta del critico vuota.")
 
-    candidate_blocks: list[str] = []
-    stripped_text = response_text.strip()
-
-    if stripped_text.startswith("{") and stripped_text.endswith("}"):
-        candidate_blocks.append(stripped_text)
-
-    fence_marker = "```"
-    if fence_marker in response_text:
-        segments = response_text.split(fence_marker)
-        for idx, segment in enumerate(segments):
-            if idx % 2 == 1:
-                cleaned = segment.strip()
-                if cleaned.lower().startswith("json"):
-                    cleaned = cleaned[4:].strip()
-                if cleaned:
-                    candidate_blocks.append(cleaned)
-
-    decoder = json.JSONDecoder()
-    parsed: Optional[dict[str, Any]] = None
-
-    for candidate in candidate_blocks:
-        try:
-            maybe_parsed = json.loads(candidate)
-            if isinstance(maybe_parsed, dict):
-                parsed = maybe_parsed
-                break
-        except json.JSONDecodeError:
-            continue
-
-    if parsed is None:
-        for start_index, char in enumerate(response_text):
-            if char != "{":
-                continue
-            try:
-                maybe_parsed, _ = decoder.raw_decode(response_text[start_index:])
-                if isinstance(maybe_parsed, dict):
-                    parsed = maybe_parsed
-                    break
-            except json.JSONDecodeError:
-                continue
-
-    if parsed is None:
-        raise ValueError("Nessun JSON valido trovato nella risposta del critico.")
-
     try:
-        critique = LiteraryCritique.model_validate(parsed)
-    except Exception as exc:
+        critique = parse_json_model(response_text, LiteraryCritique)
+    except ValueError as exc:
+        if "Nessun" in str(exc):
+            raise ValueError("Nessun JSON valido trovato nella risposta del critico.") from exc
         raise ValueError(f"JSON critica non valido: {exc}") from exc
 
     if not critique.summary.strip():
@@ -240,11 +191,28 @@ def _extract_token_usage_google_genai(response: Any, model_name: str) -> Dict[st
     return token_usage
 
 
+def _resolve_provider_api_key(
+    provider: str,
+    *,
+    api_key: Optional[str] = None,
+    google_api_key: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
+) -> Optional[str]:
+    """Risolve la credenziale corretta per il provider senza contaminare fallback cross-provider."""
+    if provider == "google":
+        return google_api_key or api_key or os.getenv("GOOGLE_API_KEY")
+    if provider == "openai":
+        return openai_api_key or api_key or os.getenv("OPENAI_API_KEY")
+    return api_key
+
+
 async def generate_literary_critique_from_pdf(
     title: str,
     author: str,
     pdf_bytes: bytes,
     api_key: Optional[str] = None,
+    google_api_key: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
 ) -> tuple[Dict[str, Any], Dict[str, int]]:
     """
     Genera una valutazione critica usando come input il PDF finale del libro.
@@ -273,10 +241,19 @@ async def generate_literary_critique_from_pdf(
     # Limite caratteri per OpenAI (400k token ≈ ~1.6M caratteri, usiamo ~1.5M per sicurezza)
     MAX_TEXT_CHARS_OPENAI = 1500000  # ~375k token (sotto il limite di 400k)
 
+    trace = LLMTraceRecorder(stage="critique", request_id=title)
+
     for attempt in range(max_retries):
         try:
             model_name = map_critic_model_name(use_fallback)
             provider = detect_critic_provider(model_name)
+            trace.record(
+                "critique_attempt_started",
+                attempt=attempt + 1,
+                provider=provider,
+                model=model_name,
+                use_fallback=use_fallback,
+            )
             
             print(f"[LITERARY_CRITIC] ===== CRITICA LETTERARIA - TENTATIVO {attempt + 1}/{max_retries} =====", file=sys.stderr)
             print(f"[LITERARY_CRITIC] Modello configurato: {model_name}", file=sys.stderr)
@@ -285,14 +262,18 @@ async def generate_literary_critique_from_pdf(
             if provider == "google":
                 # Comportamento originale: PDF diretto con Gemini
                 print(f"[LITERARY_CRITIC] 🟢 USANDO GEMINI - PDF diretto (multimodale)", file=sys.stderr)
-                if api_key is None:
-                    api_key = os.getenv("GOOGLE_API_KEY")
-                
-                if not api_key:
+                provider_api_key = _resolve_provider_api_key(
+                    provider,
+                    api_key=api_key,
+                    google_api_key=google_api_key,
+                    openai_api_key=openai_api_key,
+                )
+
+                if not provider_api_key:
                     raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-                
-                print(f"[LITERARY_CRITIC] API Key Google trovata: {'Sì' if api_key else 'No'}", file=sys.stderr)
-                client = genai.Client(api_key=api_key)
+
+                print(f"[LITERARY_CRITIC] API Key Google trovata: {'Sì' if provider_api_key else 'No'}", file=sys.stderr)
+                client = genai.Client(api_key=provider_api_key)
                 
                 pdf_part = types.Part(
                     inline_data=types.Blob(
@@ -329,6 +310,14 @@ async def generate_literary_critique_from_pdf(
                 
                 # Estrai token usage per google.genai
                 token_usage = _extract_token_usage_google_genai(response, model_name)
+                trace.record(
+                    "critique_provider_response",
+                    attempt=attempt + 1,
+                    provider=provider,
+                    model=model_name,
+                    response_characters=len(response_text),
+                    token_usage=token_usage,
+                )
                 print(f"[LITERARY_CRITIC] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output", file=sys.stderr)
                 print(f"[LITERARY_CRITIC] ✅ Risposta ricevuta da Gemini ({len(response_text)} caratteri)", file=sys.stderr)
                 
@@ -343,13 +332,17 @@ async def generate_literary_critique_from_pdf(
                         "langchain-openai non è installato. Installa con: pip install langchain-openai o uv add langchain-openai"
                     )
                 
-                if api_key is None:
-                    api_key = os.getenv("OPENAI_API_KEY")
-                
-                if not api_key:
+                provider_api_key = _resolve_provider_api_key(
+                    provider,
+                    api_key=api_key,
+                    google_api_key=google_api_key,
+                    openai_api_key=openai_api_key,
+                )
+
+                if not provider_api_key:
                     raise ValueError("OPENAI_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-                
-                print(f"[LITERARY_CRITIC] API Key OpenAI trovata: {'Sì' if api_key else 'No'}", file=sys.stderr)
+
+                print(f"[LITERARY_CRITIC] API Key OpenAI trovata: {'Sì' if provider_api_key else 'No'}", file=sys.stderr)
                 
                 # Estrai testo dal PDF
                 print(f"[LITERARY_CRITIC] Estrazione testo da PDF per OpenAI (max {MAX_TEXT_CHARS_OPENAI:,} caratteri)...", file=sys.stderr)
@@ -381,7 +374,7 @@ Testo completo del libro (estratto dal PDF):
                 print(f"[LITERARY_CRITIC] Invio richiesta a OpenAI API (modello: {model_name}, temperature: {temperature})...", file=sys.stderr)
                 llm = ChatOpenAI(
                     model=model_name,
-                    openai_api_key=api_key,
+                    openai_api_key=provider_api_key,
                     temperature=temperature,
                     max_tokens=4096,  # Output sufficiente per critica JSON
                     model_kwargs=model_kwargs if model_kwargs else None,
@@ -392,13 +385,16 @@ Testo completo del libro (estratto dal PDF):
                     SystemMessage(content=system_prompt),
                     HumanMessage(content=full_user_prompt),
                 ]
-                
-                response = await llm.ainvoke(messages)
-                response_text = _response_to_text(response)
-                
-                # Estrai token usage per LangChain OpenAI
-                token_usage = extract_token_usage(response)
-                token_usage["model"] = model_name
+
+                response_text, token_usage = await invoke_chat_model(
+                    llm=llm,
+                    messages=messages,
+                    model_name=model_name,
+                    stage="critique",
+                    request_label=f"critique-openai-{title}",
+                    trace_recorder=trace,
+                    max_retries=1,
+                )
                 print(f"[LITERARY_CRITIC] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output", file=sys.stderr)
                 print(f"[LITERARY_CRITIC] ✅ Risposta ricevuta da OpenAI ({len(response_text)} caratteri)", file=sys.stderr)
                 
@@ -407,6 +403,21 @@ Testo completo del libro (estratto dal PDF):
             
             # Parse risposta (comune per entrambi i provider)
             critique = parse_critique_response(response_text)
+            trace.record(
+                "critique_parsed",
+                attempt=attempt + 1,
+                provider=provider,
+                model=model_name,
+                critique=critique,
+            )
+            logger.info(
+                "Critica letteraria generata con successo",
+                context={
+                    "provider": provider,
+                    "model": model_name,
+                    "trace_file": str(trace.file_path),
+                },
+            )
             print(f"[LITERARY_CRITIC] ✅ Critica generata con successo!", file=sys.stderr)
             print(f"[LITERARY_CRITIC] Score: {critique.get('score', 0)}/10", file=sys.stderr)
             print(f"[LITERARY_CRITIC] Pros: {len(critique.get('pros', []))} punti", file=sys.stderr)
@@ -417,6 +428,14 @@ Testo completo del libro (estratto dal PDF):
         except Exception as e:
             provider_name = provider if 'provider' in locals() else 'unknown'
             model_name_str = model_name if 'model_name' in locals() else 'unknown'
+            trace.record(
+                "critique_attempt_failed",
+                attempt=attempt + 1,
+                provider=provider_name,
+                model=model_name_str,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
             print(f"[LITERARY_CRITIC] ❌ ERRORE con modello {model_name_str} (provider: {provider_name}): {e}", file=sys.stderr)
             import traceback
             traceback.print_exc()

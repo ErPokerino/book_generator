@@ -141,6 +141,8 @@ class AppConfig(TypedDict, total=False):
     validation: dict[str, Any]
     frontend: dict[str, int]
     time_estimation: dict[str, Any]
+    llm_models: dict[str, Any]
+    llm_tracing: dict[str, Any]
     cover_generation: dict[str, Any]
     review: dict[str, Any]
     cost_estimation: dict[str, Any]
@@ -195,6 +197,28 @@ def load_app_config() -> AppConfig:
                 "min_chapters_for_reliable_avg": 3,
                 "use_session_avg_if_available": True,
             },
+            "llm_models": {
+                "max_output_tokens": {
+                    "gemini_2_5_flash": 8192,
+                    "default": 65536,
+                },
+                "stage_model_overrides": {
+                    "questions": "gemini-3.1-pro-preview",
+                    "draft": "gemini-3.1-pro-preview",
+                    "outline": "gemini-3.1-pro-preview",
+                },
+                "structured_output_method": "json_schema",
+            },
+            "llm_tracing": {
+                "enabled": True,
+                "sample_rate": 1.0,
+                "schema_version": 2,
+                "preview_char_limit": 0,
+                "record_message_previews": False,
+                "record_response_previews": False,
+                "redact_text": True,
+                "export_target": "jsonl",
+            },
             "review": {
                 "chapters": {
                     "enabled": True,
@@ -228,6 +252,8 @@ def load_app_config() -> AppConfig:
         "validation": data.get("validation", {}),
         "frontend": data.get("frontend", {}),
         "time_estimation": data.get("time_estimation", {}),
+        "llm_models": data.get("llm_models", {}),
+        "llm_tracing": data.get("llm_tracing", {}),
         "cover_generation": data.get("cover_generation", {}),
         "review": data.get("review", {}),
         "temperature": data.get("temperature", {}),

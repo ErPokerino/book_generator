@@ -8,6 +8,11 @@ from google import genai
 from google.genai import types
 from PIL import Image as PILImage
 from app.core.config import get_app_config
+from app.core.logging import get_logger
+from app.llm import LLMTraceRecorder
+
+
+logger = get_logger("cover-generator")
 
 
 async def generate_book_cover(
@@ -34,6 +39,11 @@ async def generate_book_cover(
     """
     # Inizializza il client con la nuova API
     client = genai.Client(api_key=api_key)
+    trace = LLMTraceRecorder(
+        stage="cover",
+        session_id=session_id,
+        request_id=title,
+    )
     
     # Leggi la configurazione per l'aspect ratio
     app_config = get_app_config()
@@ -115,6 +125,16 @@ La copertina deve essere:
         config = model_config['config']
         
         try:
+            trace.record(
+                "cover_attempt_started",
+                model=model_name,
+                model_type=model_type,
+                aspect_ratio=aspect_ratio,
+            )
+            logger.info(
+                "Tentativo generazione copertina",
+                context={"session_id": session_id, "model": model_name, "model_type": model_type},
+            )
             print(f"[COVER GENERATOR] Tentativo generazione copertina con {model_name} ({model_type})...")
             
             # Genera l'immagine usando la nuova API asincrona
@@ -470,10 +490,41 @@ La copertina deve essere:
             
             print(f"[COVER GENERATOR] Copertina generata con successo usando {model_name}")
             print(f"[COVER GENERATOR] File salvato: {cover_path}, dimensione: {file_size} bytes")
+            trace.record(
+                "cover_generated",
+                model=model_name,
+                file_path=str(cover_path),
+                file_size=file_size,
+                image_size=pil_image.size,
+            )
+            logger.info(
+                "Copertina generata con successo",
+                context={
+                    "session_id": session_id,
+                    "model": model_name,
+                    "trace_file": str(trace.file_path),
+                },
+            )
             return str(cover_path)
             
         except Exception as e:
             last_error = e
+            trace.record(
+                "cover_attempt_failed",
+                model=model_name,
+                model_type=model_type,
+                error_type=type(e).__name__,
+                error=str(e),
+            )
+            logger.warning(
+                "Tentativo copertina fallito",
+                context={
+                    "session_id": session_id,
+                    "model": model_name,
+                    "error_type": type(e).__name__,
+                    "trace_file": str(trace.file_path),
+                },
+            )
             print(f"[COVER GENERATOR] ERRORE con {model_name} ({model_type}): {e}")
             import traceback
             traceback.print_exc()
@@ -489,5 +540,10 @@ La copertina deve essere:
     print(f"[COVER GENERATOR] ERRORE: Entrambi i modelli hanno fallito. Ultimo errore: {last_error}")
     import traceback
     traceback.print_exc()
+    trace.record(
+        "cover_generation_failed",
+        error_type=type(last_error).__name__ if last_error else "UnknownError",
+        error=str(last_error) if last_error else "Unknown error",
+    )
     raise Exception(f"Errore nella generazione della copertina: {str(last_error)}")
 

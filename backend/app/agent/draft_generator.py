@@ -1,32 +1,35 @@
 import os
-from pathlib import Path
-from typing import Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import Optional
+
 from langchain_core.messages import SystemMessage, HumanMessage
-from app.models import SubmissionRequest, QuestionAnswer
+
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
 from app.core.config import get_temperature_for_agent
-from app.utils.token_tracker import extract_token_usage
+from app.core.logging import get_logger
+from app.llm import (
+    DraftGenerationPayload,
+    LLMTraceRecorder,
+    append_contract_instructions,
+    build_google_chat_model,
+    get_stage_model,
+    invoke_structured_chat_model,
+    load_prompt_file,
+    parse_json_model,
+)
+from app.models import SubmissionRequest, QuestionAnswer
+
+
+logger = get_logger("draft-generator")
 
 
 def load_draft_agent_context() -> str:
     """Carica il contesto dell'agente di bozza dal file Markdown."""
-    # In locale: __file__ = backend/app/agent/draft_generator.py -> root = .parent.parent.parent.parent
-    # Nel container: __file__ = /app/app/agent/draft_generator.py -> root = .parent.parent.parent
-    base_path = Path(__file__).parent.parent.parent
-    config_path = base_path / "config" / "draft_agent_context.md"
-    
-    # Se non esiste, prova un livello sopra (per ambiente locale)
-    if not config_path.exists():
-        base_path = base_path.parent
-        config_path = base_path / "config" / "draft_agent_context.md"
-    
-    if not config_path.exists():
-        raise FileNotFoundError(f"File di contesto agente bozza non trovato: {config_path}")
-    
-    with open(config_path, "r", encoding="utf-8") as f:
-        return f.read()
+    return load_prompt_file(
+        "draft_agent_context.md",
+        "draft generator",
+        anchor_file=__file__,
+    )
 
 
 def format_form_data_for_draft(form_data: SubmissionRequest) -> str:
@@ -74,112 +77,10 @@ def format_question_answers(question_answers: list[QuestionAnswer]) -> str:
     return "\n".join(lines)
 
 
-def map_model_name(model_name: str) -> str:
-    """Mappa il nome del modello utente al nome corretto per Gemini API."""
-    if "gemini-2.5-flash" in model_name:
-        return "gemini-2.5-flash"
-    elif "gemini-2.5-pro" in model_name:
-        return "gemini-2.5-pro"
-    elif "gemini-3-flash" in model_name:
-        return "gemini-3-flash-preview"
-    elif "gemini-3-pro" in model_name:
-        return "gemini-3.1-pro-preview"
-    else:
-        return "gemini-2.5-flash"  # default
-
-
-def _coerce_llm_content_to_text(content: Any) -> str:
-    """
-    Normalizza `response.content` (Gemini/LangChain) a stringa.
-
-    In alcuni casi `content` può essere una lista di "parts" invece che una stringa.
-    """
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if item is None:
-                continue
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                txt = item.get("text")
-                if isinstance(txt, str):
-                    parts.append(txt)
-                else:
-                    parts.append(str(item))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content)
-
-
 def parse_draft_output(llm_output: str) -> tuple[str, str, str]:
-    """
-    Estrae titolo, profili personaggi e trama dall'output del LLM.
-    
-    Args:
-        llm_output: Output completo del LLM
-    
-    Returns:
-        Tupla (title, draft_text, character_profiles)
-    """
-    lines = llm_output.split('\n')
-    title = None
-    character_profiles = ""
-    draft_text = ""
-    found_title = False
-    found_personaggi = False
-    found_trama = False
-    
-    for i, line in enumerate(lines):
-        line_stripped = line.strip()
-        
-        if not found_title and line_stripped.upper().startswith("TITOLO:"):
-            title = line_stripped[7:].strip()
-            found_title = True
-            continue
-        
-        if not found_personaggi and not found_trama and (
-            line_stripped.upper().startswith("PERSONAGGI:") or line_stripped.upper() == "PERSONAGGI"
-        ):
-            found_personaggi = True
-            if line_stripped.upper().startswith("PERSONAGGI:"):
-                remaining = line_stripped[11:].strip()
-                if remaining:
-                    character_profiles = remaining + "\n"
-            continue
-        
-        if not found_trama and (line_stripped.upper().startswith("TRAMA:") or line_stripped.upper() == "TRAMA"):
-            found_personaggi = False
-            found_trama = True
-            if line_stripped.upper().startswith("TRAMA:"):
-                remaining = line_stripped[6:].strip()
-                if remaining:
-                    draft_text = remaining + "\n"
-            continue
-        
-        if found_trama:
-            draft_text += line + "\n"
-        elif found_personaggi:
-            character_profiles += line + "\n"
-    
-    if not found_title or not found_trama:
-        if not found_title:
-            for line in lines:
-                if line.strip().startswith("# "):
-                    title = line.strip()[2:].strip()
-                    break
-            if not title:
-                title = "Titolo non specificato"
-        
-        if not found_trama:
-            draft_text = llm_output
-    
-    return title or "Titolo non specificato", draft_text.strip(), character_profiles.strip()
+    """Valida e normalizza l'output bozza contro il contratto JSON."""
+    payload = parse_json_model(llm_output, DraftGenerationPayload)
+    return payload.title.strip(), payload.draft_text.strip(), payload.character_profiles.strip()
 
 
 async def generate_draft(
@@ -205,28 +106,27 @@ async def generate_draft(
         Tupla (draft_text, title, version, token_usage)
         token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
         api_key = os.getenv("GOOGLE_API_KEY")
-    
+
     if not api_key:
         raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-    
-    # Carica il contesto dell'agente
+
     agent_context = load_draft_agent_context()
-    
-    # Formatta i dati
     formatted_form_data = format_form_data_for_draft(form_data)
     formatted_answers = format_question_answers(question_answers)
-    
-    # Usa sempre il modello PRO per la generazione della bozza, indipendentemente dalla modalità selezionata
-    gemini_model = "gemini-3.1-pro-preview"
-    print(f"[DRAFT_GENERATOR] Usando modello PRO (gemini-3.1-pro-preview) per generazione bozza, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
-    
-    # Crea il prompt
+    system_prompt = SystemMessage(
+        content=append_contract_instructions(
+            agent_context,
+            (
+                "IMPORTANTE: il runtime applica uno schema strutturato nativo con i campi "
+                "`title`, `character_profiles` e `draft_text`. "
+                "Non usare il formato legacy TITOLO/PERSONAGGI/TRAMA."
+            ),
+        )
+    )
+
     if previous_draft and user_feedback:
-        # Modifica della bozza esistente - APPROCCIO CHIRURGICO
-        system_prompt = SystemMessage(content=agent_context)
         user_prompt_content = f"""## MODIFICA CHIRURGICA RICHIESTA
 
 **REGOLA FONDAMENTALE**: Devi applicare un approccio CHIRURGICO alle modifiche.
@@ -251,10 +151,8 @@ async def generate_draft(
 2. Modifica SOLO quelle parti specifiche
 3. Copia ESATTAMENTE tutto il resto senza modifiche
 4. Se il feedback richiede modifiche a un personaggio/evento, tocca SOLO le parti dove quel personaggio/evento appare in relazione alla modifica richiesta
-5. Restituisci la bozza completa nel formato richiesto (TITOLO: ... TRAMA: ...)"""
+5. Restituisci la bozza completa esclusivamente come JSON conforme al contratto finale."""
     else:
-        # Generazione iniziale
-        system_prompt = SystemMessage(content=agent_context)
         user_prompt_content = f"""Genera una bozza estesa e dettagliata dello svolgimento della trama per il seguente romanzo.
 
 **Dati del romanzo:**
@@ -262,43 +160,56 @@ async def generate_draft(
 
 {formatted_answers}
 
-Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte le specifiche indicate e le informazioni emerse dalle risposte. La bozza deve essere strutturata come indicato nel contesto e fornire sufficiente dettaglio per guidare la scrittura successiva."""
-    
+Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte le specifiche indicate e le informazioni emerse dalle risposte.
+Restituisci esclusivamente il JSON finale richiesto."""
+
     user_prompt = HumanMessage(content=user_prompt_content)
-    
-    # Inizializza il modello Gemini
+    gemini_model = get_stage_model("draft", form_data.llm_model)
     temperature = get_temperature_for_agent("draft_generator", gemini_model)
-    llm = ChatGoogleGenerativeAI(
-        model=gemini_model,
-        google_api_key=api_key,
+    trace = LLMTraceRecorder(
+        stage="draft",
+        session_id=session_id,
+        request_id="modify-draft" if previous_draft and user_feedback else "generate-draft",
+    )
+    llm = build_google_chat_model(
+        model_name=gemini_model,
+        api_key=api_key,
         temperature=temperature,
     )
-    
-    # Genera la bozza
-    try:
-        response = await llm.ainvoke([system_prompt, user_prompt])
-        llm_output = _coerce_llm_content_to_text(response.content).strip()
-        
-        # Estrai token usage dalla risposta
-        token_usage = extract_token_usage(response)
-        token_usage["model"] = gemini_model
-        print(f"[DRAFT_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
-        
-        # Estrai titolo, profili personaggi e trama dall'output
-        title, draft_text, character_profiles = parse_draft_output(llm_output)
-        
-        # Recupera la sessione per determinare la versione
-        session_store = get_session_store()
-        session = await get_session_async(session_store, session_id, user_id=None)
-        
-        if session:
-            new_version = session.current_version + 1
-        else:
-            new_version = 1
-        
-        return draft_text, title, new_version, token_usage, character_profiles
-        
-    except Exception as e:
-        raise Exception(f"Errore nella generazione della bozza: {str(e)}")
+
+    payload, token_usage, _raw_output = await invoke_structured_chat_model(
+        llm=llm,
+        schema=DraftGenerationPayload,
+        messages=[system_prompt, user_prompt],
+        model_name=gemini_model,
+        stage="draft",
+        request_label=trace.request_id or "draft",
+        session_id=session_id,
+        trace_recorder=trace,
+    )
+    title = payload.title.strip()
+    draft_text = payload.draft_text.strip()
+    character_profiles = payload.character_profiles.strip()
+    session_store = get_session_store()
+    session = await get_session_async(session_store, session_id, user_id=None)
+    new_version = session.current_version + 1 if session else 1
+
+    trace.record(
+        "draft_parsed",
+        title=title,
+        version=new_version,
+        draft_characters=len(draft_text),
+        character_profiles_characters=len(character_profiles),
+    )
+    logger.info(
+        "Bozza generata con successo",
+        context={
+            "session_id": session_id,
+            "version": new_version,
+            "model": gemini_model,
+            "trace_file": str(trace.file_path),
+        },
+    )
+    return draft_text, title, new_version, token_usage, character_profiles
 
 

@@ -285,6 +285,7 @@ class MongoSessionStore(SessionStore):
         error: Optional[str] = None,
         total_pages: Optional[int] = None,
         completed_chapters_count: Optional[int] = None,
+        writing_time_minutes: Optional[float] = None,
     ) -> SessionData:
         """Aggiorna lo stato di avanzamento della scrittura del romanzo (merge-safe)."""
         session = await self.get_session(session_id)
@@ -322,6 +323,8 @@ class MongoSessionStore(SessionStore):
             new_progress["total_pages"] = total_pages
         if completed_chapters_count is not None:
             new_progress["completed_chapters_count"] = completed_chapters_count
+        if writing_time_minutes is not None:
+            new_progress["writing_time_minutes"] = writing_time_minutes
         
         # Campi come estimated_cost, writing_time_minutes vengono preservati automaticamente
         # perché partiamo da existing_progress.copy()

@@ -1,0 +1,293 @@
+[
+  {
+    "id": "amphibious-fantasy",
+    "form_data": {
+      "llm_model": "gemini-3-pro",
+      "plot": "Una giovane cartografa scopre che le maree artificiali della sua citta lagunare stanno venendo manipolate per preparare un colpo di stato.",
+      "genre": "fantasy",
+      "subgenre": "epico",
+      "target_audience": "adulti",
+      "theme": "identita",
+      "protagonist": "Ada Maris",
+      "protagonist_archetype": "prescelta riluttante",
+      "character_arc": "crescita",
+      "point_of_view": "terza limitata",
+      "narrative_voice": "soggettiva",
+      "style": "lirico",
+      "temporal_structure": "frammentata",
+      "pace": "medio",
+      "realism": "fantastico",
+      "ambiguity": "aperto",
+      "intentionality": "letterario",
+      "author": "Ursula Le Guin",
+      "user_name": "Ada"
+    },
+    "question_answers": [
+      {
+        "question_id": "tono",
+        "answer": "Malinconico ma epico."
+      },
+      {
+        "question_id": "vincolo",
+        "answer": "Evita deus ex machina e privilegia rivelazioni graduali."
+      }
+    ],
+    "validated_draft": "Ada, cartografa delle chiuse, capisce che la rete di dighe della citta viene alterata dall'interno. Mentre cerca la fonte del sabotaggio, scopre che la famiglia che governa il porto ha nascosto per anni la vera origine delle maree artificiali.",
+    "draft_title": "La Citta delle Maree",
+    "outline_markdown": "## Capitolo 1: Le chiuse mutevoli\n- Ada nota un ritmo irregolare nelle maree e comprende che qualcuno sta alterando il sistema.\n\n## Capitolo 2: La mappa ereditata\n- La protagonista trova una mappa lasciata dalla madre e decide di verificare un vecchio canale proibito.\n\n## Capitolo 3: Il teatro sommerso\n- Ada raggiunge il vecchio teatro e ascolta una riunione segreta tra i congiurati.\n",
+    "expected_section_titles": [
+      "Capitolo 1: Le chiuse mutevoli",
+      "Capitolo 2: La mappa ereditata",
+      "Capitolo 3: Il teatro sommerso"
+    ],
+    "previous_chapters": [
+      {
+        "title": "Capitolo 1: Le chiuse mutevoli",
+        "content": "Ada percorre i pontili all'alba, conta i secondi tra una sirena e l'altra e capisce che le chiuse non rispondono piu alla cadenza storica. Quando prova a parlarne al consiglio del porto, viene liquidata con una cortesia troppo rapida.",
+        "section_index": 0
+      },
+      {
+        "title": "Capitolo 2: La mappa ereditata",
+        "content": "Nel laboratorio della madre, Ada trova una mappa piegata dieci volte e una nota che le chiede di fidarsi dei corridoi d'acqua dimenticati. Decide di seguire la traccia, anche se significa contraddire l'ordine civile della citta.",
+        "section_index": 1
+      }
+    ],
+    "current_section_index": 2,
+    "expected_context_fragments": [
+      "## STORY BIBLE DEL ROMANZO",
+      "Malinconico ma epico.",
+      "Capitolo 2: La mappa ereditata"
+    ],
+    "style_markers": [
+      "malinconica",
+      "epica"
+    ],
+    "validation_config": {
+      "min_chapter_length": 160,
+      "min_chapter_words": 25,
+      "disallowed_output_markers": [
+        "[ERRORE:",
+        "[ERROR:"
+      ]
+    },
+    "sample_valid_chapter": "Il teatro sommerso apparve ad Ada come una cattedrale perduta, malinconica e solenne, sospesa fra alghe luminescenti e travi corrose. Ogni gradino restituiva il suono dell'acqua con un'eco epica, quasi la citta stessa volesse ricordarle che il complotto aveva radici antiche. Nascosta dietro il velluto imputridito, la protagonista ascolto le voci dei congiurati senza interrompere il respiro: nessuno urlava, ma ogni frase portava il peso di una guerra imminente. Quando riconobbe il nome di sua madre tra gli artefici della vecchia mappa, non ebbe una rivelazione improvvisa. Sentì invece il dolore allargarsi lentamente, trasformando il sospetto in decisione.",
+    "sample_placeholder_output": "[ERRORE: impossibile generare contenuto]"
+  },
+  {
+    "id": "historical-mystery",
+    "form_data": {
+      "llm_model": "gemini-3-pro",
+      "plot": "Nel 1924 una archivista di Torino indaga sulla sparizione di un cronista e scopre una rete di dossier falsificati che collega stampa, industria e politica.",
+      "genre": "giallo",
+      "subgenre": "storico",
+      "target_audience": "adulti",
+      "theme": "verita e compromesso",
+      "protagonist": "Lidia Ferrero",
+      "protagonist_archetype": "investigatrice riluttante",
+      "character_arc": "disincanto",
+      "point_of_view": "terza limitata",
+      "narrative_voice": "sobria",
+      "style": "teso",
+      "temporal_structure": "lineare",
+      "pace": "medio",
+      "realism": "storico",
+      "ambiguity": "chiuso",
+      "intentionality": "narrativo",
+      "author": "Leonardo Sciascia",
+      "user_name": "Lidia"
+    },
+    "question_answers": [
+      {
+        "question_id": "indizi",
+        "answer": "Indizi concreti, niente deus ex machina."
+      },
+      {
+        "question_id": "dialoghi",
+        "answer": "Dialoghi asciutti, con tensione implicita."
+      }
+    ],
+    "validated_draft": "Lidia scopre che il cronista sparito stava raccogliendo prove su una serie di articoli manipolati per proteggere un gruppo industriale vicino al prefetto. L'indagine la porta dagli archivi ai caffè della citta, dove ogni testimone offre una mezza verita interessata.",
+    "draft_title": "Gli Archivi del Silenzio",
+    "outline_markdown": "# Struttura del Romanzo\n\n## Parte I: L'archivio\n\n### Capitolo 1: La cartella mancante\n- Lidia nota un buco negli schedari e collega l'anomalia alla sparizione del cronista.\n\n### Capitolo 2: Le bozze corrette\n- Le bozze di giornale mostrano correzioni sospette e firme cancellate.\n\n## Parte II: La citta osserva\n\n### Capitolo 3: Il caffe delle mezze verita\n- Ogni testimone difende qualcuno e Lidia capisce che la rete e piu ampia del previsto.\n",
+    "expected_section_titles": [
+      "Capitolo 1: La cartella mancante",
+      "Capitolo 2: Le bozze corrette",
+      "Capitolo 3: Il caffe delle mezze verita"
+    ],
+    "previous_chapters": [
+      {
+        "title": "Capitolo 1: La cartella mancante",
+        "content": "Fra scaffali metallici e polvere di carbone, Lidia trova una numerazione interrotta. Il fascicolo scomparso apparteneva al cronista che tutti fingono di non conoscere piu.",
+        "section_index": 0
+      }
+    ],
+    "current_section_index": 1,
+    "expected_context_fragments": [
+      "## STORY BIBLE DEL ROMANZO",
+      "Indizi concreti, niente deus ex machina.",
+      "Capitolo 1: La cartella mancante"
+    ],
+    "style_markers": [
+      "indizi",
+      "tensione"
+    ],
+    "validation_config": {
+      "min_chapter_length": 150,
+      "min_chapter_words": 24,
+      "disallowed_output_markers": [
+        "[ERRORE:",
+        "[ERROR:"
+      ]
+    },
+    "sample_valid_chapter": "Le bozze corrette non offrivano una prova definitiva, ma una costellazione di indizi piccoli e testardi. Lidia li allineo sul tavolo con la pazienza di chi sa che la verita, in archivio, non arriva mai da sola. Ogni parola cancellata lasciava un'ombra diversa, e la tensione nasceva proprio da quelle differenze minime: una data spostata, un cognome abbreviato, una firma diventata iniziale. Nel silenzio dell'ufficio serale, la protagonista capi che il cronista non era stato zittito per un singolo articolo, ma per il metodo con cui metteva insieme i documenti. Non c'era spazio per miracoli investigativi, solo per la disciplina di seguire la carta fin dove gli altri avevano paura di guardare.",
+    "sample_placeholder_output": "[ERROR: partial output]"
+  },
+  {
+    "id": "solarpunk-heist",
+    "form_data": {
+      "llm_model": "gemini-3-pro",
+      "plot": "In una metropoli verticale alimentata da serre sospese, una botanica deve rubare un algoritmo climatico prima che una corporazione trasformi l'acqua pubblica in un privilegio privato.",
+      "genre": "fantascienza",
+      "subgenre": "solarpunk",
+      "target_audience": "adulti",
+      "theme": "bene comune e responsabilita",
+      "protagonist": "Nives Rao",
+      "protagonist_archetype": "esperta riluttante",
+      "character_arc": "fiducia",
+      "point_of_view": "prima persona",
+      "narrative_voice": "lucida",
+      "style": "sensoriale",
+      "temporal_structure": "lineare",
+      "pace": "alto",
+      "realism": "speculativo",
+      "ambiguity": "chiuso",
+      "intentionality": "narrativo",
+      "author": "Kim Stanley Robinson",
+      "user_name": "Nives"
+    },
+    "question_answers": [
+      {
+        "question_id": "tono",
+        "answer": "Teso ma luminoso."
+      },
+      {
+        "question_id": "vincolo",
+        "answer": "Ogni colpo deve avere conseguenze concrete e costi emotivi."
+      }
+    ],
+    "validated_draft": "Nives, botanica municipale, scopre che la corporazione Helion sta manipolando un algoritmo di irrigazione per razionare l'acqua. Per fermarla deve infiltrarsi nelle serre sospese insieme a una piccola rete civica che non si fida davvero di lei.",
+    "draft_title": "Le Serre Sospese",
+    "outline_markdown": "# Struttura del Romanzo\n\n## Atto I: La scoperta\n\n### Capitolo 1: Il polline sui pannelli\n- Nives nota che i pannelli idrici del quartiere restituiscono dati alterati e collega il problema a Helion.\n\n### Capitolo 2: Le serre sospese\n- La protagonista entra nelle serre alte e capisce che l'algoritmo e gia stato riscritto.\n\n## Atto II: Il furto necessario\n\n### Capitolo 3: Il corridoio di vapore\n- Nives tenta il colpo, ma il piano obbliga il gruppo a scegliere chi sacrificare e quale quartiere salvare per primo.\n",
+    "expected_section_titles": [
+      "Capitolo 1: Il polline sui pannelli",
+      "Capitolo 2: Le serre sospese",
+      "Capitolo 3: Il corridoio di vapore"
+    ],
+    "previous_chapters": [
+      {
+        "title": "Capitolo 1: Il polline sui pannelli",
+        "content": "Nives raccoglie residui dorati sui pannelli idrici del suo quartiere e scopre che i valori trasmessi alla rete civica sono stati corretti a valle. Quando prova a segnalarlo, trova solo sorrisi amministrativi e una nuova lista di quartieri da lasciar seccare.",
+        "section_index": 0
+      },
+      {
+        "title": "Capitolo 2: Le serre sospese",
+        "content": "Tra condotti trasparenti e passerelle umide, Nives comprende che Helion ha gia addestrato l'algoritmo a privilegiare i tetti privati. Il gruppo che l'accompagna vuole agire subito, ma nessuno condivide davvero la stessa idea di giustizia.",
+        "section_index": 1
+      }
+    ],
+    "current_section_index": 2,
+    "expected_context_fragments": [
+      "## STORY BIBLE DEL ROMANZO",
+      "Teso ma luminoso.",
+      "Capitolo 2: Le serre sospese"
+    ],
+    "style_markers": [
+      "luminoso",
+      "teso"
+    ],
+    "validation_config": {
+      "min_chapter_length": 170,
+      "min_chapter_words": 28,
+      "disallowed_output_markers": [
+        "[ERRORE:",
+        "[ERROR:"
+      ]
+    },
+    "sample_valid_chapter": "Nel corridoio di vapore la luce filtrava verde e luminoso, ma nessuno dei presenti la scambiava per pace. Nives sentiva il respiro del gruppo diventare teso a ogni porta magnetica superata, perche ogni metro rubato alla serra significava un quartiere in piu ancora assetato. Quando il codice di Helion apparve sui visori, capi che il vero furto non era l'algoritmo, ma il diritto di decidere chi poteva bere e chi no. Non ci fu eroismo pulito: una compagna dovette restare indietro per tenere aperto il varco, e quella scelta trasformo l'urgenza politica in una colpa concreta che Nives avrebbe portato con se fino all'uscita.",
+    "sample_placeholder_output": "[ERRORE: retry later]"
+  },
+  {
+    "id": "intimate-romance",
+    "form_data": {
+      "llm_model": "gemini-3-pro",
+      "plot": "Una restauratrice di manoscritti e un violinista che ha smesso di esibirsi si incontrano in una biblioteca civica e scoprono che il restauro di una raccolta di lettere puo costringerli a rileggere anche la propria vita.",
+      "genre": "romance",
+      "subgenre": "contemporaneo",
+      "target_audience": "adulti",
+      "theme": "fiducia e seconda possibilita",
+      "protagonist": "Elena e Davide",
+      "protagonist_archetype": "feriti che imparano ad aprirsi",
+      "character_arc": "guarigione",
+      "point_of_view": "terza alternata",
+      "narrative_voice": "intima",
+      "style": "delicato",
+      "temporal_structure": "lineare",
+      "pace": "lento",
+      "realism": "quotidiano",
+      "ambiguity": "chiuso",
+      "intentionality": "letterario",
+      "author": "Sally Rooney",
+      "user_name": "Elena"
+    },
+    "question_answers": [
+      {
+        "question_id": "tono",
+        "answer": "Tenero, intimo e senza melodramma."
+      },
+      {
+        "question_id": "dialoghi",
+        "answer": "Dialoghi sobri, con pause e sottotesto."
+      }
+    ],
+    "validated_draft": "Elena restaura una raccolta di lettere donate alla biblioteca da una famiglia sconosciuta. Davide, violinista che non suona piu in pubblico dopo un crollo sul palco, viene coinvolto quando scopre che le lettere parlano anche di un vecchio liutaio legato alla sua storia familiare.",
+    "draft_title": "Le Lettere Restituite",
+    "outline_markdown": "## Capitolo 1: La carta che cede\n- Elena riceve il fondo di lettere e capisce che il lavoro richiedera tempo e fiducia.\n\n## Capitolo 2: Il leggio vuoto\n- Davide torna in biblioteca per una ricerca minima e riconosce un nome legato alla propria famiglia.\n\n## Capitolo 3: Le pieghe della voce\n- I due leggono insieme alcune lettere e capiscono che il passato che stanno restaurando comincia a parlare anche del loro presente.\n",
+    "expected_section_titles": [
+      "Capitolo 1: La carta che cede",
+      "Capitolo 2: Il leggio vuoto",
+      "Capitolo 3: Le pieghe della voce"
+    ],
+    "previous_chapters": [
+      {
+        "title": "Capitolo 1: La carta che cede",
+        "content": "Elena lavora sulle fibre consumate delle lettere e comprende subito che ogni strappo chiede una mano paziente piu che una tecnica brillante. La biblioteca, a sera, le restituisce un silenzio che non la consola ma la accompagna.",
+        "section_index": 0
+      },
+      {
+        "title": "Capitolo 2: Il leggio vuoto",
+        "content": "Davide entra in biblioteca per sfuggire a una prova che non riesce a sostenere. Quando legge il nome del liutaio nelle carte aperte da Elena, il passato smette di essere un archivio e torna a essere una voce che lo riguarda.",
+        "section_index": 1
+      }
+    ],
+    "current_section_index": 2,
+    "expected_context_fragments": [
+      "## STORY BIBLE DEL ROMANZO",
+      "Tenero, intimo e senza melodramma.",
+      "Capitolo 2: Il leggio vuoto"
+    ],
+    "style_markers": [
+      "tenera",
+      "intima"
+    ],
+    "validation_config": {
+      "min_chapter_length": 165,
+      "min_chapter_words": 28,
+      "disallowed_output_markers": [
+        "[ERRORE:",
+        "[ERROR:"
+      ]
+    },
+    "sample_valid_chapter": "Quando Elena apri la terza lettera, non lesse subito ad alta voce. Aspetto che Davide si sedesse accanto al tavolo grande, lasciando tra loro una distanza minima e intima, quasi necessaria per non trasformare quel momento in una confessione prematura. La frase sul liutaio cadde nella stanza con una delicatezza tenera, piu vicina a una cura che a una rivelazione. Davide non si richiuse, ma nemmeno si spiegò del tutto: appoggio le dita sul bordo del leggio vuoto e ammise soltanto che certe assenze fanno piu rumore degli errori. Elena capi allora che il loro lavoro non consisteva nel recuperare un passato perfetto, ma nel restituire una voce leggibile a cio che entrambi avevano smesso di nominare.",
+    "sample_placeholder_output": "[ERROR: empty draft]"
+  }
+]

@@ -1,62 +1,39 @@
 import os
-from pathlib import Path
-from typing import Optional, Any
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import Optional
+
 from langchain_core.messages import SystemMessage, HumanMessage
-from app.models import SubmissionRequest, QuestionAnswer
-from app.agent.session_store import get_session_store
+
 from app.core.config import get_temperature_for_agent
-from app.utils.token_tracker import extract_token_usage
+from app.core.logging import get_logger
+from app.llm import (
+    LLMTraceRecorder,
+    OutlineGenerationPayload,
+    append_contract_instructions,
+    build_google_chat_model,
+    get_stage_model,
+    invoke_structured_chat_model,
+    load_prompt_file,
+    parse_json_model,
+)
+from app.models import SubmissionRequest, QuestionAnswer
+
+
+logger = get_logger("outline-generator")
+
+
+def _validate_outline_payload(payload: OutlineGenerationPayload) -> OutlineGenerationPayload:
+    if not payload.sections:
+        raise ValueError("Outline privo di sezioni.")
+    return payload
 
 
 def load_outline_agent_context() -> str:
     """Carica il contesto dell'agente di outline dal file Markdown."""
-    # In locale: __file__ = backend/app/agent/outline_generator.py -> root = .parent.parent.parent.parent
-    # Nel container: __file__ = /app/app/agent/outline_generator.py -> root = .parent.parent.parent
-    base_path = Path(__file__).parent.parent.parent
-    config_path = base_path / "config" / "outline_agent_context.md"
-    
-    # Se non esiste, prova un livello sopra (per ambiente locale)
-    if not config_path.exists():
-        base_path = base_path.parent
-        config_path = base_path / "config" / "outline_agent_context.md"
-    
-    if not config_path.exists():
-        raise FileNotFoundError(f"File di contesto agente outline non trovato: {config_path}")
-    
-    with open(config_path, "r", encoding="utf-8") as f:
-        return f.read()
-
-
-def _coerce_llm_content_to_text(content: Any) -> str:
-    """
-    Normalizza `response.content` (Gemini/LangChain) a stringa.
-
-    In alcuni casi `content` può essere una lista di "parts" invece che una stringa.
-    """
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if item is None:
-                continue
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                # Gemini può restituire parti tipo {"type": "...", "text": "..."}
-                txt = item.get("text")
-                if isinstance(txt, str):
-                    parts.append(txt)
-                else:
-                    parts.append(str(item))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    # fallback per dict / altri tipi
-    return str(content)
+    return load_prompt_file(
+        "outline_agent_context.md",
+        "outline generator",
+        anchor_file=__file__,
+    )
 
 
 def format_input_for_outline(
@@ -117,18 +94,19 @@ def format_input_for_outline(
     return "\n".join(lines)
 
 
-def map_model_name(model_name: str) -> str:
-    """Mappa il nome del modello utente al nome corretto per Gemini API."""
-    if "gemini-2.5-flash" in model_name:
-        return "gemini-2.5-flash"
-    elif "gemini-2.5-pro" in model_name:
-        return "gemini-2.5-pro"
-    elif "gemini-3-flash" in model_name:
-        return "gemini-3-flash-preview"
-    elif "gemini-3-pro" in model_name:
-        return "gemini-3.1-pro-preview"
-    else:
-        return "gemini-2.5-flash"  # default
+def render_outline_markdown(payload: OutlineGenerationPayload) -> str:
+    """Rende l'outline strutturato in markdown per UI e parser legacy."""
+    lines: list[str] = []
+    for section in payload.sections:
+        header_prefix = "#" * section.level
+        lines.append(f"{header_prefix} {section.title.strip()}")
+        lines.append("")
+        lines.append(section.description.strip())
+        lines.append("")
+    outline_text = "\n".join(lines).strip()
+    if not outline_text:
+        raise ValueError("Outline vuoto dopo il rendering markdown.")
+    return outline_text
 
 
 async def generate_outline(
@@ -154,30 +132,28 @@ async def generate_outline(
         Tupla (outline_text, token_usage)
         token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
     """
-    # Usa la variabile d'ambiente se api_key non è fornita
     if api_key is None:
         api_key = os.getenv("GOOGLE_API_KEY")
-    
+
     if not api_key:
         raise ValueError("GOOGLE_API_KEY non configurata. Imposta la variabile d'ambiente o passa api_key.")
-    
-    # Carica il contesto dell'agente
+
     agent_context = load_outline_agent_context()
-    
-    # Formatta i dati
     formatted_input = format_input_for_outline(
         form_data,
         question_answers,
         validated_draft,
         draft_title,
     )
-    
-    # Usa sempre il modello PRO per la generazione della struttura, indipendentemente dalla modalità selezionata
-    gemini_model = "gemini-3.1-pro-preview"
-    print(f"[OUTLINE_GENERATOR] Usando modello PRO (gemini-3.1-pro-preview) per generazione struttura, indipendentemente dalla modalità selezionata: {form_data.llm_model}")
-    
-    # Crea il prompt
-    system_prompt = SystemMessage(content=agent_context)
+    system_prompt = SystemMessage(
+        content=append_contract_instructions(
+            agent_context,
+            (
+                "IMPORTANTE: il runtime applica uno schema strutturato nativo. "
+                "Non restituire markdown libero o wrapper extra: compila soltanto la struttura semantica richiesta."
+            ),
+        )
+    )
     user_prompt_content = f"""Genera la struttura completa (indice) del romanzo basandoti sulle seguenti informazioni.
 
 {formatted_input}
@@ -215,34 +191,49 @@ Non limitarti a un capitolo per evento: ogni momento narrativo significativo mer
 Eventi complessi, sviluppi caratteriali, rivelazioni importanti, conflitti interiori ed esteriori 
 devono essere sviluppati con la profondità che richiedono, non compressi in riassunti.
 
-Genera una struttura dettagliata in formato Markdown che organizzi tutta la narrazione in capitoli e sezioni, 
-con descrizioni di alto livello per ciascun elemento. La struttura deve essere ampia e stratificata, 
-includendo non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere, 
-sottotrame e sviluppi narrativi che creano un romanzo ricco e coinvolgente (orientato a un romanzo “pieno”, non a una novella)."""
-    
+Restituisci l'outline come JSON strutturato: una lista ordinata di sezioni/capitoli, ciascuna con `title`, `description` e `level`.
+La struttura deve essere ampia e stratificata, includendo non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere, sottotrame e sviluppi narrativi."""
+
     user_prompt = HumanMessage(content=user_prompt_content)
-    
-    # Inizializza il modello Gemini
+    gemini_model = get_stage_model("outline", form_data.llm_model)
     temperature = get_temperature_for_agent("outline_generator", gemini_model)
-    llm = ChatGoogleGenerativeAI(
-        model=gemini_model,
-        google_api_key=api_key,
+    trace = LLMTraceRecorder(
+        stage="outline",
+        session_id=session_id,
+        request_id="generate-outline",
+    )
+    llm = build_google_chat_model(
+        model_name=gemini_model,
+        api_key=api_key,
         temperature=temperature,
     )
-    
-    # Genera l'outline
-    try:
-        response = await llm.ainvoke([system_prompt, user_prompt])
-        outline_text = _coerce_llm_content_to_text(response.content).strip()
-        
-        # Estrai token usage dalla risposta
-        token_usage = extract_token_usage(response)
-        token_usage["model"] = gemini_model
-        print(f"[OUTLINE_GENERATOR] Token usage: {token_usage['input_tokens']} input, {token_usage['output_tokens']} output")
-        
-        return outline_text, token_usage
-        
-    except Exception as e:
-        raise Exception(f"Errore nella generazione della struttura: {str(e)}")
+
+    payload, token_usage, _raw_output = await invoke_structured_chat_model(
+        llm=llm,
+        schema=OutlineGenerationPayload,
+        messages=[system_prompt, user_prompt],
+        model_name=gemini_model,
+        stage="outline",
+        request_label="generate outline",
+        session_id=session_id,
+        trace_recorder=trace,
+        parsed_validator=_validate_outline_payload,
+    )
+    outline_text = render_outline_markdown(payload)
+    trace.record(
+        "outline_rendered",
+        sections=len(payload.sections),
+        markdown_characters=len(outline_text),
+    )
+    logger.info(
+        "Outline generato con successo",
+        context={
+            "session_id": session_id,
+            "sections": len(payload.sections),
+            "model": gemini_model,
+            "trace_file": str(trace.file_path),
+        },
+    )
+    return outline_text, token_usage
 
 
