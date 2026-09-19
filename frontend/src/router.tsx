@@ -1,12 +1,9 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
-import RequireAuth from './components/routing/RequireAuth';
-import RequireAdmin from './components/routing/RequireAdmin';
 import Navigation from './components/Navigation';
 import BottomNavigation from './components/BottomNavigation';
 import Footer from './components/Footer';
-import { useAuth } from './contexts/AuthContext';
 import { useOnboarding } from './hooks/useOnboarding';
 
 const DynamicForm = lazy(() => import('./components/DynamicForm'));
@@ -56,18 +53,17 @@ function LegacyMangaRedirect() {
 }
 
 /**
- * Layout per route protette (con Navigation e gestione onboarding)
+ * Layout principale (con Navigation e gestione onboarding locale)
  */
-function ProtectedLayout({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+function AppLayout({ children }: { children: ReactNode }) {
   const { hasSeenCarousel, completeCarousel } = useOnboarding();
 
-  // Mostra onboarding se non visto
-  if (isAuthenticated && !hasSeenCarousel) {
+  // Mostra onboarding se non visto (solo localStorage, niente login)
+  if (!hasSeenCarousel) {
     return (
       <ErrorBoundary>
         <LazyPage>
-          <OnboardingCarousel 
+          <OnboardingCarousel
             onComplete={completeCarousel}
             onSkip={completeCarousel}
           />
@@ -91,15 +87,13 @@ function ProtectedLayout({ children }: { children: ReactNode }) {
 }
 
 /**
- * Router principale dell'applicazione
+ * Router principale dell'applicazione (uso locale single-user, senza autenticazione)
  */
 export const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <RequireAuth>
-        <Navigate to="/new" replace />
-      </RequireAuth>
+      <Navigate to="/new" replace />
     ),
   },
   {
@@ -155,131 +149,109 @@ export const router = createBrowserRouter([
   {
     path: '/new',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <DynamicForm />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <DynamicForm />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/manga',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <MangaBetaView />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <MangaBetaView />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/beta/manga',
     element: (
-      <RequireAuth>
-        <LegacyMangaRedirect />
-      </RequireAuth>
+      <LegacyMangaRedirect />
     ),
   },
   {
     path: '/library',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <LibraryView />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <LibraryView />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/book/:sessionId',
     element: (
-      <RequireAuth>
-        <ErrorBoundary>
-          <LazyPage>
-            <BookReader />
-          </LazyPage>
-        </ErrorBoundary>
-      </RequireAuth>
+      <ErrorBoundary>
+        <LazyPage>
+          <BookReader />
+        </LazyPage>
+      </ErrorBoundary>
     ),
   },
   {
     path: '/benchmark',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <BenchmarkView />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <BenchmarkView />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/analytics',
     element: (
-      <RequireAdmin>
-        <ProtectedLayout>
-          <LazyPage>
-            <AnalyticsView />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAdmin>
+      <AppLayout>
+        <LazyPage>
+          <AnalyticsView />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/notifications',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <NotificationsPage />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <NotificationsPage />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   {
     path: '/connections',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <ConnectionsView />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <ConnectionsView />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   // Wallet (Crediti)
   {
     path: '/wallet',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <WalletPage />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <WalletPage />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   // Privacy Settings (autenticato)
   {
     path: '/settings/privacy',
     element: (
-      <RequireAuth>
-        <ProtectedLayout>
-          <LazyPage>
-            <PrivacySettings />
-          </LazyPage>
-        </ProtectedLayout>
-      </RequireAuth>
+      <AppLayout>
+        <LazyPage>
+          <PrivacySettings />
+        </LazyPage>
+      </AppLayout>
     ),
   },
   // Pagine legali (pubbliche)
