@@ -7,10 +7,10 @@ import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
 import ErrorBoundary from './ErrorBoundary';
+import CreateShell from './CreateShell';
+import Disclosure from './ui/Disclosure';
 import StepIndicator from './StepIndicator';
 import PlotTextarea from './PlotTextarea';
-import PageTransition from './ui/PageTransition';
-import CreationJourneyPanel, { GenerationMode } from './CreationJourneyPanel';
 import ModelSettingsPanel, {
   BOOK_STAGES,
   DEFAULT_TEXT_MODEL,
@@ -86,11 +86,6 @@ function applyDefaultAuthor(data: Record<string, string>): Record<string, string
   return { ...data, author: DEFAULT_AUTHOR };
 }
 
-function getModeFromModel(modelName?: string | null, generationMode?: string | null): GenerationMode {
-  if (generationMode === 'ultra' || (modelName || '').toLowerCase().includes('ultra')) return 'ultra';
-  return 'standard';
-}
-
 export default function DynamicForm() {
   const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
@@ -111,12 +106,8 @@ export default function DynamicForm() {
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [restoreStatus, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
+  const [, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
   const [modelSettings, setModelSettings] = useState<ModelSettingsValue>(defaultBookModelSettings);
-  const selectedMode = getModeFromModel(
-    formData.llm_model || formPayload?.llm_model,
-    modelSettings.generationMode || formPayload?.generation_mode,
-  );
 
   useEffect(() => {
     loadConfig();
@@ -792,31 +783,24 @@ export default function DynamicForm() {
   // Mostra le domande se generate
   if (currentStep === 'questions' && questions && sessionId) {
     return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep={currentStep} />
-        </div>
-        <div className="dynamic-form-main-content">
-          <QuestionsStep
+      <CreateShell medium="book">
+        <StepIndicator currentStep={currentStep} />
+        <QuestionsStep
             questions={questions}
             sessionId={sessionId}
             onComplete={handleQuestionsComplete}
             onBack={handleBackToForm}
           />
-        </div>
-      </div>
+      </CreateShell>
     );
   }
 
   // Mostra lo step della bozza
   if (currentStep === 'draft' && sessionId && formPayload) {
     return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep={currentStep} />
-        </div>
-        <div className="dynamic-form-main-content">
-          <DraftStep
+      <CreateShell medium="book">
+        <StepIndicator currentStep={currentStep} />
+        <DraftStep
             sessionId={sessionId}
             formData={formPayload}
             questionAnswers={questionAnswers}
@@ -830,8 +814,7 @@ export default function DynamicForm() {
               version: validatedDraft.version || 1,
             } : null}
           />
-        </div>
-      </div>
+      </CreateShell>
     );
   }
 
@@ -854,12 +837,9 @@ export default function DynamicForm() {
     });
 
     return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep={currentStep} />
-        </div>
-        <div className="dynamic-form-main-content">
-          <div className="submission-success">
+      <CreateShell medium="book">
+        <StepIndicator currentStep={currentStep} />
+        <div className="submission-success">
             <h2>Struttura del libro pronta!</h2>
             <p>{submitted.message}</p>
             
@@ -873,7 +853,7 @@ export default function DynamicForm() {
                   onClick={() => setIsEditingOutline(true)}
                   className="btn-edit-outline"
                 >
-                  ✏️ Modifica struttura
+                  Modifica struttura
                 </button>
               )}
             </div>
@@ -955,7 +935,7 @@ export default function DynamicForm() {
               }}
               className="download-pdf-button"
             >
-              📥 Scarica PDF
+              Scarica PDF
             </button>
           )}
           <button 
@@ -991,7 +971,7 @@ export default function DynamicForm() {
             className="start-writing-button"
             disabled={!sessionId || !outline || isStartingWriting}
           >
-            {isStartingWriting ? '⏳ Avvio in corso...' : '✍️ Inizia Scrittura Romanzo'}
+            {isStartingWriting ? 'Avvio in corso...' : 'Inizia scrittura'}
           </button>
           <button onClick={() => {
             setSubmitted(null);
@@ -1017,21 +997,17 @@ export default function DynamicForm() {
             Nuova configurazione
           </button>
         </div>
-      </div>
         </div>
-      </div>
+      </CreateShell>
     );
   }
 
   // Mostra lo step di scrittura
   if (currentStep === 'writing' && sessionId) {
     return (
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep={currentStep} />
-        </div>
-        <div className="dynamic-form-main-content">
-          <WritingStep
+      <CreateShell medium="book">
+        <StepIndicator currentStep={currentStep} />
+        <WritingStep
             sessionId={sessionId}
             onComplete={(progress) => {
               console.log('[DEBUG] Scrittura completata:', progress);
@@ -1041,29 +1017,15 @@ export default function DynamicForm() {
             }}
             onNewBook={handleResetToForm}
           />
-        </div>
-      </div>
+      </CreateShell>
     );
   }
 
 
   return (
-    <PageTransition>
-      <div className="dynamic-form-layout">
-        <div className="step-indicator-wrapper">
-          <StepIndicator currentStep={currentStep} />
-        </div>
-        <div className="dynamic-form-main-content">
-          <div className="dynamic-form-container">
-            <h1>NarrAI</h1>
-            <p className="subtitle">La tua storia, generata con l'AI</p>
-            <CreationJourneyPanel
-              currentStep={currentStep}
-              selectedMode={selectedMode}
-              sessionId={sessionId}
-              restoreStatus={restoreStatus}
-            />
-          
+    <CreateShell medium="book">
+      <StepIndicator currentStep={currentStep} />
+      <div className="dynamic-form-container"> 
           {loading ? (
             <div className="form-loading-skeleton" role="status" aria-label="Caricamento configurazione">
               <div className="skeleton-line" style={{ width: '60%', height: '1.5rem', marginBottom: '1rem' }} />
@@ -1090,6 +1052,10 @@ export default function DynamicForm() {
                 
                 {/* Campi Base */}
                 <div className="form-fields-base">
+                  {baseFields.filter((field) => field.id === 'plot').map((field) => renderField(field))}
+                  {baseFields.filter((field) => field.id !== 'plot').map((field) => renderField(field))}
+                </div>
+                <Disclosure title="Modelli e costo" summary="Scegli i modelli e vedi tempo e costo stimati.">
                   <ModelSettingsPanel
                     value={modelSettings}
                     onChange={setModelSettings}
@@ -1097,8 +1063,7 @@ export default function DynamicForm() {
                     showGenerationMode
                     kind="book"
                   />
-                  {baseFields.map((field) => renderField(field))}
-                </div>
+                </Disclosure>
                 
                 {/* Sezione Avanzate (collassabile) */}
                 {advancedFields.length > 0 && (
@@ -1131,7 +1096,7 @@ export default function DynamicForm() {
                 
                 <div className="form-actions">
                   <button type="submit" disabled={isSubmitting} className="submit-button">
-                    {isSubmitting ? 'Invio in corso...' : 'Invia'}
+                    {isSubmitting ? 'Avvio in corso...' : 'Inizia'}
                   </button>
                 </div>
               </form>
@@ -1141,10 +1106,8 @@ export default function DynamicForm() {
               <p>Nessun campo disponibile nella configurazione.</p>
             </div>
           ) : null}
-          </div>
-        </div>
       </div>
-    </PageTransition>
+    </CreateShell>
   );
 }
 

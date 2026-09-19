@@ -1,445 +1,78 @@
-/* ============================================
-   StepIndicator - Stepper Verticale
-   Design Moderno e Raffinato
-   ============================================ */
-
 .step-indicator {
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   gap: 0;
-  padding: var(--spacing-lg);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
-  min-width: 200px;
-  position: relative;
+  margin: 0 0 1.75rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
 }
 
 .step-indicator-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  position: relative;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 4.5rem;
 }
 
 .step-indicator-content {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  width: 100%;
-  padding: var(--spacing-sm) 0;
-  transition: all var(--transition-smooth);
-  cursor: default;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .step-indicator-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
-  flex-shrink: 0;
-  transition: all var(--transition-smooth);
-  position: relative;
-  will-change: transform, box-shadow;
-}
-
-.step-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  transition: color var(--transition-smooth);
-}
-
-.step-checkmark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: white;
-  animation: checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes checkmarkAppear {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  display: none;
 }
 
 .step-indicator-text {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
 }
 
 .step-label {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 400;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  transition: all var(--transition-smooth);
-  line-height: 1.4;
-}
-
-.step-progress-detail {
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-top: 0.125rem;
-}
-
-/* Stato: Completato */
-.step-indicator-content.completed .step-indicator-icon {
-  background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-  border-color: var(--success);
-  box-shadow: 
-    0 2px 8px rgba(16, 185, 129, 0.2),
-    0 0 0 1px rgba(16, 185, 129, 0.1) inset;
-  transform: scale(1);
-}
-
-.step-indicator-content.completed .step-indicator-icon:hover {
-  transform: scale(1.05);
-  box-shadow: 
-    0 4px 12px rgba(16, 185, 129, 0.3),
-    0 0 0 1px rgba(16, 185, 129, 0.15) inset;
-}
-
-.step-indicator-content.completed .step-label {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.step-indicator-content.completed .step-icon {
-  color: white;
-}
-
-/* Stato: Corrente */
-.step-indicator-content.current .step-indicator-icon {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-  border-color: var(--accent);
-  box-shadow: 
-    0 0 0 4px var(--accent-light),
-    0 4px 12px var(--accent-glow),
-    0 0 0 1px rgba(201, 72, 91, 0.2) inset;
-  animation: pulseElegant 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  position: relative;
-}
-
-.step-indicator-content.current .step-indicator-icon::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, var(--accent-glow) 0%, transparent 70%);
-  opacity: 0.6;
-  animation: glowPulse 2.5s ease-in-out infinite;
-  z-index: -1;
-}
-
-@keyframes pulseElegant {
-  0%, 100% {
-    box-shadow: 
-      0 0 0 4px var(--accent-light),
-      0 4px 12px var(--accent-glow),
-      0 0 0 1px rgba(201, 72, 91, 0.2) inset;
-  }
-  50% {
-    box-shadow: 
-      0 0 0 8px rgba(201, 72, 91, 0.08),
-      0 6px 16px var(--accent-glow),
-      0 0 0 1px rgba(201, 72, 91, 0.25) inset;
-  }
-}
-
-@keyframes glowPulse {
-  0%, 100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1);
-  }
+  white-space: nowrap;
 }
 
 .step-indicator-content.current .step-label {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
-.step-indicator-content.current .step-icon {
-  color: white;
+.step-indicator-content.completed .step-label {
+  color: var(--ink);
 }
 
-/* Stato: Pending */
-.step-indicator-content.pending .step-indicator-icon {
-  background: var(--surface-elevated);
-  border-color: var(--border-light);
-  opacity: 0.5;
+.step-progress-detail {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
-.step-indicator-content.pending .step-label {
-  color: var(--text-muted);
-  opacity: 0.6;
-  font-weight: 400;
-}
-
-.step-indicator-content.pending .step-icon {
-  color: var(--text-muted);
-  opacity: 0.5;
-}
-
-/* Linea di connessione */
 .step-indicator-line {
-  width: 1.5px;
-  height: 2rem;
-  background: var(--border);
-  margin-left: 1.25rem;
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
-  transition: all var(--transition-smooth);
-  flex-shrink: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.step-indicator-line::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 0%;
-  background: linear-gradient(180deg, var(--success) 0%, rgba(16, 185, 129, 0.6) 100%);
-  transition: height var(--transition-elegant);
+  flex: 1;
+  height: 1px;
+  margin: 0 0.75rem;
+  background: var(--rule);
+  align-self: center;
 }
 
 .step-indicator-line.completed {
-  width: 2px;
-  background: linear-gradient(180deg, var(--success) 0%, rgba(16, 185, 129, 0.8) 100%);
+  background: var(--ink);
 }
 
-.step-indicator-line.completed::before {
-  height: 100%;
-  animation: lineFill 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes lineFill {
-  from {
-    height: 0%;
-  }
-  to {
-    height: 100%;
-  }
-}
-
-/* Supporto per prefers-reduced-motion */
-@media (prefers-reduced-motion: reduce) {
-  .step-indicator-content,
-  .step-indicator-icon,
-  .step-indicator-line,
-  .step-label {
-    transition: none;
-    animation: none;
-  }
-  
-  .step-checkmark {
-    animation: none;
-  }
-  
-  .step-indicator-content.current .step-indicator-icon {
-    animation: none;
-  }
-  
-  .step-indicator-content.current .step-indicator-icon::before {
-    animation: none;
-  }
-  
-  .step-indicator-line.completed::before {
-    animation: none;
-    height: 100%;
-  }
-}
-
-/* Mobile: Versione Orizzontale Compatta */
-@media (max-width: 968px) {
+@media (max-width: 768px) {
   .step-indicator {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-md) var(--spacing-lg);
-    gap: 0;
-    overflow-x: auto;
-    overflow-y: visible;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
-    min-width: 100%;
-    position: relative;
+    gap: 0.25rem;
   }
-  
-  .step-indicator::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-  }
-  
-  .step-indicator-item {
-    flex-direction: row;
-    align-items: center;
-    flex: 0 0 auto;
-    min-width: fit-content;
-    position: relative;
-  }
-  
-  .step-indicator-content {
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-xs);
-    padding: 0;
-    width: auto;
-  }
-  
-  /* Icone più piccole su mobile */
-  .step-indicator-icon {
-    width: 2rem;
-    height: 2rem;
-    margin-bottom: 0;
-  }
-  
-  .step-icon,
-  .step-checkmark {
-    width: 14px;
-    height: 14px;
-  }
-  
-  /* Testo sotto l'icona, più compatto */
-  .step-indicator-text {
-    text-align: center;
-    gap: 0;
-    align-items: center;
-  }
-  
-  .step-label {
-    font-size: 0.7rem;
-    white-space: nowrap;
-    line-height: 1.2;
-  }
-  
-  /* Linea di connessione orizzontale invece di verticale */
-  .step-indicator-line {
-    width: 1.5rem;
-    height: 1.5px;
-    margin: 0;
-    margin-left: 0.25rem;
-    margin-right: 0.25rem;
-    position: absolute;
-    top: 1rem; /* Centrato verticalmente con l'icona */
-    left: calc(100% - 0.5rem);
-    transform: translateY(-50%);
-  }
-  
-  .step-indicator-line::before {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, var(--success) 0%, rgba(16, 185, 129, 0.6) 100%);
-    transition: width var(--transition-elegant);
-  }
-  
-  .step-indicator-line.completed {
-    width: 1.5rem;
-    height: 1.5px;
-    background: linear-gradient(90deg, var(--success) 0%, rgba(16, 185, 129, 0.8) 100%);
-  }
-  
-  .step-indicator-line.completed::before {
-    width: 100%;
-    height: 100%;
-    animation: lineFillHorizontal 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-  
-  @keyframes lineFillHorizontal {
-    from {
-      width: 0%;
-    }
-    to {
-      width: 100%;
-    }
-  }
-  
-  /* Nascondere progress detail su mobile per compattezza se necessario */
-  .step-progress-detail {
-    font-size: 0.65rem;
-    margin-top: 0.125rem;
-  }
-  
-  /* Aggiustamenti per stato corrente su mobile */
-  .step-indicator-content.current .step-indicator-icon {
-    animation: pulseElegantMobile 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  @keyframes pulseElegantMobile {
-    0%, 100% {
-      box-shadow: 
-        0 0 0 3px var(--accent-light),
-        0 3px 8px var(--accent-glow),
-        0 0 0 1px rgba(201, 72, 91, 0.2) inset;
-    }
-    50% {
-      box-shadow: 
-        0 0 0 6px rgba(201, 72, 91, 0.08),
-        0 4px 12px var(--accent-glow),
-        0 0 0 1px rgba(201, 72, 91, 0.25) inset;
-    }
-  }
-}
 
-/* Extra small devices - ancora più compatto */
-@media (max-width: 480px) {
-  .step-indicator {
-    padding: var(--spacing-sm) var(--spacing-md);
-    gap: 0;
-  }
-  
-  .step-indicator-icon {
-    width: 1.75rem;
-    height: 1.75rem;
-  }
-  
-  .step-icon,
-  .step-checkmark {
-    width: 12px;
-    height: 12px;
-  }
-  
   .step-label {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
   }
-  
+
   .step-indicator-line {
-    width: 1rem;
-    margin-left: 0.15rem;
-    margin-right: 0.15rem;
-    left: calc(100% - 0.3rem);
-  }
-  
-  .step-progress-detail {
-    font-size: 0.6rem;
+    margin: 0 0.4rem;
   }
 }

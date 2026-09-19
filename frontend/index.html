@@ -3,74 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0f3460" />
-    <title>NarrAI - La tua storia, generata con l'AI</title>
-    
-    <!-- PWA Manifest -->
+    <meta name="theme-color" content="#F4F0EA" />
+    <title>NarrAI</title>
+
     <link rel="manifest" href="/manifest.webmanifest" />
-    
-    <!-- iOS Meta Tags -->
+
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="NarrAI" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    
-    <!-- Google Fonts: Outfit + Playfair Display -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       #splash-screen {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #0f3460 100%);
+        inset: 0;
+        background: #F4F0EA;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
         z-index: 9999;
-        opacity: 1;
-        transition: opacity 0.5s ease-out;
+        transition: opacity 0.2s ease;
       }
-      
       #splash-screen.hidden {
         opacity: 0;
         pointer-events: none;
       }
-      
-      .splash-logo {
-        max-width: 280px;
-        width: 70%;
-        height: auto;
-        animation: fadeIn 0.8s ease-out;
-        filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.3));
+      .splash-brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
       }
-      
-      @keyframes fadeIn {
-        from {
-          opacity: 0;
-          transform: translateY(10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      .splash-mark {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        display: block;
+      }
+      .splash-wordmark {
+        font-family: 'Newsreader', Georgia, serif;
+        font-size: 1.75rem;
+        font-weight: 500;
+        color: #1C1917;
+        letter-spacing: -0.02em;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash-screen { transition: none; }
       }
     </style>
   </head>
   <body>
     <div id="splash-screen">
-      <img src="/logo-narrai.png" alt="NarrAI" class="splash-logo" />
+      <div class="splash-brand">
+        <img src="/logo-mark.png" alt="" class="splash-mark" />
+        <span class="splash-wordmark">NarrAI</span>
+      </div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
-
-
-

@@ -16,8 +16,11 @@ import {
   startMangaGeneration,
   type AppConfig,
 } from '../api/client';
-import ProgressBar from './ui/ProgressBar';
+import Button from './ui/Button';
 import { useToast } from '../hooks/useToast';
+import CreateShell from './CreateShell';
+import Disclosure from './ui/Disclosure';
+import GenerationStage from './GenerationStage';
 import ModelSettingsPanel, {
   MANGA_STAGES,
   ModelSettingsValue,
@@ -84,10 +87,6 @@ function normalizeCharacters(characters: MangaCharacterInput[]): MangaCharacterI
     .filter((character) => character.name && character.description);
 }
 
-function formatMangaType(type: MangaType): string {
-  return MANGA_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type;
-}
-
 function formatPageRange(minPages?: number | null, maxPages?: number | null): string {
   const normalizedMin = minPages ?? DEFAULT_MANGA_PAGE_COUNT;
   const normalizedMax = maxPages ?? normalizedMin;
@@ -129,6 +128,16 @@ function ReaderPages({
   sessionId: string;
   pages: MangaReaderResponse['pages'];
 }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (pages.length === 0) {
+      setActiveIndex(0);
+      return;
+    }
+    setActiveIndex((current) => Math.min(current, pages.length - 1));
+  }, [pages.length]);
+
   if (pages.length === 0) {
     return (
       <div className="manga-empty-pages">
@@ -137,31 +146,38 @@ function ReaderPages({
     );
   }
 
+  const activePage = pages[activeIndex] ?? pages[0];
+  const imageUrl = activePage.image_url || getMangaPageImageUrl(sessionId, activePage.page_number);
+
   return (
-    <div className="manga-pages-grid">
-      {pages.map((page) => {
-        const imageUrl = page.image_url || getMangaPageImageUrl(sessionId, page.page_number);
-        return (
-          <article key={page.page_number} className="manga-page-card">
-            <div className="manga-page-card-header">
-              <span className="manga-page-number">Pagina {page.page_number}</span>
-              <span className={`manga-page-status ${page.status}`}>{formatPageStatus(page.status)}</span>
-            </div>
-            <h4>{page.title}</h4>
-            {imageUrl ? (
-              <img
-                src={imageUrl}
-                alt={`Pagina ${page.page_number} del manga`}
-                className="manga-page-image"
-                loading="lazy"
-              />
-            ) : (
-              <div className="manga-page-placeholder">Immagine in preparazione...</div>
-            )}
-            <p className="manga-page-summary">{page.summary}</p>
-          </article>
-        );
-      })}
+    <div className="manga-reader-layout">
+      <aside className="manga-reader-index" aria-label="Indice pagine">
+        {pages.map((page, index) => (
+          <button
+            key={page.page_number}
+            type="button"
+            className={index === activeIndex ? 'is-active' : undefined}
+            onClick={() => setActiveIndex(index)}
+          >
+            <span>{page.page_number}</span>
+            <em>{page.title || `Pagina ${page.page_number}`}</em>
+          </button>
+        ))}
+      </aside>
+      <figure className="manga-reader-stage">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={`Pagina ${activePage.page_number}: ${activePage.title || 'manga'}`}
+          />
+        ) : (
+          <div className="manga-page-placeholder">Immagine in preparazione...</div>
+        )}
+        <figcaption>
+          Pagina {activePage.page_number}
+          {activePage.title ? ` · ${activePage.title}` : ''}
+        </figcaption>
+      </figure>
     </div>
   );
 }
@@ -281,7 +297,6 @@ function MangaSessionPanel({
   const requestedPageCount =
     plannedTotalPages
     ?? (requestedMinPages === requestedMaxPages ? requestedMinPages : null);
-  const pageColorMode = reader?.page_color_mode ?? DEFAULT_PAGE_COLOR_MODE;
   const totalSteps = plannedTotalPages ?? progress?.total_steps ?? appConfig?.manga_generation?.page_count ?? DEFAULT_MANGA_PAGE_COUNT;
   const currentStep = Math.min(progress?.current_step ?? visiblePages.length, totalSteps);
   const progressPercentage = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
@@ -333,166 +348,55 @@ function MangaSessionPanel({
     );
   }
 
+  const phaseLabel =
+    progress.current_phase === 'planning'
+      ? requestedPageCount
+        ? `Preparazione storyboard per ${formatPageCount(requestedPageCount)}`
+        : `Preparazione storyboard (${formatPageRange(requestedMinPages, requestedMaxPages)})`
+      : progress.current_phase === 'generating_cover'
+        ? 'Copertina in corso'
+        : progress.current_phase === 'generating_back_cover'
+          ? 'Retro-copertina in corso'
+          : progress.is_complete
+            ? 'Manga completato'
+            : progress.current_page_title
+              ? `Pagina corrente: ${progress.current_page_title}`
+              : 'Generazione pagina per pagina';
+
   return (
-    <div className="manga-beta-shell">
-      <section className="manga-hero-card">
-        <div>
-          <span className="manga-beta-badge">Manga</span>
-          <h1>{reader?.title || 'Manga in generazione'}</h1>
-          <p className="manga-subtitle">
-            {reader && plannedTotalPages
-              ? `${formatMangaType(reader.manga_type)} da ${plannedTotalPages} pagine, interni ${formatPageColorMode(pageColorMode).toLowerCase()} e doppia copertina.`
-              : requestedPageCount
-              ? `Pagine richieste: ${formatPageCount(requestedPageCount)}. Sto preparando il lettore dedicato del manga.`
-              : `Range richiesto: ${formatPageRange(requestedMinPages, requestedMaxPages)}. Sto preparando il lettore dedicato del manga.`}
-          </p>
-        </div>
-        <button type="button" className="manga-secondary-button" onClick={onStartOver}>
-          Nuovo manga
-        </button>
-      </section>
-
-      {reader?.synopsis && (
-        <section className="manga-meta-grid">
-          <article className="manga-meta-card">
-            <h3>Sinossi</h3>
-            <p>{reader.synopsis}</p>
-          </article>
-          <article className="manga-meta-card">
-            <h3>Personaggi</h3>
-            <div className="manga-character-list">
-              {reader.characters.length > 0 ? (
-                reader.characters.map((character) => (
-                  <div key={character.name} className="manga-character-item">
-                    <strong>{character.name}</strong>
-                    <span>{character.role || character.personality}</span>
-                  </div>
-                ))
-              ) : (
-                <span className="manga-muted">Le schede appariranno al termine del planning.</span>
-              )}
-            </div>
-          </article>
-        </section>
-      )}
-
-      <section className="manga-status-card">
-        <div className="manga-status-header">
-          <div>
-            <h2>
-              {progress.current_phase === 'planning'
-                ? 'Sto preparando trama e storyboard'
-                : progress.current_phase === 'generating_cover'
-                ? 'Sto creando la copertina'
-                : progress.current_phase === 'generating_back_cover'
-                ? 'Sto creando la retro-copertina'
-                : progress.is_complete
-                ? 'Manga completato'
-                : 'Generazione pagina per pagina'}
-            </h2>
-            <p>
-              {progress.current_phase === 'planning'
-                ? requestedPageCount
-                  ? `Definisco titolo, sinossi, bible personaggi e storyboard per un manga di ${formatPageCount(requestedPageCount)}.`
-                  : `Definisco titolo, sinossi, bible personaggi e lunghezza finale nel range ${formatPageRange(requestedMinPages, requestedMaxPages)}.`
-                : progress.current_phase === 'generating_cover'
-                ? 'Genero una copertina coerente con trama, stile e personaggi prima di passare alle pagine.'
-                : progress.current_phase === 'generating_back_cover'
-                ? 'Sto creando la retro-copertina finale, coerente con il finale del manga e con la copertina iniziale.'
-                : progress.current_page_title
-                ? `Pagina corrente: ${progress.current_page_title}`
-                : 'Sto aggiornando il lettore dedicato.'}
-            </p>
-          </div>
-          {showPageProgress && (
-            <div className="manga-progress-counter">
-              {currentStep} / {totalSteps}
-            </div>
-          )}
-        </div>
-
-        {showPageProgress ? (
-          <ProgressBar percentage={progressPercentage} />
-        ) : (
-          <div className="manga-planning-loader">
-            <div className="manga-spinner" />
-            <span>
-              {progress.current_phase === 'generating_cover'
-                ? 'Copertina in preparazione...'
-                : progress.current_phase === 'generating_back_cover'
-                ? 'Retro-copertina in preparazione...'
-                : 'Planning in corso...'}
-            </span>
-          </div>
-        )}
-
-        <div className="manga-generation-metrics">
-          {elapsedMinutes != null && (
-            <div className="manga-metric-chip">
-              <span>Tempo trascorso</span>
-              <strong>{formatElapsed(elapsedMinutes)}</strong>
-            </div>
-          )}
-          {currentCostEur != null && (
-            <div className="manga-metric-chip">
-              <span>Costo attuale</span>
-              <strong>{formatEstimateCost(currentCostEur)}</strong>
-            </div>
-          )}
-          {estimatedCostEur != null && !progress.is_complete && (
-            <div className="manga-metric-chip">
-              <span>Costo stimato finale</span>
-              <strong>{formatEstimateCost(estimatedCostEur)}</strong>
-            </div>
-          )}
-        </div>
-
-        {progress.is_paused && (
-          <div className="manga-paused-box">
-            <div>
-              <strong>Generazione in pausa</strong>
-              <p>{progress.error || 'Il processo si e fermato e puo essere ripreso.'}</p>
-            </div>
-            <button
-              type="button"
-              className="manga-primary-button"
-              disabled={isResuming}
-              onClick={async () => {
-                try {
-                  setIsResuming(true);
-                  await resumeMangaGeneration(sessionId);
-                  toast.success('Generazione manga ripresa');
-                  setIsPolling(true);
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : 'Errore nella ripresa del manga');
-                } finally {
-                  setIsResuming(false);
-                }
-              }}
-            >
-              {isResuming ? 'Riprendo...' : 'Riprendi generazione'}
-            </button>
-          </div>
-        )}
-
-        {!progress.is_paused && progress.error && (
-          <div className="manga-inline-error">{progress.error}</div>
-        )}
-      </section>
-
-      <section className="manga-reader-section">
-        <div className="manga-reader-header">
-          <h2>Lettore manga</h2>
-          <div className="manga-reader-actions">
-            <span>
-              {plannedTotalPages
-                ? `${visiblePages.length} / ${plannedTotalPages} pagine disponibili`
-                : `${visiblePages.length} pagine disponibili`}
-            </span>
-            {progress.is_complete && (
-              <button
-                type="button"
-                className="manga-secondary-button"
+    <div className="page-shell manga-session">
+      <GenerationStage
+        title={reader?.title || 'Manga in generazione'}
+        phase={phaseLabel}
+        elapsed={elapsedMinutes != null ? formatElapsed(elapsedMinutes) : null}
+        cost={currentCostEur != null ? formatEstimateCost(currentCostEur) : null}
+        estimate={!progress.is_complete && estimatedCostEur != null ? formatEstimateCost(estimatedCostEur) : null}
+        progress={showPageProgress ? progressPercentage : null}
+        actions={
+          <>
+            <Button variant="ghost" onClick={onStartOver}>Nuovo manga</Button>
+            {progress.is_paused ? (
+              <Button
+                disabled={isResuming}
+                onClick={async () => {
+                  try {
+                    setIsResuming(true);
+                    await resumeMangaGeneration(sessionId);
+                    toast.success('Generazione manga ripresa');
+                    setIsPolling(true);
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : 'Errore nella ripresa del manga');
+                  } finally {
+                    setIsResuming(false);
+                  }
+                }}
+              >
+                {isResuming ? 'Riprendo...' : 'Riprendi'}
+              </Button>
+            ) : null}
+            {progress.is_complete ? (
+              <Button
+                variant="ghost"
                 disabled={isDownloadingPdf}
                 onClick={async () => {
                   try {
@@ -517,33 +421,49 @@ function MangaSessionPanel({
                 }}
               >
                 {isDownloadingPdf ? 'Download in corso...' : 'Scarica PDF'}
-              </button>
-            )}
-          </div>
-        </div>
-        {reader?.cover_image_url && (
-          <article className="manga-cover-card">
-            <span className="manga-page-number">Copertina frontale</span>
-            <img
-              src={reader.cover_image_url}
-              alt={`Copertina di ${reader.title}`}
-              className="manga-cover-image"
-              loading="lazy"
-            />
-          </article>
-        )}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {progress.error ? <p className="manga-inline-error">{progress.error}</p> : null}
+        {reader?.synopsis ? <p className="manga-synopsis">{reader.synopsis}</p> : null}
+        <ol className="generation-index">
+          {reader?.cover_image_url ? (
+            <li>
+              <span>Copertina</span>
+              <span>pronta</span>
+            </li>
+          ) : null}
+          {visiblePages.map((page) => (
+            <li key={page.page_number}>
+              <span>{page.title || `Pagina ${page.page_number}`}</span>
+              <span>{formatPageStatus(page.status)}</span>
+            </li>
+          ))}
+          {reader?.back_cover_image_url ? (
+            <li>
+              <span>Retro copertina</span>
+              <span>pronta</span>
+            </li>
+          ) : null}
+        </ol>
+      </GenerationStage>
+
+      <section className="manga-reader-section">
+        {reader?.cover_image_url ? (
+          <figure className="manga-reader-stage manga-cover-stage">
+            <img src={reader.cover_image_url} alt={`Copertina di ${reader.title}`} />
+            <figcaption>Copertina</figcaption>
+          </figure>
+        ) : null}
         <ReaderPages sessionId={sessionId} pages={visiblePages} />
-        {reader?.back_cover_image_url && (
-          <article className="manga-cover-card">
-            <span className="manga-page-number">Retro copertina</span>
-            <img
-              src={reader.back_cover_image_url}
-              alt={`Retro copertina di ${reader.title}`}
-              className="manga-cover-image"
-              loading="lazy"
-            />
-          </article>
-        )}
+        {reader?.back_cover_image_url ? (
+          <figure className="manga-reader-stage manga-cover-stage">
+            <img src={reader.back_cover_image_url} alt={`Retro copertina di ${reader.title}`} />
+            <figcaption>Retro copertina</figcaption>
+          </figure>
+        ) : null}
       </section>
     </div>
   );
@@ -732,25 +652,27 @@ export default function MangaBetaView() {
   }
 
   return (
-    <div className="manga-beta-shell">
-      <section className="manga-hero-card">
-        <div>
-          <span className="manga-beta-badge">Manga</span>
-          <h1>Genera un manga</h1>
-          <p className="manga-subtitle">
-            Inserisci trama, tipo di manga, personaggi principali, modalita colore e il numero di pagine desiderato da {minPageLimit} a {maxPageLimit}. Poi il sistema genera copertina frontale, pagine e retro-copertina finale.
-          </p>
-        </div>
-      </section>
-
+    <CreateShell medium="manga">
       <form className="manga-form-card" onSubmit={handleSubmit}>
-        <ModelSettingsPanel
-          value={modelSettings}
-          onChange={setModelSettings}
-          stages={MANGA_STAGES}
-          kind="manga"
-          mangaPageCount={formState.page_count}
-        />
+        <label className={`manga-field${fieldErrors.plot ? ' has-error' : ''}`}>
+          <span>
+            Trama di partenza
+            <RequiredMark />
+          </span>
+          <textarea
+            value={formState.plot}
+            onChange={(event) => {
+              setFieldErrors((current) => ({ ...current, plot: '' }));
+              setFormState((current) => ({ ...current, plot: event.target.value }));
+            }}
+            rows={8}
+            required
+            aria-required="true"
+            placeholder="Descrivi il conflitto, i protagonisti e il finale che vorresti ottenere."
+          />
+          {fieldErrors.plot ? <em className="manga-field-error">{fieldErrors.plot}</em> : null}
+        </label>
+
         <div className="manga-form-grid">
           <label className="manga-field">
             <span>Titolo opzionale</span>
@@ -822,24 +744,15 @@ export default function MangaBetaView() {
           </label>
         </div>
 
-        <label className={`manga-field${fieldErrors.plot ? ' has-error' : ''}`}>
-          <span>
-            Trama di partenza
-            <RequiredMark />
-          </span>
-          <textarea
-            value={formState.plot}
-            onChange={(event) => {
-              setFieldErrors((current) => ({ ...current, plot: '' }));
-              setFormState((current) => ({ ...current, plot: event.target.value }));
-            }}
-            rows={8}
-            required
-            aria-required="true"
-            placeholder="Descrivi il conflitto, i protagonisti e il finale che vorresti ottenere."
+        <Disclosure title="Modelli e costo" summary="Scegli i modelli e vedi tempo e costo stimati.">
+          <ModelSettingsPanel
+            value={modelSettings}
+            onChange={setModelSettings}
+            stages={MANGA_STAGES}
+            kind="manga"
+            mangaPageCount={formState.page_count}
           />
-          {fieldErrors.plot ? <em className="manga-field-error">{fieldErrors.plot}</em> : null}
-        </label>
+        </Disclosure>
 
         <div className="manga-characters-card">
           <div className="manga-characters-header">
@@ -939,10 +852,10 @@ export default function MangaBetaView() {
             </span>
           </div>
           <button type="submit" className="manga-primary-button" disabled={isSubmitting}>
-            {isSubmitting ? 'Avvio in corso...' : 'Genera manga'}
+            {isSubmitting ? 'Avvio in corso...' : 'Inizia'}
           </button>
         </div>
       </form>
-    </div>
+    </CreateShell>
   );
 }

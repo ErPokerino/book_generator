@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  getLibrary, 
-  LibraryEntry, 
+import {
+  getLibrary,
+  LibraryEntry,
   LibraryFilters,
   fetchConfig,
-  ConfigResponse
+  ConfigResponse,
 } from '../api/client';
 import FilterBar from './FilterBar';
 import BookCard from './BookCard';
@@ -14,7 +13,9 @@ import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
-import PageTransition from './ui/PageTransition';
+import PageHeader from './ui/PageHeader';
+import EmptyState from './ui/EmptyState';
+import Button from './ui/Button';
 import './LibraryView.css';
 
 export default function LibraryView() {
@@ -245,11 +246,11 @@ export default function LibraryView() {
   // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
   if (selectedSessionId) {
     return (
-      <div className="library-view">
-        <button className="back-to-library-btn" onClick={handleBackFromWriting}>
-          ← Torna alla Libreria
+      <div className="page-shell library-view">
+        <button type="button" className="back-to-library-btn" onClick={handleBackFromWriting}>
+          Torna alle opere
         </button>
-        <WritingStep 
+        <WritingStep
           sessionId={selectedSessionId}
           onComplete={handleBackFromWriting}
           onNewBook={handleBackFromWriting}
@@ -266,12 +267,8 @@ export default function LibraryView() {
 
   if (loading) {
     return (
-      <div className="library-view">
-        <FilterBar 
-          onFiltersChange={handleFiltersChange}
-          availableModes={availableModes}
-          availableGenres={availableGenres}
-        />
+      <div className="page-shell library-view">
+        <PageHeader title="Opere" description="I libri e i manga generati in questo studio." />
         <div className="books-grid">
           {Array.from({ length: 6 }).map((_, index) => (
             <SkeletonCard key={index} />
@@ -282,103 +279,68 @@ export default function LibraryView() {
   }
 
   return (
-    <PageTransition>
-      <div className="library-view">
-        <FilterBar
-          onFiltersChange={handleFiltersChange}
-          availableModes={availableModes}
-          availableGenres={availableGenres}
-        />
-
-        {refreshing && (
-          <div className="refreshing-indicator">
-            <span>Aggiornamento in corso...</span>
-          </div>
-        )}
-
-      {(() => {
-        if (books.length === 0 && !loading) {
-          return (
-            <div className="empty-library">
-              <p>{totalBooks === 0 ? 'Nessun contenuto ancora. Crea il tuo primo libro o manga!' : 'Nessun contenuto trovato con i filtri selezionati.'}</p>
-            </div>
-          );
+    <div className="page-shell library-view">
+      <PageHeader
+        title="Opere"
+        description={totalBooks > 0 ? `${totalBooks} in archivio.` : undefined}
+        actions={
+          <Button type="button" variant="ghost" className="library-create-action" onClick={() => navigate('/new')}>
+            Crea
+          </Button>
         }
+      />
+      <FilterBar
+        onFiltersChange={handleFiltersChange}
+        availableModes={availableModes}
+        availableGenres={availableGenres}
+      />
 
-        return (
-          <>
-            {books.length > 0 && (
-              <>
-                <div className="library-header">
-                  <h2>La tua libreria ({books.length}{totalBooks > 0 && books.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
-                </div>
-                <motion.div 
-                  className="books-grid"
-                  initial="hidden"
-                  animate="visible"
-                  variants={{
-                    visible: {
-                      transition: {
-                        staggerChildren: 0.05
-                      }
-                    }
-                  }}
-                >
-                  <AnimatePresence mode="popLayout">
-                    {books.map(book => (
-                      <motion.div
-                        key={book.session_id}
-                        variants={{
-                          hidden: { opacity: 0, y: 20 },
-                          visible: { opacity: 1, y: 0 }
-                        }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.3 }}
-                        layout
-                      >
-                        <BookCard
-                          book={book}
-                          onDelete={handleDelete}
-                          onContinue={handleContinue}
-                          onResume={handleResume}
-                          onRead={book.status === 'complete' ? handleReadBook : undefined}
-                          onShowCritique={handleShowCritique}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </motion.div>
-              </>
-            )}
+      {refreshing ? <p className="refreshing-indicator">Aggiornamento</p> : null}
 
+      {books.length === 0 ? (
+        <EmptyState
+          title={totalBooks === 0 ? 'Nessuna opera ancora' : 'Nessun risultato'}
+          description={
+            totalBooks === 0
+              ? 'Crea un libro o un manga. Resta in questo studio, in locale.'
+              : 'Prova a cambiare i filtri di ricerca.'
+          }
+          action={
+            totalBooks === 0 ? (
+              <Button type="button" onClick={() => navigate('/new')}>
+                Crea un’opera
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="books-grid">
+          {books.map((book) => (
+            <BookCard
+              key={book.session_id}
+              book={book}
+              onDelete={handleDelete}
+              onContinue={handleContinue}
+              onResume={handleResume}
+              onRead={book.status === 'complete' ? handleReadBook : undefined}
+              onShowCritique={handleShowCritique}
+            />
+          ))}
+        </div>
+      )}
 
-            {/* Elemento sentinella per infinite scroll */}
-            <div ref={loadMoreRef} className="load-more-sentinel">
-              {loadingMore && (
-                <div className="loading-more-indicator">
-                  <span>Caricamento altri contenuti...</span>
-                </div>
-              )}
-              {!hasMore && books.length > 0 && (
-                <div className="no-more-books">
-                  <p>Non ci sono altri contenuti da mostrare.</p>
-                </div>
-              )}
-            </div>
-          </>
-        );
-      })()}
+      <div ref={loadMoreRef} className="load-more-sentinel">
+        {loadingMore ? <p>Caricamento</p> : null}
+      </div>
 
       {critiqueModalSessionId && (
         <CritiqueModal
           sessionId={critiqueModalSessionId}
-          bookTitle={books.find(b => b.session_id === critiqueModalSessionId)?.title || 'Libro'}
+          bookTitle={books.find((b) => b.session_id === critiqueModalSessionId)?.title || 'Libro'}
           isOpen={true}
           onClose={handleCloseCritiqueModal}
         />
       )}
-
-      </div>
-    </PageTransition>
+    </div>
   );
 }

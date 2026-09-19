@@ -24,7 +24,7 @@ const MODE_COPY: Record<GenerationMode, { label: string }> = {
 };
 
 const STEP_LABELS: Record<CreationJourneyPanelProps['currentStep'], string> = {
-  form: 'Setup',
+  form: 'Idea',
   questions: 'Domande',
   draft: 'Bozza',
   summary: 'Struttura',

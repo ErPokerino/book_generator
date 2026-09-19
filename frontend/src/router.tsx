@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import Navigation from './components/Navigation';
 import BottomNavigation from './components/BottomNavigation';
-import Footer from './components/Footer';
 import { useOnboarding } from './hooks/useOnboarding';
 
 const DynamicForm = lazy(() => import('./components/DynamicForm'));
@@ -16,17 +15,8 @@ const OnboardingCarousel = lazy(() => import('./components/Onboarding/Onboarding
 
 function RouteFallback() {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '40vh',
-        fontSize: '1rem',
-        color: 'var(--text-secondary)',
-      }}
-    >
-      Caricamento...
+    <div className="route-fallback" role="status">
+      Caricamento
     </div>
   );
 }
@@ -40,21 +30,14 @@ function LegacyMangaRedirect() {
   return <Navigate to={`/manga${location.search}`} replace />;
 }
 
-/**
- * Layout principale (con Navigation e gestione onboarding locale)
- */
 function AppLayout({ children }: { children: ReactNode }) {
   const { hasSeenCarousel, completeCarousel } = useOnboarding();
 
-  // Mostra onboarding se non visto (solo localStorage, niente login)
   if (!hasSeenCarousel) {
     return (
       <ErrorBoundary>
         <LazyPage>
-          <OnboardingCarousel
-            onComplete={completeCarousel}
-            onSkip={completeCarousel}
-          />
+          <OnboardingCarousel onComplete={completeCarousel} onSkip={completeCarousel} />
         </LazyPage>
       </ErrorBoundary>
     );
@@ -64,25 +47,17 @@ function AppLayout({ children }: { children: ReactNode }) {
     <ErrorBoundary>
       <div className="App">
         <Navigation />
-        <main className="app-main">
-          {children}
-          <Footer />
-        </main>
+        <main className="app-main">{children}</main>
         <BottomNavigation />
       </div>
     </ErrorBoundary>
   );
 }
 
-/**
- * Router principale dell'applicazione (uso locale single-user, senza autenticazione)
- */
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: (
-      <Navigate to="/new" replace />
-    ),
+    element: <Navigate to="/library" replace />,
   },
   {
     path: '/new',
@@ -106,9 +81,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/beta/manga',
-    element: (
-      <LegacyMangaRedirect />
-    ),
+    element: <LegacyMangaRedirect />,
   },
   {
     path: '/library',

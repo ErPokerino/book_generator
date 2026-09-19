@@ -480,19 +480,128 @@
   }
 }
 
-@media (max-width: 720px) {
-  .manga-beta-shell {
-    padding: 1.25rem 0.9rem 6rem;
+.manga-form-card,
+.manga-characters-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.manga-hero-card,
+.manga-status-card,
+.manga-meta-card,
+.manga-cover-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.manga-beta-badge {
+  display: none;
+}
+
+.manga-primary-button {
+  min-height: 44px;
+  background: var(--accent);
+  color: var(--sheet);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.manga-secondary-button,
+.manga-link-button {
+  min-height: 44px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.manga-reader-layout {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.manga-reader-index {
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  overflow: auto;
+  border-right: 1px solid var(--rule);
+  padding-right: 0.75rem;
+}
+
+.manga-reader-index button {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.manga-reader-index button em {
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manga-reader-index button.is-active {
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.manga-reader-stage {
+  margin: 0;
+}
+
+.manga-reader-stage img,
+.manga-cover-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--sheet);
+}
+
+.manga-reader-stage figcaption {
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.manga-synopsis {
+  max-width: var(--measure);
+}
+
+.manga-inline-error {
+  color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .manga-reader-layout {
+    grid-template-columns: 1fr;
   }
 
-  .manga-hero-card,
-  .manga-characters-header,
-  .manga-status-header,
-  .manga-reader-header,
-  .manga-submit-row,
-  .manga-cost-row,
-  .manga-paused-box {
-    flex-direction: column;
-    align-items: stretch;
+  .manga-reader-index {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 0 0.75rem;
+  }
+
+  .manga-reader-index button {
+    flex: 0 0 auto;
+    width: auto;
   }
 }
+

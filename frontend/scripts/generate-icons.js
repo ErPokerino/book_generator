@@ -1,236 +1,76 @@
 /**
  * PWA Icon Generator for NarrAI
- * 
- * This script generates all required PWA icons from the logo image.
- * Run with: node scripts/generate-icons.js
+ * Source: public/logo-mark.png (cream quill on cinnabar)
  */
 
 import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PUBLIC_DIR = join(__dirname, '..', 'public');
-const LOGO_PATH = join(PUBLIC_DIR, 'logo-narrai.png');
+const LOGO_PATH = join(PUBLIC_DIR, 'logo-mark.png');
+const BACKGROUND_COLOR = '#B42318';
 
-// Theme color matching PWA manifest
-const BACKGROUND_COLOR = '#0f3460';
-
-// Icon sizes to generate
-const ICON_SIZES = {
-  standard: [192, 512],
-  maskable: [192, 512],
-  favicon: [16, 32, 180], // 180 is for apple-touch-icon
-};
-
-/**
- * Creates a solid color background
- */
-async function createBackground(size, color) {
-  return sharp({
+async function squareIcon(size, paddingRatio = 0, fit = 'cover') {
+  const canvas = sharp({
     create: {
       width: size,
       height: size,
       channels: 4,
-      background: color,
+      background: BACKGROUND_COLOR,
     },
-  }).png().toBuffer();
+  });
+
+  const inner = Math.max(1, Math.round(size * (1 - paddingRatio)));
+  const logo = await sharp(LOGO_PATH)
+    .flatten({ background: BACKGROUND_COLOR })
+    .resize(inner, inner, { fit, background: BACKGROUND_COLOR })
+    .png()
+    .toBuffer();
+
+  const meta = await sharp(logo).metadata();
+  const left = Math.round((size - (meta.width || inner)) / 2);
+  const top = Math.round((size - (meta.height || inner)) / 2);
+  return canvas.composite([{ input: logo, left, top }]).png();
 }
 
-/**
- * Generate standard icons with COLORED background
- * These are used for PWA app icon on home screen
- */
-async function generateStandardIcons() {
-  console.log('Generating standard icons (colored background)...');
-  
-  for (const size of ICON_SIZES.standard) {
-    try {
-      // Create background with theme color
-      const background = await createBackground(size, BACKGROUND_COLOR);
-      
-      // Resize logo to fit within the icon (75% of size for padding)
-      const logoSize = Math.round(size * 0.75);
-      const logo = await sharp(LOGO_PATH)
-        .resize(logoSize, logoSize, {
-          fit: 'inside',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .toBuffer();
-      
-      // Get logo metadata for centering
-      const logoMeta = await sharp(logo).metadata();
-      const left = Math.round((size - logoMeta.width) / 2);
-      const top = Math.round((size - logoMeta.height) / 2);
-      
-      // Composite logo on colored background
-      await sharp(background)
-        .composite([{ input: logo, left, top }])
-        .png()
-        .toFile(join(PUBLIC_DIR, `icon-${size}.png`));
-      
-      console.log(`  ✓ icon-${size}.png`);
-    } catch (error) {
-      console.error(`  ✗ icon-${size}.png:`, error.message);
-    }
-  }
+async function writeIcon(filename, size, paddingRatio = 0, fit = 'cover') {
+  await (await squareIcon(size, paddingRatio, fit)).toFile(join(PUBLIC_DIR, filename));
+  console.log(`  ✓ ${filename}`);
 }
 
-/**
- * Generate maskable icons (content in safe zone - 80% center)
- * These are used by Android for adaptive icons
- */
-async function generateMaskableIcons() {
-  console.log('Generating maskable icons...');
-  
-  for (const size of ICON_SIZES.maskable) {
-    try {
-      // Create background
-      const background = await createBackground(size, BACKGROUND_COLOR);
-      
-      // For maskable icons, content should be in the center 80%
-      // So we make the logo smaller (60% of total size)
-      const logoSize = Math.round(size * 0.55);
-      const logo = await sharp(LOGO_PATH)
-        .resize(logoSize, logoSize, {
-          fit: 'inside',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .toBuffer();
-      
-      // Get logo metadata for centering
-      const logoMeta = await sharp(logo).metadata();
-      const left = Math.round((size - logoMeta.width) / 2);
-      const top = Math.round((size - logoMeta.height) / 2);
-      
-      // Composite logo on background
-      await sharp(background)
-        .composite([{ input: logo, left, top }])
-        .png()
-        .toFile(join(PUBLIC_DIR, `icon-${size}-maskable.png`));
-      
-      console.log(`  ✓ icon-${size}-maskable.png`);
-    } catch (error) {
-      console.error(`  ✗ icon-${size}-maskable.png:`, error.message);
-    }
-  }
-}
-
-/**
- * Generate favicons
- */
-async function generateFavicons() {
-  console.log('Generating favicons...');
-  
-  try {
-    // Create small favicons with background
-    for (const size of [16, 32]) {
-      const background = await createBackground(size, BACKGROUND_COLOR);
-      const logoSize = Math.round(size * 0.7);
-      const logo = await sharp(LOGO_PATH)
-        .resize(logoSize, logoSize, {
-          fit: 'inside',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .toBuffer();
-      
-      const logoMeta = await sharp(logo).metadata();
-      const left = Math.round((size - logoMeta.width) / 2);
-      const top = Math.round((size - logoMeta.height) / 2);
-      
-      const filename = size === 16 ? 'favicon-16.png' : 'favicon.png';
-      await sharp(background)
-        .composite([{ input: logo, left, top }])
-        .png()
-        .toFile(join(PUBLIC_DIR, filename));
-      
-      console.log(`  ✓ ${filename}`);
-    }
-    
-    // Apple touch icon (180x180)
-    const appleSize = 180;
-    const appleBackground = await createBackground(appleSize, BACKGROUND_COLOR);
-    const appleLogo = await sharp(LOGO_PATH)
-      .resize(Math.round(appleSize * 0.7), Math.round(appleSize * 0.7), {
-        fit: 'inside',
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .toBuffer();
-    
-    const appleLogoMeta = await sharp(appleLogo).metadata();
-    const appleLeft = Math.round((appleSize - appleLogoMeta.width) / 2);
-    const appleTop = Math.round((appleSize - appleLogoMeta.height) / 2);
-    
-    await sharp(appleBackground)
-      .composite([{ input: appleLogo, left: appleLeft, top: appleTop }])
-      .png()
-      .toFile(join(PUBLIC_DIR, 'apple-touch-icon.png'));
-    
-    console.log('  ✓ apple-touch-icon.png');
-    
-  } catch (error) {
-    console.error('  ✗ Favicon generation failed:', error.message);
-  }
-}
-
-/**
- * Generate SVG favicon
- */
 async function generateSvgFavicon() {
-  console.log('Generating SVG favicon...');
-  
-  try {
-    // Read the logo and convert to base64 for embedding
-    const logoBuffer = await sharp(LOGO_PATH)
-      .resize(32, 32, {
-        fit: 'inside',
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .toBuffer();
-    
-    const logoBase64 = logoBuffer.toString('base64');
-    
-    // Create a simple SVG with the logo
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="${BACKGROUND_COLOR}" rx="4"/>
-  <image href="data:image/png;base64,${logoBase64}" x="4" y="4" width="24" height="24"/>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="${BACKGROUND_COLOR}"/>
+  <path fill="#F4F0EA" d="M20.6 5.2c-2.2 2-7.4 9.1-11.6 16.4-.7 1.2-1.2 2.2-1.5 3l2.6.9c.4-.9 1.1-2.2 2.1-3.8 3.8-6.4 8.4-12.2 10.8-14.4-1-.9-1.7-1.6-2.4-2.1zM8.4 25.2l-2.8 2.2 3.4-1.1c-.2-.4-.4-.7-.6-1.1z"/>
 </svg>`;
-    
-    const { writeFileSync } = await import('fs');
-    writeFileSync(join(PUBLIC_DIR, 'favicon.svg'), svg);
-    
-    console.log('  ✓ favicon.svg');
-  } catch (error) {
-    console.error('  ✗ favicon.svg:', error.message);
-  }
+  writeFileSync(join(PUBLIC_DIR, 'favicon.svg'), svg);
+  console.log('  ✓ favicon.svg');
 }
 
-/**
- * Main function
- */
 async function main() {
-  console.log('\n🎨 NarrAI PWA Icon Generator\n');
-  
-  // Check if logo exists
+  console.log('\nNarrAI icon generator\n');
   if (!existsSync(LOGO_PATH)) {
-    console.error(`❌ Logo not found at: ${LOGO_PATH}`);
-    console.log('\nPlease save the NarrAI logo as "logo-narrai.png" in the public folder.');
+    console.error(`Logo not found: ${LOGO_PATH}`);
     process.exit(1);
   }
-  
-  console.log(`📁 Source: ${LOGO_PATH}`);
-  console.log(`📁 Output: ${PUBLIC_DIR}\n`);
-  
-  await generateStandardIcons();
-  await generateMaskableIcons();
-  await generateFavicons();
+
+  await writeIcon('icon-192.png', 192);
+  await writeIcon('icon-512.png', 512);
+  await writeIcon('icon-192-maskable.png', 192, 0.2);
+  await writeIcon('icon-512-maskable.png', 512, 0.2);
+  await writeIcon('favicon.png', 32, 0.18, 'contain');
+  await writeIcon('favicon-16.png', 16, 0.12, 'contain');
+  await writeIcon('apple-touch-icon.png', 180);
   await generateSvgFavicon();
-  
-  console.log('\n✅ All icons generated successfully!\n');
-  console.log('Remember to rebuild the app to see changes in PWA.');
+  console.log('\nDone.\n');
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

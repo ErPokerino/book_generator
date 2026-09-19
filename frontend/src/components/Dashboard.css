@@ -1,22 +1,20 @@
-/* ============================================
+﻿/* ============================================
    Dashboard - Stats & Analytics
    ============================================ */
 
 .dashboard {
-  padding: 2rem 2.5rem;
-  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
-  border-bottom: 1px solid var(--border-light);
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .dashboard-title {
-  margin: 0 0 1.75rem 0;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 1.6rem;
-  color: var(--text-primary);
+  margin: 0 0 1.25rem;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
   font-weight: 600;
 }
 
-/* Stats Grid - Overview Cards */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -25,18 +23,16 @@
 }
 
 .stat-card {
-  background: var(--surface);
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-sm);
-  text-align: center;
-  transition: 
-    transform var(--transition-smooth),
-    box-shadow var(--transition-smooth),
-    border-color var(--transition-smooth);
-  position: relative;
-  overflow: hidden;
+  background: transparent;
+  padding: 0.75rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+}
+
+.stat-card:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .stat-card::before {
@@ -92,7 +88,7 @@
 
 .stats-section h3 {
   margin: 0 0 1.25rem 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 1.15rem;
   color: var(--text-primary);
   font-weight: 600;

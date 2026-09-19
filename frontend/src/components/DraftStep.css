@@ -1,4 +1,4 @@
-.draft-step {
+﻿.draft-step {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
@@ -62,7 +62,7 @@
 
 .draft-step-error button {
   padding: 0.75rem 1.5rem;
-  background-color: #646cff;
+  background-color: var(--accent);
   color: white;
   border: none;
   border-radius: 4px;
@@ -71,7 +71,7 @@
 }
 
 .draft-step-error button:hover {
-  background-color: #535bf2;
+  background-color: var(--accent-hover);
 }
 
 /* Responsive: stack vertically on smaller screens */

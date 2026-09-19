@@ -1,19 +1,15 @@
-/* ============================================
+﻿/* ============================================
    DynamicForm - Book Creation Form
    ============================================ */
 
 .dynamic-form-container {
-  max-width: 850px;
+  max-width: 46rem;
   margin: 0 auto;
-  padding: 2rem !important; /* Padding per assicurare spazio e leggibilità - FORZATO */
-  animation: fadeInOpacity 0.3s ease-out forwards;
-  will-change: opacity;
-  transform: translateZ(0); /* Forza GPU acceleration */
-  background-color: transparent; /* Assicura che sia visibile */
-  min-height: calc(100vh - 200px); /* Altezza minima per garantire scroll */
-  opacity: 1 !important; /* Forza visibilità */
-  visibility: visible !important; /* Forza visibilità */
-  display: block !important; /* Forza display */
+  padding: 0;
+}
+
+.dynamic-form-container h1 {
+  font-family: var(--font-body);
 }
 
 /* Layout con Step Indicator */
@@ -80,7 +76,7 @@
 
 .dynamic-form-container h1 {
   margin-bottom: 0.5rem;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   color: var(--text-primary);
   font-size: 2rem;
 }
@@ -824,7 +820,7 @@
 .cover-style-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
   margin-top: 0.75rem;
 }
 
@@ -832,49 +828,41 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1.25rem 1rem;
-  min-height: 120px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background-color: var(--surface-elevated);
-  color: var(--text-primary);
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  padding: 0.85rem 0;
+  min-height: 44px;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: 'Outfit', sans-serif;
-  text-align: center;
-  position: relative;
+  text-align: left;
 }
 
 .cover-style-card:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  border-color: var(--text-muted);
-  transform: translateY(-2px);
+  background: transparent;
+  border-color: var(--ink);
+  transform: none;
 }
 
 .cover-style-card:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(201, 72, 91, 0.2);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .cover-style-card.selected {
-  border: 2px solid var(--accent);
-  background-color: rgba(201, 72, 91, 0.1);
-  box-shadow: 0 0 0 3px rgba(201, 72, 91, 0.1);
-  transform: translateY(-2px) scale(1.02);
+  border-bottom: 2px solid var(--accent);
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .cover-style-icon {
-  font-size: 2rem;
-  line-height: 1;
-  margin-bottom: 0.25rem;
-  transition: transform 0.2s ease;
-}
-
-.cover-style-card:hover .cover-style-icon {
-  transform: scale(1.1);
+  display: none;
 }
 
 .cover-style-name {
@@ -892,22 +880,15 @@
 
 @media (max-width: 520px) {
   .cover-style-cards {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
+    grid-template-columns: 1fr;
+    gap: 0;
   }
-  
+
   .cover-style-card {
-    min-height: 110px;
-    padding: 1rem 0.75rem;
+    min-height: 44px;
+    padding: 0.75rem 0;
   }
-  
-  .cover-style-icon {
-    font-size: 1.75rem;
-  }
-  
-  .cover-style-name {
-    font-size: 0.9rem;
-  }
+}
   
   .cover-style-description {
     font-size: 0.75rem;
@@ -1092,7 +1073,7 @@
 }
 
 .submission-success h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   color: var(--success);
   margin-bottom: 1rem;
   font-size: 1.75rem;
@@ -1115,7 +1096,7 @@
 .submission-summary h3 {
   margin-top: 0;
   margin-bottom: 1.25rem;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   color: var(--text-primary);
   font-size: 1.25rem;
 }
@@ -1278,7 +1259,7 @@
 
 /* Draft Title & Markdown */
 .draft-title-summary {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 1.75rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -1297,7 +1278,7 @@
 }
 
 .draft-markdown-container h1 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 1.75rem;
   margin-top: 2rem;
   margin-bottom: 1rem;
@@ -1305,7 +1286,7 @@
 }
 
 .draft-markdown-container h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 1.4rem;
   margin-top: 1.75rem;
   margin-bottom: 0.85rem;

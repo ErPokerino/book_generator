@@ -1,4 +1,4 @@
-/* ============================================
+﻿/* ============================================
    BenchmarkView - External PDF Critique
    ============================================ */
 
@@ -21,7 +21,7 @@
 
 .benchmark-title {
   margin: 0 0 0.75rem 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 2rem;
   color: var(--text-primary);
   font-weight: 600;
@@ -271,7 +271,7 @@
 
 .result-title {
   margin: 0 0 1.75rem 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Newsreader', Georgia, serif;
   font-size: 1.4rem;
   color: var(--text-primary);
   font-weight: 600;

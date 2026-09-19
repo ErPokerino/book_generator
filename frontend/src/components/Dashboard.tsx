@@ -46,7 +46,7 @@ export default function Dashboard({ stats }: DashboardProps) {
 
   return (
     <div className="dashboard">
-      <h2 className="dashboard-title">Statistiche Libreria</h2>
+      <h2 className="dashboard-title">Libreria</h2>
       
       <div className="stats-grid">
         <div className="stat-card">

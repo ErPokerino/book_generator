@@ -86,10 +86,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     return labels[status] || status;
   };
 
-  const getStatusClass = (status: string) => {
-    return `status-badge status-${status}`;
-  };
-
   // Rimuove la formattazione Markdown dal testo (asterischi, underscore, backtick)
   const stripMarkdownFormatting = (text: string): string => {
     if (!text) return text;
@@ -199,25 +195,22 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
       <div className="book-card-content">
         <div className="book-card-header">
           <div className="book-title-block">
-            <h3 className="book-title">{stripMarkdownFormatting(book.title)}</h3>
-            <span className={`book-content-type ${isManga ? 'manga' : 'book'}`}>
+            <h3 className="book-title work-title">{stripMarkdownFormatting(book.title)}</h3>
+            <p className="book-card-meta-line">
               {isManga ? 'Manga' : 'Libro'}
-            </span>
+              {book.total_pages ? ` · ${book.total_pages} pagine` : ''}
+              {` · ${getStatusLabel(book.status)}`}
+            </p>
           </div>
-          <div className="book-card-header-actions">
-            <span className={getStatusClass(book.status)}>
-              {getStatusLabel(book.status)}
-            </span>
-            <button
-              ref={toggleRef}
-              className={`book-card-toggle ${isMenuOpen ? 'expanded' : ''}`}
-              onClick={handleToggleMenu}
-              aria-label="Menu opzioni"
-              aria-expanded={isMenuOpen}
-            >
-              <MoreVertical size={18} />
-            </button>
-          </div>
+          <button
+            ref={toggleRef}
+            className="ui-icon-button book-card-toggle"
+            onClick={handleToggleMenu}
+            aria-label="Altre azioni"
+            aria-expanded={isMenuOpen}
+          >
+            <MoreVertical size={18} />
+          </button>
         </div>
         
         <div className={`book-card-info ${isExpanded ? 'expanded' : 'compact'}`}>
@@ -284,44 +277,21 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         </div>
 
         <div className="book-card-actions">
-          {!isManga && book.status === 'complete' && book.critique_score != null && onShowCritique && (
-            <button className="action-btn critique-btn" onClick={() => onShowCritique(book)}>
-              📝 Critica
+          {book.status === 'complete' && onRead ? (
+            <button type="button" className="action-btn read-btn" onClick={() => onRead(book)}>
+              Leggi
             </button>
-          )}
-          {/* Su mobile, nascondi Esporta e Rigenera Copertina - vanno nel menu */}
-          {!isManga && book.status === 'complete' && (
-            <button 
-              className="action-btn regenerate-cover-btn regenerate-cover-btn-desktop" 
-              onClick={handleRegenerateCover}
-              disabled={regenerating}
-            >
-              {regenerating ? '⏳ Rigenerazione...' : '🖼️ Rigenera Copertina'}
+          ) : null}
+          {(book.status === 'writing' || book.status === 'paused') && onContinue ? (
+            <button type="button" className="action-btn continue-btn" onClick={() => onContinue(book)}>
+              Continua
             </button>
-          )}
-          {book.status === 'complete' && onRead && (
-            <button className="action-btn read-btn" onClick={() => onRead(book)}>
-              📖 Leggi
+          ) : null}
+          {(book.status === 'draft' || book.status === 'outline') && onResume ? (
+            <button type="button" className="action-btn resume-btn" onClick={() => onResume(book)}>
+              Continua
             </button>
-          )}
-          {book.status === 'complete' && (
-            <div className="export-dropdown-desktop">
-              <ExportDropdown sessionId={book.session_id} contentType={book.content_type} />
-            </div>
-          )}
-          {(book.status === 'writing' || book.status === 'paused') && onContinue && (
-            <button className="action-btn continue-btn" onClick={() => onContinue(book)}>
-              ▶️ Continua
-            </button>
-          )}
-          {(book.status === 'draft' || book.status === 'outline') && onResume && (
-            <button className="action-btn resume-btn" onClick={() => onResume(book)}>
-              ▶️ Riprendi
-            </button>
-          )}
-          <button className="action-btn delete-btn" onClick={handleDelete}>
-            🗑️ Elimina
-          </button>
+          ) : null}
         </div>
 
         <div className="book-card-meta">
@@ -370,7 +340,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               className="book-card-menu-item"
               onClick={() => handleMenuAction(() => setIsExpanded(!isExpanded))}
             >
-              {isExpanded ? '👁️ Nascondi dettagli' : '👁️ Mostra dettagli'}
+              {isExpanded ? 'Nascondi dettagli' : 'Mostra dettagli'}
             </button>
           </div>
 
@@ -383,7 +353,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
                   onClick={() => handleMenuAction(handleRegenerateCover)}
                   disabled={regenerating}
                 >
-                  {regenerating ? '⏳ Rigenerazione...' : '🖼️ Rigenera Copertina'}
+                  {regenerating ? 'Rigenerazione...' : 'Rigenera copertina'}
                 </button>
               )}
               {book.status === 'complete' && (
@@ -393,6 +363,22 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               )}
             </div>
           )}
+          <div className="book-card-menu-section">
+            {!isManga && onShowCritique && book.critique_score != null ? (
+              <button
+                className="book-card-menu-item"
+                onClick={() => handleMenuAction(() => onShowCritique(book))}
+              >
+                Valutazione
+              </button>
+            ) : null}
+            <button
+              className="book-card-menu-item"
+              onClick={() => handleMenuAction(handleDelete)}
+            >
+              Elimina
+            </button>
+          </div>
         </div>,
         document.body
       )}

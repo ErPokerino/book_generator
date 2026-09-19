@@ -59,7 +59,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
       {/* Sezione principale: Cerca + Toggle filtri avanzati (su mobile) */}
       <div className="filter-bar-main">
         <div className="filter-group search-group">
-          <label htmlFor="search-input">Cerca:</label>
+          <label htmlFor="search-input">Cerca</label>
           <input
             id="search-input"
             type="text"
@@ -85,7 +85,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
       {/* Sezione filtri avanzati (collassabile su mobile) */}
       <div className={`filter-bar-advanced ${showAdvancedFilters ? 'expanded' : ''}`}>
         <div className="filter-group">
-          <label htmlFor="status-filter">Stato:</label>
+          <label htmlFor="status-filter">Stato</label>
           <select
             id="status-filter"
             value={filters.status || 'all'}
@@ -101,7 +101,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
         </div>
 
         <div className="filter-group">
-          <label htmlFor="mode-filter">Modalità:</label>
+          <label htmlFor="mode-filter">Modalità</label>
           <select
             id="mode-filter"
             value={filters.mode || 'all'}
@@ -115,7 +115,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
         </div>
 
         <div className="filter-group">
-          <label htmlFor="genre-filter">Genere:</label>
+          <label htmlFor="genre-filter">Genere</label>
           <select
             id="genre-filter"
             value={filters.genre || 'all'}
@@ -129,7 +129,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
         </div>
 
         <div className="filter-group">
-          <label htmlFor="sort-by">Ordina per:</label>
+          <label htmlFor="sort-by">Ordina per</label>
           <select
             id="sort-by"
             value={filters.sort_by || 'created_at'}
@@ -145,7 +145,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
         </div>
 
         <div className="filter-group">
-          <label htmlFor="sort-order">Ordine:</label>
+          <label htmlFor="sort-order">Ordine</label>
           <select
             id="sort-order"
             value={filters.sort_order || 'desc'}

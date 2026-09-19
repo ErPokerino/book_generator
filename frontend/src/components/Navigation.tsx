@@ -1,51 +1,30 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import './Navigation.css';
 
 export default function Navigation() {
-  return (
-    <nav className="main-navigation">
-      <div className="nav-brand">
-        <img
-          src="/logo-narrai.png"
-          alt="NarrAI"
-          className="nav-logo"
-        />
-      </div>
+  const location = useLocation();
+  const createActive = location.pathname === '/new' || location.pathname === '/manga';
 
-      {/* Desktop Navigation Links */}
+  return (
+    <nav className="main-navigation" aria-label="Principale">
+      <NavLink to="/library" className="nav-brand" aria-label="NarrAI, vai alle opere">
+        <img src="/logo-mark.png" alt="" className="nav-mark" />
+        <span className="nav-wordmark">NarrAI</span>
+      </NavLink>
+
       <div className="nav-desktop-links">
-        <div className="nav-links">
-          <NavLink
-            to="/library"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Libreria
-          </NavLink>
-          <NavLink
-            to="/new"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Nuovo Libro
-          </NavLink>
-          <NavLink
-            to="/manga"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Manga
-          </NavLink>
-          <NavLink
-            to="/benchmark"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Valuta
-          </NavLink>
-          <NavLink
-            to="/analytics"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Analisi
-          </NavLink>
-        </div>
+        <NavLink to="/library" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          Opere
+        </NavLink>
+        <NavLink to="/new" className={`nav-link nav-link-create${createActive ? ' active' : ''}`}>
+          Crea
+        </NavLink>
+        <NavLink to="/benchmark" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          Valuta
+        </NavLink>
+        <NavLink to="/analytics" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          Analisi
+        </NavLink>
       </div>
     </nav>
   );

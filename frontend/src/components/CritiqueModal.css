@@ -1,4 +1,4 @@
-/* Overlay scuro semi-trasparente */
+﻿/* Overlay scuro semi-trasparente */
 .critique-modal-overlay {
   position: fixed;
   top: 0;
@@ -150,7 +150,7 @@
   padding: 1rem;
   background-color: var(--surface, #fff);
   border-radius: var(--radius-sm, 4px);
-  border-left: 3px solid var(--primary, #646cff);
+  border-left: 3px solid var(--primary, var(--accent));
 }
 
 .critique-pros {

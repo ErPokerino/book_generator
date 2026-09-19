@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getBookCritique, LiteraryCritique } from '../api/client';
-import AudioPlayer from './AudioPlayer';
+import CritiqueBlock from './CritiqueBlock';
 import './CritiqueModal.css';
 
 interface CritiqueModalProps {
@@ -14,34 +14,13 @@ interface CritiqueModalProps {
 const stripMarkdownFormatting = (text: string): string => {
   if (!text) return text;
   return text
-    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')  // ***bold italic***
-    .replace(/\*\*(.+?)\*\*/g, '$1')      // **bold**
-    .replace(/\*(.+?)\*/g, '$1')          // *italic*
-    .replace(/___(.+?)___/g, '$1')        // ___bold italic___
-    .replace(/__(.+?)__/g, '$1')          // __bold__
-    .replace(/_(.+?)_/g, '$1')            // _italic_
-    .replace(/`(.+?)`/g, '$1');           // `code`
-};
-
-// Funzione per calcolare il colore del voto: rosso (basso) → giallo (medio) → verde (alto)
-const getScoreColor = (score: number): string => {
-  const normalizedScore = Math.max(0, Math.min(10, score));
-  
-  if (normalizedScore <= 5) {
-    // Rosso (220, 53, 38) → Giallo (255, 193, 7) per 0-5
-    const ratio = normalizedScore / 5;
-    const r = Math.round(220 + (255 - 220) * ratio); // 220 → 255
-    const g = Math.round(53 + (193 - 53) * ratio);   // 53 → 193
-    const b = Math.round(38 - (38 - 7) * ratio);     // 38 → 7
-    return `rgb(${r}, ${g}, ${b})`;
-  } else {
-    // Giallo (255, 193, 7) → Verde (34, 197, 94) per 5-10
-    const ratio = (normalizedScore - 5) / 5;
-    const r = Math.round(255 - (255 - 34) * ratio);  // 255 → 34
-    const g = Math.round(193 + (197 - 193) * ratio); // 193 → 197
-    const b = Math.round(7 + (94 - 7) * ratio);      // 7 → 94
-    return `rgb(${r}, ${g}, ${b})`;
-  }
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/___(.+?)___/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/`(.+?)`/g, '$1');
 };
 
 export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }: CritiqueModalProps) {
@@ -93,9 +72,9 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
     <div className="critique-modal-overlay" onClick={onClose}>
       <div className="critique-modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="critique-modal-header">
-          <h2>📚 Valutazione Critica</h2>
+          <h2>Valutazione</h2>
           <button className="critique-modal-close" onClick={onClose} aria-label="Chiudi">
-            ✕
+            Chiudi
           </button>
         </div>
         
@@ -114,51 +93,9 @@ export default function CritiqueModal({ sessionId, bookTitle, isOpen, onClose }:
             </div>
           )}
 
-          {!loading && !error && critique && (
-            <div className="critique-section">
-              <div className="critique-score">
-                <span className="score-label">Valutazione:</span>
-                <span 
-                  className="score-value"
-                  style={{ color: getScoreColor(critique.score) }}
-                >
-                  {critique.score.toFixed(1)}
-                </span>
-              </div>
-              
-              {/* Player audio per ascoltare la critica */}
-              <AudioPlayer sessionId={sessionId} type="critique" />
-              
-              {critique.summary && (
-                <div className="critique-summary">
-                  <strong>Sintesi:</strong>
-                  <p>{critique.summary}</p>
-                </div>
-              )}
-              
-              {critique.pros && critique.pros.length > 0 && (
-                <div className="critique-pros">
-                  <strong>Punti di forza:</strong>
-                  <ul>
-                    {critique.pros.map((p, idx) => (
-                      <li key={idx}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              {critique.cons && critique.cons.length > 0 && (
-                <div className="critique-cons">
-                  <strong>Punti di debolezza:</strong>
-                  <ul>
-                    {critique.cons.map((c, idx) => (
-                      <li key={idx}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+          {!loading && !error && critique ? (
+            <CritiqueBlock critique={critique} sessionId={sessionId} showAudio />
+          ) : null}
 
           {!loading && !error && !critique && (
             <div className="critique-modal-empty">

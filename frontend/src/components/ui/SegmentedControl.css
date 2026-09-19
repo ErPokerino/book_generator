@@ -1,0 +1,37 @@
+.ui-segmented {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--sheet);
+}
+
+.ui-segmented-item {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ui-segmented-item:last-child {
+  border-right: 0;
+}
+
+.ui-segmented-item.is-selected {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.ui-segmented-item:hover:not(.is-selected) {
+  background: var(--sheet-hover);
+  color: var(--ink);
+}

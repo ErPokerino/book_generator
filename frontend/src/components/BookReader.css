@@ -1,18 +1,54 @@
 .book-reader {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--surface);
+  inset: 0;
+  background: #f6f1e8;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.book-reader.fullscreen {
-  background: #faf8f5;
+.reader-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 1.25rem;
+  background: var(--paper);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  z-index: 10;
+}
+
+.close-btn,
+.toc-btn,
+.fullscreen-btn,
+.font-controls button,
+.nav-btn,
+.back-btn {
+  min-height: 44px;
+  padding: 0.4rem 0.8rem;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.close-btn:hover,
+.toc-btn:hover,
+.fullscreen-btn:hover {
+  text-decoration: underline;
+}
+
+.book-info .book-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.book-info .book-author {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 /* Loading & Error States */
@@ -65,16 +101,8 @@
   background: var(--accent-hover);
 }
 
-/* Header */
 .reader-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  background: var(--primary-gradient);
-  color: white;
-  box-shadow: var(--shadow-md);
-  z-index: 10;
+  gap: 1rem;
 }
 
 .header-left {
@@ -84,20 +112,7 @@
 }
 
 .close-btn {
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  border-radius: var(--radius-md);
-  cursor: pointer;
   font-size: 0.9rem;
-  transition: all var(--transition-fast);
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: translateX(-2px);
 }
 
 .book-info {
@@ -107,7 +122,7 @@
 }
 
 .book-info .book-title {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-size: 1.2rem;
   font-weight: 600;
   margin: 0;
@@ -128,44 +143,35 @@
 .toc-btn,
 .fullscreen-btn {
   padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: all var(--transition-fast);
 }
 
 .toc-btn:hover,
 .fullscreen-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--sheet-hover);
 }
 
 .toc-btn.active {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: var(--ink);
 }
 
 .font-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md);
 }
 
 .font-controls button {
   padding: 0.3rem 0.6rem;
   background: transparent;
   border: none;
-  color: white;
+  color: var(--ink);
   cursor: pointer;
-  font-weight: 600;
-  opacity: 0.8;
-  transition: opacity var(--transition-fast);
 }
 
 .font-controls button:hover:not(:disabled) {
@@ -247,7 +253,7 @@
 
 .toc-header h2 {
   margin: 0;
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-size: 1.3rem;
   color: var(--text-primary);
 }
@@ -345,7 +351,7 @@
 }
 
 .chapter {
-  max-width: 720px;
+  max-width: var(--measure);
   margin: 0 auto;
   padding: 2rem 0 4rem;
 }
@@ -368,7 +374,7 @@
 }
 
 .chapter-header .chapter-title {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-size: 2rem;
   color: var(--text-primary);
   margin: 0;
@@ -377,9 +383,10 @@
 }
 
 .chapter-text {
-  font-family: 'Georgia', 'Times New Roman', serif;
-  line-height: 1.9;
-  color: #2c2c2c;
+  font-family: var(--font-display);
+  font-size: 1.05em;
+  line-height: 1.75;
+  color: var(--ink);
 }
 
 .chapter-text p {
@@ -397,7 +404,7 @@
   float: left;
   line-height: 1;
   padding-right: 0.1em;
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-weight: 700;
   color: var(--accent-color);
 }
@@ -429,11 +436,10 @@
 }
 
 .cover-summary {
-  padding: 1.75rem;
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 245, 240, 0.96));
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .cover-summary-eyebrow {
@@ -448,7 +454,7 @@
 
 .cover-summary h2 {
   margin: 0 0 0.5rem;
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-display);
   font-size: 2rem;
   color: var(--text-primary);
 }
@@ -466,28 +472,28 @@
 }
 
 .cover-summary-stats span {
-  padding: 0.8rem 0.95rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0.2rem 0;
+  border: 0;
+  background: transparent;
   color: var(--text-secondary);
 }
 
 .cover-summary-action {
-  width: 100%;
-  padding: 0.9rem 1rem;
-  border: none;
-  border-radius: 14px;
-  background: var(--primary-gradient);
-  color: white;
-  font-weight: 600;
+  width: auto;
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--sheet);
+  font-weight: 500;
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .cover-summary-action:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  background: var(--accent-hover);
+  transform: none;
+  box-shadow: none;
 }
 
 /* Footer Navigation */
@@ -514,11 +520,8 @@
 }
 
 .nav-btn:hover:not(:disabled) {
-  background: var(--primary-gradient);
-  color: white;
-  border-color: transparent;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  background: var(--sheet-hover);
+  color: var(--ink);
 }
 
 .nav-btn:disabled {

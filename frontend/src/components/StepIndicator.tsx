@@ -9,7 +9,7 @@ interface StepConfig {
 }
 
 const STEPS: StepConfig[] = [
-  { id: 'form', label: 'Setup', icon: SetupIcon },
+  { id: 'form', label: 'Idea', icon: SetupIcon },
   { id: 'questions', label: 'Domande', icon: QuestionsIcon },
   { id: 'draft', label: 'Bozza', icon: DraftIcon },
   { id: 'summary', label: 'Struttura', icon: StructureIcon },

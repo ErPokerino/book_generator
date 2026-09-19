@@ -8,13 +8,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-narrai.png', 'logo-narrai-header.png'],
+      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.png'],
       manifest: {
-        name: 'NarrAI - Crea libri con AI',
+        name: 'NarrAI',
         short_name: 'NarrAI',
-        description: 'Crea libri unici con l\'intelligenza artificiale',
-        theme_color: '#0f3460',
-        background_color: '#0f3460',
+        description: 'Studio privato per scrivere libri e manga.',
+        theme_color: '#F4F0EA',
+        background_color: '#F4F0EA',
         display: 'standalone',
         start_url: '/',
         scope: '/',

@@ -1,28 +1,10 @@
 import { useState, useRef } from 'react';
 import { analyzeExternalPdf, LiteraryCritique } from '../api/client';
 import { useToast } from '../hooks/useToast';
+import CritiqueBlock from './CritiqueBlock';
+import PageHeader from './ui/PageHeader';
+import Button from './ui/Button';
 import './BenchmarkView.css';
-
-// Calcola colore del voto su scala graduata: rosso (basso) → giallo (medio) → verde (alto)
-const getScoreColor = (score: number): string => {
-  const normalizedScore = Math.max(0, Math.min(10, score));
-  
-  if (normalizedScore <= 5) {
-    // Rosso (220, 53, 38) → Giallo (255, 193, 7) per 0-5
-    const ratio = normalizedScore / 5;
-    const r = Math.round(220 + (255 - 220) * ratio); // 220 → 255
-    const g = Math.round(53 + (193 - 53) * ratio);   // 53 → 193
-    const b = Math.round(38 - (38 - 7) * ratio);     // 38 → 7
-    return `rgb(${r}, ${g}, ${b})`;
-  } else {
-    // Giallo (255, 193, 7) → Verde (34, 197, 94) per 5-10
-    const ratio = (normalizedScore - 5) / 5;
-    const r = Math.round(255 - (255 - 34) * ratio);  // 255 → 34
-    const g = Math.round(193 + (197 - 193) * ratio); // 193 → 197
-    const b = Math.round(7 + (94 - 7) * ratio);      // 7 → 94
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-};
 
 export default function BenchmarkView() {
   const toast = useToast();
@@ -120,15 +102,13 @@ export default function BenchmarkView() {
   };
 
   return (
-    <div className="benchmark-view">
-      <div className="benchmark-container">
-        <h2 className="benchmark-title">Valuta un Libro</h2>
-        <p className="benchmark-description">
-          Carica un PDF per farlo valutare dal critico letterario.
-          Ottieni una valutazione completa con punteggio, punti di forza e aree di miglioramento.
-        </p>
+    <div className="page-shell benchmark-view">
+      <PageHeader
+        title="Valuta"
+        description="Carica un PDF. Ottieni punteggio, punti di forza e debolezze."
+      />
 
-        <form onSubmit={handleSubmit} className="benchmark-form">
+      <form onSubmit={handleSubmit} className="benchmark-form">
           <div className="form-group">
             <span className="form-label">
               File PDF <span className="required">*</span>
@@ -143,18 +123,16 @@ export default function BenchmarkView() {
                 className="file-input-hidden"
                 disabled={loading}
               />
-              {/* Usiamo una label come trigger - funziona nativamente su tutti i browser */}
-              <label 
-                htmlFor="pdf-file-input" 
+              <label
+                htmlFor="pdf-file-input"
                 className={`file-input-label ${loading ? 'disabled' : ''}`}
               >
-                📁 Scegli File PDF
+                {file ? file.name : 'Scegli un PDF'}
               </label>
               {file ? (
                 <div className="file-info">
-                  <span className="file-name">✓ {file.name}</span>
                   <span className="file-size">
-                    ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                    {(file.size / (1024 * 1024)).toFixed(2)} MB
                   </span>
                 </div>
               ) : (
@@ -195,75 +173,27 @@ export default function BenchmarkView() {
 
 
           <div className="form-actions">
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={!file || loading}
-            >
+            <Button type="submit" disabled={!file || loading}>
               {loading ? 'Analisi in corso...' : 'Analizza PDF'}
-            </button>
+            </Button>
             {(file || critique) && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={handleReset}
-                className="btn-secondary"
                 disabled={loading}
               >
                 Reset
-              </button>
+              </Button>
             )}
           </div>
         </form>
 
         {loading && (
-          <div className="loading-indicator">
-            <div className="spinner"></div>
-            <p>Analisi del PDF in corso... Questo potrebbe richiedere alcuni minuti.</p>
-          </div>
+          <p className="loading-indicator">Analisi del PDF in corso. Può richiedere alcuni minuti.</p>
         )}
 
-        {critique && (
-          <div className="critique-result">
-            <h3 className="result-title">Risultato Valutazione</h3>
-            
-            <div className="score-section">
-              <div className="score-value" style={{ color: getScoreColor(critique.score) }}>
-                {critique.score.toFixed(1)}
-              </div>
-              <div className="score-label">/ 10</div>
-            </div>
-
-            {critique.summary && (
-              <div className="summary-section">
-                <h4>Sintesi</h4>
-                <p>{critique.summary}</p>
-              </div>
-            )}
-
-            {critique.pros && critique.pros.length > 0 && (
-              <div className="pros-section">
-                <h4>Punti di Forza</h4>
-                <ul>
-                  {critique.pros.map((pro, index) => (
-                    <li key={index}>{pro}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {critique.cons && critique.cons.length > 0 && (
-              <div className="cons-section">
-                <h4>Punti di Debolezza</h4>
-                <ul>
-                  {critique.cons.map((con, index) => (
-                    <li key={index}>{con}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        {critique ? <CritiqueBlock critique={critique} /> : null}
     </div>
   );
 }

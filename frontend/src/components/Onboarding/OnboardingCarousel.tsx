@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { WelcomeIcon, CustomizeIcon, EditIcon, ModesIcon, LibraryIcon } from './onboardingIcons'
+import { LibraryIcon, CustomizeIcon, EditIcon } from './onboardingIcons'
 import './OnboardingCarousel.css'
 
 interface OnboardingScreen {
@@ -16,39 +16,22 @@ interface OnboardingCarouselProps {
 
 const screens: OnboardingScreen[] = [
   {
-    id: 'welcome',
-    title: 'Benvenuto in NarrAI',
-    description: 'Crea libri unici con l\'intelligenza artificiale',
-    icon: <WelcomeIcon className="onboarding-icon-svg" size={80} />,
-  },
-  {
-    id: 'define',
-    title: 'Descrivi la tua storia',
-    description: 'Inserisci la trama, scegli genere, stile narrativo e tutte le opzioni per creare il libro perfetto per te.',
-    icon: <CustomizeIcon className="onboarding-icon-svg" size={80} />,
-  },
-  {
-    id: 'edit',
-    title: 'Modifica in ogni momento',
-    description: 'Puoi modificare la trama e la struttura del libro in qualsiasi fase del processo. L\'AI si adatterà alle tue modifiche.',
-    icon: <EditIcon className="onboarding-icon-svg" size={80} />,
-  },
-  {
-    id: 'modes',
-    title: 'Scegli la modalità',
-    description: (
-      <ul className="onboarding-modes-list">
-        <li><strong>Standard</strong>: un passaggio per capitolo</li>
-        <li><strong>Ultra</strong>: due passaggi, capitoli più estesi</li>
-      </ul>
-    ),
-    icon: <ModesIcon className="onboarding-icon-svg" size={80} />,
-  },
-  {
     id: 'library',
-    title: 'Crea la tua libreria',
-    description: 'Tutti i libri generati vengono salvati nella tua libreria personale. Puoi rileggerli, esportarli e condividerli quando vuoi.',
-    icon: <LibraryIcon className="onboarding-icon-svg" size={80} />,
+    title: 'Le tue opere',
+    description: 'Qui trovi i libri e i manga. Continua una bozza o leggi un’opera pronta.',
+    icon: <LibraryIcon className="onboarding-icon-svg" size={72} />,
+  },
+  {
+    id: 'create',
+    title: 'Crea una storia',
+    description: 'Parti dalla trama. Libro o manga, nello stesso foglio. I modelli restano in secondo piano.',
+    icon: <CustomizeIcon className="onboarding-icon-svg" size={72} />,
+  },
+  {
+    id: 'read',
+    title: 'Leggi senza rumore',
+    description: 'Il lettore è una pagina: titolo, capitolo, testo. Niente pannelli, solo la storia.',
+    icon: <EditIcon className="onboarding-icon-svg" size={72} />,
   },
 ]
 

@@ -64,11 +64,10 @@ export default function AnalyticsView() {
 
   if (loading) {
     return (
-      <div className="analytics-view">
+      <div className="analytics-view page-shell">
         <PageHeader
-          eyebrow="Analytics"
-          title="Analisi e statistiche"
-          description="Panoramica operativa sulla libreria locale."
+          title="Analisi"
+          description="Volumi e andamento della libreria locale."
         />
         
         {/* Skeleton Statistiche Base */}
@@ -108,29 +107,14 @@ export default function AnalyticsView() {
   }
 
   return (
-    <div className="analytics-view">
+    <div className="analytics-view page-shell">
       <PageHeader
-        eyebrow="Analytics"
-        title="Analisi e statistiche"
-        description="Monitora volumi e trend della libreria locale da un unico cruscotto."
+        title="Analisi"
+        description="Volumi e andamento della libreria locale."
       />
 
-      <section className="analytics-overview-grid">
-        <article className="analytics-overview-card">
-          <span className="analytics-overview-label">Libri totali</span>
-          <strong>{stats.total_books}</strong>
-          <p>{stats.completed_books} completati</p>
-        </article>
-        <article className="analytics-overview-card">
-          <span className="analytics-overview-label">Voto medio</span>
-          <strong>{stats.average_score?.toFixed(1) ?? 'N/A'}</strong>
-          <p>{stats.average_pages.toFixed(1)} pagine medie</p>
-        </article>
-      </section>
-      
-      {/* Statistiche Base */}
       <section className="analytics-section">
-        <h2 className="section-title">Statistiche Base</h2>
+        <h2 className="section-title">Statistiche</h2>
         <Dashboard stats={stats} />
       </section>
 
@@ -171,10 +155,10 @@ export default function AnalyticsView() {
                   <Line
                     type="monotone"
                     dataKey="libri"
-                    stroke="#2563eb"
+                    stroke="var(--accent)"
                     strokeWidth={2}
-                    dot={{ fill: '#2563eb', r: 4 }}
-                    activeDot={{ r: 6 }}
+                    dot={{ fill: 'var(--ink)', r: 3 }}
+                    activeDot={{ r: 5 }}
                     name="Libri creati"
                   />
                 </LineChart>
@@ -218,10 +202,10 @@ export default function AnalyticsView() {
                   <Line
                     type="monotone"
                     dataKey="voto"
-                    stroke="#f59e0b"
+                    stroke="var(--ink)"
                     strokeWidth={2}
-                    dot={{ fill: '#f59e0b', r: 4 }}
-                    activeDot={{ r: 6 }}
+                    dot={{ fill: 'var(--accent)', r: 3 }}
+                    activeDot={{ r: 5 }}
                     name="Voto medio"
                   />
                 </LineChart>

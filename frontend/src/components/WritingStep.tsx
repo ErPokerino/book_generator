@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
-import ProgressBar from './ui/ProgressBar';
-import FadeIn from './ui/FadeIn';
+import CritiqueBlock from './CritiqueBlock';
+import GenerationStage from './GenerationStage';
+import Button from './ui/Button';
 import { useToast } from '../hooks/useToast';
 import { elapsedMinutesBetween, formatElapsed, formatEstimateCost } from '../utils/estimateGeneration';
 import './WritingStep.css';
@@ -31,27 +31,6 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   const latestProgressRef = useRef<BookProgress | null>(null);
   const consecutiveFailuresRef = useRef(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const getScoreColor = (score: number): string => {
-    // Score da 0 a 10
-    const normalizedScore = Math.max(0, Math.min(10, score));
-    
-    if (normalizedScore <= 5) {
-      // Rosso (220, 53, 38) → Giallo (255, 193, 7) per 0-5
-      const ratio = normalizedScore / 5;
-      const r = Math.round(220 + (255 - 220) * ratio); // 220 → 255
-      const g = Math.round(53 + (193 - 53) * ratio);   // 53 → 193
-      const b = Math.round(38 - (38 - 7) * ratio);     // 38 → 7
-      return `rgb(${r}, ${g}, ${b})`;
-    } else {
-      // Giallo (255, 193, 7) → Verde (34, 197, 94) per 5-10
-      const ratio = (normalizedScore - 5) / 5;
-      const r = Math.round(255 - (255 - 34) * ratio);  // 255 → 34
-      const g = Math.round(193 + (197 - 193) * ratio); // 193 → 197
-      const b = Math.round(7 + (94 - 7) * ratio);      // 7 → 94
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-  };
 
   // Carica la config app all'avvio
   useEffect(() => {
@@ -225,310 +204,144 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
     ? Math.round((currentStep / totalSteps) * 100)
     : 0;
 
+  const phaseLabel = critiqueFailed
+    ? 'Valutazione critica fallita'
+    : critiqueInProgress
+      ? 'Valutazione critica in corso'
+      : progress.is_complete && hasCritique
+        ? 'Completato'
+        : progress.current_section_name || 'Preparazione';
+
+  const remainingEstimate = !progress.is_complete && progress.estimated_time_minutes != null
+    ? `~${Math.max(1, Math.round(progress.estimated_time_minutes))} min`
+    : null;
+
   return (
     <div className="writing-step">
-      <div className="writing-header">
-        <h2>Scrittura in Corso</h2>
-        {progress.is_complete && hasCritique && (
-          <div className="completion-badge">✓ Completato!</div>
-        )}
-      </div>
-
-      <div className="progress-container">
-        <div className="progress-info">
-          <div className="progress-status">
-            <span className="progress-label">
-              {critiqueFailed
-                ? 'Valutazione critica fallita'
-                : critiqueInProgress
-                ? 'Generazione valutazione critica in corso...'
-                : progress.is_complete && hasCritique
-                ? 'Completato'
-                : progress.current_section_name
-                  ? 'Scrittura in corso'
-                  : 'Preparazione...'}
-            </span>
-            <span className="progress-counter">
-              {currentStep} / {totalSteps}
-            </span>
-          </div>
-          {progress.current_section_name && !progress.is_complete && !critiqueInProgress && !critiqueFailed && (
-            <div className="progress-chapter-name">
-              {progress.current_section_name}
-            </div>
-          )}
-          {progress.is_complete && hasCritique && (
-            <div className="progress-chapter-name">
-              {progress.total_steps} sezioni scritte
-            </div>
-          )}
-        </div>
-        
-        <ProgressBar percentage={progressPercentage} />
-        <AnimatePresence>
-          {critiqueInProgress && (
-            <motion.div
-              className="critique-loading-indicator"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              <motion.span
-                className="loading-spinner"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+      <GenerationStage
+        title="Romanzo"
+        phase={phaseLabel}
+        elapsed={elapsedMinutes != null ? formatElapsed(elapsedMinutes) : null}
+        cost={progress.estimated_cost != null ? formatEstimateCost(progress.estimated_cost) : null}
+        estimate={remainingEstimate}
+        progress={progressPercentage}
+        actions={
+          <>
+            {progress.is_paused ? (
+              <Button
+                disabled={isResuming}
+                onClick={async () => {
+                  try {
+                    setIsResuming(true);
+                    setFatalError(null);
+                    await resumeBookGeneration(sessionId);
+                    toast.success('Generazione ripresa con successo');
+                    setIsPolling(true);
+                  } catch (e) {
+                    const errorMsg = e instanceof Error ? e.message : 'Errore sconosciuto';
+                    setFatalError(`Errore nella ripresa: ${errorMsg}`);
+                    setAlertModal({
+                      isOpen: true,
+                      title: 'Errore',
+                      message: `Errore nella ripresa della generazione: ${errorMsg}`,
+                      variant: 'error',
+                    });
+                  } finally {
+                    setIsResuming(false);
+                  }
+                }}
               >
-                ⏳
-              </motion.span>
-              <span>Generazione valutazione critica...</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Tempo trascorso, costo attuale e stima rimanente */}
-        <div className="generation-metrics">
-          {elapsedMinutes != null && (
-            <div className="estimated-time">
-              <span className="time-icon">⏱️</span>
-              <span className="time-text">
-                Tempo trascorso: {formatElapsed(elapsedMinutes)}
-              </span>
-            </div>
-          )}
-          {progress.estimated_cost != null && (
-            <div className="estimated-time">
-              <span className="time-icon">💶</span>
-              <span className="time-text">
-                Costo attuale: {formatEstimateCost(progress.estimated_cost)}
-              </span>
-            </div>
-          )}
-          {!progress.is_complete && progress.total_steps > 0 && (
-            progress.estimated_time_minutes !== undefined && progress.estimated_time_minutes !== null ? (
-              <div className="estimated-time">
-                <span className="time-icon">⏳</span>
-                <span className="time-text">
-                  Tempo rimanente: ~{Math.max(1, Math.round(progress.estimated_time_minutes))} min
-                  {progress.estimated_time_confidence === 'high' && ' (stima affidabile)'}
-                  {progress.estimated_time_confidence === 'medium' && ' (stima approssimativa)'}
-                  {progress.estimated_time_confidence === 'low' && ' (stima indicativa)'}
-                </span>
-              </div>
-            ) : (
-              <div className="estimated-time">
-                <span className="time-icon">⏳</span>
-                <span className="time-text">Calcolo stima tempo in corso...</span>
-              </div>
-            )
-          )}
-        </div>
-
-        {critiqueFailed && (
-          <div className="critique-error-indicator">
-            <div>
-              <strong>Errore critica:</strong> {progress.critique_error || 'Errore sconosciuto'}
-            </div>
-            <button
-              className="retry-critique-button"
-              disabled={isRetryingCritique}
-              onClick={async () => {
-                try {
-                  setIsRetryingCritique(true);
-                  await regenerateBookCritique(sessionId);
-                  setIsPolling(true);
-                } catch (e) {
-                  setAlertModal({
-                    isOpen: true,
-                    title: 'Errore',
-                    message: `Errore nel retry della critica: ${e instanceof Error ? e.message : 'Errore sconosciuto'}`,
-                    variant: 'error',
-                  });
-                } finally {
-                  setIsRetryingCritique(false);
-                }
-              }}
-            >
-              {isRetryingCritique ? 'Riprovo...' : 'Riprova critica'}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {progress.is_paused && progress.error && (
-        <div className="error-message paused-message">
-          <div>
-            <strong>⚠️ Generazione in pausa</strong>
-            <p>{progress.error}</p>
-            <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.5rem' }}>
-              La generazione si è fermata dopo diversi tentativi. 
-              Puoi riprendere la generazione dal capitolo fallito.
-            </p>
-          </div>
-          <button
-            className="resume-button"
-            disabled={isResuming}
-            onClick={async () => {
-              try {
-                setIsResuming(true);
-                setFatalError(null);
-                await resumeBookGeneration(sessionId);
-                toast.success('Generazione ripresa con successo');
-                // Riavvia il polling
-                setIsPolling(true);
-              } catch (e) {
-                const errorMsg = e instanceof Error ? e.message : 'Errore sconosciuto';
-                setFatalError(`Errore nella ripresa: ${errorMsg}`);
-                setAlertModal({
-                  isOpen: true,
-                  title: 'Errore',
-                  message: `Errore nella ripresa della generazione: ${errorMsg}`,
-                  variant: 'error',
-                });
-              } finally {
-                setIsResuming(false);
-              }
-            }}
-          >
-            {isResuming ? 'Riprendo...' : '▶️ Riprendi Generazione'}
-          </button>
-        </div>
-      )}
-
-      {progress.error && !progress.is_paused && (
-        <div className="error-message">
-          <strong>Errore:</strong> {progress.error}
-        </div>
-      )}
-
-      {progress.completed_chapters.length > 0 && (
-        <FadeIn>
-          <div className="completed-chapters">
-            <h3>Capitoli Completati ({progress.completed_chapters.length})</h3>
-            <div className="chapters-list">
-              <AnimatePresence mode="popLayout">
-                {progress.completed_chapters.map((chapter, index) => (
-                  <motion.div
-                    key={`${chapter.title}-${index}`}
-                    className="chapter-item"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ 
-                      duration: 0.4,
-                      delay: index * 0.05
-                    }}
-                    layout
-                  >
-                    <div className="chapter-header">
-                      <h4>{chapter.title}</h4>
-                      {chapter.page_count > 0 && (
-                        <span className="chapter-pages">{chapter.page_count} pagine</span>
-                      )}
-                    </div>
-                    <p className="chapter-preview">
-                      {chapter.content.substring(0, 200)}...
-                    </p>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          </div>
-        </FadeIn>
-      )}
-
-      <AnimatePresence>
-        {progress.is_complete && (
-          <motion.div
-            className="completion-message"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-          {hasCritique ? (
-            <>
-              <h3>🎉 Scrittura Completata!</h3>
-              <p>Il romanzo è stato scritto completamente. Tutti i {progress.total_steps} capitoli sono stati generati.</p>
-            </>
-          ) : (
-            <>
-              <h3>📘 Scrittura completata</h3>
-              <p>Capitoli generati. Sto completando la valutazione critica prima di chiudere il processo.</p>
-            </>
-          )}
-          {progress.total_pages && (
-            <p className="total-pages-info">
-              <strong>Totale pagine:</strong> {progress.total_pages} pagine
-            </p>
-          )}
-          {progress.writing_time_minutes && (
-            <p className="writing-time-info">
-              <strong>Totale tempo scrittura:</strong> {Math.round(progress.writing_time_minutes)} minuti
-            </p>
-          )}
-          {progress.total_pages && (
-            <p className="reading-time-info">
-              <strong>Totale tempo lettura:</strong> {Math.ceil(progress.total_pages * 90 / 60)} minuti
-            </p>
-          )}
-          {progress.estimated_cost != null && (
-            <p className="estimated-cost-info">
-              <strong>Costo generazione:</strong> €{progress.estimated_cost >= 0.01 ? progress.estimated_cost.toFixed(2) : progress.estimated_cost.toFixed(4)}
-            </p>
-          )}
-          <div className="completion-actions">
-            {onNewBook && (
-              <button
-                onClick={onNewBook}
-                className="new-book-button"
+                {isResuming ? 'Riprendo...' : 'Riprendi'}
+              </Button>
+            ) : null}
+            {critiqueFailed ? (
+              <Button
+                variant="ghost"
+                disabled={isRetryingCritique}
+                onClick={async () => {
+                  try {
+                    setIsRetryingCritique(true);
+                    await regenerateBookCritique(sessionId);
+                    setIsPolling(true);
+                  } catch (e) {
+                    setAlertModal({
+                      isOpen: true,
+                      title: 'Errore',
+                      message: `Errore nel retry della critica: ${e instanceof Error ? e.message : 'Errore sconosciuto'}`,
+                      variant: 'error',
+                    });
+                  } finally {
+                    setIsRetryingCritique(false);
+                  }
+                }}
               >
-                ✨ Genera Nuovo Romanzo
-              </button>
-            )}
-          </div>
-          {progress.critique && (
-            <div className="critique-section">
-              <h4>📚 Valutazione Critica</h4>
-              <div className="critique-score">
-                <span className="score-label">Valutazione:</span>
-                <span 
-                  className="critique-score-value"
-                  style={{ color: getScoreColor(progress.critique.score) }}
-                >
-                  {progress.critique.score.toFixed(1)}
-                </span>
+                {isRetryingCritique ? 'Riprovo...' : 'Riprova critica'}
+              </Button>
+            ) : null}
+            {progress.is_complete && onNewBook ? (
+              <Button variant="ghost" onClick={onNewBook}>
+                Nuova opera
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {progress.error ? (
+          <p className="error-message">{progress.error}</p>
+        ) : null}
+
+        <ol className="generation-index">
+          {progress.completed_chapters.map((chapter, index) => (
+            <li key={`${chapter.title}-${index}`}>
+              <span>{chapter.title}</span>
+              <span>{chapter.page_count > 0 ? `${chapter.page_count} pagine` : 'pronto'}</span>
+            </li>
+          ))}
+          {progress.current_section_name && !progress.is_complete ? (
+            <li className="is-current">
+              <span>{progress.current_section_name}</span>
+              <span>{currentStep} / {totalSteps}</span>
+            </li>
+          ) : null}
+          {critiqueInProgress || hasCritique || critiqueFailed ? (
+            <li className={critiqueInProgress ? 'is-current' : undefined}>
+              <span>Valutazione critica</span>
+              <span>{hasCritique ? 'pronta' : critiqueFailed ? 'errore' : 'in corso'}</span>
+            </li>
+          ) : null}
+        </ol>
+      </GenerationStage>
+
+      {progress.is_complete ? (
+        <div>
+          <p className="writing-complete-note">
+            {hasCritique
+              ? `Il romanzo è completo: ${progress.total_steps} sezioni scritte.`
+              : 'Capitoli generati. Sto completando la valutazione critica.'}
+          </p>
+          <dl className="writing-complete-meta">
+            {progress.total_pages ? (
+              <div>
+                <dt>Pagine</dt>
+                <dd>{progress.total_pages}</dd>
               </div>
-              {progress.critique.summary && (
-                <div className="critique-summary">
-                  <strong>Sintesi:</strong>
-                  <p>{progress.critique.summary}</p>
-                </div>
-              )}
-              {progress.critique.pros && progress.critique.pros.length > 0 && (
-                <div className="critique-pros">
-                  <strong>Punti di forza:</strong>
-                  <ul>
-                    {progress.critique.pros.map((p, idx) => (
-                      <li key={idx}>{p}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {progress.critique.cons && progress.critique.cons.length > 0 && (
-                <div className="critique-cons">
-                  <strong>Punti di debolezza:</strong>
-                  <ul>
-                    {progress.critique.cons.map((c, idx) => (
-                      <li key={idx}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            ) : null}
+            {progress.writing_time_minutes ? (
+              <div>
+                <dt>Tempo di scrittura</dt>
+                <dd>{Math.round(progress.writing_time_minutes)} min</dd>
+              </div>
+            ) : null}
+            {progress.total_pages ? (
+              <div>
+                <dt>Tempo di lettura</dt>
+                <dd>{Math.ceil((progress.total_pages * 90) / 60)} min</dd>
+              </div>
+            ) : null}
+          </dl>
+          {progress.critique ? <CritiqueBlock critique={progress.critique} /> : null}
+        </div>
+      ) : null}
 
       <AlertModal
         isOpen={alertModal.isOpen}

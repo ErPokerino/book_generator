@@ -1,251 +1,108 @@
-/* ============================================
-   Navigation - Gradient Header with Glassmorphism
-   ============================================ */
-
 .main-navigation {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2.5rem;
-  padding-top: calc(1rem + var(--safe-area-inset-top));
-  /* Gradiente blu continuo con l'area del titolo */
-  background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #0f3460 100%);
-  backdrop-filter: var(--glass-blur-light);
-  -webkit-backdrop-filter: var(--glass-blur-light);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 
-    0 4px 20px rgba(26, 26, 46, 0.2),
-    0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  gap: 1.5rem;
+  min-height: var(--nav-height);
+  padding: 0.65rem 1.75rem;
+  padding-top: calc(0.65rem + var(--safe-area-inset-top));
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
   position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 100;
-  gap: 2rem;
-  min-width: 0;
-  width: 100%;
-  margin: 0;
 }
 
-/* Brand */
 .nav-brand {
-  flex-shrink: 0; /* Previene che il logo si rimpicciolisca */
-  margin-right: auto; /* Spinge il logo a sinistra */
   display: flex;
   align-items: center;
-}
-
-.nav-logo {
-  height: 52px;
-  width: auto;
-  display: block;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.2));
-  transition: transform var(--transition-fast), filter var(--transition-fast);
-}
-
-.nav-logo:hover {
-  transform: scale(1.02);
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
-}
-
-/* Legacy h1 for fallback */
-.nav-brand h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  color: white;
-  font-weight: 700;
-  font-family: 'Playfair Display', Georgia, serif;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-/* Navigation Links Container */
-.nav-links {
-  display: flex;
-  gap: 0.75rem;
-  flex-shrink: 0; /* Previene che i link si rimpiccioliscano */
-  margin: 0 auto; /* Centra i link tra logo e user (su desktop) */
-}
-
-/* Navigation Button - Glassmorphism Style */
-.nav-link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0.65rem 1.5rem;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-full);
-  color: rgba(255, 255, 255, 0.9);
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: 
-    background var(--transition-smooth),
-    border-color var(--transition-smooth),
-    transform var(--transition-smooth),
-    box-shadow var(--transition-smooth);
-}
-
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-}
-
-.nav-link:active {
-  transform: translateY(0);
-}
-
-/* Active State - Solid White */
-.nav-link.active {
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--primary-dark);
-  border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 
-    0 4px 15px rgba(0, 0, 0, 0.15),
-    0 1px 0 rgba(255, 255, 255, 0.5) inset;
-  font-weight: 600;
-}
-
-.nav-link.active:hover {
-  background: white;
-  border-color: white;
-  box-shadow: 
-    0 6px 20px rgba(0, 0, 0, 0.2),
-    0 1px 0 rgba(255, 255, 255, 0.5) inset;
-}
-
-.nav-link-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: #dc2626;
-  border: 2px solid rgba(15, 52, 96, 1);
-  border-radius: 9px;
-  color: white;
-  font-size: 0.65rem;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Outfit', sans-serif;
-  z-index: 1;
-}
-
-/* Hamburger Menu Toggle */
-.nav-menu-toggle {
-  display: none;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  color: white;
-  cursor: pointer;
-  padding: 0.5rem;
-  transition: all var(--transition-fast);
-  min-width: 44px;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
+  gap: 0.65rem;
   flex-shrink: 0;
-  font-family: inherit;
+  color: var(--ink);
+  text-decoration: none;
 }
 
-.nav-menu-toggle:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
+.nav-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: block;
 }
 
-.nav-menu-toggle:active {
-  transform: scale(0.95);
+.nav-wordmark {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
-/* Menu Overlay */
-.nav-menu-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 99;
-  display: none;
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Desktop Navigation Container */
 .nav-desktop-links {
   display: flex;
   align-items: center;
-  gap: 2rem;
-  flex: 1;
-  min-width: 0;
+  gap: 1.5rem;
+}
+
+.nav-link {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.25rem 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-decoration: none;
 }
 
-/* Su desktop, nav-links si centra grazie al margin auto */
-.nav-desktop-links > .nav-links {
-  margin: 0 auto;
+.nav-link:hover {
+  color: var(--ink);
+  background: none;
+  transform: none;
+  box-shadow: none;
 }
 
-/* Responsive */
+.nav-link.active {
+  color: var(--ink);
+  background: none;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.35rem;
+  height: 1px;
+  background: var(--ink);
+}
+
+.nav-link-create.active::after {
+  background: var(--accent);
+}
+
 @media (max-width: 768px) {
   .main-navigation {
-    padding-top: calc(0.75rem + var(--safe-area-inset-top));
-    padding-right: calc(1.25rem + var(--safe-area-inset-right));
-    padding-bottom: 0.75rem;
-    padding-left: calc(1.25rem + var(--safe-area-inset-left));
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    position: sticky;
-    top: 0;
+    padding: 0.5rem 1rem;
+    padding-top: calc(0.5rem + var(--safe-area-inset-top));
   }
 
-  .nav-brand {
-    margin-right: 0;
+  .nav-mark {
+    width: 26px;
+    height: 26px;
   }
 
-  .nav-logo {
-    height: 44px;
+  .nav-wordmark {
+    font-size: 1.1rem;
   }
 
-  .nav-brand h1 {
-    font-size: 1.4rem;
-  }
-
-  /* Nascondi desktop navigation su mobile */
   .nav-desktop-links {
     display: none;
-  }
-
-  /* Nascondi hamburger menu (non più usato) */
-  .nav-menu-toggle,
-  .nav-menu-overlay,
-  .nav-mobile-container {
-    display: none !important;
   }
 }

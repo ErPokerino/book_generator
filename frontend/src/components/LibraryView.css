@@ -1,191 +1,46 @@
-/* ============================================
-   LibraryView - Book Library Grid
-   ============================================ */
-
 .library-view {
-  min-height: 100vh;
-  background: var(--surface);
+  min-height: auto;
+  background: transparent;
 }
 
-/* Loading & Error States */
-.loading-message {
-  padding: 4rem 2rem;
-  text-align: center;
-  font-size: 1.1rem;
-  color: var(--text-secondary);
-}
-
-.error-message {
-  padding: 3rem 2rem;
-  text-align: center;
-  font-size: 1.05rem;
-  color: #dc2626;
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  margin: 2rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid #fecaca;
-}
-
-.error-message button {
-  margin-top: 1.25rem;
-  padding: 0.75rem 1.75rem;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-family: 'Outfit', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all var(--transition-fast);
-}
-
-.error-message button:hover {
-  background: var(--accent-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px var(--accent-glow);
-}
-
-/* Refreshing Indicator */
 .refreshing-indicator {
-  padding: 0.75rem 2rem;
-  text-align: center;
-  font-size: 0.9rem;
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  background: linear-gradient(90deg, var(--surface-elevated) 0%, var(--surface-hover) 50%, var(--surface-elevated) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite linear;
-  border-bottom: 1px solid var(--border-light);
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* Library Header */
-.library-header {
-  padding: 2.5rem 2.5rem 1.5rem 2.5rem;
-}
-
-.library-header h2 {
-  margin: 0;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 1.6rem;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* Empty State */
-.empty-library {
-  padding: 4rem 2rem;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-/* Books Grid */
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
-  gap: 2rem;
-  padding: 1.5rem 2.5rem 4rem 2.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 2rem 1.5rem;
 }
 
-/* Back Button */
 .back-to-library-btn {
-  margin: 1.5rem 2.5rem;
-  padding: 0.65rem 1.25rem;
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
+  margin-bottom: 1.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
-.back-to-library-btn:hover {
-  background: var(--surface-hover);
-  border-color: var(--text-muted);
-  transform: translateX(-3px);
-}
-
-/* Infinite Scroll Sentinel & Loading Indicators */
 .load-more-sentinel {
-  min-height: 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.loading-more-indicator {
-  padding: 1.5rem 2rem;
-  text-align: center;
-  font-size: 1rem;
+  min-height: 1px;
+  padding: 1.5rem 0;
   color: var(--text-secondary);
-  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
 }
 
-.loading-more-indicator span {
-  display: inline-block;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.no-more-books {
-  padding: 1.5rem 2rem;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  font-family: 'Outfit', sans-serif;
-}
-
-.no-more-books p {
-  margin: 0;
-  font-style: italic;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
   .books-grid {
     grid-template-columns: 1fr;
-    padding: 1.25rem;
-    gap: 1.25rem;
   }
 
-  .library-header {
-    padding: 1.5rem 1.25rem 1rem 1.25rem;
-  }
-
-  .back-to-library-btn {
-    margin: 1rem 1.25rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .books-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 1rem;
+  .library-create-action {
+    display: none;
   }
 }

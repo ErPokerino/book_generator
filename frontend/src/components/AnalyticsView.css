@@ -1,7 +1,13 @@
-.analytics-view {
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
+﻿.analytics-view {
+  padding: 0;
+}
+
+.analytics-section {
+  margin-bottom: 2.5rem;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .analytics-overview-grid {
@@ -73,11 +79,11 @@
 }
 
 .analytics-section {
-  margin-bottom: 3rem;
-  padding: 1.5rem;
-  background: var(--surface, #fff);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2.5rem;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .section-title {
@@ -158,7 +164,7 @@
 .error-message button {
   margin-top: 1rem;
   padding: 0.5rem 1rem;
-  background: var(--primary, #646cff);
+  background: var(--primary, var(--accent));
   color: white;
   border: none;
   border-radius: var(--radius-md, 8px);
@@ -167,7 +173,7 @@
 }
 
 .error-message button:hover {
-  background: var(--primary-hover, #535bf2);
+  background: var(--primary-hover, var(--accent-hover));
 }
 
 /* Responsive */

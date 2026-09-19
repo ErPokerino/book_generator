@@ -209,10 +209,9 @@ export default function BookReader() {
     return (
       <div className={`book-reader ${isFullscreen ? 'fullscreen' : ''}`}>
         <div className="reader-error">
-          <span className="error-icon">⚠️</span>
           <p>{error || 'Libro non trovato'}</p>
           <button onClick={handleClose} className="back-btn">
-            ← Torna alla Libreria
+            Torna alle opere
           </button>
         </div>
       </div>
@@ -240,11 +239,11 @@ export default function BookReader() {
         <header className="reader-header">
           <div className="header-left">
             <button onClick={handleClose} className="close-btn" title="Chiudi (Esc)">
-              ← Chiudi
+              Chiudi
             </button>
           <div className="book-info">
-            <h1 className="book-title">{displayTitle}</h1>
-            <span className="book-author">di {book.author}</span>
+            <h1 className="book-title work-title">{displayTitle}</h1>
+            <span className="book-author">{currentLocation}</span>
           </div>
         </div>
         
@@ -254,7 +253,7 @@ export default function BookReader() {
             className={`toc-btn ${showToc ? 'active' : ''}`}
             title="Indice"
           >
-            📑 Indice
+            Indice
           </button>
           
           <div className="font-controls">
@@ -296,7 +295,6 @@ export default function BookReader() {
                 onClick={goToCover}
                 className={`toc-item ${currentChapterIndex === -1 ? 'active' : ''}`}
               >
-                <span className="chapter-number">📖</span>
                 <span className="chapter-title">Copertina</span>
               </button>
             )}
@@ -324,8 +322,7 @@ export default function BookReader() {
             <div className="cover-page-shell">
               <img src={coverImageUrl} alt={`Copertina di ${displayTitle}`} className="cover-image" />
               <aside className="cover-summary">
-                <span className="cover-summary-eyebrow">Esperienza di lettura</span>
-                <h2>{displayTitle}</h2>
+                <h2 className="work-title">{displayTitle}</h2>
                 <p>di {book.author}</p>
                 <div className="cover-summary-stats">
                   <span>{book.chapters.length} capitoli</span>

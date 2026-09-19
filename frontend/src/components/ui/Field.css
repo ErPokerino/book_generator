@@ -1,0 +1,59 @@
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: var(--ink);
+}
+
+.ui-field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ui-field-required {
+  margin-left: 0.2rem;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ui-field-hint,
+.ui-field-error {
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.ui-field-hint {
+  color: var(--text-secondary);
+}
+
+.ui-field-error {
+  color: var(--accent);
+}
+
+.ui-control {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+
+textarea.ui-control {
+  min-height: 8rem;
+  resize: vertical;
+  line-height: var(--leading-relaxed);
+}
+
+.ui-field.has-error .ui-control {
+  border-color: var(--accent);
+}
+
+.ui-control::placeholder {
+  color: #78716c;
+}

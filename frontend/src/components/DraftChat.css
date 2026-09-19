@@ -1,4 +1,4 @@
-.draft-chat {
+﻿.draft-chat {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -53,7 +53,7 @@
 
 .chat-input:focus {
   outline: none;
-  border-color: #646cff;
+  border-color: var(--accent);
 }
 
 .chat-input:disabled {
@@ -88,12 +88,12 @@
 }
 
 .send-button {
-  background-color: #646cff;
+  background-color: var(--accent);
   color: white;
 }
 
 .send-button:hover:not(:disabled) {
-  background-color: #535bf2;
+  background-color: var(--accent-hover);
 }
 
 .validate-button:disabled,
@@ -128,7 +128,7 @@
   }
 
   .chat-input:focus {
-    border-color: #646cff;
+    border-color: var(--accent);
   }
 
   .chat-input:disabled {
