@@ -202,8 +202,17 @@ export default function LibraryView() {
     setBooks(prev => prev.filter(book => book.session_id !== sessionId));
   };
 
-  const handleContinue = (sessionId: string) => {
-    setSelectedSessionId(sessionId);
+  const openMangaSession = (sessionId: string) => {
+    localStorage.setItem('current_manga_session_id', sessionId);
+    navigate(`/manga?session=${sessionId}`);
+  };
+
+  const handleContinue = (book: LibraryEntry) => {
+    if (book.content_type === 'manga') {
+      openMangaSession(book.session_id);
+      return;
+    }
+    setSelectedSessionId(book.session_id);
   };
 
   const handleBackFromWriting = () => {
@@ -211,8 +220,8 @@ export default function LibraryView() {
     loadLibrary(filtersRef.current, true);
   };
 
-  const handleShowCritique = (sessionId: string) => {
-    setCritiqueModalSessionId(sessionId);
+  const handleShowCritique = (book: LibraryEntry) => {
+    setCritiqueModalSessionId(book.session_id);
   };
 
   const handleCloseCritiqueModal = () => {
@@ -234,15 +243,21 @@ export default function LibraryView() {
     loadLibrary(filtersRef.current, true);
   };
 
-  const handleResume = (sessionId: string) => {
-    // Salva sessionId in localStorage per permettere il ripristino
-    localStorage.setItem('current_book_session_id', sessionId);
-    // Naviga a "Nuovo Libro"
+  const handleResume = (book: LibraryEntry) => {
+    if (book.content_type === 'manga') {
+      openMangaSession(book.session_id);
+      return;
+    }
+    localStorage.setItem('current_book_session_id', book.session_id);
     navigate('/new');
   };
   
-  const handleReadBook = (sessionId: string) => {
-    navigate(`/book/${sessionId}`);
+  const handleReadBook = (book: LibraryEntry) => {
+    if (book.content_type === 'manga') {
+      openMangaSession(book.session_id);
+      return;
+    }
+    navigate(`/book/${book.session_id}`);
   };
 
   // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
@@ -307,7 +322,7 @@ export default function LibraryView() {
         if (ownBooks.length === 0 && sharedBooks.length === 0 && !loading) {
           return (
             <div className="empty-library">
-              <p>{totalBooks === 0 ? 'Nessun libro ancora. Crea il tuo primo libro!' : 'Nessun libro trovato con i filtri selezionati.'}</p>
+              <p>{totalBooks === 0 ? 'Nessun contenuto ancora. Crea il tuo primo libro o manga!' : 'Nessun contenuto trovato con i filtri selezionati.'}</p>
             </div>
           );
         }
@@ -318,7 +333,7 @@ export default function LibraryView() {
             {ownBooks.length > 0 && (
               <>
                 <div className="library-header">
-                  <h2>I Tuoi Libri ({ownBooks.length}{totalBooks > 0 && ownBooks.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
+                  <h2>La tua libreria ({ownBooks.length}{totalBooks > 0 && ownBooks.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
                 </div>
                 <motion.div 
                   className="books-grid"
@@ -364,8 +379,8 @@ export default function LibraryView() {
             {sharedBooks.length > 0 && (
               <>
                 <div className="library-header shared-section-header">
-                  <h2>Libri Condivisi ({sharedBooks.length})</h2>
-                  <p className="shared-section-subtitle">Libri che altri utenti hanno condiviso con te</p>
+                  <h2>Contenuti condivisi ({sharedBooks.length})</h2>
+                  <p className="shared-section-subtitle">Libri e manga che altri utenti hanno condiviso con te</p>
                 </div>
                 <motion.div 
                   className="books-grid shared-books-grid"
@@ -411,12 +426,12 @@ export default function LibraryView() {
             <div ref={loadMoreRef} className="load-more-sentinel">
               {loadingMore && (
                 <div className="loading-more-indicator">
-                  <span>Caricamento altri libri...</span>
+                  <span>Caricamento altri contenuti...</span>
                 </div>
               )}
               {!hasMore && books.length > 0 && (
                 <div className="no-more-books">
-                  <p>Non ci sono altri libri da mostrare.</p>
+                  <p>Non ci sono altri contenuti da mostrare.</p>
                 </div>
               )}
             </div>

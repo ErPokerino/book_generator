@@ -63,6 +63,7 @@ class MongoSessionStore(SessionStore):
         try:
             indexes = [
                 IndexModel([("status", ASCENDING)]),
+                IndexModel([("content_type", ASCENDING)]),
                 IndexModel([("user_id", ASCENDING)]),  # Indice per filtro per utente
                 IndexModel([("form_data.llm_model", ASCENDING)]),
                 IndexModel([("form_data.genre", ASCENDING)]),

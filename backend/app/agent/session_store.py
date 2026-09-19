@@ -20,6 +20,7 @@ class SessionData:
         self.form_data = form_data
         self.question_answers = question_answers
         self.user_id = user_id  # Associazione con utente
+        self.content_type: str = "book"  # "book" o "manga" per isolare la beta dalla libreria
         self.draft_history: list[Dict[str, Any]] = []  # Lista di bozze con version e text
         self.current_draft: Optional[str] = None
         self.current_title: Optional[str] = None
@@ -31,7 +32,16 @@ class SessionData:
         self.story_bible: Optional[Dict[str, Any]] = None  # Memoria narrativa strutturata per la scrittura
         self.book_chapters: list[Dict[str, Any]] = []  # Lista di capitoli completati
         self.writing_progress: Optional[Dict[str, Any]] = None  # Stato di avanzamento scrittura
+        self.manga_form_data: Optional[Dict[str, Any]] = None  # Input semplificato per la variante manga beta
+        self.manga_plan: Optional[Dict[str, Any]] = None  # Storyboard completo con bible e piani pagina
+        self.manga_pages: list[Dict[str, Any]] = []  # Pagine manga gia generate
+        self.manga_progress: Optional[Dict[str, Any]] = None  # Stato avanzamento generazione manga
+        self.manga_cost_eur: Optional[float] = None  # Costo stimato/attuale della generazione manga
         self.cover_image_path: Optional[str] = None  # Path dell'immagine copertina
+        self.back_cover_image_path: Optional[str] = None  # Path dell'immagine retro-copertina
+        self.back_cover_prompt_version: Optional[int] = None  # Versione logica usata per la retro-copertina
+        self.pdf_path: Optional[str] = None  # Path del PDF esportato/cachato
+        self.pdf_filename: Optional[str] = None  # Nome file PDF esportato/cachato
         self.literary_critique: Optional[Dict[str, Any]] = None  # Valutazione critica del libro
         self.critique_status: Optional[str] = None  # pending|running|completed|failed
         self.critique_error: Optional[str] = None  # Dettaglio errore se failed
@@ -51,6 +61,8 @@ class SessionData:
             "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
             "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
             "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "manga_planning": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "manga_images": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
             "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
             "total": {"input_tokens": 0, "output_tokens": 0},
         }
@@ -61,6 +73,15 @@ class SessionData:
         Calcola lo stato corrente della sessione basandosi sui dati disponibili.
         Restituisce: "draft", "outline", "writing", "paused", "complete"
         """
+        if self.content_type == "manga":
+            if self.manga_progress:
+                if self.manga_progress.get("is_complete", False):
+                    return "complete"
+                elif self.manga_progress.get("is_paused", False):
+                    return "paused"
+                else:
+                    return "writing"
+            return "draft"
         if self.writing_progress:
             if self.writing_progress.get("is_complete", False):
                 return "complete"
@@ -82,6 +103,7 @@ class SessionData:
         return {
             "session_id": self.session_id,
             "user_id": self.user_id,  # Associazione utente
+            "content_type": self.content_type,
             "form_data": self.form_data.model_dump(),
             "question_answers": [qa.model_dump() for qa in self.question_answers],
             "draft_history": self.draft_history,
@@ -95,7 +117,16 @@ class SessionData:
             "story_bible": self.story_bible,
             "book_chapters": self.book_chapters,
             "writing_progress": self.writing_progress,
+            "manga_form_data": self.manga_form_data,
+            "manga_plan": self.manga_plan,
+            "manga_pages": self.manga_pages,
+            "manga_progress": self.manga_progress,
+            "manga_cost_eur": self.manga_cost_eur,
             "cover_image_path": self.cover_image_path,
+            "back_cover_image_path": self.back_cover_image_path,
+            "back_cover_prompt_version": self.back_cover_prompt_version,
+            "pdf_path": self.pdf_path,
+            "pdf_filename": self.pdf_filename,
             "literary_critique": self.literary_critique,
             "critique_status": self.critique_status,
             "critique_error": self.critique_error,
@@ -122,6 +153,7 @@ class SessionData:
             question_answers=[QuestionAnswer(**qa) for qa in data.get("question_answers", [])],  # Defensivo: usa .get() con fallback
             user_id=data.get("user_id"),  # Associazione utente (retrocompatibile)
         )
+        session.content_type = data.get("content_type", "book")
         session.draft_history = data.get("draft_history", [])
         session.current_draft = data.get("current_draft")
         session.current_title = data.get("current_title")
@@ -133,7 +165,16 @@ class SessionData:
         session.story_bible = data.get("story_bible")
         session.book_chapters = data.get("book_chapters", [])
         session.writing_progress = data.get("writing_progress")
+        session.manga_form_data = data.get("manga_form_data")
+        session.manga_plan = data.get("manga_plan")
+        session.manga_pages = data.get("manga_pages", [])
+        session.manga_progress = data.get("manga_progress")
+        session.manga_cost_eur = data.get("manga_cost_eur")
         session.cover_image_path = data.get("cover_image_path")
+        session.back_cover_image_path = data.get("back_cover_image_path")
+        session.back_cover_prompt_version = data.get("back_cover_prompt_version")
+        session.pdf_path = data.get("pdf_path")
+        session.pdf_filename = data.get("pdf_filename")
         session.literary_critique = data.get("literary_critique")
         session.critique_status = data.get("critique_status")
         session.critique_error = data.get("critique_error")
@@ -160,6 +201,8 @@ class SessionData:
             "draft": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
             "outline": {"input_tokens": 0, "output_tokens": 0, "model": None},
             "chapters": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "manga_planning": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
+            "manga_images": {"input_tokens": 0, "output_tokens": 0, "model": None, "calls": 0},
             "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
             "total": {"input_tokens": 0, "output_tokens": 0},
         })

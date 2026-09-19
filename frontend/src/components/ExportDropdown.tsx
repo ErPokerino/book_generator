@@ -1,22 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { exportBook } from '../api/client';
+import { downloadMangaPdf, exportBook } from '../api/client';
 import './ExportDropdown.css';
 
 interface ExportDropdownProps {
   sessionId: string;
+  contentType?: 'book' | 'manga';
   disabled?: boolean;
   className?: string;
 }
 
-export default function ExportDropdown({ sessionId, disabled = false, className = '' }: ExportDropdownProps) {
+export default function ExportDropdown({
+  sessionId,
+  contentType = 'book',
+  disabled = false,
+  className = '',
+}: ExportDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'epub' | 'docx' | null>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isManga = contentType === 'manga';
 
   // Calcola la posizione del menu e aggiorna su scroll/resize
   useEffect(() => {
@@ -95,7 +102,9 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
 
     try {
       console.log(`[ExportDropdown] Inizio export ${format} per sessione ${sessionId}`);
-      const { blob, filename } = await exportBook(sessionId, format);
+      const { blob, filename } = isManga
+        ? await downloadMangaPdf(sessionId)
+        : await exportBook(sessionId, format);
       
       if (!blob || blob.size === 0) {
         throw new Error('Il file ricevuto è vuoto');
@@ -142,7 +151,7 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
 
   // Render del menu tramite Portal (fuori dal DOM della card)
   const renderMenu = () => {
-    if (!isOpen || disabled || isExporting) return null;
+    if (isManga || !isOpen || disabled || isExporting) return null;
 
     return createPortal(
       <div 
@@ -195,7 +204,14 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
       <button
         ref={buttonRef}
         className="export-dropdown-button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (disabled || isExporting) return;
+          if (isManga) {
+            handleExport('pdf');
+            return;
+          }
+          setIsOpen(!isOpen);
+        }}
         disabled={disabled || isExporting}
       >
         {isExporting ? (
@@ -204,8 +220,8 @@ export default function ExportDropdown({ sessionId, disabled = false, className 
           </>
         ) : (
           <>
-            <span>📥 Esporta</span>
-            <span className="dropdown-arrow">▼</span>
+            <span>{isManga ? '📥 Scarica PDF' : '📥 Esporta'}</span>
+            {!isManga && <span className="dropdown-arrow">▼</span>}
           </>
         )}
       </button>

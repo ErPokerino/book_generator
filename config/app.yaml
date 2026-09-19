@@ -9,6 +9,9 @@ retry:
   chapter_generation:
     max_retries: 2
     min_chapter_length: 1200
+  manga_generation:
+    max_retries: 2
+    page_retry_delay_seconds: 3
   structured_output:
     max_retries: 2
     repair_attempts: 1
@@ -67,6 +70,7 @@ llm_models:
     questions: gemini-3.1-pro-preview
     draft: gemini-3.1-pro-preview
     outline: gemini-3.1-pro-preview
+    manga_planning: gemini-3-flash-preview
   structured_output_method: json_schema
   max_output_tokens:
     gemini_2_5_flash: 8192
@@ -85,6 +89,13 @@ llm_tracing:
   export_target: jsonl
 cover_generation:
   aspect_ratio: '2:3'
+manga_generation:
+  page_count: 10
+  min_page_count: 10
+  max_page_count: 100
+  image_model: gemini-3.1-flash-image-preview
+  aspect_ratio: '3:4'
+  max_reference_images: 2
 review:
   chapters:
     enabled: true
@@ -97,12 +108,13 @@ review:
     allow_fallback_to_original: true
 temperature:
   agents:
-    question_generator: 0.2
-    draft_generator: 0.55
-    outline_generator: 0.3
+    question_generator: 1.0
+    draft_generator: 1.0
+    outline_generator: 1.0
     writer_generator: 0.65
     chapter_reviewer: 0.1
     chapter_reviser: 0.45
+    manga_planner: 1.0
 database:
   type: mongodb
   mongodb:
@@ -144,6 +156,7 @@ cost_estimation:
       input_cost_per_million: 1.0
       output_cost_per_million: 3.0
   image_generation_cost: 0.02
+  manga_image_generation_cost: 0.02
   token_estimates:
     draft:
       input_base: 800

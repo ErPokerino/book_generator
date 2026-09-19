@@ -37,7 +37,7 @@ from app.core.environment import (
     is_production,
 )
 from app.core.logging import configure_logging, get_logger
-from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr, credits
+from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr, credits, manga
 from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
 from app.models import (
     ConfigResponse,
@@ -158,6 +158,7 @@ app.include_router(health.router)
 app.include_router(files.router)
 app.include_router(gdpr.router)
 app.include_router(credits.router)
+app.include_router(manga.router)
 
 
 # Lifecycle hooks per MongoDB

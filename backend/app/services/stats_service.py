@@ -16,6 +16,7 @@ LIBRARY_ENTRY_FIELDS = [
     "_id",
     "user_id",
     "session_id",
+    "content_type",
     "current_title",
     "form_data",
     "question_answers",  # Necessario per SessionData.from_dict()
@@ -23,9 +24,15 @@ LIBRARY_ENTRY_FIELDS = [
     "updated_at",
     # book_chapters RIMOSSO - troppo pesante, usa writing_progress.total_pages
     "writing_progress",
+    "manga_form_data",
+    "manga_pages",
+    "manga_progress",
+    "manga_cost_eur",
     # current_outline RIMOSSO - usa writing_progress.total_steps per conteggio sezioni
     "literary_critique",
     "cover_image_path",
+    "pdf_path",
+    "pdf_filename",
     "writing_start_time",
     "writing_end_time",
     "critique_status",
@@ -35,7 +42,6 @@ LIBRARY_ENTRY_FIELDS = [
 # Cache in memoria per statistiche (TTL: 30 secondi)
 _stats_cache = {}
 _stats_cache_ttl = 30  # secondi
-
 
 def get_cached_stats(cache_key: str):
     """Recupera statistiche dalla cache se valide."""
@@ -183,98 +189,110 @@ def calculate_generation_cost(session, total_pages: Optional[int]) -> Optional[f
         return None
 
 
-def session_to_library_entry(session, skip_cost_calculation: bool = False) -> LibraryEntry:
-    """Converte una SessionData in una LibraryEntry."""
-    import math
-    
-    status = session.get_status()
-    
-    # Ottimizzazione: usa valori pre-calcolati da writing_progress
+def _sanitize_title_for_filename(title: Optional[str], fallback_prefix: str, session_id: str) -> str:
+    title_sanitized = "".join(c for c in (title or fallback_prefix) if c.isalnum() or c in (" ", "-", "_")).rstrip()
+    title_sanitized = title_sanitized.replace(" ", "_")
+    if not title_sanitized:
+        title_sanitized = f"{fallback_prefix}_{session_id[:8]}"
+    return title_sanitized
+
+
+def _build_book_pdf_info(session, status: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    pdf_path = None
+    pdf_filename = None
+    pdf_url = None
+    storage_service = get_storage_service()
+
+    if status != "complete":
+        return pdf_path, pdf_filename, pdf_url
+
+    date_prefix = session.created_at.strftime("%Y-%m-%d")
+    model_abbrev = get_model_abbreviation(session.form_data.llm_model)
+    title_sanitized = _sanitize_title_for_filename(session.current_title, "Libro", session.session_id)
+    expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+
+    if storage_service.gcs_enabled:
+        pdf_path = f"gs://{storage_service.bucket_name}/books/{expected_filename}"
+        pdf_filename = expected_filename
+    else:
+        local_pdf_path = Path(__file__).parent.parent.parent / "books" / expected_filename
+        if local_pdf_path.exists():
+            pdf_path = str(local_pdf_path)
+            pdf_filename = expected_filename
+
+    return pdf_path, pdf_filename, pdf_url
+
+
+def _parse_optional_datetime(value) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _build_book_library_entry(session, status: str) -> LibraryEntry:
     total_chapters = 0
     completed_chapters = 0
     total_pages = None
-    
+
     if session.writing_progress:
-        total_chapters = session.writing_progress.get('total_steps', 0)
-        completed_chapters = session.writing_progress.get('completed_chapters_count', 
-                                                           session.writing_progress.get('current_step', 0))
-        total_pages = session.writing_progress.get('total_pages')
-    
-    # Fallback per libri che non hanno valori pre-calcolati
+        total_chapters = session.writing_progress.get("total_steps", 0)
+        completed_chapters = session.writing_progress.get(
+            "completed_chapters_count",
+            session.writing_progress.get("current_step", 0),
+        )
+        total_pages = session.writing_progress.get("total_pages")
+
     if completed_chapters == 0 and session.book_chapters:
         completed_chapters = len(session.book_chapters)
-    
-    # Per total_pages, usiamo il valore pre-calcolato
+
     if total_pages is None and status == "complete" and session.book_chapters:
-        chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in session.book_chapters)
+        chapters_pages = sum(calculate_page_count(ch.get("content", "")) for ch in session.book_chapters)
         cover_pages = 1
         app_config = get_app_config()
         toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
         toc_pages = math.ceil(len(session.book_chapters) / toc_chapters_per_page)
         total_pages = chapters_pages + cover_pages + toc_pages
-    
-    # Estrai critique_score
+
     critique_score = None
     if session.literary_critique and isinstance(session.literary_critique, dict):
-        critique_score = session.literary_critique.get('score')
+        critique_score = session.literary_critique.get("score")
     elif session.literary_critique:
-        critique_score = getattr(session.literary_critique, 'score', None)
-    
-    # Cerca PDF collegato
-    pdf_path = None
-    pdf_filename = None
-    pdf_url = None
-    cover_url = None
-    
-    storage_service = get_storage_service()
-    
-    if status == "complete":
-        # Prova a costruire il path atteso
-        date_prefix = session.created_at.strftime("%Y-%m-%d")
-        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-        title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        title_sanitized = title_sanitized.replace(" ", "_")
-        if not title_sanitized:
-            title_sanitized = f"Libro_{session.session_id[:8]}"
-        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-        
-        # Costruisci path senza verificare esistenza (verificato on-demand)
-        if storage_service.gcs_enabled:
-            pdf_path = f"gs://{storage_service.bucket_name}/books/{expected_filename}"
-            pdf_filename = expected_filename
-        else:
-            # Verifica locale (veloce, no chiamate HTTP)
-            local_pdf_path = Path(__file__).parent.parent.parent / "books" / expected_filename
-            if local_pdf_path.exists():
-                pdf_path = str(local_pdf_path)
-                pdf_filename = expected_filename
-    
-    # Calcola writing_time_minutes
+        critique_score = getattr(session.literary_critique, "score", None)
+
+    pdf_path, pdf_filename, pdf_url = _build_book_pdf_info(session, status)
+
     writing_time_minutes = None
     if session.writing_progress:
-        writing_time_minutes = session.writing_progress.get('writing_time_minutes')
+        writing_time_minutes = session.writing_progress.get("writing_time_minutes")
     if writing_time_minutes is None and session.writing_start_time and session.writing_end_time:
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
-    
-    # Usa il costo reale basato sui token effettivi (None per libri vecchi senza tracking)
-    estimated_cost = getattr(session, 'real_cost_eur', None)
-    
-    # Converti il modello in modalità per la visualizzazione
+
+    estimated_cost = getattr(session, "real_cost_eur", None)
     original_model = session.form_data.llm_model if session.form_data else None
     mode = llm_model_to_mode(original_model)
-    
+
     return LibraryEntry(
         session_id=session.session_id,
+        content_type="book",
         title=session.current_title or "Romanzo",
         author=session.form_data.user_name or "Autore",
-        llm_model=mode,  # Ora contiene la modalità invece del nome del modello
+        llm_model=mode,
         genre=session.form_data.genre,
+        manga_type=None,
         created_at=session.created_at,
         updated_at=session.updated_at,
         status=status,
         total_chapters=total_chapters,
         completed_chapters=completed_chapters,
+        completed_pages=None,
         total_pages=total_pages,
         critique_score=critique_score,
         critique_status=session.critique_status,
@@ -282,10 +300,84 @@ def session_to_library_entry(session, skip_cost_calculation: bool = False) -> Li
         pdf_filename=pdf_filename,
         pdf_url=pdf_url,
         cover_image_path=session.cover_image_path,
+        cover_url=None,
+        writing_time_minutes=writing_time_minutes,
+        estimated_cost=estimated_cost,
+    )
+
+
+def _build_manga_library_entry(session, status: str) -> LibraryEntry:
+    manga_form_data = getattr(session, "manga_form_data", None) or {}
+    manga_progress = getattr(session, "manga_progress", None) or {}
+    manga_plan = getattr(session, "manga_plan", None) or {}
+    manga_pages = getattr(session, "manga_pages", None) or []
+    sorted_pages = sorted(manga_pages, key=lambda page: int(page.get("page_number", 0) or 0))
+    planned_pages = manga_plan.get("page_plans", []) if isinstance(manga_plan, dict) else []
+
+    total_pages = int(
+        len(planned_pages)
+        or manga_progress.get("planned_total_pages")
+        or manga_progress.get("total_steps")
+        or len(manga_pages)
+        or manga_form_data.get("max_pages")
+        or get_app_config().get("manga_generation", {}).get("page_count", 10)
+        or 10
+    )
+    completed_pages = len(manga_pages)
+    current_title = getattr(session, "current_title", None) or manga_form_data.get("title") or "Mini manga"
+    manga_type = manga_form_data.get("manga_type")
+
+    writing_time_minutes = None
+    started_at = _parse_optional_datetime(manga_progress.get("started_at"))
+    completed_at = _parse_optional_datetime(manga_progress.get("completed_at"))
+    if started_at and completed_at:
+        writing_time_minutes = (completed_at - started_at).total_seconds() / 60
+
+    original_model = session.form_data.llm_model if session.form_data else None
+    mode = llm_model_to_mode(original_model)
+    estimated_cost = getattr(session, "manga_cost_eur", None) or manga_progress.get("estimated_cost")
+    cover_url = None
+    if session.cover_image_path:
+        cover_url = f"/api/library/cover/{session.session_id}"
+    elif sorted_pages and sorted_pages[0].get("image_path"):
+        cover_url = f"/api/manga/{session.session_id}/pages/{int(sorted_pages[0].get('page_number', 1) or 1)}/image"
+
+    return LibraryEntry(
+        session_id=session.session_id,
+        content_type="manga",
+        title=current_title,
+        author="NarrAI",
+        llm_model=mode,
+        genre="Manga",
+        manga_type=manga_type,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        status=status,
+        total_chapters=0,
+        completed_chapters=0,
+        completed_pages=completed_pages,
+        total_pages=total_pages,
+        critique_score=None,
+        critique_status=None,
+        pdf_path=getattr(session, "pdf_path", None),
+        pdf_filename=getattr(session, "pdf_filename", None),
+        pdf_url=None,
+        cover_image_path=session.cover_image_path,
         cover_url=cover_url,
         writing_time_minutes=writing_time_minutes,
         estimated_cost=estimated_cost,
     )
+
+
+def session_to_library_entry(session, skip_cost_calculation: bool = False) -> LibraryEntry:
+    """Converte una SessionData in una LibraryEntry."""
+    _ = skip_cost_calculation
+    content_type = getattr(session, "content_type", "book")
+    status = session.get_status()
+
+    if content_type == "manga":
+        return _build_manga_library_entry(session, status)
+    return _build_book_library_entry(session, status)
 
 
 def calculate_library_stats(entries: list[LibraryEntry]) -> LibraryStats:

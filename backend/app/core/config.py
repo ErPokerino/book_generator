@@ -145,6 +145,7 @@ class AppConfig(TypedDict, total=False):
     google_llm: dict[str, Any]
     llm_tracing: dict[str, Any]
     cover_generation: dict[str, Any]
+    manga_generation: dict[str, Any]
     review: dict[str, Any]
     cost_estimation: dict[str, Any]
 
@@ -214,6 +215,13 @@ def load_app_config() -> AppConfig:
                 "provider": "vertex",
                 "location": "global",
             },
+            "manga_generation": {
+                "page_count": 10,
+                "min_page_count": 10,
+                "max_page_count": 100,
+                "image_model": "gemini-3.1-flash-image-preview",
+                "aspect_ratio": "3:4",
+            },
             "llm_tracing": {
                 "enabled": True,
                 "sample_rate": 1.0,
@@ -261,6 +269,7 @@ def load_app_config() -> AppConfig:
         "google_llm": data.get("google_llm", {}),
         "llm_tracing": data.get("llm_tracing", {}),
         "cover_generation": data.get("cover_generation", {}),
+        "manga_generation": data.get("manga_generation", {}),
         "review": data.get("review", {}),
         "temperature": data.get("temperature", {}),
         "cost_estimation": data.get("cost_estimation", {}),
@@ -285,8 +294,9 @@ def reload_app_config() -> AppConfig:
 def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
     """
     Determina la temperatura per un agente basandosi su:
-    1. Configurazione esplicita in app.yaml per l'agente
-    2. Regola basata su versione modello (2.5 → 0.0, 3.0 → 1.0)
+    1. Hard rule per Gemini 3 → 1.0
+    2. Configurazione esplicita in app.yaml per l'agente (per gli altri modelli)
+    3. Regola di fallback basata sulla famiglia modello
     
     Args:
         agent_name: Nome dell'agente (es: "writer_generator", "draft_generator", etc.)
@@ -305,19 +315,23 @@ def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
     # Se agent_temps non è un dict, usa un dict vuoto
     if not isinstance(agent_temps, dict):
         agent_temps = {}
-    
-    # Se c'è configurazione esplicita per l'agente, usala
-    if agent_name in agent_temps:
-        return float(agent_temps[agent_name])
-    
-    # Altrimenti, determina dalla versione modello
-    # Gestisce il caso in cui model_name sia None
+
+    # Gemini 3: segui la raccomandazione ufficiale e mantieni 1.0
     if model_name is None:
         model_name = ""
     model_lower = model_name.lower()
-    if "2.5" in model_lower:
+
+    if "gemini-3" in model_lower:
+        return 1.0
+
+    # Se c'è configurazione esplicita per l'agente, usala per i modelli non Gemini 3
+    if agent_name in agent_temps:
+        return float(agent_temps[agent_name])
+
+    # Fallback basato sulla famiglia modello
+    if "gemini-2.5" in model_lower:
         return 0.0
-    elif "3" in model_lower:
+    elif "gemini-3" in model_lower:
         return 1.0
     else:
         # Default conservativo se non si riesce a determinare la versione

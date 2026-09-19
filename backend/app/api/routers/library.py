@@ -146,7 +146,7 @@ async def get_library_endpoint(
     current_user = Depends(get_current_user_optional),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
-    """Restituisce la lista dei libri nella libreria con filtri opzionali e paginazione."""
+    """Restituisce la lista dei contenuti nella libreria con filtri opzionali e paginazione."""
     try:
         session_store = get_session_store()
         user_id = current_user.id if current_user else None
@@ -205,7 +205,7 @@ async def get_library_endpoint(
                 entry = session_to_library_entry(session)
                 
                 # Backfill solo per total_pages mancanti (il costo reale viene dalla sessione)
-                if entry.status == "complete" and entry.total_pages is None:
+                if entry.content_type == "book" and entry.status == "complete" and entry.total_pages is None:
                     try:
                         full_session = await get_session_async(session_store, session.session_id, user_id=user_id)
                         if full_session and full_session.book_chapters:
@@ -292,7 +292,7 @@ async def get_library_endpoint(
                         if not shared_session:
                             continue
                         
-                        if not shared_session.writing_progress or not shared_session.writing_progress.get('is_complete', False):
+                        if shared_session.get_status() != "complete":
                             continue
                         
                         # Applica filtri anche ai libri condivisi
@@ -326,15 +326,18 @@ async def get_library_endpoint(
                         from app.models import LibraryEntry
                         shared_entry = LibraryEntry(
                             session_id=shared_entry.session_id,
+                            content_type=shared_entry.content_type,
                             title=shared_entry.title,
                             author=shared_entry.author,
                             llm_model=shared_entry.llm_model,
                             genre=shared_entry.genre,
+                            manga_type=shared_entry.manga_type,
                             created_at=shared_entry.created_at,
                             updated_at=shared_entry.updated_at,
                             status=shared_entry.status,
                             total_chapters=shared_entry.total_chapters,
                             completed_chapters=shared_entry.completed_chapters,
+                            completed_pages=shared_entry.completed_pages,
                             total_pages=shared_entry.total_pages,
                             critique_score=shared_entry.critique_score,
                             critique_status=shared_entry.critique_status,
@@ -734,6 +737,12 @@ async def regenerate_cover_endpoint(
                 status_code=403,
                 detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
+
+        if getattr(session, "content_type", "book") != "book":
+            raise HTTPException(
+                status_code=400,
+                detail="La rigenerazione manuale della copertina e disponibile solo per i libri"
+            )
         
         status = session.get_status()
         if status != "complete":
@@ -803,6 +812,8 @@ async def get_missing_covers_endpoint():
         missing_covers = []
         
         for session_id, session in all_sessions.items():
+            if getattr(session, "content_type", "book") != "book":
+                continue
             status = session.get_status()
             if status == "complete":
                 has_cover = False
@@ -844,6 +855,8 @@ async def preview_obsolete_books_endpoint():
         for session_id, session in all_sessions.items():
             try:
                 entry = session_to_library_entry(session)
+                if entry.content_type != "book":
+                    continue
                 is_obsolete = (
                     entry.critique_score is None
                     or 
@@ -893,6 +906,8 @@ async def cleanup_obsolete_books_endpoint():
         for session_id, session in all_sessions.items():
             try:
                 entry = session_to_library_entry(session)
+                if entry.content_type != "book":
+                    continue
                 is_obsolete = (
                     entry.critique_score is None
                     or 

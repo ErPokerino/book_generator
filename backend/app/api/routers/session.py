@@ -1,9 +1,10 @@
 """Router per gli endpoint delle sessioni."""
 import math
+import os
 from typing import Literal
 from fastapi import APIRouter, HTTPException, Depends
 
-from app.models import SessionRestoreResponse, DraftResponse, BookProgress, Chapter, Question, LiteraryCritique
+from app.models import SessionRestoreResponse, DraftResponse, BookProgress, Chapter, Question, LiteraryCritique, MangaCreateRequest
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
 from app.middleware.auth import get_current_user_optional
@@ -12,6 +13,11 @@ from app.services.stats_service import (
     calculate_generation_cost,
 )
 from app.core.config import get_app_config
+from app.services.manga_generation_service import (
+    build_manga_progress_response,
+    build_manga_reader_response,
+    localize_manga_metadata_in_italian_if_needed,
+)
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 
@@ -40,9 +46,11 @@ async def restore_session_endpoint(
             )
         
         # Determina lo step corrente
-        current_step: Literal["questions", "draft", "summary", "writing"]
-        
-        if session.writing_progress:
+        current_step: Literal["questions", "draft", "summary", "writing", "manga"]
+
+        if getattr(session, "content_type", "book") == "manga":
+            current_step = "manga"
+        elif session.writing_progress:
             current_step = "writing"
         elif session.current_outline:
             current_step = "summary"
@@ -69,7 +77,7 @@ async def restore_session_endpoint(
         
         # Prepara writing_progress (se disponibile)
         writing_progress = None
-        if session.writing_progress:
+        if session.writing_progress and getattr(session, "content_type", "book") == "book":
             progress = session.writing_progress
             chapters = session.book_chapters or []
             
@@ -166,15 +174,35 @@ async def restore_session_endpoint(
             )
         
         outline_text = session.current_outline if session.current_outline else None
+        manga_form_data = None
+        manga_progress = None
+        manga = None
+        if getattr(session, "content_type", "book") == "manga":
+            if getattr(session, "manga_plan", None):
+                await localize_manga_metadata_in_italian_if_needed(
+                    session_id=session_id,
+                    api_key=os.getenv("GOOGLE_API_KEY") or None,
+                )
+                session = await get_session_async(session_store, session_id, user_id=user_id)
+            if session.manga_form_data:
+                manga_form_data = MangaCreateRequest(**session.manga_form_data)
+            if session.manga_progress or session.manga_pages:
+                manga_progress = build_manga_progress_response(session)
+            if session.manga_plan or session.manga_pages:
+                manga = build_manga_reader_response(session)
         
         return SessionRestoreResponse(
             session_id=session_id,
             form_data=session.form_data,
+            content_type=getattr(session, "content_type", "book"),
             questions=questions,
             question_answers=session.question_answers or [],
             draft=draft,
             outline=outline_text,
             writing_progress=writing_progress,
+            manga_form_data=manga_form_data,
+            manga_progress=manga_progress,
+            manga=manga,
             current_step=current_step,
         )
     

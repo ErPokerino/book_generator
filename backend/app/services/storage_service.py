@@ -154,6 +154,7 @@ class StorageService:
         
         local_dir.mkdir(parents=True, exist_ok=True)
         local_path = local_dir / relative_path
+        local_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(local_path, 'wb') as f:
             f.write(data)
@@ -240,9 +241,11 @@ class StorageService:
         for path in paths_to_try:
             try:
                 blob = self.bucket.blob(path)
-                if blob.exists():
-                    print(f"[STORAGE] File trovato su GCS: {path} (path originale: {blob_path})")
-                    return blob.download_as_bytes()
+                data = blob.download_as_bytes()
+                print(f"[STORAGE] File trovato su GCS: {path} (path originale: {blob_path})")
+                return data
+            except NotFound as e:
+                last_error = e
             except Exception as e:
                 last_error = e
                 continue

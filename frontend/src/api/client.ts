@@ -658,12 +658,16 @@ export async function generateOutline(request: OutlineGenerateRequest): Promise<
 export interface SessionRestoreResponse {
   session_id: string;
   form_data: SubmissionRequest;
+  content_type: 'book' | 'manga';
   questions: Question[] | null;
   question_answers: QuestionAnswer[];
   draft: DraftResponse | null;
   outline: string | null;
   writing_progress: BookProgress | null;
-  current_step: 'questions' | 'draft' | 'summary' | 'writing';
+  manga_form_data?: MangaCreateRequest | null;
+  manga_progress?: MangaProgress | null;
+  manga?: MangaReaderResponse | null;
+  current_step: 'questions' | 'draft' | 'summary' | 'writing' | 'manga';
 }
 
 export async function restoreSession(sessionId: string): Promise<SessionRestoreResponse> {
@@ -877,6 +881,97 @@ export interface BookResponse {
   critique_error?: string;
 }
 
+export type MangaType = 'shonen' | 'shojo' | 'seinen' | 'josei' | 'kodomo';
+
+export interface MangaCharacterInput {
+  name: string;
+  description: string;
+}
+
+export interface MangaCreateRequest {
+  title?: string;
+  plot: string;
+  manga_type: MangaType;
+  main_characters: MangaCharacterInput[];
+  page_color_mode: 'black_and_white' | 'color';
+  page_count?: number | null;
+  min_pages?: number;
+  max_pages?: number;
+}
+
+export interface MangaCharacterProfile {
+  name: string;
+  role?: string;
+  appearance: string;
+  personality: string;
+  notes: string;
+}
+
+export interface MangaPageArtifact {
+  page_number: number;
+  title: string;
+  summary: string;
+  dialogue: string[];
+  image_path?: string | null;
+  image_url?: string | null;
+  prompt_excerpt?: string | null;
+  status: 'pending' | 'completed' | 'failed';
+}
+
+export interface MangaProgress {
+  session_id: string;
+  status?: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  job_id?: string;
+  job_type?: string;
+  recoverable?: boolean;
+  attempt?: number;
+  updated_at?: string;
+  queued_at?: string;
+  started_at?: string;
+  completed_at?: string;
+  job_metrics?: Record<string, unknown>;
+  requested_min_pages?: number | null;
+  requested_max_pages?: number | null;
+  planned_total_pages?: number | null;
+  current_step: number;
+  total_steps: number;
+  current_phase?: 'planning' | 'generating_cover' | 'generating_pages' | 'generating_back_cover' | 'completed';
+  current_page_number?: number;
+  current_page_title?: string;
+  completed_pages: MangaPageArtifact[];
+  is_complete: boolean;
+  is_paused?: boolean;
+  error?: string;
+  estimated_cost?: number;
+  cost_breakdown?: Record<string, unknown>;
+}
+
+export interface MangaGenerationResponse {
+  success: boolean;
+  session_id: string;
+  message: string;
+  job_id?: string;
+  job_type?: string;
+  already_running?: boolean;
+}
+
+export interface MangaReaderResponse {
+  session_id: string;
+  title: string;
+  manga_type: MangaType;
+  page_color_mode: 'black_and_white' | 'color';
+  requested_min_pages?: number | null;
+  requested_max_pages?: number | null;
+  planned_total_pages?: number | null;
+  synopsis: string;
+  characters: MangaCharacterProfile[];
+  cover_image_url?: string | null;
+  back_cover_image_url?: string | null;
+  pages: MangaPageArtifact[];
+  is_complete: boolean;
+  total_pages: number;
+}
+
 export async function regenerateBookCritique(sessionId: string): Promise<LiteraryCritique> {
   const response = await fetch(`${API_BASE}/book/critique/${sessionId}`, { method: 'POST' });
   if (!response.ok) {
@@ -901,6 +996,106 @@ export async function getCompleteBook(sessionId: string): Promise<BookResponse> 
   }
   
   return response.json();
+}
+
+export async function startMangaGeneration(request: MangaCreateRequest): Promise<MangaGenerationResponse> {
+  const response = await fetch(`${API_BASE}/manga/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    if (response.status === 402 && error.detail && typeof error.detail === 'object') {
+      const creditsError = error.detail;
+      const errorMessage = new Error(creditsError.message || `Hai esaurito i crediti per la modalita ${creditsError.mode || 'selezionata'}`);
+      (errorMessage as any).error_type = 'credits_exhausted';
+      (errorMessage as any).mode = creditsError.mode;
+      (errorMessage as any).next_reset_at = creditsError.next_reset_at;
+      throw errorMessage;
+    }
+    throw new Error(error.detail || `Errore nell'avvio della generazione manga: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function resumeMangaGeneration(sessionId: string): Promise<MangaGenerationResponse> {
+  const response = await fetch(`${API_BASE}/manga/resume/${sessionId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nella ripresa della generazione manga: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function getMangaProgress(sessionId: string): Promise<MangaProgress> {
+  try {
+    const response = await fetch(`${API_BASE}/manga/progress/${sessionId}`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || `Errore nel recupero del progresso manga: ${response.statusText}`);
+    }
+    return response.json();
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error('Connessione al backend non disponibile (riavvio in corso?). Riprovo tra poco.');
+    }
+    throw err;
+  }
+}
+
+export async function getManga(sessionId: string): Promise<MangaReaderResponse> {
+  const response = await fetch(`${API_BASE}/manga/${sessionId}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || `Errore nel recupero del manga: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export function getMangaPageImageUrl(sessionId: string, pageNumber: number): string {
+  return `${API_BASE}/manga/${sessionId}/pages/${pageNumber}/image`;
+}
+
+export async function downloadMangaPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`${API_BASE}/manga/pdf/${sessionId}`, {
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Errore nel download del PDF del manga: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorMessage = error.detail || errorMessage;
+    } catch {
+      // Ignora errori di parsing JSON
+    }
+    throw new Error(errorMessage);
+  }
+
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = `Manga_${sessionId.substring(0, 8)}.pdf`;
+
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1].replace(/['"]/g, '');
+    }
+  }
+
+  const blob = await response.blob();
+  return { blob, filename };
 }
 
 export async function getBookCritique(sessionId: string): Promise<LiteraryCritique | null> {
@@ -1089,6 +1284,11 @@ export interface AppConfig {
       ultra?: number;
     };
   };
+  manga_generation?: {
+    page_count?: number;
+    min_page_count?: number;
+    max_page_count?: number;
+  };
 }
 
 export async function getAppConfig(): Promise<AppConfig> {
@@ -1114,6 +1314,11 @@ export async function getAppConfig(): Promise<AppConfig> {
           ultra: 1,
         },
       },
+      manga_generation: {
+        page_count: 10,
+        min_page_count: 10,
+        max_page_count: 100,
+      },
     };
   }
   
@@ -1124,21 +1329,25 @@ export async function getAppConfig(): Promise<AppConfig> {
 // Library interfaces and API functions
 export interface LibraryEntry {
   session_id: string;
+  content_type: 'book' | 'manga';
   title: string;
   author: string;
   llm_model: string;  // Ora contiene la modalità (Flash, Pro, Ultra) invece del nome del modello
   genre?: string;
+  manga_type?: MangaType;
   created_at: string;
   updated_at: string;
   status: 'draft' | 'outline' | 'writing' | 'paused' | 'complete';
   total_chapters: number;
   completed_chapters: number;
+  completed_pages?: number;
   total_pages?: number;
   critique_score?: number;
   critique_status?: string;
   pdf_path?: string;
   pdf_filename?: string;
   cover_image_path?: string;
+  cover_url?: string;
   writing_time_minutes?: number;
   estimated_cost?: number;
   is_shared?: boolean;  // True se è un libro condiviso (per destinatario)

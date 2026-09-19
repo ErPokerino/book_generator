@@ -12,10 +12,10 @@ const API_BASE = '/api';
 interface BookCardProps {
   book: LibraryEntry;
   onDelete: (sessionId: string) => void;
-  onContinue?: (sessionId: string) => void;
-  onResume?: (sessionId: string) => void;
-  onRead?: (sessionId: string) => void;
-  onShowCritique?: (sessionId: string) => void;
+  onContinue?: (book: LibraryEntry) => void;
+  onResume?: (book: LibraryEntry) => void;
+  onRead?: (book: LibraryEntry) => void;
+  onShowCritique?: (book: LibraryEntry) => void;
   onShare?: (sessionId: string, title: string) => void; // Callback per aprire modal condivisione
 }
 
@@ -28,8 +28,21 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const toggleRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isManga = book.content_type === 'manga';
+
+  const formatMangaType = (type?: string) => {
+    const labels: Record<string, string> = {
+      shonen: 'Shonen',
+      shojo: 'Shojo',
+      seinen: 'Seinen',
+      josei: 'Josei',
+      kodomo: 'Kodomo',
+    };
+    return type ? labels[type] ?? type : null;
+  };
 
   const handleRegenerateCover = async () => {
+    if (isManga) return;
     setShowRegenerateConfirm(true);
   };
 
@@ -56,7 +69,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     setShowDeleteConfirm(false);
     try {
       await deleteBook(book.session_id);
-      toast.success('Libro eliminato con successo');
+      toast.success(isManga ? 'Manga eliminato con successo' : 'Libro eliminato con successo');
       onDelete(book.session_id);
     } catch (error) {
       toast.error(`Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
@@ -168,9 +181,11 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
     action();
   };
 
-  const coverImageUrl = book.cover_image_path 
-    ? `${API_BASE}/library/cover/${book.session_id}`
-    : null;
+  const coverImageUrl = book.cover_url || (
+    book.cover_image_path
+      ? `${API_BASE}/library/cover/${book.session_id}`
+      : null
+  );
 
   return (
     <div className="book-card">
@@ -178,13 +193,18 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         {coverImageUrl ? (
           <img src={coverImageUrl} alt={book.title} />
         ) : (
-          <div className="book-card-placeholder">📖</div>
+          <div className="book-card-placeholder">{isManga ? '🎴' : '📖'}</div>
         )}
       </div>
       
       <div className="book-card-content">
         <div className="book-card-header">
-          <h3 className="book-title">{stripMarkdownFormatting(book.title)}</h3>
+          <div className="book-title-block">
+            <h3 className="book-title">{stripMarkdownFormatting(book.title)}</h3>
+            <span className={`book-content-type ${isManga ? 'manga' : 'book'}`}>
+              {isManga ? 'Manga' : 'Libro'}
+            </span>
+          </div>
           <div className="book-card-header-actions">
             <span className={getStatusClass(book.status)}>
               {getStatusLabel(book.status)}
@@ -205,11 +225,15 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
           {/* Info essenziali - sempre visibili */}
           <div className="book-card-info-essential">
             <p className="book-model">Modalità: {book.llm_model}</p>
-            {book.genre && <p className="book-genre">Genere: {book.genre}</p>}
+            {isManga ? (
+              book.manga_type && <p className="book-genre">Tipo: {formatMangaType(book.manga_type)}</p>
+            ) : (
+              book.genre && <p className="book-genre">Genere: {book.genre}</p>
+            )}
             {book.total_pages && (
               <p className="book-pages">Pagine: {book.total_pages}</p>
             )}
-            {book.critique_score != null && (
+            {!isManga && book.critique_score != null && (
               <p className="book-score">
                 Voto: <span 
                   className="score-value" 
@@ -223,15 +247,20 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
           
           {/* Info dettagliate - visibili solo quando espanso */}
           <div className={`book-card-info-details ${isExpanded ? 'expanded' : ''}`}>
-            <p className="book-author">Autore: {book.author || 'N/A'}</p>
-            {book.completed_chapters > 0 && (
+            {!isManga && <p className="book-author">Autore: {book.author || 'N/A'}</p>}
+            {!isManga && book.completed_chapters > 0 && (
               <p className="book-chapters">
                 Capitoli: {book.completed_chapters}/{book.total_chapters}
               </p>
             )}
+            {isManga && book.total_pages && (
+              <p className="book-chapters">
+                Pagine generate: {book.completed_pages ?? 0}/{book.total_pages}
+              </p>
+            )}
             {book.writing_time_minutes && (
               <p className="book-time">
-                Tempo scrittura: {Math.round(book.writing_time_minutes)} min
+                Tempo generazione: {Math.round(book.writing_time_minutes)} min
               </p>
             )}
             {book.total_pages && book.total_pages > 0 && (
@@ -256,13 +285,13 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         </div>
 
         <div className="book-card-actions">
-          {book.status === 'complete' && book.critique_score != null && onShowCritique && (
-            <button className="action-btn critique-btn" onClick={() => onShowCritique(book.session_id)}>
+          {!isManga && book.status === 'complete' && book.critique_score != null && onShowCritique && (
+            <button className="action-btn critique-btn" onClick={() => onShowCritique(book)}>
               📝 Critica
             </button>
           )}
           {/* Su mobile, nascondi Esporta e Rigenera Copertina - vanno nel menu */}
-          {book.status === 'complete' && (
+          {!isManga && book.status === 'complete' && (
             <button 
               className="action-btn regenerate-cover-btn regenerate-cover-btn-desktop" 
               onClick={handleRegenerateCover}
@@ -272,22 +301,22 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             </button>
           )}
           {book.status === 'complete' && onRead && (
-            <button className="action-btn read-btn" onClick={() => onRead(book.session_id)}>
+            <button className="action-btn read-btn" onClick={() => onRead(book)}>
               📖 Leggi
             </button>
           )}
           {book.status === 'complete' && (
             <div className="export-dropdown-desktop">
-              <ExportDropdown sessionId={book.session_id} />
+              <ExportDropdown sessionId={book.session_id} contentType={book.content_type} />
             </div>
           )}
           {(book.status === 'writing' || book.status === 'paused') && onContinue && (
-            <button className="action-btn continue-btn" onClick={() => onContinue(book.session_id)}>
+            <button className="action-btn continue-btn" onClick={() => onContinue(book)}>
               ▶️ Continua
             </button>
           )}
           {(book.status === 'draft' || book.status === 'outline') && onResume && (
-            <button className="action-btn resume-btn" onClick={() => onResume(book.session_id)}>
+            <button className="action-btn resume-btn" onClick={() => onResume(book)}>
               ▶️ Riprendi
             </button>
           )}
@@ -358,7 +387,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
                   📤 Condividi
                 </button>
               )}
-              {book.status === 'complete' && (
+              {!isManga && book.status === 'complete' && (
                 <button
                   className="book-card-menu-item book-card-menu-item-regenerate"
                   onClick={() => handleMenuAction(handleRegenerateCover)}
@@ -369,7 +398,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               )}
               {book.status === 'complete' && (
                 <div className="book-card-menu-export">
-                  <ExportDropdown sessionId={book.session_id} />
+                  <ExportDropdown sessionId={book.session_id} contentType={book.content_type} />
                 </div>
               )}
             </div>

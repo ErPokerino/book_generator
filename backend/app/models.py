@@ -1,6 +1,6 @@
 from typing import Literal, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, model_validator
 
 
 class FieldOption(BaseModel):
@@ -244,16 +244,165 @@ class BookGenerationRequest(BaseModel):
     session_id: str
 
 
+class MangaCharacterInput(BaseModel):
+    """Personaggio principale descritto dall'utente per il manga beta."""
+    name: str = Field(..., min_length=1, description="Nome del personaggio")
+    description: str = Field(..., min_length=1, description="Descrizione sintetica del personaggio")
+
+
+class MangaCreateRequest(BaseModel):
+    """Richiesta per avviare la generazione del manga beta."""
+    title: Optional[str] = Field(None, min_length=1, description="Titolo opzionale del manga")
+    plot: str = Field(..., min_length=1, description="Trama di partenza del mini manga")
+    manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"]
+    main_characters: list[MangaCharacterInput] = Field(
+        default_factory=list,
+        description="Personaggi principali descritti dall'utente",
+    )
+    page_color_mode: Literal["black_and_white", "color"] = Field(
+        "black_and_white",
+        description="Modalita cromatica delle pagine interne del manga",
+    )
+    page_count: Optional[int] = Field(
+        None,
+        ge=10,
+        le=100,
+        description="Numero esatto di pagine desiderato",
+    )
+    min_pages: int = Field(10, ge=10, le=100, description="Numero minimo di pagine desiderato")
+    max_pages: int = Field(10, ge=10, le=100, description="Numero massimo di pagine desiderato")
+
+    @model_validator(mode="after")
+    def validate_page_range(self) -> "MangaCreateRequest":
+        if self.page_count is not None:
+            self.min_pages = self.page_count
+            self.max_pages = self.page_count
+            return self
+
+        if self.min_pages > self.max_pages:
+            raise ValueError("min_pages non puo essere maggiore di max_pages")
+
+        if self.min_pages == self.max_pages:
+            self.page_count = self.min_pages
+        return self
+
+
+class MangaCharacterProfile(BaseModel):
+    """Scheda personaggio generata nella fase di planning del manga."""
+    name: str
+    role: Optional[str] = None
+    appearance: str
+    personality: str
+    notes: str
+
+
+class MangaPagePlan(BaseModel):
+    """Piano testuale di una singola pagina manga."""
+    page_number: int = Field(ge=1, description="Numero pagina 1-indexed")
+    title: str
+    narrative_goal: str
+    scene_description: str
+    dialogue: list[str] = Field(default_factory=list)
+    visual_notes: list[str] = Field(default_factory=list)
+    continuity_notes: list[str] = Field(default_factory=list)
+    summary: str
+
+
+class MangaPlan(BaseModel):
+    """Storyboard completo del mini manga generato dal modello testuale."""
+    title: str
+    synopsis: str
+    tone: str
+    style_guide: list[str] = Field(default_factory=list)
+    character_profiles: list[MangaCharacterProfile] = Field(default_factory=list)
+    page_plans: list[MangaPagePlan] = Field(default_factory=list)
+
+
+class MangaPageArtifact(BaseModel):
+    """Pagina manga generata e persistita."""
+    page_number: int = Field(ge=1)
+    title: str
+    summary: str
+    dialogue: list[str] = Field(default_factory=list)
+    image_path: Optional[str] = None
+    image_url: Optional[str] = None
+    prompt_excerpt: Optional[str] = None
+    status: Literal["pending", "completed", "failed"] = "completed"
+
+
+class MangaProgress(BaseModel):
+    """Stato di avanzamento della generazione del manga beta."""
+    session_id: str
+    status: Optional[Literal["pending", "running", "paused", "completed", "failed", "cancelled"]] = None
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    recoverable: bool = False
+    attempt: Optional[int] = None
+    updated_at: Optional[datetime] = None
+    queued_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    job_metrics: Optional[Dict[str, Any]] = None
+    requested_min_pages: Optional[int] = None
+    requested_max_pages: Optional[int] = None
+    planned_total_pages: Optional[int] = None
+    current_step: int = 0  # numero di pagine completate
+    total_steps: int = 0
+    current_phase: Optional[
+        Literal["planning", "generating_cover", "generating_pages", "generating_back_cover", "completed"]
+    ] = None
+    current_page_number: Optional[int] = None
+    current_page_title: Optional[str] = None
+    completed_pages: list[MangaPageArtifact] = Field(default_factory=list)
+    is_complete: bool = False
+    is_paused: bool = False
+    error: Optional[str] = None
+    estimated_cost: Optional[float] = None
+    cost_breakdown: Optional[Dict[str, Any]] = None
+
+
+class MangaGenerationResponse(BaseModel):
+    """Risposta all'avvio o alla ripresa della generazione manga."""
+    success: bool
+    session_id: str
+    message: str
+    job_id: Optional[str] = None
+    job_type: Optional[str] = None
+    already_running: bool = False
+
+
+class MangaReaderResponse(BaseModel):
+    """Payload completo del reader manga beta."""
+    session_id: str
+    title: str
+    manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"]
+    page_color_mode: Literal["black_and_white", "color"] = "black_and_white"
+    requested_min_pages: Optional[int] = None
+    requested_max_pages: Optional[int] = None
+    planned_total_pages: Optional[int] = None
+    synopsis: str
+    characters: list[MangaCharacterProfile] = Field(default_factory=list)
+    cover_image_url: Optional[str] = None
+    back_cover_image_url: Optional[str] = None
+    pages: list[MangaPageArtifact] = Field(default_factory=list)
+    is_complete: bool = False
+    total_pages: int = 0
+
+
 class SessionRestoreResponse(BaseModel):
     """Risposta per ripristinare lo stato di una sessione."""
     session_id: str
     form_data: SubmissionRequest
+    content_type: Literal["book", "manga"] = "book"
     questions: Optional[list[Question]] = None
     question_answers: list[QuestionAnswer] = Field(default_factory=list)
     draft: Optional[DraftResponse] = None
     outline: Optional[str] = None
     writing_progress: Optional["BookProgress"] = None
-    current_step: Literal["questions", "draft", "summary", "writing"]
+    manga_form_data: Optional["MangaCreateRequest"] = None
+    manga_progress: Optional["MangaProgress"] = None
+    manga: Optional["MangaReaderResponse"] = None
+    current_step: Literal["questions", "draft", "summary", "writing", "manga"]
 
 
 class BookGenerationResponse(BaseModel):
@@ -312,15 +461,18 @@ class BookResponse(BaseModel):
 class LibraryEntry(BaseModel):
     """Entry singola nella libreria."""
     session_id: str
+    content_type: Literal["book", "manga"] = "book"
     title: str
     author: str
     llm_model: str
     genre: Optional[str] = None
+    manga_type: Optional[Literal["shonen", "shojo", "seinen", "josei", "kodomo"]] = None
     created_at: datetime
     updated_at: datetime
     status: Literal["draft", "outline", "writing", "paused", "complete"]
     total_chapters: int
     completed_chapters: int
+    completed_pages: Optional[int] = None
     total_pages: Optional[int] = None
     critique_score: Optional[float] = None
     critique_status: Optional[str] = None

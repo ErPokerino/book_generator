@@ -92,6 +92,35 @@
   line-height: 1.3;
 }
 
+.book-title-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.book-content-type {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.book-content-type.book {
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+}
+
+.book-content-type.manga {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
 /* Status Badges */
 .status-badge {
   padding: 0.3rem 0.85rem;

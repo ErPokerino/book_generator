@@ -142,6 +142,13 @@ export default function DynamicForm() {
         if (restoreData.outline) {
           setOutline(restoreData.outline);
         }
+
+        if (restoreData.content_type === 'manga' || restoreData.current_step === 'manga') {
+          console.warn('[DynamicForm] Sessione manga trovata nel restore del flusso libro, la ignoro');
+          localStorage.removeItem(SESSION_STORAGE_KEY);
+          setRestoreStatus('failed');
+          return;
+        }
         
         // Se siamo in summary, imposta submitted PRIMA di cambiare step
         // Questo previene la rigenerazione dell'outline

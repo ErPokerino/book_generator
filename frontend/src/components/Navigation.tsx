@@ -65,6 +65,12 @@ export default function Navigation() {
             Nuovo Libro
           </NavLink>
           <NavLink
+            to="/manga"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            Manga
+          </NavLink>
+          <NavLink
             to="/benchmark"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
           >

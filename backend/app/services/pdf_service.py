@@ -1,20 +1,31 @@
 """Servizio per la generazione e gestione di file PDF."""
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
 import base64
 import markdown
-from typing import Optional
+import tempfile
+from time import perf_counter
+from typing import Any, Iterator, Optional
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_CENTER
+from reportlab.pdfgen import canvas
 from xhtml2pdf import pisa
 from app.agent.session_store import SessionData
 from app.core.config import get_app_config
 from app.services.storage_service import get_storage_service
+
+PIL_RESAMPLING = getattr(getattr(PILImage, "Resampling", PILImage), "LANCZOS", PILImage.LANCZOS)
+MANGA_PDF_DOWNLOAD_WORKERS = 4
+MANGA_PDF_TARGET_DPI = 150
+MANGA_PDF_MAX_WIDTH_PX = int((A4[0] / 72.0) * MANGA_PDF_TARGET_DPI)
+MANGA_PDF_MAX_HEIGHT_PX = int((A4[1] / 72.0) * MANGA_PDF_TARGET_DPI)
 
 
 def get_model_abbreviation(model_name: str) -> str:
@@ -402,4 +413,191 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
         # Non blocchiamo il download HTTP se il salvataggio fallisce
         gcs_path = None
     
+    return pdf_content, filename
+
+
+def _sanitize_manga_pdf_filename(session: SessionData, title: str) -> str:
+    date_prefix = session.created_at.strftime("%Y-%m-%d")
+    title_sanitized = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).rstrip()
+    title_sanitized = title_sanitized.replace(" ", "_")
+    if not title_sanitized:
+        title_sanitized = f"Manga_{session.session_id[:8]}"
+    return f"{date_prefix}_manga_{title_sanitized}_{session.session_id[:8]}.pdf"
+
+
+def _draw_image_on_a4(pdf_canvas: canvas.Canvas, image_bytes: bytes) -> None:
+    with PILImage.open(BytesIO(image_bytes)) as original_image:
+        original_image.load()
+        working_image = original_image
+
+        if original_image.mode in ("RGBA", "LA") or (
+            original_image.mode == "P" and "transparency" in original_image.info
+        ):
+            rgba_image = original_image.convert("RGBA")
+            background = PILImage.new("RGB", rgba_image.size, "white")
+            background.paste(rgba_image, mask=rgba_image.getchannel("A"))
+            working_image = background
+        elif original_image.mode not in ("RGB", "L"):
+            working_image = original_image.convert("RGB")
+        elif (
+            original_image.width > MANGA_PDF_MAX_WIDTH_PX
+            or original_image.height > MANGA_PDF_MAX_HEIGHT_PX
+        ):
+            working_image = original_image.copy()
+
+        if (
+            working_image.width > MANGA_PDF_MAX_WIDTH_PX
+            or working_image.height > MANGA_PDF_MAX_HEIGHT_PX
+        ):
+            working_image.thumbnail(
+                (MANGA_PDF_MAX_WIDTH_PX, MANGA_PDF_MAX_HEIGHT_PX),
+                PIL_RESAMPLING,
+            )
+
+        page_width, page_height = A4
+        image_width, image_height = working_image.size
+        scale = min(page_width / image_width, page_height / image_height)
+        draw_width = image_width * scale
+        draw_height = image_height * scale
+        x = (page_width - draw_width) / 2
+        y = (page_height - draw_height) / 2
+
+        pdf_canvas.setFillColorRGB(1, 1, 1)
+        pdf_canvas.rect(0, 0, page_width, page_height, fill=1, stroke=0)
+        pdf_canvas.drawImage(
+            ImageReader(working_image),
+            x,
+            y,
+            width=draw_width,
+            height=draw_height,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+
+
+def _get_manga_pdf_download_specs(session: SessionData) -> list[tuple[str, bool]]:
+    download_specs: list[tuple[str, bool]] = []
+
+    if session.cover_image_path:
+        download_specs.append((session.cover_image_path, False))
+
+    sorted_pages = sorted(session.manga_pages or [], key=lambda page: int(page.get("page_number", 0)))
+    for page in sorted_pages:
+        image_path = page.get("image_path")
+        if image_path:
+            download_specs.append((image_path, True))
+
+    if getattr(session, "back_cover_image_path", None):
+        download_specs.append((session.back_cover_image_path, False))
+
+    if not download_specs:
+        raise Exception("Nessuna immagine disponibile per generare il PDF del manga")
+    return download_specs
+
+
+def _iter_manga_pdf_images(session: SessionData) -> Iterator[bytes]:
+    storage_service = get_storage_service()
+    download_specs = _get_manga_pdf_download_specs(session)
+    max_workers = min(MANGA_PDF_DOWNLOAD_WORKERS, max(1, len(download_specs)))
+    completed_results: dict[int, Optional[bytes]] = {}
+    next_submit_index = 0
+    next_yield_index = 0
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures: dict[Any, int] = {}
+
+        while next_submit_index < min(max_workers, len(download_specs)):
+            image_path, _required = download_specs[next_submit_index]
+            futures[executor.submit(storage_service.download_file, image_path)] = next_submit_index
+            next_submit_index += 1
+
+        while futures:
+            done_future = next(as_completed(list(futures)))
+            spec_index = futures.pop(done_future)
+            image_path, required = download_specs[spec_index]
+
+            try:
+                completed_results[spec_index] = done_future.result()
+            except Exception as exc:
+                if required:
+                    raise Exception(f"Impossibile caricare l'immagine manga {image_path}") from exc
+                print(f"[MANGA PDF] Errore nel caricamento immagine opzionale {image_path}: {exc}")
+                completed_results[spec_index] = None
+
+            if next_submit_index < len(download_specs):
+                next_image_path, _required = download_specs[next_submit_index]
+                futures[executor.submit(storage_service.download_file, next_image_path)] = next_submit_index
+                next_submit_index += 1
+
+            while next_yield_index in completed_results:
+                image_bytes = completed_results.pop(next_yield_index)
+                if image_bytes is not None:
+                    yield image_bytes
+                next_yield_index += 1
+
+
+def _download_manga_pdf_images(session: SessionData) -> list[bytes]:
+    ordered_images = list(_iter_manga_pdf_images(session))
+
+    if not ordered_images:
+        raise Exception("Nessuna immagine disponibile per generare il PDF del manga")
+    return ordered_images
+
+
+def cache_manga_pdf(session: SessionData, pdf_content: bytes, filename: str) -> Optional[str]:
+    storage_service = get_storage_service()
+    user_id = getattr(session, "user_id", None)
+    try:
+        cached_pdf_path = storage_service.upload_file(
+            data=pdf_content,
+            destination_path=f"books/{filename}",
+            content_type="application/pdf",
+            user_id=user_id,
+        )
+        session.pdf_path = cached_pdf_path
+        session.pdf_filename = filename
+        return cached_pdf_path
+    except Exception as exc:
+        print(f"[MANGA PDF] Errore nel salvataggio PDF: {exc}")
+        return None
+
+
+def generate_manga_pdf(session: SessionData) -> tuple[bytes, str]:
+    """
+    Genera un PDF del manga usando una pagina A4 per immagine.
+
+    Ordine: copertina (se presente) + pagine manga in ordine.
+    """
+    title = session.current_title or "Mini Manga"
+    filename = _sanitize_manga_pdf_filename(session, title)
+    download_started_at = perf_counter()
+    image_count = 0
+    with tempfile.TemporaryFile() as temp_pdf:
+        pdf_canvas = canvas.Canvas(temp_pdf, pagesize=A4)
+        pdf_canvas.setTitle(title)
+        render_started_at = perf_counter()
+
+        for image_bytes in _iter_manga_pdf_images(session):
+            if image_count == 0:
+                download_elapsed = perf_counter() - download_started_at
+            _draw_image_on_a4(pdf_canvas, image_bytes)
+            pdf_canvas.showPage()
+            image_count += 1
+
+        if image_count == 0:
+            raise Exception("Nessuna immagine disponibile per generare il PDF del manga")
+
+        pdf_canvas.save()
+        render_elapsed = perf_counter() - render_started_at
+        temp_pdf.seek(0)
+        pdf_content = temp_pdf.read()
+
+    if image_count == 0:
+        download_elapsed = perf_counter() - download_started_at
+    print(
+        f"[MANGA PDF] Generazione completata: {image_count} immagini, "
+        f"download={download_elapsed:.2f}s, render={render_elapsed:.2f}s, "
+        f"pdf_size={len(pdf_content)} bytes"
+    )
+
     return pdf_content, filename

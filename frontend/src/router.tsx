@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import RequireAuth from './components/routing/RequireAuth';
 import RequireAdmin from './components/routing/RequireAdmin';
@@ -10,6 +10,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useOnboarding } from './hooks/useOnboarding';
 
 const DynamicForm = lazy(() => import('./components/DynamicForm'));
+const MangaBetaView = lazy(() => import('./components/MangaBetaView'));
 const LibraryView = lazy(() => import('./components/LibraryView'));
 const BookReader = lazy(() => import('./components/BookReader'));
 const BenchmarkView = lazy(() => import('./components/BenchmarkView'));
@@ -47,6 +48,11 @@ function RouteFallback() {
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+}
+
+function LegacyMangaRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/manga${location.search}`} replace />;
 }
 
 /**
@@ -155,6 +161,26 @@ export const router = createBrowserRouter([
             <DynamicForm />
           </LazyPage>
         </ProtectedLayout>
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/manga',
+    element: (
+      <RequireAuth>
+        <ProtectedLayout>
+          <LazyPage>
+            <MangaBetaView />
+          </LazyPage>
+        </ProtectedLayout>
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/beta/manga',
+    element: (
+      <RequireAuth>
+        <LegacyMangaRedirect />
       </RequireAuth>
     ),
   },

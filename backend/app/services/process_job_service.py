@@ -13,19 +13,21 @@ from app.agent.session_store_helpers import (
 )
 from app.core.logging import get_logger
 
-ProcessJobType = Literal["questions", "draft", "outline", "book"]
+ProcessJobType = Literal["questions", "draft", "outline", "book", "manga"]
 
 _PROCESS_FIELD_MAP: dict[ProcessJobType, str] = {
     "questions": "questions_progress",
     "draft": "draft_progress",
     "outline": "outline_progress",
     "book": "writing_progress",
+    "manga": "manga_progress",
 }
 _TOKEN_PHASE_MAP: dict[ProcessJobType, str] = {
     "questions": "questions",
     "draft": "draft",
     "outline": "outline",
     "book": "total",
+    "manga": "total",
 }
 _ACTIVE_STATUSES = {"pending", "running"}
 logger = get_logger("process-jobs")
@@ -72,18 +74,46 @@ def _build_job_metrics(
         metrics["duration_seconds"] = round(duration_seconds, 2)
 
     token_usage = getattr(session, "token_usage", None) or {}
-    token_phase = _TOKEN_PHASE_MAP[job_type]
-    phase_tokens = token_usage.get(token_phase, {}) or {}
-    if phase_tokens:
-        token_metrics = {
-            "input_tokens": int(phase_tokens.get("input_tokens", 0) or 0),
-            "output_tokens": int(phase_tokens.get("output_tokens", 0) or 0),
-        }
-        if phase_tokens.get("model"):
-            token_metrics["model"] = phase_tokens["model"]
-        if "calls" in phase_tokens:
-            token_metrics["calls"] = int(phase_tokens.get("calls", 0) or 0)
-        metrics["token_usage"] = token_metrics
+    if job_type == "manga":
+        planning_tokens = token_usage.get("manga_planning", {}) or {}
+        image_tokens = token_usage.get("manga_images", {}) or {}
+        total_input = int(planning_tokens.get("input_tokens", 0) or 0) + int(image_tokens.get("input_tokens", 0) or 0)
+        total_output = int(planning_tokens.get("output_tokens", 0) or 0) + int(image_tokens.get("output_tokens", 0) or 0)
+        total_calls = int(planning_tokens.get("calls", 0) or 0) + int(image_tokens.get("calls", 0) or 0)
+        if total_input or total_output or total_calls:
+            metrics["token_usage"] = {
+                "input_tokens": total_input,
+                "output_tokens": total_output,
+                "calls": total_calls,
+                "model": image_tokens.get("model") or planning_tokens.get("model"),
+            }
+            metrics["token_breakdown"] = {
+                "planning": {
+                    "input_tokens": int(planning_tokens.get("input_tokens", 0) or 0),
+                    "output_tokens": int(planning_tokens.get("output_tokens", 0) or 0),
+                    "calls": int(planning_tokens.get("calls", 0) or 0),
+                    "model": planning_tokens.get("model"),
+                },
+                "images": {
+                    "input_tokens": int(image_tokens.get("input_tokens", 0) or 0),
+                    "output_tokens": int(image_tokens.get("output_tokens", 0) or 0),
+                    "calls": int(image_tokens.get("calls", 0) or 0),
+                    "model": image_tokens.get("model"),
+                },
+            }
+    else:
+        token_phase = _TOKEN_PHASE_MAP[job_type]
+        phase_tokens = token_usage.get(token_phase, {}) or {}
+        if phase_tokens:
+            token_metrics = {
+                "input_tokens": int(phase_tokens.get("input_tokens", 0) or 0),
+                "output_tokens": int(phase_tokens.get("output_tokens", 0) or 0),
+            }
+            if phase_tokens.get("model"):
+                token_metrics["model"] = phase_tokens["model"]
+            if "calls" in phase_tokens:
+                token_metrics["calls"] = int(phase_tokens.get("calls", 0) or 0)
+            metrics["token_usage"] = token_metrics
 
     if job_type == "book":
         writing_progress = session.writing_progress or {}
@@ -95,6 +125,14 @@ def _build_job_metrics(
             metrics["real_cost_eur"] = round(float(session.real_cost_eur), 6)
         if writing_time_minutes is not None:
             metrics["writing_time_minutes"] = round(float(writing_time_minutes), 2)
+    elif job_type == "manga":
+        manga_progress = session.manga_progress or {}
+        estimated_cost = progress.get("estimated_cost", manga_progress.get("estimated_cost"))
+        current_cost = progress.get("current_cost_eur", manga_progress.get("current_cost_eur"))
+        if estimated_cost is not None:
+            metrics["estimated_cost_eur"] = round(float(estimated_cost), 6)
+        if current_cost is not None:
+            metrics["current_cost_eur"] = round(float(current_cost), 6)
 
     return metrics
 
@@ -107,7 +145,7 @@ def derive_process_status(
     if not progress:
         return None
 
-    if job_type == "book":
+    if job_type in {"book", "manga"}:
         if progress.get("is_complete", False):
             return "completed"
         if progress.get("is_paused", False):
@@ -143,16 +181,19 @@ async def merge_process_progress_async(
     progress.setdefault("attempt", 1)
     progress["updated_at"] = _now_iso()
 
-    if job_type == "book":
-        session.writing_progress = (session.writing_progress or {}) | progress | {"session_id": session_id}
-        progress = session.writing_progress.copy()
+    if job_type in {"book", "manga"}:
+        process_field = _PROCESS_FIELD_MAP[job_type]
+        current_progress = getattr(session, process_field, None) or {}
+        updated_progress = current_progress | progress | {"session_id": session_id}
+        setattr(session, process_field, updated_progress)
+        progress = updated_progress.copy()
     else:
         setattr(session, _PROCESS_FIELD_MAP[job_type], progress)
 
     progress["job_metrics"] = _build_job_metrics(session, job_type, progress)
 
-    if job_type == "book":
-        session.writing_progress = progress.copy()
+    if job_type in {"book", "manga"}:
+        setattr(session, _PROCESS_FIELD_MAP[job_type], progress.copy())
     else:
         setattr(session, _PROCESS_FIELD_MAP[job_type], progress)
 
@@ -204,7 +245,7 @@ async def begin_process_job_async(
         "completed_at": None,
     }
 
-    if job_type == "book":
+    if job_type in {"book", "manga"}:
         updates["current_step"] = current_step
         updates["total_steps"] = total_steps
         updates["current_section_name"] = current_section_name
@@ -315,28 +356,56 @@ async def recover_interrupted_processes_async(session_store: SessionStore) -> in
 
         book_progress = _get_progress(session, "book")
         book_status = derive_process_status(book_progress, "book")
-        if book_status not in _ACTIVE_STATUSES:
+        if book_status in _ACTIVE_STATUSES:
+            message = "Generazione interrotta da un riavvio del server. Puoi riprendere dal punto raggiunto."
+            current_step = int(book_progress.get("current_step", 0) or 0)
+            total_steps = int(book_progress.get("total_steps", 0) or 0) or max(1, current_step or 1)
+
+            await update_writing_progress_async(
+                session_store,
+                session_id=session_id,
+                current_step=current_step,
+                total_steps=total_steps,
+                current_section_name=book_progress.get("current_section_name"),
+                is_complete=False,
+                is_paused=True,
+                error=message,
+            )
+            await mark_process_paused_async(
+                session_store,
+                session_id,
+                "book",
+                message,
+            )
+            recovered += 1
+
+        manga_progress = _get_progress(session, "manga")
+        manga_status = derive_process_status(manga_progress, "manga")
+        if manga_status not in _ACTIVE_STATUSES:
             continue
 
-        message = "Generazione interrotta da un riavvio del server. Puoi riprendere dal punto raggiunto."
-        current_step = int(book_progress.get("current_step", 0) or 0)
-        total_steps = int(book_progress.get("total_steps", 0) or 0) or max(1, current_step or 1)
+        manga_message = "Generazione manga interrotta da un riavvio del server. Puoi riprendere dal punto raggiunto."
+        current_step = int(manga_progress.get("current_step", 0) or 0)
+        total_steps = int(manga_progress.get("total_steps", 0) or 0) or max(1, current_step or 1)
 
-        await update_writing_progress_async(
+        await merge_process_progress_async(
             session_store,
-            session_id=session_id,
-            current_step=current_step,
-            total_steps=total_steps,
-            current_section_name=book_progress.get("current_section_name"),
-            is_complete=False,
-            is_paused=True,
-            error=message,
+            session_id,
+            "manga",
+            {
+                "current_step": current_step,
+                "total_steps": total_steps,
+                "current_section_name": manga_progress.get("current_section_name"),
+                "is_complete": False,
+                "is_paused": True,
+                "error": manga_message,
+            },
         )
         await mark_process_paused_async(
             session_store,
             session_id,
-            "book",
-            message,
+            "manga",
+            manga_message,
         )
         recovered += 1
 

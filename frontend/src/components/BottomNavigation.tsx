@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield, Wallet, Bell } from 'lucide-react';
+import { BookOpen, PlusCircle, BarChart3, UserPlus, Settings, LogOut, TrendingUp, Shield, Wallet, Bell, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import ConfirmModal from './ConfirmModal';
@@ -75,6 +75,11 @@ export default function BottomNavigation() {
   const handleNavigateToWallet = () => {
     setIsProfileMenuOpen(false);
     navigate('/wallet');
+  };
+
+  const handleNavigateToManga = () => {
+    setIsProfileMenuOpen(false);
+    navigate('/manga');
   };
 
   if (!user) {
@@ -164,6 +169,14 @@ export default function BottomNavigation() {
               >
                 <Wallet size={18} />
                 <span>Crediti</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNavigateToManga}
+                className="profile-menu-item"
+              >
+                <Sparkles size={18} />
+                <span>Manga</span>
               </button>
               {user.role === 'admin' && (
                 <button
