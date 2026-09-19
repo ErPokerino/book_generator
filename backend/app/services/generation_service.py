@@ -8,7 +8,7 @@ from app.agent.outline_generator import generate_outline
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     save_generated_questions_async,
-    update_draft_async,
+    persist_generated_draft_plan_async,
     update_outline_async,
     get_session_async,
     update_token_usage_async,
@@ -133,15 +133,23 @@ async def background_generate_draft(
         )
         
         # Genera la bozza
-        draft_text, title, version, token_usage, character_profiles = await generate_draft(
+        draft_text, title, version, token_usage, character_profiles, outline_text = await generate_draft(
             form_data=form_data,
             question_answers=question_answers,
             session_id=session_id,
             api_key=api_key,
         )
         
-        # Salva la bozza nella sessione
-        await update_draft_async(session_store, session_id, draft_text, version, title=title, character_profiles=character_profiles)
+        # Salva la bozza e l'indice prodotti nello stesso piano
+        await persist_generated_draft_plan_async(
+            session_store,
+            session_id,
+            draft_text,
+            version,
+            title=title,
+            character_profiles=character_profiles,
+            outline_text=outline_text,
+        )
         
         # Salva token usage per la fase draft
         await update_token_usage_async(
@@ -235,6 +243,7 @@ async def background_generate_outline(
                 session_id=session_id,
                 draft_title=session.current_title,
                 api_key=api_key,
+                existing_outline=session.current_outline,
             )
             
             # Salva l'outline nella sessione

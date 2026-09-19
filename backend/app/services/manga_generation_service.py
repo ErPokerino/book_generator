@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
-import re
 from datetime import datetime
 from io import BytesIO
 from typing import Any, Optional
@@ -13,20 +11,16 @@ from typing import Any, Optional
 from PIL import Image as PILImage
 from google import genai
 from google.genai import types
-from langchain_core.messages import HumanMessage, SystemMessage
 from app.agent.manga import generate_manga_plan
+from app.agent.manga.planner import MANGA_LANGUAGE_RULE, MANGA_NO_META_RULE
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async, save_session_async
 from app.core.config import get_app_config, get_exchange_rate_usd_to_eur, get_model_pricing
 from app.core.logging import get_logger
 from app.llm import (
     DEFAULT_RETRY_DELAY_SECONDS,
-    LLMTraceRecorder,
-    build_google_chat_model,
     build_google_genai_client,
-    get_max_output_tokens,
     get_stage_model,
-    invoke_structured_chat_model,
     is_retryable_llm_error,
     image_size_for_model,
 )
@@ -64,48 +58,6 @@ MANGA_PAGE_COLOR_MODE_LABELS = {
 }
 
 MANGA_BACK_COVER_PROMPT_VERSION = 2
-
-ENGLISH_MARKERS = {
-    "the",
-    "and",
-    "with",
-    "from",
-    "into",
-    "through",
-    "page",
-    "pages",
-    "future",
-    "discover",
-    "discovers",
-    "communication",
-    "realizes",
-    "realise",
-    "weight",
-    "truth",
-    "data",
-    "leak",
-    "setting",
-}
-
-ITALIAN_MARKERS = {
-    "il",
-    "lo",
-    "la",
-    "gli",
-    "le",
-    "con",
-    "nel",
-    "nella",
-    "una",
-    "uno",
-    "che",
-    "per",
-    "pagina",
-    "pagine",
-    "copertina",
-    "sinossi",
-    "personaggi",
-}
 
 
 def _now_iso() -> str:
@@ -285,15 +237,6 @@ def _image_generation_config(aspect_ratio: str, image_size: str) -> dict[str, An
     }
 
 
-def _build_manga_text_llm(*, model_name: str, api_key: Optional[str], temperature: float):
-    return build_google_chat_model(
-        model_name=model_name,
-        api_key=api_key,
-        temperature=temperature,
-        max_output_tokens=get_max_output_tokens(model_name),
-    )
-
-
 def _build_manga_image_client(api_key: Optional[str] = None) -> genai.Client:
     return build_google_genai_client(api_key=api_key)
 
@@ -379,65 +322,6 @@ def _build_back_cover_image_url(session) -> Optional[str]:
     if getattr(session, "back_cover_image_path", None):
         return f"/api/manga/{session.session_id}/back-cover/image"
     return None
-
-
-def _count_language_markers(text: str, markers: set[str]) -> int:
-    tokens = re.findall(r"[A-Za-zÀ-ÿ']+", (text or "").lower())
-    return sum(1 for token in tokens if token in markers)
-
-
-def _text_looks_english(text: str) -> bool:
-    if not text:
-        return False
-    english_hits = _count_language_markers(text, ENGLISH_MARKERS)
-    italian_hits = _count_language_markers(text, ITALIAN_MARKERS)
-    if english_hits == 0:
-        return False
-    return english_hits >= max(2, italian_hits + 1)
-
-
-def _session_needs_italian_backfill(session) -> bool:
-    plan = getattr(session, "manga_plan", None) or {}
-    pages = getattr(session, "manga_pages", None) or []
-    candidate_texts: list[str] = [
-        getattr(session, "current_title", None) or "",
-        str(plan.get("title", "") or ""),
-        str(plan.get("synopsis", "") or ""),
-        str(plan.get("tone", "") or ""),
-    ]
-
-    for character in plan.get("character_profiles", [])[:4]:
-        if not isinstance(character, dict):
-            continue
-        candidate_texts.extend(
-            [
-                str(character.get("role", "") or ""),
-                str(character.get("personality", "") or ""),
-                str(character.get("notes", "") or ""),
-            ]
-        )
-
-    for page in plan.get("page_plans", [])[:3]:
-        if not isinstance(page, dict):
-            continue
-        candidate_texts.extend(
-            [
-                str(page.get("title", "") or ""),
-                str(page.get("summary", "") or ""),
-                " ".join(page.get("dialogue", []) or []),
-            ]
-        )
-
-    for page in pages[:3]:
-        candidate_texts.extend(
-            [
-                str(page.get("title", "") or ""),
-                str(page.get("summary", "") or ""),
-                " ".join(page.get("dialogue", []) or []),
-            ]
-        )
-
-    return any(_text_looks_english(text) for text in candidate_texts)
 
 
 def _manga_cost_snapshot(session) -> dict[str, Any]:
@@ -663,8 +547,7 @@ def _build_page_prompt(
         f"Modalita cromatica interna: {_describe_page_color_mode(page_color_mode)}\n"
         f"Sinossi completa: {plan.synopsis}\n"
         f"Tono della serie: {plan.tone}\n\n"
-        "Regola linguistica assoluta: usa il materiale seguente solo come contesto, ma riscrivi sempre ogni testo finale in italiano, "
-        "anche se qualche campo sorgente e in inglese.\n\n"
+        f"{MANGA_LANGUAGE_RULE}\n\n"
         "Guida stilistica globale:\n"
         f"{style_guide or style_guide_fallback}\n\n"
         "Bible personaggi:\n"
@@ -685,17 +568,10 @@ def _build_page_prompt(
         "Vincoli rigidi:\n"
         "- Restituisci solo l'immagine della pagina manga, senza spiegazioni.\n"
         f"- {_build_page_color_instruction(page_color_mode)}\n"
-        "- Mantieni identici stile grafico, tratto, ombreggiature, design dei personaggi e proporzioni rispetto alla prima pagina e alle pagine recenti.\n"
-        "- Inserisci balloon e testo direttamente nell'illustrazione.\n"
-        "- Tutto il testo visibile deve essere in italiano.\n"
-        "- L'unico testo visibile consentito e testo diegetico: balloon, insegne coerenti con la scena e onomatopee naturali.\n"
-        "- Se usi onomatopee, disegnale direttamente come suono (es. VRRRROM, BANG), senza prefissi come SFX:, FX:, NOTE: o etichette simili.\n"
-        "- Se il contesto contiene frasi, titoli o riassunti in inglese, traducili implicitamente prima di disegnarli nella pagina.\n"
-        "- Mantieni il testo sintetico e leggibile.\n"
-        "- Mantieni coerenti volti, capelli, vestiti, oggetti e ambienti rispetto alle pagine precedenti.\n"
-        "- Non stampare titolo del manga, numero pagina, titolo della scena, intestazioni editoriali, footer, didascalie meta o commenti da storyboard.\n"
-        "- Non mostrare note di regia o produzione come 'close-up', 'camera', 'panel 1', 'shot', 'layout', 'note per il disegnatore' o testo tra parentesi/brackets che descrive cosa disegnare.\n"
-        "- Evita watermark, interfacce, didascalie extra o margini bianchi esterni alla pagina."
+        "- Stile, tratto, personaggi e proporzioni identici alla prima pagina e alle recenti.\n"
+        "- Balloon e testo diegetico nell'illustrazione; onomatopee come suono, senza prefissi.\n"
+        f"- {MANGA_NO_META_RULE}\n"
+        "- Testo sintetico e leggibile. Niente watermark, UI o margini bianchi esterni."
     )
 
 
@@ -716,7 +592,7 @@ def _build_cover_prompt(
         f"Tipo di manga: {MANGA_TYPE_LABELS.get(request.manga_type, request.manga_type)}\n"
         f"Sinossi: {plan.synopsis}\n"
         f"Tono: {plan.tone}\n\n"
-        "Regola linguistica assoluta: se i dettagli qui sotto contengono testo non italiano, traducilo e rendi la copertina finale interamente in italiano.\n\n"
+        f"{MANGA_LANGUAGE_RULE}\n\n"
         "Guida stilistica:\n"
         f"{style_guide or '- Copertina editoriale in stile manga, forte impatto visivo, composizione pulita.'}\n\n"
         "Personaggi principali da rappresentare, se coerente:\n"
@@ -726,10 +602,9 @@ def _build_cover_prompt(
         "- Copertina verticale singola, non una pagina a vignette.\n"
         "- La copertina deve essere sempre a colori, anche se le pagine interne sono in bianco e nero.\n"
         "- Inserisci il titolo in modo leggibile e professionale.\n"
-        "- Tutto il testo visibile deve essere in italiano.\n"
         "- Non inserire il nome dell'autore.\n"
         "- Look editoriale coerente con il manga e con i protagonisti.\n"
-        "- Non mostrare note di produzione, istruzioni, numeri pagina o testo meta.\n"
+        f"- {MANGA_NO_META_RULE}\n"
         "- Evita watermark, elementi UI, testo casuale o margini bianchi esterni."
     )
 
@@ -769,9 +644,8 @@ def _build_back_cover_prompt(
         "- Usa la copertina frontale solo come riferimento di stile: non copiarne posa, inquadratura, composizione o sfondo.\n"
         "- La retro-copertina deve mostrare un momento o un'atmosfera diversa dalla copertina frontale, legata al finale o al dopo-finale.\n"
         "- Se compaiono gli stessi personaggi, mostrali con espressione, distanza camera, assetto del corpo o ambientazione chiaramente differenti dalla copertina frontale.\n"
-        "- Non inserire titolo, autore, barcode, prezzo, numero pagina, testo promozionale o qualunque testo meta.\n"
-        "- Non mostrare note di produzione, istruzioni, etichette o commenti per il disegnatore.\n"
-        "- Mantieni coerenza assoluta di protagonisti, abiti, palette e stile generale con il manga appena generato.\n"
+        f"- {MANGA_NO_META_RULE} Niente titolo, barcode, prezzo o testo promozionale.\n"
+        "- Coerenza di protagonisti, abiti, palette e stile con il manga.\n"
         "- Evita watermark, elementi UI, testo casuale o margini bianchi esterni."
     )
 
@@ -1104,106 +978,6 @@ def is_manga_back_cover_outdated(session) -> bool:
         return False
     current_version = int(getattr(session, "back_cover_prompt_version", 0) or 0)
     return current_version < MANGA_BACK_COVER_PROMPT_VERSION
-
-
-async def localize_manga_metadata_in_italian_if_needed(
-    *,
-    session_id: str,
-    api_key: Optional[str] = None,
-) -> bool:
-    session_store = get_session_store()
-    session = await get_session_async(session_store, session_id)
-    if not session or getattr(session, "content_type", "book") != "manga":
-        return False
-    if not getattr(session, "manga_plan", None) or not _session_needs_italian_backfill(session):
-        return False
-
-    current_plan = MangaPlan(**session.manga_plan)
-    stage_model = get_stage_model(
-        "manga_localization",
-        overrides=_manga_overrides(session=session),
-        form_data=getattr(session, "form_data", None),
-    )
-    llm = _build_manga_text_llm(
-        model_name=stage_model,
-        api_key=api_key,
-        temperature=get_temperature_for_agent("manga_localization", stage_model),
-    )
-    trace = LLMTraceRecorder(
-        stage="manga-localization",
-        session_id=session_id,
-        request_id="italian-backfill",
-    )
-
-    system_prompt = (
-        "Sei un editor di localizzazione per mini manga. "
-        "Traduci tutto il piano in italiano naturale mantenendo esattamente storia, struttura, "
-        "personaggi, numerazione e numero di pagine. "
-        "Non aggiungere nuove scene. Non lasciare testo finale in inglese. "
-        "Restituisci solo dati compatibili con lo schema richiesto."
-    )
-    human_prompt = (
-        "Rendi interamente in italiano questo piano manga gia esistente. "
-        "Preserva il significato originale, mantieni i dialoghi brevi e adatti ai balloon, "
-        "e conserva gli stessi page_plans.\n\n"
-        f"Piano attuale JSON:\n{json.dumps(current_plan.model_dump(mode='json'), ensure_ascii=False)}"
-    )
-
-    try:
-        localized_plan, token_usage, _raw_output = await invoke_structured_chat_model(
-            llm=llm,
-            schema=MangaPlan,
-            messages=[
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=human_prompt),
-            ],
-            model_name=stage_model,
-            stage="manga-localization",
-            request_label="italian-backfill",
-            session_id=session_id,
-            trace_recorder=trace,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Backfill italiano manga fallito",
-            context={"session_id": session_id, "error": str(exc)},
-        )
-        return False
-
-    normalized_pages = [
-        page.model_copy(update={"page_number": index})
-        for index, page in enumerate(localized_plan.page_plans, start=1)
-    ]
-    localized_plan = localized_plan.model_copy(update={"page_plans": normalized_pages})
-
-    session.current_title = localized_plan.title
-    session.manga_plan = localized_plan.model_dump()
-    localized_page_map = {page.page_number: page for page in localized_plan.page_plans}
-    updated_pages: list[dict[str, Any]] = []
-    for page in getattr(session, "manga_pages", []) or []:
-        page_number = int(page.get("page_number", 0) or 0)
-        localized_page = localized_page_map.get(page_number)
-        if not localized_page:
-            updated_pages.append(page)
-            continue
-        updated_pages.append(
-            {
-                **page,
-                "title": localized_page.title,
-                "summary": localized_page.summary,
-                "dialogue": list(localized_page.dialogue),
-            }
-        )
-    session.manga_pages = updated_pages
-    _accumulate_token_usage(
-        session.token_usage,
-        phase="manga_planning",
-        token_usage=token_usage,
-        model_name=token_usage.get("model", stage_model),
-    )
-    _recalculate_manga_costs(session)
-    await _save_session(session_store, session)
-    return True
 
 
 async def backfill_manga_cover_if_missing(

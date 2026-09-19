@@ -1,6 +1,5 @@
 """Router per gli endpoint delle sessioni."""
 import math
-import os
 from typing import Literal
 from fastapi import APIRouter, HTTPException
 
@@ -16,7 +15,6 @@ from app.core.config import get_app_config
 from app.services.manga_generation_service import (
     build_manga_progress_response,
     build_manga_reader_response,
-    localize_manga_metadata_in_italian_if_needed,
 )
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -169,12 +167,6 @@ async def restore_session_endpoint(
         manga_progress = None
         manga = None
         if getattr(session, "content_type", "book") == "manga":
-            if getattr(session, "manga_plan", None):
-                await localize_manga_metadata_in_italian_if_needed(
-                    session_id=session_id,
-                    api_key=os.getenv("GOOGLE_API_KEY") or None,
-                )
-                session = await get_session_async(session_store, session_id)
             if session.manga_form_data:
                 manga_form_data = MangaCreateRequest(**session.manga_form_data)
             if session.manga_progress or session.manga_pages:

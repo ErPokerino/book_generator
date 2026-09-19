@@ -38,30 +38,39 @@ def summarize_for_story_bible(
     max_chars: int,
     max_sentences: int = 4,
 ) -> str:
-    """Produce un riassunto deterministico e compatto senza chiamare il modello."""
+    """Riassunto compatto: tiene apertura e chiusura, non solo le prime frasi."""
     normalized = _normalize_whitespace(text)
     if not normalized:
         return ""
 
-    sentences = re.split(r"(?<=[.!?])\s+", normalized)
-    selected: list[str] = []
-    current_length = 0
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
+    if not sentences:
+        return _truncate_text(normalized, max_chars)
 
-    for sentence in sentences:
-        sentence = sentence.strip()
-        if not sentence:
-            continue
-        projected_length = current_length + len(sentence) + (1 if selected else 0)
-        if selected and projected_length > max_chars:
+    selected_idx: list[int] = []
+    start = 0
+    end = len(sentences) - 1
+    while len(selected_idx) < max_sentences and start <= end:
+        selected_idx.append(start)
+        start += 1
+        if len(selected_idx) >= max_sentences or start > end:
             break
-        selected.append(sentence)
-        current_length = projected_length
-        if len(selected) >= max_sentences:
-            break
+        selected_idx.append(end)
+        end -= 1
 
-    candidate = " ".join(selected).strip()
-    if candidate:
-        return _truncate_text(candidate, max_chars)
+    selected_idx = sorted(set(selected_idx))
+    while selected_idx:
+        candidate = " ".join(sentences[index] for index in selected_idx)
+        if len(candidate) <= max_chars:
+            return candidate
+        if len(selected_idx) <= 2:
+            if len(selected_idx) == 1:
+                return _truncate_text(sentences[selected_idx[0]], max_chars)
+            half = max(24, max_chars // 2)
+            head = _truncate_text(sentences[selected_idx[0]], half)
+            tail = _truncate_text(sentences[selected_idx[-1]], max(24, max_chars - len(head) - 1))
+            return f"{head} {tail}".strip()
+        selected_idx.pop(len(selected_idx) // 2)
 
     return _truncate_text(normalized, max_chars)
 
@@ -85,6 +94,7 @@ def _build_creative_brief(form_data: SubmissionRequest, draft_title: Optional[st
         ("Ambiguità", form_data.ambiguity),
         ("Intenzionalità", form_data.intentionality),
         ("Autore di riferimento", form_data.author),
+        ("Autore", form_data.user_name),
     ]
     return [f"{label}: {value}" for label, value in brief_fields if value]
 
@@ -239,6 +249,8 @@ def get_nearby_chapter_cards(
     nearby_cards: list[dict[str, Any]] = []
     for card in chapter_cards:
         section_index = int(card.get("section_index", -1))
+        if section_index == current_section_index:
+            continue
         if current_section_index - before <= section_index <= current_section_index + after:
             nearby_cards.append(card)
     return nearby_cards

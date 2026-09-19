@@ -93,6 +93,10 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
   },
+  build: {
+    outDir: '../backend/static',
+    emptyOutDir: true,
+  },
 })
 
 

@@ -136,27 +136,6 @@ async def refresh_story_bible_for_session(
     return session.story_bible
 
 
-def get_chapter_review_settings(app_config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    """Restituisce la configurazione del review flow dei capitoli."""
-    if app_config is None:
-        app_config = get_app_config()
-
-    review_config = app_config.get("review", {})
-    chapters_config = review_config.get("chapters", {}) if isinstance(review_config, dict) else {}
-    target_modes = chapters_config.get("target_modes", ["pro", "ultra"])
-    if not isinstance(target_modes, list):
-        target_modes = ["pro", "ultra"]
-
-    return {
-        "enabled": bool(chapters_config.get("enabled", True)),
-        "target_modes": [str(mode) for mode in target_modes],
-        "min_chapter_words": int(chapters_config.get("min_chapter_words", 220)),
-        "max_issues": int(chapters_config.get("max_issues", 5)),
-        "reviewer_max_output_tokens": int(chapters_config.get("reviewer_max_output_tokens", 2048)),
-        "allow_fallback_to_original": bool(chapters_config.get("allow_fallback_to_original", True)),
-    }
-
-
 def combine_token_usage(*token_usages: dict[str, int]) -> dict[str, int]:
     """Somma il token usage di più chiamate LLM."""
     combined = {"input_tokens": 0, "output_tokens": 0, "model": None}

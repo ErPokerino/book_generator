@@ -581,6 +581,7 @@ async def regenerate_cover_endpoint(
             api_key=api_key,
             cover_style=session.form_data.cover_style,
             model_name=get_stage_model("cover", form_data=session.form_data),
+            form_data=session.form_data,
         )
         
         try:

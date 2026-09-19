@@ -60,6 +60,14 @@ export const router = createBrowserRouter([
     element: <Navigate to="/library" replace />,
   },
   {
+    path: '/login',
+    element: <Navigate to="/library" replace />,
+  },
+  {
+    path: '/register',
+    element: <Navigate to="/new" replace />,
+  },
+  {
     path: '/new',
     element: (
       <AppLayout>

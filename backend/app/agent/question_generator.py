@@ -22,6 +22,65 @@ from app.models import SubmissionRequest, Question, QuestionsResponse
 
 logger = get_logger("question-generator")
 
+_RICH_FORM_FIELDS = (
+    "genre",
+    "subgenre",
+    "target_audience",
+    "theme",
+    "protagonist",
+    "protagonist_archetype",
+    "character_arc",
+    "point_of_view",
+    "narrative_voice",
+    "style",
+    "temporal_structure",
+    "pace",
+    "realism",
+    "ambiguity",
+    "intentionality",
+    "author",
+)
+
+_DEFAULT_QUESTION_SPECS = (
+    (
+        "secondari",
+        "Chi sono i personaggi secondari più importanti e che ruolo hanno nella storia?",
+    ),
+    (
+        "antagonista",
+        "Chi o che cosa si oppone al protagonista, e perché?",
+    ),
+    (
+        "relazione",
+        "Quale relazione (affettiva, familiare, di potere) deve restare centrale nel romanzo?",
+    ),
+    (
+        "tono",
+        "Che tono emotivo deve prevalere nella narrazione?",
+    ),
+)
+
+
+def form_is_rich_enough_to_skip_llm(form_data: SubmissionRequest) -> bool:
+    """True se trama e campi opzionali sono già abbastanza densi da evitare una chiamata."""
+    if not (form_data.plot or "").strip():
+        return False
+    filled = sum(1 for name in _RICH_FORM_FIELDS if getattr(form_data, name, None))
+    return filled >= 6
+
+
+def build_default_questions(form_data: SubmissionRequest) -> list[Question]:
+    """Domande fisse, omettendo i temi già coperti dal form."""
+    skip_ids: set[str] = set()
+    if form_data.style:
+        skip_ids.add("tono")
+    questions: list[Question] = []
+    for question_id, text in _DEFAULT_QUESTION_SPECS:
+        if question_id in skip_ids:
+            continue
+        questions.append(Question(id=question_id, text=text, type="text"))
+    return questions[:4]
+
 
 def _validate_questions_payload(payload: QuestionsPayload) -> QuestionsPayload:
     if not payload.questions:
@@ -51,8 +110,7 @@ def load_agent_context() -> str:
 
 def format_form_data(form_data: SubmissionRequest) -> str:
     """Formatta i dati del form in una stringa leggibile per il prompt."""
-    lines = [f"**Modello LLM**: {form_data.llm_model}"]
-    lines.append(f"**Trama**: {form_data.plot}")
+    lines = [f"**Trama**: {form_data.plot}"]
     
     # Aggiunge solo i campi compilati
     optional_fields = {
@@ -109,10 +167,26 @@ async def generate_questions(
     if session_id is None:
         session_id = str(uuid.uuid4())
 
+    if form_is_rich_enough_to_skip_llm(form_data):
+        questions = build_default_questions(form_data)
+        logger.info(
+            "Domande di default senza chiamata LLM",
+            context={"session_id": session_id, "question_count": len(questions)},
+        )
+        return (
+            QuestionsResponse(
+                success=True,
+                session_id=session_id,
+                questions=questions,
+                message="Domande generate con successo",
+            ),
+            {"input_tokens": 0, "output_tokens": 0, "model": "skipped"},
+        )
+
     context = load_agent_context()
     formatted_data = format_form_data(form_data)
     system_prompt = append_contract_instructions(
-        f"{context}\n\nAnalizza le seguenti informazioni fornite dall'utente e genera domande appropriate.",
+        f"{context}\n\nAnalizza le informazioni e genera solo domande utili.",
         (
             "IMPORTANTE: il runtime applica uno schema strutturato nativo. "
             "Compila solo i campi richiesti per le domande senza aggiungere wrapper o testo extra."

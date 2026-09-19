@@ -228,25 +228,8 @@ def load_app_config() -> AppConfig:
                 "redact_text": True,
                 "export_target": "jsonl",
             },
-            "review": {
-                "chapters": {
-                    "enabled": True,
-                    "target_modes": ["pro", "ultra"],
-                    "min_chapter_words": 220,
-                    "max_issues": 5,
-                    "reviewer_max_output_tokens": 2048,
-                    "allow_fallback_to_original": True,
-                }
-            },
             "temperature": {
-                "agents": {
-                    "question_generator": 0.2,
-                    "draft_generator": 0.45,
-                    "outline_generator": 0.3,
-                    "writer_generator": 0.65,
-                    "chapter_reviewer": 0.1,
-                    "chapter_reviser": 0.45,
-                }
+                "default": 1.0,
             },
             "cost_estimation": {},
         }
@@ -266,7 +249,6 @@ def load_app_config() -> AppConfig:
         "llm_tracing": data.get("llm_tracing", {}),
         "cover_generation": data.get("cover_generation", {}),
         "manga_generation": data.get("manga_generation", {}),
-        "review": data.get("review", {}),
         "temperature": data.get("temperature", {}),
         "cost_estimation": data.get("cost_estimation", {}),
     }
@@ -287,51 +269,33 @@ def reload_app_config() -> AppConfig:
     return _app_config
 
 
-def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
-    """
-    Determina la temperatura per un agente basandosi su:
-    1. Hard rule per Gemini 3 → 1.0
-    2. Configurazione esplicita in app.yaml per l'agente (per gli altri modelli)
-    3. Regola di fallback basata sulla famiglia modello
-    
-    Args:
-        agent_name: Nome dell'agente (es: "writer_generator", "draft_generator", etc.)
-        model_name: Nome del modello Gemini (es: "gemini-2.5-flash", "gemini-3.1-pro-preview")
-    
-    Returns:
-        Temperatura da utilizzare (float tra 0.0 e 1.0)
-    """
+def get_temperature_for_model(model_name: str) -> float:
+    """Temperatura di default del modello, ignorando override per agente."""
     app_config = get_app_config()
-    # Gestisce il caso in cui temperature sia None o non esista
+    model_lower = (model_name or "").lower()
+    catalog = app_config.get("llm_models", {}).get("catalog", {}) or {}
+    if isinstance(catalog, dict):
+        entry = catalog.get(model_lower)
+        if not isinstance(entry, dict):
+            for _alias, candidate in catalog.items():
+                if not isinstance(candidate, dict):
+                    continue
+                api_id = str(candidate.get("api_id") or "").lower()
+                if api_id and (api_id == model_lower or api_id in model_lower or model_lower in _alias):
+                    entry = candidate
+                    break
+        if isinstance(entry, dict) and entry.get("temperature") is not None:
+            return float(entry["temperature"])
+
     temperature_config = app_config.get("temperature")
-    if temperature_config is None or not isinstance(temperature_config, dict):
-        temperature_config = {}
-    agent_temps = temperature_config.get("agents", {})
-    
-    # Se agent_temps non è un dict, usa un dict vuoto
-    if not isinstance(agent_temps, dict):
-        agent_temps = {}
+    if isinstance(temperature_config, dict) and temperature_config.get("default") is not None:
+        return float(temperature_config["default"])
+    return 1.0
 
-    # Gemini 3: segui la raccomandazione ufficiale e mantieni 1.0
-    if model_name is None:
-        model_name = ""
-    model_lower = model_name.lower()
 
-    if "gemini-3" in model_lower:
-        return 1.0
-
-    # Se c'è configurazione esplicita per l'agente, usala per i modelli non Gemini 3
-    if agent_name in agent_temps:
-        return float(agent_temps[agent_name])
-
-    # Fallback basato sulla famiglia modello
-    if "gemini-2.5" in model_lower:
-        return 0.0
-    elif "gemini-3" in model_lower:
-        return 1.0
-    else:
-        # Default conservativo se non si riesce a determinare la versione
-        return 0.0
+def get_temperature_for_agent(agent_name: str, model_name: str) -> float:
+    """Compat: la temperatura dipende dal modello, non dall'agente."""
+    return get_temperature_for_model(model_name)
 
 
 def get_tokens_per_page() -> int:

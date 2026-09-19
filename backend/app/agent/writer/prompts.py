@@ -1,17 +1,13 @@
 """Loader centralizzati per i prompt del writer package."""
 
-from app.llm import load_prompt_file
+from app.llm.prompts import compose_prompt_files
 
 
 def load_writer_agent_context() -> str:
-    """Carica il contesto dell'agente scrittore dal file Markdown."""
-    return load_prompt_file("writer_agent_context.md", "writer", anchor_file=__file__)
-
-
-def load_chapter_reviewer_context() -> str:
-    """Carica il contesto dell'agente reviewer del capitolo dal file Markdown."""
-    return load_prompt_file(
-        "chapter_reviewer_context.md",
-        "chapter reviewer",
+    """Carica mestiere condiviso e istruzioni operative dello scrittore."""
+    return compose_prompt_files(
+        "narrative_craft.md",
+        "writer_agent_context.md",
+        agent_label="writer",
         anchor_file=__file__,
     )

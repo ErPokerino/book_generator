@@ -17,7 +17,14 @@ from app.llm import (
 )
 from app.models import MangaCreateRequest, MangaPagePlan, MangaPlan
 
-logger = get_logger("manga-planner")
+MANGA_LANGUAGE_RULE = (
+    "Tutto il contenuto narrativo e il testo visibile devono essere in italiano. "
+    "Se la fonte e in inglese, traducila senza residui."
+)
+MANGA_NO_META_RULE = (
+    "Niente testo meta: numeri pagina, intestazioni, etichette di vignetta, "
+    "istruzioni al disegnatore, prefissi SFX/FX/NOTE."
+)
 
 MANGA_TYPE_DESCRIPTIONS = {
     "shonen": "Azione e avventura, ritmo energico, forte slancio narrativo e posta in gioco aspirazionale.",
@@ -161,16 +168,12 @@ async def generate_manga_plan(
     )
 
     system_prompt = (
-        "Sei un planner narrativo per mini manga in una beta di prodotto. Produci un piano compatto ma coerente, "
-        "pronto per essere trasformato in immagini pagina per pagina. "
-        "Ogni pagina e una pagina manga completa con vignette, balloon e testo gia integrati nell'immagine. "
+        "Sei un planner narrativo per mini manga. Produci un piano compatto, coerente, "
+        "pronto a diventare pagine con vignette e balloon gia integrati. "
         f"{_build_page_count_policy(request)} "
-        "Mantieni i dialoghi molto brevi, facili da inserire nei balloon, e non sovraccaricare mai una pagina. "
-        "Preserva la continuita di personaggi, vestiti, oggetti e ambientazioni tra pagine adiacenti. "
-        "Preserva rigorosamente anche coerenza grafica e cromatica dalla prima all'ultima pagina. "
-        "Anche se l'input utente contiene testo in inglese, devi tradurre e riformulare tutto il contenuto finale in italiano. "
-        "Tutto il contenuto narrativo e testuale deve essere in italiano. "
-        "Non inserire mai testo meta o istruzioni per il disegnatore tra i dialoghi finali. "
+        "Dialoghi brevissimi; non sovraccaricare una pagina. "
+        "Continuita di personaggi, vestiti, oggetti, ambienti, tratto e colore da pagina a pagina. "
+        f"{MANGA_LANGUAGE_RULE} {MANGA_NO_META_RULE} "
         "Restituisci solo dati compatibili con lo schema richiesto."
     )
     human_prompt = (
@@ -182,19 +185,10 @@ async def generate_manga_plan(
         f"Personaggi principali:\n{_format_characters(request)}\n\n"
         "Requisiti:\n"
         f"{_build_page_count_requirement(request)}"
-        f"- Mantieni la stessa modalita cromatica per tutte le pagine interne: {request.page_color_mode}.\n"
-        "- Mantieni coerenti stile grafico, volti, costumi, silhouette, ambienti e livello di dettaglio dalla prima all'ultima pagina.\n"
-        "- Restituisci un arco breve ma completo, con apertura, escalation, climax e chiusura chiara.\n"
-        "- L'intero piano deve gia decidere cosa accade in ogni pagina.\n"
-        "- Ogni page_plan deve includere: narrative_goal, scene_description, short dialogue, visual_notes, continuity_notes e summary.\n"
-        "- Titolo, sinossi, tono, dialoghi, visual notes, continuity notes e summary devono essere in italiano.\n"
-        "- Se la trama iniziale o i dettagli dei personaggi sono in inglese, traducili in italiano senza lasciare residui nella risposta finale.\n"
-        "- I dialoghi dovrebbero essere in genere da 1 a 4 battute brevi.\n"
-        "- Se servono onomatopee, scrivile direttamente come testo da disegnare, senza prefissi come SFX:, FX:, NOTE: o simili.\n"
-        "- Non pianificare testo editoriale o meta in pagina: niente numeri pagina, intestazioni, titoli correnti, etichette di pannello o istruzioni per il disegnatore.\n"
-        "- Le visual notes devono menzionare ritmo delle vignette, inquadrature/emozioni o dettagli grafici utili alla generazione.\n"
-        "- Le continuity notes devono catturare i dettagli che la pagina successiva deve ricordare.\n"
-        "- La pagina finale deve dare davvero un senso di conclusione, anche in una beta mini manga.\n"
+        "- Arco breve ma completo: apertura, escalation, climax, chiusura.\n"
+        "- Ogni page_plan: narrative_goal, scene_description, dialoghi brevi (1-4), visual_notes, continuity_notes, summary.\n"
+        "- Visual notes: ritmo vignette, inquadrature, dettagli grafici. Continuity notes: cosa la pagina dopo deve ricordare.\n"
+        "- Onomatopee come suono da disegnare, senza prefissi.\n"
     )
 
     logger.info(

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 class GeneratedQuestionPayload(BaseModel):
     """Domanda generata dal modello prima della normalizzazione applicativa."""
@@ -36,20 +36,6 @@ class QuestionsPayload(BaseModel):
     )
 
 
-class DraftGenerationPayload(BaseModel):
-    """Output strutturato della fase bozza."""
-
-    title: str = Field(min_length=1, description="Titolo del romanzo.")
-    character_profiles: str = Field(
-        default="",
-        description="Schede sintetiche dei personaggi principali e secondari rilevanti.",
-    )
-    draft_text: str = Field(
-        min_length=1,
-        description="Bozza estesa della trama, completa e coerente con le istruzioni.",
-    )
-
-
 class OutlineSectionPayload(BaseModel):
     """Nodo tipizzato dell'outline prima del rendering markdown."""
 
@@ -66,6 +52,24 @@ class OutlineSectionPayload(BaseModel):
     )
 
 
+class DraftGenerationPayload(BaseModel):
+    """Output strutturato della fase bozza, incluso l'indice."""
+
+    title: str = Field(min_length=1, description="Titolo del romanzo.")
+    character_profiles: str = Field(
+        default="",
+        description="Schede sintetiche dei personaggi principali e secondari rilevanti.",
+    )
+    draft_text: str = Field(
+        min_length=1,
+        description="Bozza estesa della trama, completa e coerente con le istruzioni.",
+    )
+    sections: list[OutlineSectionPayload] = Field(
+        default_factory=list,
+        description="Sezioni ordinate del romanzo, già pronte per il rendering in markdown.",
+    )
+
+
 class OutlineGenerationPayload(BaseModel):
     """Output strutturato della fase outline."""
 
@@ -73,36 +77,3 @@ class OutlineGenerationPayload(BaseModel):
         min_length=1,
         description="Sezioni ordinate del romanzo, già pronte per il rendering in markdown.",
     )
-
-
-class ChapterReviewPayload(BaseModel):
-    """Output JSON del reviewer capitolo."""
-
-    needs_revision: bool = Field(
-        default=False,
-        description="True se il capitolo deve essere rivisto prima del salvataggio.",
-    )
-    issues: list[str] = Field(
-        default_factory=list,
-        description="Problemi concreti che richiedono revisione editoriale.",
-    )
-    preserve: list[str] = Field(
-        default_factory=list,
-        description="Elementi del capitolo da preservare nella revisione.",
-    )
-
-    @field_validator("issues", "preserve", mode="before")
-    @classmethod
-    def _normalize_points(cls, value: Any) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return [str(item).strip() for item in value if str(item).strip()]
-        if isinstance(value, str):
-            return [
-                line.lstrip("-•* ").strip()
-                for line in value.splitlines()
-                if line.strip()
-            ]
-        coerced = str(value).strip()
-        return [coerced] if coerced else []

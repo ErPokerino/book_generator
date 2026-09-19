@@ -40,6 +40,7 @@ from app.services.book_generation_service import (
 from app.core.config import get_app_config
 from app.services.process_job_service import begin_process_job_async
 from app.services.cost_service import calculate_real_generation_cost
+from app.services.stats_service import calculate_estimated_time
 
 # Helper functions (temporarily defined here, will be moved to utils later)
 def get_model_abbreviation(model_name: str) -> str:

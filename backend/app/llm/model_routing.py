@@ -28,7 +28,6 @@ TEXT_STAGES = frozenset(
         "book",
         "critique",
         "manga_planning",
-        "manga_localization",
     }
 )
 IMAGE_STAGES = frozenset(
@@ -49,7 +48,6 @@ DEFAULT_STAGE_MODEL_OVERRIDES = {
     "critique": DEFAULT_TEXT_MODEL,
     "cover": DEFAULT_COVER_IMAGE_MODEL,
     "manga_planning": DEFAULT_TEXT_MODEL,
-    "manga_localization": DEFAULT_TEXT_MODEL,
     "manga_pages": DEFAULT_IMAGE_MODEL,
     "manga_cover": DEFAULT_COVER_IMAGE_MODEL,
     "manga_back_cover": DEFAULT_COVER_IMAGE_MODEL,

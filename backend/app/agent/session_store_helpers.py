@@ -41,6 +41,42 @@ async def update_draft_async(
     return session_store.update_draft(session_id, draft_text, version, title, character_profiles)
 
 
+async def persist_generated_draft_plan_async(
+    session_store: SessionStore,
+    session_id: str,
+    draft_text: str,
+    version: Optional[int] = None,
+    title: Optional[str] = None,
+    character_profiles: Optional[str] = None,
+    outline_text: Optional[str] = None,
+) -> SessionData:
+    """Salva bozza e, se presente, l'indice prodotto nello stesso piano."""
+    session = await update_draft_async(
+        session_store,
+        session_id,
+        draft_text,
+        version,
+        title,
+        character_profiles,
+    )
+    cleaned_outline = (outline_text or "").strip()
+    if not cleaned_outline:
+        return session
+    try:
+        return await update_outline_async(session_store, session_id, cleaned_outline)
+    except ValueError:
+        return session
+
+
+async def clear_outline_async(session_store: SessionStore, session_id: str) -> Optional[SessionData]:
+    """Invalida l'indice salvato, ad esempio dopo una modifica manuale della bozza."""
+    session = await get_session_async(session_store, session_id)
+    if not session:
+        return None
+    session.current_outline = None
+    return await save_session_async(session_store, session)
+
+
 async def validate_session_async(session_store: SessionStore, session_id: str) -> SessionData:
     """Marca una sessione come validata."""
     return session_store.validate_session(session_id)
@@ -63,6 +99,8 @@ async def update_outline_async(
     version: Optional[int] = None,
 ) -> SessionData:
     """Aggiorna l'outline di una sessione."""
+    if version is None:
+        return session_store.update_outline(session_id, outline_text, allow_if_writing)
     return session_store.update_outline(session_id, outline_text, allow_if_writing, version)
 
 

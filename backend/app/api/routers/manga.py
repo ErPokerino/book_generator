@@ -33,7 +33,6 @@ from app.services.manga_generation_service import (
     get_runtime_manga_total_steps,
     get_manga_page_image_bytes,
     is_manga_back_cover_outdated,
-    localize_manga_metadata_in_italian_if_needed,
 )
 from app.services.process_job_service import begin_process_job_async
 from app.services.pdf_service import cache_manga_pdf, generate_manga_pdf
@@ -260,12 +259,6 @@ async def get_manga_reader_endpoint(
 ):
     """Restituisce il payload del reader beta, anche durante la generazione."""
     session = await _get_manga_session_or_404(session_id)
-    if getattr(session, "manga_plan", None):
-        await localize_manga_metadata_in_italian_if_needed(
-            session_id=session_id,
-            api_key=os.getenv("GOOGLE_API_KEY") or None,
-        )
-        session = await _get_manga_session_or_404(session_id)
     progress = getattr(session, "manga_progress", None) or {}
     should_regenerate_back_cover = is_manga_back_cover_outdated(session)
     should_backfill_cover = (

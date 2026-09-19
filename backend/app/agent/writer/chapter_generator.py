@@ -4,21 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from app.agent.writer.common import combine_token_usage, validate_generated_chapter_text
-from app.agent.writer.context_builder import format_writer_context
+from app.agent.writer.context_builder import format_writer_prefix, format_writer_turn
+from app.agent.writer.context_cache import generate_chapter_with_prefix_cache
 from app.agent.writer.prompts import load_writer_agent_context
-from app.core.config import get_app_config, get_temperature_for_agent
+from app.core.config import get_app_config
 from app.core.logging import get_logger
-from app.llm import (
-    LLMTraceRecorder,
-    build_google_chat_model,
-    get_max_output_tokens,
-    get_stage_model,
-    get_writer_split_calls,
-    invoke_chat_model,
-)
+from app.llm import LLMTraceRecorder, get_stage_model, get_writer_split_calls
 from app.models import QuestionAnswer, SubmissionRequest
 
 logger = get_logger("writer-chapter-generator")
@@ -33,45 +25,60 @@ def _validate_chapter_part(text: str, current_section_title: str) -> str:
     return cleaned
 
 
+def _build_prefix_and_turn(
+    *,
+    form_data: SubmissionRequest,
+    question_answers: list[QuestionAnswer],
+    validated_draft: str,
+    draft_title: Optional[str],
+    outline_text: str,
+    previous_chapters: list[dict[str, Any]],
+    current_section: dict[str, Any],
+    story_bible: Optional[dict[str, Any]],
+    is_long_form_part1: bool = False,
+    is_long_form_part2: bool = False,
+    part1_text: Optional[str] = None,
+) -> tuple[str, str]:
+    shared = dict(
+        form_data=form_data,
+        question_answers=question_answers,
+        validated_draft=validated_draft,
+        draft_title=draft_title,
+        outline_text=outline_text,
+        story_bible=story_bible,
+    )
+    prefix = format_writer_prefix(**shared)
+    turn = format_writer_turn(
+        **shared,
+        previous_chapters=previous_chapters,
+        current_section=current_section,
+        is_long_form_part1=is_long_form_part1,
+        is_long_form_part2=is_long_form_part2,
+        part1_text=part1_text,
+    )
+    return prefix, turn
+
+
 async def _generate_chapter_part(
     *,
     agent_context: str,
-    formatted_context: str,
+    prefix: str,
+    turn: str,
     gemini_model: str,
     api_key: Optional[str] = None,
     current_section_title: str,
     session_id: str | None = None,
     request_label: str,
 ) -> tuple[str, dict[str, int]]:
-    """Helper per generare una parte di un capitolo (usato per modalità long form)."""
-    llm = build_google_chat_model(
-        model_name=gemini_model,
+    return await generate_chapter_with_prefix_cache(
+        agent_context=agent_context,
+        prefix=prefix,
+        turn=turn,
+        gemini_model=gemini_model,
         api_key=api_key,
-        temperature=get_temperature_for_agent("writer_generator", gemini_model),
-        max_output_tokens=get_max_output_tokens(gemini_model),
-    )
-    return await invoke_chat_model(
-        llm=llm,
-        messages=[
-            SystemMessage(content=agent_context),
-            HumanMessage(
-                content=(
-                    "Scrivi la sezione del romanzo indicata di seguito.\n\n"
-                    f"{formatted_context}\n\n"
-                    "Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. "
-                    "Inizia direttamente con la narrazione."
-                )
-            ),
-        ],
-        model_name=gemini_model,
-        stage="chapter-generation",
-        request_label=request_label,
+        current_section_title=current_section_title,
         session_id=session_id,
-        trace_recorder=LLMTraceRecorder(
-            stage="chapter-generation",
-            session_id=session_id,
-            request_id=request_label,
-        ),
+        request_label=request_label,
         response_validator=lambda text: _validate_chapter_part(text, current_section_title),
     )
 
@@ -112,7 +119,7 @@ async def generate_chapter(
     )
 
     if is_long_form:
-        formatted_context_part1 = format_writer_context(
+        prefix, turn_part1 = _build_prefix_and_turn(
             form_data=form_data,
             question_answers=question_answers,
             validated_draft=validated_draft,
@@ -125,7 +132,8 @@ async def generate_chapter(
         )
         part1_text, token_usage_part1 = await _generate_chapter_part(
             agent_context=agent_context,
-            formatted_context=formatted_context_part1,
+            prefix=prefix,
+            turn=turn_part1,
             gemini_model=gemini_model,
             api_key=api_key,
             current_section_title=current_section["title"],
@@ -133,7 +141,7 @@ async def generate_chapter(
             request_label=f"{current_section['title']}-part1",
         )
 
-        formatted_context_part2 = format_writer_context(
+        _, turn_part2 = _build_prefix_and_turn(
             form_data=form_data,
             question_answers=question_answers,
             validated_draft=validated_draft,
@@ -147,7 +155,8 @@ async def generate_chapter(
         )
         part2_text, token_usage_part2 = await _generate_chapter_part(
             agent_context=agent_context,
-            formatted_context=formatted_context_part2,
+            prefix=prefix,
+            turn=turn_part2,
             gemini_model=gemini_model,
             api_key=api_key,
             current_section_title=current_section["title"],
@@ -172,7 +181,7 @@ async def generate_chapter(
         )
         return chapter_text, token_usage
 
-    formatted_context = format_writer_context(
+    prefix, turn = _build_prefix_and_turn(
         form_data=form_data,
         question_answers=question_answers,
         validated_draft=validated_draft,
@@ -182,30 +191,15 @@ async def generate_chapter(
         current_section=current_section,
         story_bible=story_bible,
     )
-    standard_llm = build_google_chat_model(
-        model_name=gemini_model,
+    chapter_text, token_usage = await _generate_chapter_part(
+        agent_context=agent_context,
+        prefix=prefix,
+        turn=turn,
+        gemini_model=gemini_model,
         api_key=api_key,
-        temperature=get_temperature_for_agent("writer_generator", gemini_model),
-        max_output_tokens=get_max_output_tokens(gemini_model),
-    )
-    chapter_text, token_usage = await invoke_chat_model(
-        llm=standard_llm,
-        messages=[
-            SystemMessage(content=agent_context),
-            HumanMessage(
-                content=(
-                    "Scrivi la sezione del romanzo indicata di seguito.\n\n"
-                    f"{formatted_context}\n\n"
-                    "Scrivi SOLO il testo narrativo della sezione, senza titoli o numerazioni. "
-                    "Inizia direttamente con la narrazione."
-                )
-            ),
-        ],
-        model_name=gemini_model,
-        stage="chapter-generation",
-        request_label=current_section["title"],
+        current_section_title=current_section["title"],
         session_id=session_id,
-        trace_recorder=trace,
+        request_label=current_section["title"],
     )
     app_config = get_app_config()
     chapter_text = validate_generated_chapter_text(

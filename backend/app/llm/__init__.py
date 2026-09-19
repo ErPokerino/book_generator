@@ -1,7 +1,6 @@
 """Primitive condivise per il runtime LLM applicativo."""
 
 from app.llm.contracts import (
-    ChapterReviewPayload,
     DraftGenerationPayload,
     OutlineGenerationPayload,
     OutlineSectionPayload,
@@ -23,7 +22,7 @@ from app.llm.model_routing import (
     resolve_generation_mode,
     image_size_for_model,
 )
-from app.llm.prompts import append_contract_instructions, load_prompt_file
+from app.llm.prompts import append_contract_instructions, compose_prompt_files, load_prompt_file
 from app.llm.runtime import (
     DEFAULT_RETRY_DELAY_SECONDS,
     DEFAULT_STRUCTURED_REPAIR_ATTEMPTS,
@@ -41,7 +40,6 @@ from app.llm.structured_outputs import (
 from app.llm.tracing import LLMTraceRecorder
 
 __all__ = [
-    "ChapterReviewPayload",
     "DEFAULT_RETRY_DELAY_SECONDS",
     "DEFAULT_STRUCTURED_REPAIR_ATTEMPTS",
     "DEFAULT_TIMEOUT_SECONDS",
@@ -51,6 +49,7 @@ __all__ = [
     "OutlineSectionPayload",
     "QuestionsPayload",
     "append_contract_instructions",
+    "compose_prompt_files",
     "build_google_chat_model",
     "build_google_genai_client",
     "build_json_schema_prompt",

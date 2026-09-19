@@ -5,12 +5,11 @@ import pytest
 
 from app.agent.session_store import SessionData
 from app.agent.literary_critic import parse_critique_response
-from app.agent.story_bible import build_story_bible
+from app.agent.story_bible import build_story_bible, summarize_for_story_bible
+from app.agent.writer.context_builder import format_writer_prefix, format_writer_turn
 from app.agent.writer_generator import (
     format_writer_context,
-    parse_chapter_review_response,
     parse_outline_sections,
-    should_run_chapter_review,
     validate_generated_chapter_text,
 )
 from app.models import QuestionAnswer, SubmissionRequest
@@ -248,6 +247,97 @@ def test_format_writer_context_uses_story_bible_and_recent_chapters_only(
     assert "### Capitolo 3: La capitale sommersa\nTESTO INTEGRALE CAPITOLO TRE" in context
     assert "Capitolo 1: La promessa:" in context
     assert "Capitolo 2: Il ponte:" in context
+    assert "## CONFIGURAZIONE INIZIALE" not in context
+    assert "## RISPOSTE ALLE DOMANDE PRELIMINARI" not in context
+    assert "Malinconico ma epico." in context
+    assert "[Capitolo attuale]" not in context
+    assert "**Stratificazione**:" not in context
+    assert "### Ultimi sviluppi già avvenuti" not in context
+
+
+def test_writer_prefix_is_stable_across_chapters(
+    rich_submission_request: SubmissionRequest,
+) -> None:
+    outline_sections = parse_outline_sections(
+        """
+## Capitolo 1: La promessa
+- Apertura.
+
+## Capitolo 2: Il ponte
+- Confine.
+
+## Capitolo 3: La capitale
+- Arrivo.
+""".strip()
+    )
+    previous = [
+        {
+            "title": "Capitolo 1: La promessa",
+            "content": "TESTO UNO.",
+            "section_index": 0,
+        }
+    ]
+    story_bible = build_story_bible(
+        form_data=rich_submission_request,
+        question_answers=[QuestionAnswer(question_id="tono", answer="Malinconico.")],
+        validated_draft="Viaggio verso la capitale.",
+        draft_title="La Citta delle Maree",
+        outline_sections=outline_sections,
+        completed_chapters=previous,
+        draft_version=1,
+        outline_version=1,
+    )
+    shared = dict(
+        form_data=rich_submission_request,
+        question_answers=[QuestionAnswer(question_id="tono", answer="Malinconico.")],
+        validated_draft="Viaggio verso la capitale.",
+        draft_title="La Citta delle Maree",
+        outline_text="placeholder",
+        story_bible=story_bible,
+    )
+
+    prefix_one = format_writer_prefix(**shared)
+    prefix_two = format_writer_prefix(**shared)
+    turn_one = format_writer_turn(
+        **shared,
+        previous_chapters=previous,
+        current_section=outline_sections[1],
+    )
+    turn_two = format_writer_turn(
+        **shared,
+        previous_chapters=previous,
+        current_section=outline_sections[2],
+    )
+
+    assert prefix_one == prefix_two
+    assert "Brief creativo" in prefix_one or "STORY BIBLE" in prefix_one
+    assert "SEZIONE DA SCRIVERE ORA" not in prefix_one
+    assert "Capitolo 2: Il ponte" in turn_one
+    assert "Capitolo 3: La capitale" in turn_two
+    assert turn_one != turn_two
+
+
+def test_summarize_for_story_bible_keeps_opening_and_closing_beats() -> None:
+    text = (
+        "Ada conta le sirene all'alba e capisce che le chiuse mentono. "
+        "Passa il giorno a copiare mappe inutili. "
+        "Verso sera parla con il consiglio e viene liquidata. "
+        "A mezzanotte trova la prova del sabotaggio e decide di lasciare la città."
+    )
+
+    summary = summarize_for_story_bible(text, max_chars=180, max_sentences=4)
+
+    assert "chiuse mentono" in summary
+    assert "lasciare la città" in summary
+
+
+def test_format_form_data_omits_model_choice(rich_submission_request: SubmissionRequest) -> None:
+    from app.agent.question_generator import format_form_data
+
+    formatted = format_form_data(rich_submission_request)
+
+    assert "Modello LLM" not in formatted
+    assert rich_submission_request.plot in formatted
 
 
 def test_session_data_serializes_story_bible(submission_request: SubmissionRequest) -> None:
@@ -257,48 +347,6 @@ def test_session_data_serializes_story_bible(submission_request: SubmissionReque
     restored = SessionData.from_dict(session.to_dict())
 
     assert restored.story_bible == session.story_bible
-
-
-def test_should_run_chapter_review_is_disabled(
-    submission_request: SubmissionRequest,
-) -> None:
-    review_config = {
-        "review": {
-            "chapters": {
-                "enabled": True,
-                "target_modes": ["pro", "ultra", "standard"],
-                "min_chapter_words": 10,
-            }
-        }
-    }
-    long_text = " ".join(["parola"] * 20)
-
-    ultra_request = submission_request.model_copy(update={"generation_mode": "ultra"})
-    standard_request = submission_request.model_copy(update={"generation_mode": "standard"})
-
-    assert should_run_chapter_review(standard_request, long_text, review_config) is False
-    assert should_run_chapter_review(ultra_request, long_text, review_config) is False
-
-
-def test_parse_chapter_review_response_reads_json_payload() -> None:
-    response_text = """```json
-{
-  "needs_revision": true,
-  "issues": [
-    "La transizione tra l'arrivo in citta e il confronto finale e troppo brusca.",
-    "Il capitolo dimentica il vincolo sul tono malinconico stabilito all'inizio."
-  ],
-  "preserve": [
-    "La voce della protagonista rimane molto credibile."
-  ]
-}
-```"""
-
-    parsed = parse_chapter_review_response(response_text, max_issues=5)
-
-    assert parsed["needs_revision"] is True
-    assert len(parsed["issues"]) == 2
-    assert parsed["preserve"] == ["La voce della protagonista rimane molto credibile."]
 
 
 def test_validate_generated_chapter_text_rejects_placeholder_and_short_outputs() -> None:

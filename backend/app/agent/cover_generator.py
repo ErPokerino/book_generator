@@ -6,9 +6,11 @@ from io import BytesIO
 import asyncio
 from google.genai import types
 from PIL import Image as PILImage
+from app.agent.story_bible import summarize_for_story_bible
 from app.core.config import get_app_config
 from app.core.logging import get_logger
 from app.llm import LLMTraceRecorder, build_google_genai_client, get_google_backend_config
+from app.models import SubmissionRequest
 from app.llm.model_routing import (
     ALLOWED_IMAGE_MODELS,
     DEFAULT_COVER_IMAGE_MODEL,
@@ -19,6 +21,55 @@ from app.llm.model_routing import (
 
 logger = get_logger("cover-generator")
 
+_COVER_STYLE_DESCRIPTIONS = {
+    "illustrato": "Stile illustrato: usa disegni artistici o pittorici, orientato all'atmosfera. L'immagine deve essere pittorica, evocativa e artistica.",
+    "fotografico": "Stile fotografico: usa foto reali o rielaborate per un effetto realistico. L'immagine deve sembrare una fotografia professionale.",
+    "tipografico": "Stile tipografico / Minimal: centralità del testo e della composizione grafica. L'immagine deve essere minimale, con focus sulla tipografia e composizione grafica elegante.",
+    "simbolico": "Stile simbolico: usa un'immagine o segno metaforico che rappresenta il tema. L'immagine deve essere metaforica e concettuale.",
+    "cartoon": "Stile cartoon: illustrazione stilizzata, tono leggero o ironico. L'immagine deve essere un'illustrazione stilizzata, vivace e moderna.",
+}
+
+
+def build_cover_prompt(
+    title: str,
+    author: str,
+    plot: str,
+    form_data: Optional[SubmissionRequest] = None,
+    cover_style: Optional[str] = None,
+) -> str:
+    """Prompt copertina: logline breve + genere/tono, non la bozza intera."""
+    logline = summarize_for_story_bible(plot, max_chars=420, max_sentences=3)
+    genre = (getattr(form_data, "genre", None) or "").strip()
+    theme = (getattr(form_data, "theme", None) or "").strip()
+    style = (getattr(form_data, "style", None) or "").strip()
+    atmosphere_bits = [bit for bit in (genre, theme, style) if bit]
+    atmosphere = ", ".join(atmosphere_bits)
+
+    style_instruction = ""
+    if cover_style and cover_style in _COVER_STYLE_DESCRIPTIONS:
+        style_instruction = f"\n\n**Stile richiesto:** {_COVER_STYLE_DESCRIPTIONS[cover_style]}"
+
+    genre_line = f"\n**Genere / tono:** {atmosphere}" if atmosphere else ""
+    logline_line = f"\n**Logline:** {logline}" if logline else ""
+
+    return f"""Crea una copertina professionale per un libro con le seguenti informazioni:
+
+**Titolo del libro:** {title}
+**Autore:** {author}{genre_line}{logline_line}{style_instruction}
+
+La copertina deve includere:
+1. Il titolo del libro in modo prominente e leggibile, ben visibile e con un font professionale
+2. Il nome dell'autore, posizionato in modo appropriato (tipicamente in basso)
+3. Un'immagine visiva che rappresenti la storia, basata sulla logline e sul genere
+
+La copertina deve essere:
+- Professionale e di alta qualità, adatta a un romanzo pubblicato
+- Visivamente accattivante e memorabile
+- Coerente con il genere e l'atmosfera indicati
+- Con una composizione equilibrata tra testo (titolo e autore) e immagine visiva
+- Il testo deve essere chiaramente leggibile e ben integrato con l'immagine di sfondo
+- Stile tipografico professionale per titolo e autore"""
+
 
 async def generate_book_cover(
     session_id: str,
@@ -28,6 +79,7 @@ async def generate_book_cover(
     api_key: Optional[str] = None,
     cover_style: Optional[str] = None,
     model_name: Optional[str] = None,
+    form_data: Optional[SubmissionRequest] = None,
 ) -> str:
     """
     Genera la copertina completa del libro (con titolo, autore e immagine).
@@ -50,41 +102,13 @@ async def generate_book_cover(
     cover_config = app_config.get("cover_generation", {})
     aspect_ratio = cover_config.get("aspect_ratio", "2:3")
     
-    # Prepara il prompt completo per la generazione della copertina
-    # Usa il plot completo senza limiti
-    plot_summary = plot
-    
-    # Mappa degli stili per il prompt
-    style_descriptions = {
-        "illustrato": "Stile illustrato: usa disegni artistici o pittorici, orientato all'atmosfera. L'immagine deve essere pittorica, evocativa e artistica.",
-        "fotografico": "Stile fotografico: usa foto reali o rielaborate per un effetto realistico. L'immagine deve sembrare una fotografia professionale.",
-        "tipografico": "Stile tipografico / Minimal: centralità del testo e della composizione grafica. L'immagine deve essere minimale, con focus sulla tipografia e composizione grafica elegante.",
-        "simbolico": "Stile simbolico: usa un'immagine o segno metaforico che rappresenta il tema. L'immagine deve essere metaforica e concettuale.",
-        "cartoon": "Stile cartoon: illustrazione stilizzata, tono leggero o ironico. L'immagine deve essere un'illustrazione stilizzata, vivace e moderna."
-    }
-    
-    style_instruction = ""
-    if cover_style and cover_style in style_descriptions:
-        style_instruction = f"\n\n**Stile richiesto:** {style_descriptions[cover_style]}"
-    
-    image_prompt = f"""Crea una copertina professionale per un libro con le seguenti informazioni:
-
-**Titolo del libro:** {title}
-**Autore:** {author}
-**Trama:** {plot_summary}{style_instruction}
-
-La copertina deve includere:
-1. Il titolo del libro in modo prominente e leggibile, ben visibile e con un font professionale
-2. Il nome dell'autore, posizionato in modo appropriato (tipicamente in basso)
-3. Un'immagine visiva che rappresenti la storia, basata sulla trama fornita
-
-La copertina deve essere:
-- Professionale e di alta qualità, adatta a un romanzo pubblicato
-- Visivamente accattivante e memorabile
-- Coerente con il genere e l'atmosfera della storia descritta nella trama
-- Con una composizione equilibrata tra testo (titolo e autore) e immagine visiva
-- Il testo deve essere chiaramente leggibile e ben integrato con l'immagine di sfondo
-- Stile tipografico professionale per titolo e autore"""
+    image_prompt = build_cover_prompt(
+        title=title,
+        author=author,
+        plot=plot,
+        form_data=form_data,
+        cover_style=cover_style,
+    )
     
     # Lista dei modelli da provare (primario e fallback)
     # Per ogni modello, specifichiamo anche la configurazione dell'immagine

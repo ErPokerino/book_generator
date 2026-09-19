@@ -32,6 +32,19 @@ def load_prompt_file(
     )
 
 
+def compose_prompt_files(
+    *prompt_filenames: str,
+    agent_label: str,
+    anchor_file: str | None = None,
+) -> str:
+    """Concatena più file prompt, saltando i pezzi vuoti."""
+    parts = [
+        load_prompt_file(filename, agent_label, anchor_file=anchor_file).strip()
+        for filename in prompt_filenames
+    ]
+    return "\n\n".join(part for part in parts if part)
+
+
 def append_contract_instructions(
     base_prompt: str,
     contract_instructions: str,

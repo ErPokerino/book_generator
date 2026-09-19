@@ -2,6 +2,7 @@ from typing import Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from app.agent.outline_generator import render_outline_markdown
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
 from app.core.config import get_temperature_for_agent
@@ -9,8 +10,10 @@ from app.core.logging import get_logger
 from app.llm import (
     DraftGenerationPayload,
     LLMTraceRecorder,
+    OutlineGenerationPayload,
     append_contract_instructions,
     build_google_chat_model,
+    compose_prompt_files,
     get_stage_model,
     invoke_structured_chat_model,
     load_prompt_file,
@@ -23,10 +26,31 @@ logger = get_logger("draft-generator")
 
 
 def load_draft_agent_context() -> str:
-    """Carica il contesto dell'agente di bozza dal file Markdown."""
-    return load_prompt_file(
+    """Carica mestiere condiviso e istruzioni della bozza."""
+    return compose_prompt_files(
+        "narrative_craft.md",
         "draft_agent_context.md",
-        "draft generator",
+        agent_label="draft generator",
+        anchor_file=__file__,
+    )
+
+
+def load_draft_plan_context() -> str:
+    """Prompt unico: bozza estesa e indice nello stesso JSON."""
+    return compose_prompt_files(
+        "narrative_craft.md",
+        "draft_agent_context.md",
+        "outline_agent_context.md",
+        agent_label="draft generator",
+        anchor_file=__file__,
+    )
+
+
+def load_draft_edit_context() -> str:
+    """Istruzioni usate solo quando l'utente chiede una modifica alla bozza."""
+    return load_prompt_file(
+        "draft_edit_context.md",
+        "draft editor",
         anchor_file=__file__,
     )
 
@@ -82,6 +106,13 @@ def parse_draft_output(llm_output: str) -> tuple[str, str, str]:
     return payload.title.strip(), payload.draft_text.strip(), payload.character_profiles.strip()
 
 
+def render_draft_outline(payload: DraftGenerationPayload) -> str:
+    """Rende in markdown le sezioni del piano, se presenti."""
+    if not payload.sections:
+        return ""
+    return render_outline_markdown(OutlineGenerationPayload(sections=payload.sections))
+
+
 async def generate_draft(
     form_data: SubmissionRequest,
     question_answers: list[QuestionAnswer],
@@ -89,72 +120,51 @@ async def generate_draft(
     api_key: Optional[str] = None,
     previous_draft: Optional[str] = None,
     user_feedback: Optional[str] = None,
-) -> tuple[str, str, int, dict[str, int], str]:
+) -> tuple[str, str, int, dict[str, int], str, str]:
     """
-    Genera o rigenera una bozza estesa della trama.
-    
-    Args:
-        form_data: Dati del form compilato
-        question_answers: Risposte alle domande preliminari
-        session_id: ID della sessione
-        api_key: API key opzionale per fallback Gemini Developer API locale
-        previous_draft: Bozza precedente (se rigenerazione)
-        user_feedback: Feedback dell'utente per modifiche
+    Genera o rigenera bozza estesa e indice in un'unica chiamata.
     
     Returns:
-        Tupla (draft_text, title, version, token_usage)
-        token_usage contiene {"input_tokens": int, "output_tokens": int, "model": str}
+        Tupla (draft_text, title, version, token_usage, character_profiles, outline_text)
     """
-    agent_context = load_draft_agent_context()
+    agent_context = load_draft_plan_context()
     formatted_form_data = format_form_data_for_draft(form_data)
     formatted_answers = format_question_answers(question_answers)
     system_prompt = SystemMessage(
         content=append_contract_instructions(
             agent_context,
             (
-                "IMPORTANTE: il runtime applica uno schema strutturato nativo con i campi "
-                "`title`, `character_profiles` e `draft_text`. "
-                "Non usare il formato legacy TITOLO/PERSONAGGI/TRAMA."
+                "Il runtime applica uno schema strutturato nativo: "
+                "`title`, `character_profiles`, `draft_text`, `sections`. "
+                "Ogni elemento di `sections` ha `title`, `description`, `level`. "
+                "Niente testo fuori da quei campi."
             ),
         )
     )
 
     if previous_draft and user_feedback:
-        user_prompt_content = f"""## MODIFICA CHIRURGICA RICHIESTA
+        user_prompt_content = f"""{load_draft_edit_context()}
 
-**REGOLA FONDAMENTALE**: Devi applicare un approccio CHIRURGICO alle modifiche.
-- Modifica SOLO le parti specifiche indicate nel feedback dell'utente
-- Tutto ciò che NON è menzionato nel feedback deve rimanere ESATTAMENTE IDENTICO, parola per parola
-- Non riscrivere sezioni che non sono coinvolte dalla richiesta
-- Non migliorare, espandere o modificare parti non richieste
-
-**Feedback dell'utente (modifica SOLO ciò che è indicato qui):**
+**Feedback:**
 {user_feedback}
 
-**Bozza attuale (mantieni IDENTICO tutto ciò che non è nel feedback):**
+**Bozza attuale:**
 {previous_draft}
 
-**Dati originali del romanzo (per riferimento):**
+**Dati del romanzo (riferimento):**
 {formatted_form_data}
 
 {formatted_answers}
 
-**ISTRUZIONI**:
-1. Identifica ESATTAMENTE quali sezioni/paragrafi sono interessati dal feedback
-2. Modifica SOLO quelle parti specifiche
-3. Copia ESATTAMENTE tutto il resto senza modifiche
-4. Se il feedback richiede modifiche a un personaggio/evento, tocca SOLO le parti dove quel personaggio/evento appare in relazione alla modifica richiesta
-5. Restituisci la bozza completa esclusivamente come JSON conforme al contratto finale."""
+Restituisci il piano completo come JSON del contratto (`title`, `character_profiles`, `draft_text`, `sections`)."""
     else:
-        user_prompt_content = f"""Genera una bozza estesa e dettagliata dello svolgimento della trama per il seguente romanzo.
+        user_prompt_content = f"""Genera il piano narrativo completo per questo romanzo: bozza estesa e indice dei capitoli.
 
-**Dati del romanzo:**
 {formatted_form_data}
 
 {formatted_answers}
 
-Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte le specifiche indicate e le informazioni emerse dalle risposte.
-Restituisci esclusivamente il JSON finale richiesto."""
+Restituisci il JSON del contratto (`title`, `character_profiles`, `draft_text`, `sections`)."""
 
     user_prompt = HumanMessage(content=user_prompt_content)
     gemini_model = get_stage_model("draft", form_data.llm_model, form_data=form_data)
@@ -183,6 +193,7 @@ Restituisci esclusivamente il JSON finale richiesto."""
     title = payload.title.strip()
     draft_text = payload.draft_text.strip()
     character_profiles = payload.character_profiles.strip()
+    outline_text = render_draft_outline(payload)
     session_store = get_session_store()
     session = await get_session_async(session_store, session_id, user_id=None)
     new_version = session.current_version + 1 if session else 1
@@ -193,6 +204,7 @@ Restituisci esclusivamente il JSON finale richiesto."""
         version=new_version,
         draft_characters=len(draft_text),
         character_profiles_characters=len(character_profiles),
+        outline_sections=len(payload.sections),
     )
     logger.info(
         "Bozza generata con successo",
@@ -200,9 +212,8 @@ Restituisci esclusivamente il JSON finale richiesto."""
             "session_id": session_id,
             "version": new_version,
             "model": gemini_model,
+            "outline_sections": len(payload.sections),
             "trace_file": str(trace.file_path),
         },
     )
-    return draft_text, title, new_version, token_usage, character_profiles
-
-
+    return draft_text, title, new_version, token_usage, character_profiles, outline_text

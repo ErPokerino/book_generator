@@ -141,6 +141,7 @@ async def _generate_cover_artifact(
         api_key=api_key,
         cover_style=cover_style,
         model_name=get_stage_model("cover", form_data=getattr(session, "form_data", None)),
+        form_data=getattr(session, "form_data", None),
     )
     if cover_path:
         await _store_cover_path(

@@ -13,29 +13,8 @@ from app.agent.writer.common import format_question_answers_for_writer
 from app.models import QuestionAnswer, SubmissionRequest
 
 
-def format_writer_context(
-    form_data: SubmissionRequest,
-    question_answers: list[QuestionAnswer],
-    validated_draft: str,
-    draft_title: Optional[str],
-    outline_text: str,
-    previous_chapters: list[dict[str, Any]],
-    current_section: dict[str, str],
-    story_bible: Optional[dict[str, Any]] = None,
-    is_long_form_part1: bool = False,
-    is_long_form_part2: bool = False,
-    part1_text: Optional[str] = None,
-) -> str:
-    """
-    Formatta tutto il contesto per la scrittura di un capitolo.
-    Include configurazione, trama, struttura, capitoli precedenti e sezione corrente.
-    """
-    lines: list[str] = []
-
-    if draft_title:
-        lines.append(f"# TITOLO DEL ROMANZO: {draft_title}\n")
-
-    lines.append("## CONFIGURAZIONE INIZIALE")
+def _format_initial_configuration(form_data: SubmissionRequest) -> list[str]:
+    lines = ["## CONFIGURAZIONE INIZIALE"]
     lines.append(f"**Genere**: {form_data.genre or 'Non specificato'}")
     lines.append(f"**Sottogenere**: {form_data.subgenre or 'Non specificato'}")
     lines.append(f"**Stile**: {form_data.style or 'Non specificato'}")
@@ -61,22 +40,28 @@ def format_writer_context(
     for label, value in optional_fields.items():
         if value:
             lines.append(f"**{label}**: {value}")
+    return lines
 
-    lines.append("\n---\n")
 
-    formatted_answers = format_question_answers_for_writer(question_answers)
-    if formatted_answers:
-        lines.append("## RISPOSTE ALLE DOMANDE PRELIMINARI")
-        lines.append("Questi chiarimenti esprimono preferenze e vincoli specifici dell'utente.")
-        lines.append(formatted_answers)
-        lines.append("\n---\n")
+def format_writer_prefix(
+    form_data: SubmissionRequest,
+    question_answers: list[QuestionAnswer],
+    validated_draft: str,
+    draft_title: Optional[str],
+    outline_text: str,
+    story_bible: Optional[dict[str, Any]] = None,
+    **_: Any,
+) -> str:
+    """Prefisso stabile: identico per tutti i capitoli finché bozza/outline non cambiano."""
+    lines: list[str] = []
+    if draft_title:
+        lines.append(f"# TITOLO DEL ROMANZO: {draft_title}\n")
 
     if story_bible:
         lines.append("## STORY BIBLE DEL ROMANZO")
         lines.append(
-            "Usa questa memoria strutturata come guida primaria per mantenere continuità, vincoli e direzione narrativa."
+            "Usa questa memoria per continuità, vincoli e direzione. Non contraddire i capitoli già scritti."
         )
-
         creative_brief = story_bible.get("creative_brief", [])
         if creative_brief:
             lines.append("### Brief creativo")
@@ -86,7 +71,6 @@ def format_writer_context(
         character_profiles = story_bible.get("character_profiles")
         if character_profiles:
             lines.append("\n### Profili Personaggi")
-            lines.append("Usa questi profili per mantenere voce, tratti e arco coerenti per ogni personaggio.")
             lines.append(character_profiles)
 
         premise = story_bible.get("premise")
@@ -104,72 +88,84 @@ def format_writer_context(
             lines.append("\n### Vincoli espliciti dell'utente")
             for item in user_constraints:
                 lines.append(f"- {item}")
+        lines.append("\n---\n")
+        return "\n".join(lines)
 
+    lines.extend(_format_initial_configuration(form_data))
+    lines.append("\n---\n")
+    formatted_answers = format_question_answers_for_writer(question_answers)
+    if formatted_answers:
+        lines.append("## RISPOSTE ALLE DOMANDE PRELIMINARI")
+        lines.append("Questi chiarimenti esprimono preferenze e vincoli specifici dell'utente.")
+        lines.append(formatted_answers)
+        lines.append("\n---\n")
+    lines.append("## TRAMA ESTESA VALIDATA")
+    lines.append("Questa è la fonte di verità per gli eventi principali e lo sviluppo narrativo.")
+    lines.append(validated_draft)
+    lines.append("\n---\n")
+    lines.append("## STRUTTURA COMPLETA DEL ROMANZO")
+    lines.append("Questa è la struttura completa. La sezione che devi scrivere è indicata di seguito.")
+    lines.append(outline_text)
+    lines.append("\n---\n")
+    return "\n".join(lines)
+
+
+def format_writer_turn(
+    form_data: SubmissionRequest,
+    question_answers: list[QuestionAnswer],
+    validated_draft: str,
+    draft_title: Optional[str],
+    outline_text: str,
+    previous_chapters: list[dict[str, Any]],
+    current_section: dict[str, str],
+    story_bible: Optional[dict[str, Any]] = None,
+    is_long_form_part1: bool = False,
+    is_long_form_part2: bool = False,
+    part1_text: Optional[str] = None,
+    **_: Any,
+) -> str:
+    """Parte variabile: card vicine, continuità, ultimo capitolo, sezione corrente."""
+    lines: list[str] = []
+    if story_bible:
         nearby_cards = get_nearby_chapter_cards(
             story_bible,
             current_section.get("section_index"),
         )
         if nearby_cards:
-            lines.append("\n### Chapter Cards Rilevanti")
+            lines.append("### Chapter Cards Rilevanti")
+            current_index = current_section.get("section_index")
             for card in nearby_cards:
-                relation = "Capitolo attuale"
                 card_index = int(card.get("section_index", -1))
-                current_index = current_section.get("section_index")
-                if current_index is not None:
-                    if card_index < current_index:
-                        relation = "Contesto immediatamente precedente"
-                    elif card_index > current_index:
-                        relation = "Sviluppo immediatamente successivo"
-                lines.append(f"- [{relation}] {card.get('title', '')}: {card.get('description', '')}")
+                if current_index is not None and card_index < int(current_index):
+                    relation = "Contesto immediatamente precedente"
+                else:
+                    relation = "Sviluppo immediatamente successivo"
+                lines.append(
+                    f"- [{relation}] {card.get('title', '')}: {card.get('description', '')}"
+                )
 
         continuity_notes = get_relevant_continuity_notes(story_bible, previous_chapters)
         if continuity_notes:
             lines.append("\n### Continuità Consolidata")
             for note in continuity_notes:
                 lines.append(f"- {note.get('title', '')}: {note.get('summary', '')}")
-
-        recent_developments = story_bible.get("recent_developments", [])
-        if recent_developments:
-            lines.append("\n### Ultimi sviluppi già avvenuti")
-            for item in recent_developments:
-                lines.append(f"- {item}")
-
-        lines.append("\n---\n")
-    else:
-        lines.append("## TRAMA ESTESA VALIDATA")
-        lines.append("Questa è la fonte di verità per gli eventi principali e lo sviluppo narrativo.")
-        lines.append(validated_draft)
-        lines.append("\n---\n")
-
-        lines.append("## STRUTTURA COMPLETA DEL ROMANZO")
-        lines.append("Questa è la struttura completa. La sezione che devi scrivere è indicata di seguito.")
-        lines.append(outline_text)
-        lines.append("\n---\n")
+            lines.append("")
 
     if previous_chapters:
         lines.append("## CAPITOLI PRECEDENTI SCRITTI")
-        lines.append("**IMPORTANTE**: Questi capitoli sono già stati scritti. DEVI mantenere la massima coerenza con:")
-        lines.append("- Eventi già narrati")
-        lines.append("- Caratterizzazione dei personaggi già stabilita")
-        lines.append("- Atmosfere e toni già introdotti")
-        lines.append("- Dettagli di ambientazione già forniti")
-        lines.append("- Stile narrativo già utilizzato\n")
-
+        lines.append("Mantieni coerenza con eventi, voci, tono, ambientazione e stile già usati.\n")
         chapters_for_prompt = previous_chapters
         if story_bible:
             chapters_for_prompt = get_recent_full_chapters(previous_chapters)
             lines.append(
-                "Per evitare ridondanza, hai il testo integrale solo degli ultimi capitoli; "
-                "per il resto usa la continuità sintetica della story bible.\n"
+                "Testo integrale solo degli ultimi capitoli; per il resto usa la continuità sintetica.\n"
             )
-
         for index, chapter in enumerate(chapters_for_prompt, start=1):
             title = chapter.get("title", f"Capitolo {index}")
             content = chapter.get("content", "")
             lines.append(f"### {title}")
             lines.append(content)
             lines.append("\n")
-
         lines.append("---\n")
 
     lines.append("## SEZIONE DA SCRIVERE ORA")
@@ -179,40 +175,61 @@ def format_writer_context(
     lines.append("\n")
 
     if is_long_form_part1:
-        lines.append("**Istruzioni (Modalità Estesa - Parte 1 di 2)**:")
-        lines.append("- Scrivi SOLO la prima parte (circa 50-60%) di questa sezione.")
-        lines.append("- **VINCOLO CRITICO**: NON concludere la sezione. NON risolvere tutti gli eventi descritti nell'outline.")
-        lines.append("- Fermati a un punto intermedio logico nell'azione, prima di completare tutti gli eventi previsti.")
-        lines.append("- L'obiettivo è creare profondità narrativa, non arrivare alla fine.")
-        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
-        lines.append("- Elabora i primi elementi narrativi indicati nella descrizione con grande dettaglio.")
-        lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
+        lines.append("**Istruzioni (Parte 1 di 2)**:")
+        lines.append("- Scrivi solo la prima parte (circa 50-60%) di questa sezione.")
+        lines.append("- Non concludere la sezione e non risolvere tutti gli eventi dell'outline.")
+        lines.append("- Fermati a un punto intermedio logico.")
+        lines.append("- Inizia direttamente con la narrazione.")
     elif is_long_form_part2:
-        lines.append("**Istruzioni (Modalità Estesa - Parte 2 di 2)**:")
-        lines.append("- Ecco la prima parte della sezione che hai appena scritto:")
+        lines.append("**Istruzioni (Parte 2 di 2)**:")
+        lines.append("- Prima parte già scritta:")
         lines.append("\n[INIZIO PARTE 1]")
         lines.append(part1_text or "")
         lines.append("[FINE PARTE 1]\n")
-        lines.append("- **OBIETTIVO**: Continua la narrazione ESATTAMENTE da dove si è interrotta la Parte 1.")
-        lines.append("- Mantieni lo stesso stile, ritmo e livello di dettaglio della prima parte.")
-        lines.append("- NON riassumere ciò che è già accaduto nella Parte 1. Continua l'azione come se fosse un flusso unico.")
-        lines.append("- Completa gli eventi descritti nell'outline della sezione che non sono stati ancora narrati.")
-        lines.append("- Porta la sezione a una conclusione naturale, rispettando la descrizione dell'outline.")
-        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti e con la Parte 1 appena scritta.")
-        lines.append("- Inizia direttamente continuando la narrazione, senza titoli o numerazioni.")
+        lines.append("- Continua esattamente da dove si interrompe la Parte 1, stesso stile e ritmo.")
+        lines.append("- Non riassumere la Parte 1. Completa gli eventi dell'outline ancora da narrare.")
+        lines.append("- Porta la sezione a una chiusura naturale.")
     else:
         lines.append("**Istruzioni**:")
-        lines.append("- Scrivi questa sezione seguendo la descrizione fornita.")
-        lines.append("- Mantieni coerenza assoluta con i capitoli precedenti.")
-        lines.append("- Elabora tutti i temi e sviluppi narrativi indicati nella descrizione.")
-        lines.append("- **Stratificazione**: Arricchisci la narrazione con:")
-        lines.append("  * Descrizioni sensoriali dettagliate (cosa si vede, sente, percepisce)")
-        lines.append("  * Dialoghi sviluppati che rivelano carattere e relazioni")
-        lines.append("  * Riflessioni interiori dei personaggi")
-        lines.append("  * Scene intermedie che approfondiscono atmosfere e temi")
-        lines.append("  * Dettagli ambientali che creano contesto narrativo")
-        lines.append("  * Sviluppi graduali che richiedono tempo narrativo per maturare")
-        lines.append("- Non avere fretta: sviluppa ogni elemento con la profondità necessaria per creare un'esperienza immersiva.")
+        lines.append("- Scrivi questa sezione seguendo la descrizione.")
         lines.append("- Inizia direttamente con la narrazione, senza titoli o numerazioni.")
 
     return "\n".join(lines)
+
+
+def format_writer_context(
+    form_data: SubmissionRequest,
+    question_answers: list[QuestionAnswer],
+    validated_draft: str,
+    draft_title: Optional[str],
+    outline_text: str,
+    previous_chapters: list[dict[str, Any]],
+    current_section: dict[str, str],
+    story_bible: Optional[dict[str, Any]] = None,
+    is_long_form_part1: bool = False,
+    is_long_form_part2: bool = False,
+    part1_text: Optional[str] = None,
+) -> str:
+    """Contesto completo: prefisso stabile + turno del capitolo."""
+    prefix = format_writer_prefix(
+        form_data=form_data,
+        question_answers=question_answers,
+        validated_draft=validated_draft,
+        draft_title=draft_title,
+        outline_text=outline_text,
+        story_bible=story_bible,
+    )
+    turn = format_writer_turn(
+        form_data=form_data,
+        question_answers=question_answers,
+        validated_draft=validated_draft,
+        draft_title=draft_title,
+        outline_text=outline_text,
+        previous_chapters=previous_chapters,
+        current_section=current_section,
+        story_bible=story_bible,
+        is_long_form_part1=is_long_form_part1,
+        is_long_form_part2=is_long_form_part2,
+        part1_text=part1_text,
+    )
+    return f"{prefix}\n{turn}"

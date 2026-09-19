@@ -81,12 +81,14 @@ llm_models:
       label: Gemini 3.8 Flash
       description: Qualità alta per capitoli, bozza e struttura
       mode: standard
+      temperature: 1.0
     gemini-3.5-flash-lite:
       api_id: gemini-3.5-flash-lite
       purpose: text
       label: Gemini 3.5 Flash Lite
       description: Più veloce, ideale per domande e prove
       mode: standard
+      temperature: 1.0
     gemini-3.1-flash-lite-image:
       api_id: gemini-3.1-flash-lite-image
       purpose: image
@@ -140,7 +142,6 @@ llm_models:
     critique: gemini-3.8-flash
     cover: gemini-3.1-flash-image
     manga_planning: gemini-3.8-flash
-    manga_localization: gemini-3.8-flash
     manga_pages: gemini-3.1-flash-lite-image
     manga_cover: gemini-3.1-flash-image
     manga_back_cover: gemini-3.1-flash-image
@@ -172,24 +173,8 @@ manga_generation:
   cover_image_model: gemini-3.1-flash-image
   aspect_ratio: '3:4'
   max_reference_images: 2
-review:
-  chapters:
-    enabled: false
-    target_modes: []
-    min_chapter_words: 220
-    max_issues: 5
-    reviewer_max_output_tokens: 2048
-    allow_fallback_to_original: true
 temperature:
-  agents:
-    question_generator: 1.0
-    draft_generator: 1.0
-    outline_generator: 1.0
-    writer_generator: 0.65
-    chapter_reviewer: 0.1
-    chapter_reviser: 0.45
-    manga_planner: 1.0
-    manga_localization: 1.0
+  default: 1.0
 cost_estimation:
   tokens_per_page: 350
   currency: EUR

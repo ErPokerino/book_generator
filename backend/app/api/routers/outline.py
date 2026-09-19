@@ -68,6 +68,7 @@ async def generate_outline_endpoint(
             session_id=request.session_id,
             draft_title=session.current_title,
             api_key=api_key,
+            existing_outline=session.current_outline,
         )
 
         await update_outline_async(session_store, request.session_id, outline_text)
