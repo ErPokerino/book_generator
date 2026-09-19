@@ -142,27 +142,14 @@ def test_trace_recorder_persists_jsonl_events(tmp_path, monkeypatch) -> None:
     assert events[0]["export_target"] == "jsonl"
 
 
-def test_google_backend_config_prefers_vertex_when_project_is_available(monkeypatch) -> None:
+def test_google_backend_config_requires_api_key(monkeypatch) -> None:
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "narrai-483022")
-    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west1")
 
-    backend = get_google_backend_config()
-
-    assert backend.provider == "vertex"
-    assert backend.project == "narrai-483022"
-    assert backend.location == "europe-west1"
+    with pytest.raises(ValueError, match="GOOGLE_API_KEY"):
+        get_google_backend_config()
 
 
-def test_google_backend_config_falls_back_to_api_key_when_vertex_lacks_project(monkeypatch) -> None:
-    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
-    monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
-    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
-    monkeypatch.delenv("VERTEX_AI_LOCATION", raising=False)
-    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+def test_google_backend_config_uses_developer_api(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "dev-key")
 
     backend = get_google_backend_config()
@@ -171,33 +158,16 @@ def test_google_backend_config_falls_back_to_api_key_when_vertex_lacks_project(m
     assert backend.api_key == "dev-key"
 
 
-def test_build_google_chat_model_uses_vertex_client_when_configured(monkeypatch) -> None:
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "narrai-483022")
-    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west1")
+def test_google_backend_config_prefers_explicit_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "env-key")
 
-    llm = build_google_chat_model(
-        model_name="gemini-2.5-flash",
-        api_key=None,
-        temperature=0.2,
-        max_output_tokens=1024,
-    )
+    backend = get_google_backend_config(api_key="explicit-key")
 
-    assert isinstance(llm, ChatGoogleGenerativeAI)
-    assert llm.vertexai is True
-    assert getattr(llm, "_google_backend_provider") == "vertex"
-    assert getattr(llm, "_google_structured_output_method") == "json_mode"
+    assert backend.provider == "developer_api"
+    assert backend.api_key == "explicit-key"
 
 
-def test_build_google_chat_model_keeps_api_key_fallback_for_local_dev(monkeypatch) -> None:
-    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
-    monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
-    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
-    monkeypatch.delenv("VERTEX_AI_LOCATION", raising=False)
-    monkeypatch.delenv("GOOGLE_LLM_PROVIDER", raising=False)
-    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+def test_build_google_chat_model_uses_developer_api(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_API_KEY", "dev-key")
 
     llm = build_google_chat_model(

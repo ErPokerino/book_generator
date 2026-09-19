@@ -93,33 +93,20 @@ def build_google_chat_model(
     max_output_tokens: int | None = None,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> Any:
-    """Costruisce il client LangChain Google usando Vertex AI o Gemini API."""
+    """Costruisce il client LangChain Google usando la Gemini Developer API."""
     backend = get_google_backend_config(api_key=api_key)
-    if backend.provider == "vertex":
-        kwargs: dict[str, Any] = {
-            "model": model_name,
-            "vertexai": True,
-            "project": backend.project,
-            "location": backend.location,
-            "temperature": temperature,
-            "timeout": timeout_seconds,
-        }
-        if max_output_tokens is not None:
-            kwargs["max_output_tokens"] = max_output_tokens
-        llm = ChatGoogleGenerativeAI(**kwargs)
-    else:
-        kwargs = {
-            "model": model_name,
-            "google_api_key": backend.api_key,
-            "temperature": temperature,
-            "timeout": timeout_seconds,
-        }
-        if max_output_tokens is not None:
-            kwargs["max_output_tokens"] = max_output_tokens
-        llm = ChatGoogleGenerativeAI(**kwargs)
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "google_api_key": backend.api_key,
+        "temperature": temperature,
+        "timeout": timeout_seconds,
+    }
+    if max_output_tokens is not None:
+        kwargs["max_output_tokens"] = max_output_tokens
+    llm = ChatGoogleGenerativeAI(**kwargs)
 
     setattr(llm, "_google_backend_provider", backend.provider)
-    setattr(llm, "_google_structured_output_method", get_google_structured_output_method(api_key=api_key))
+    setattr(llm, "_google_structured_output_method", get_google_structured_output_method())
     return llm
 
 

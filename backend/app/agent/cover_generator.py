@@ -46,8 +46,6 @@ async def generate_book_cover(
     trace.record(
         "cover_backend_resolved",
         provider=backend.provider,
-        project=backend.project,
-        location=backend.location,
     )
     
     # Leggi la configurazione per l'aspect ratio

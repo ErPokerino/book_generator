@@ -34,7 +34,7 @@ async def generate_questions_endpoint(
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
 
-        # Genera le domande usando Vertex AI o il fallback API key locale
+        # Genera le domande usando la Gemini Developer API (GOOGLE_API_KEY)
         response, token_usage = await generate_questions(request.form_data, api_key=api_key)
         
         # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande

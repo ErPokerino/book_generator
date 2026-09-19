@@ -76,8 +76,7 @@ llm_models:
     gemini_2_5_flash: 8192
     default: 65536
 google_llm:
-  provider: vertex
-  location: global
+  provider: developer_api
 llm_tracing:
   enabled: true
   sample_rate: 1.0

@@ -11,7 +11,6 @@ from app.llm.google_backend import (
     build_google_genai_client,
     get_google_backend_config,
     get_google_structured_output_method,
-    uses_vertex_ai,
 )
 from app.llm.model_routing import (
     get_max_output_tokens,
@@ -64,5 +63,4 @@ __all__ = [
     "map_book_model_name",
     "parse_json_model",
     "resolve_generation_mode",
-    "uses_vertex_ai",
 ]

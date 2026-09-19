@@ -212,8 +212,7 @@ def load_app_config() -> AppConfig:
                 "structured_output_method": "json_schema",
             },
             "google_llm": {
-                "provider": "vertex",
-                "location": "global",
+                "provider": "developer_api",
             },
             "manga_generation": {
                 "page_count": 10,
