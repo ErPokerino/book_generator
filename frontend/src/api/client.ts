@@ -1,174 +1,3 @@
-// ===== Auth Types =====
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: 'user' | 'admin';
-  is_active: boolean;
-  is_verified?: boolean;
-  created_at: string;
-}
-
-// Costi in punti per modalità generazione
-export const MODE_COSTS = { flash: 1, pro: 3, ultra: 5 } as const;
-export type ModeType = keyof typeof MODE_COSTS;
-
-// DEPRECATO: Crediti separati per modalità (mantenuto per retrocompatibilità)
-export interface ModeCredits {
-  flash: number;
-  pro: number;
-  ultra: number;
-}
-
-// Nuovo sistema punti unificato
-export interface UserCreditsResponse {
-  points: number;  // Saldo punti unificato
-  points_reset_at: string | null;
-  next_reset_at: string;
-  mode_costs?: Record<string, number>;  // Costi per modalità
-}
-
-export interface PointsExhaustedResponse {
-  success: false;
-  error_type: 'points_exhausted';
-  message: string;
-  mode: string;
-  cost: number;
-  current_points: number;
-  next_reset_at: string;
-}
-
-// DEPRECATO: mantenuto per retrocompatibilità
-export interface CreditsExhaustedResponse {
-  success: false;
-  error_type: 'credits_exhausted';
-  message: string;
-  mode: string;
-  next_reset_at: string;
-}
-
-// ===== Credit System Types =====
-export interface CreditPackage {
-  id: string;
-  name: string;
-  credits: number;
-  price_eur: number;
-  bonus_credits: number;
-  description?: string;
-  is_active: boolean;
-  sort_order: number;
-  icon?: string;
-}
-
-export interface CreditTransaction {
-  id: string;
-  user_id: string;
-  type: 'purchase' | 'consumption' | 'bonus' | 'refund' | 'reset';
-  amount: number;
-  balance_after: number;
-  package_id?: string;
-  description: string;
-  metadata?: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface CreditBalanceResponse {
-  credits: number;
-  credits_reset_at: string | null;
-  next_reset_at: string;
-  mode_costs: Record<string, number>;
-  total_purchased: number;
-  total_consumed: number;
-}
-
-export interface CreditPackagesResponse {
-  packages: CreditPackage[];
-}
-
-export interface CreditTransactionResponse {
-  transactions: CreditTransaction[];
-  total: number;
-  has_more: boolean;
-}
-
-export interface CreditPurchaseResponse {
-  success: boolean;
-  message: string;
-  credits_added: number;
-  new_balance: number;
-  transaction_id?: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  name: string;
-  ref_token?: string;  // Token referral opzionale per tracking inviti
-  // GDPR: Consensi obbligatori
-  privacy_accepted: boolean;  // Accettazione Privacy Policy e Terms of Service
-  data_processing_accepted: boolean;  // Consenso al trattamento dati tramite AI
-}
-
-export interface ForgotPasswordRequest {
-  email: string;
-}
-
-export interface ResetPasswordRequest {
-  token: string;
-  new_password: string;
-}
-
-export interface AuthResponse {
-  success: boolean;
-  user: User;
-  message?: string;
-}
-
-export interface RegisterResponse {
-  success: boolean;
-  message: string;
-  email: string;
-  requires_verification: boolean;
-  verification_token?: string; // Solo in dev mode
-}
-
-export interface VerifyEmailResponse {
-  success: boolean;
-  message: string;
-  email: string;
-}
-
-export interface CheckVerificationTokenResponse {
-  success: boolean;
-  valid: boolean;
-  already_verified: boolean;
-  message: string;
-  email: string;
-}
-
-export interface ResendVerificationResponse {
-  success: boolean;
-  message: string;
-  already_verified?: boolean;
-}
-
-export interface ForgotPasswordResponse {
-  success: boolean;
-  message: string;
-  token?: string;
-}
-
-export interface ResetPasswordResponse {
-  success: boolean;
-  message: string;
-}
-
-// ===== Existing Types =====
 export interface FieldOption {
   value: string;
   label?: string;
@@ -182,11 +11,6 @@ export interface FieldConfig {
   options?: FieldOption[];
   placeholder?: string;
   description?: string;
-  mode_availability?: {
-    flash?: number;
-    pro?: number;
-    ultra?: number;
-  } | Record<string, number>;
 }
 
 export interface ConfigResponse {
@@ -196,6 +20,8 @@ export interface ConfigResponse {
 
 export interface SubmissionRequest {
   llm_model: string;
+  generation_mode?: 'standard' | 'ultra';
+  model_overrides?: Record<string, string>;
   plot: string;
   genre?: string;
   subgenre?: string;
@@ -298,20 +124,6 @@ export interface DraftManualUpdateRequest {
 }
 
 const API_BASE = '/api';
-
-// Event per segnalare sessione scaduta
-const SESSION_EXPIRED_EVENT = 'session-expired';
-
-/**
- * Emette l'evento di sessione scaduta se la risposta è 401.
- * Questo permette all'AuthContext di fare logout automatico.
- */
-function handleUnauthorized(status: number): void {
-  if (status === 401) {
-    console.warn('[API Client] Ricevuto 401, emitting session-expired event');
-    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
-  }
-}
 
 export async function fetchConfig(): Promise<ConfigResponse> {
   const response = await fetch(`${API_BASE}/config`);
@@ -812,15 +624,6 @@ export async function startBookGeneration(request: BookGenerationRequest): Promi
   
   if (!response.ok) {
     const error = await response.json();
-    // Gestisci errori di crediti esauriti (402 Payment Required)
-    if (response.status === 402 && error.detail && typeof error.detail === 'object') {
-      const creditsError = error.detail;
-      const errorMessage = new Error(creditsError.message || `Hai esaurito i crediti per la modalità ${creditsError.mode || 'selezionata'}`);
-      (errorMessage as any).error_type = 'credits_exhausted';
-      (errorMessage as any).mode = creditsError.mode;
-      (errorMessage as any).next_reset_at = creditsError.next_reset_at;
-      throw errorMessage;
-    }
     throw new Error(error.detail || `Errore nell'avvio della generazione: ${response.statusText}`);
   }
   
@@ -897,6 +700,7 @@ export interface MangaCreateRequest {
   page_count?: number | null;
   min_pages?: number;
   max_pages?: number;
+  model_overrides?: Record<string, string>;
 }
 
 export interface MangaCharacterProfile {
@@ -943,6 +747,7 @@ export interface MangaProgress {
   is_paused?: boolean;
   error?: string;
   estimated_cost?: number;
+  current_cost_eur?: number;
   cost_breakdown?: Record<string, unknown>;
 }
 
@@ -1009,14 +814,6 @@ export async function startMangaGeneration(request: MangaCreateRequest): Promise
 
   if (!response.ok) {
     const error = await response.json();
-    if (response.status === 402 && error.detail && typeof error.detail === 'object') {
-      const creditsError = error.detail;
-      const errorMessage = new Error(creditsError.message || `Hai esaurito i crediti per la modalita ${creditsError.mode || 'selezionata'}`);
-      (errorMessage as any).error_type = 'credits_exhausted';
-      (errorMessage as any).mode = creditsError.mode;
-      (errorMessage as any).next_reset_at = creditsError.next_reset_at;
-      throw errorMessage;
-    }
     throw new Error(error.detail || `Errore nell'avvio della generazione manga: ${response.statusText}`);
   }
 
@@ -1069,9 +866,7 @@ export function getMangaPageImageUrl(sessionId: string, pageNumber: number): str
 }
 
 export async function downloadMangaPdf(sessionId: string): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`${API_BASE}/manga/pdf/${sessionId}`, {
-    credentials: 'include',
-  });
+  const response = await fetch(`${API_BASE}/manga/pdf/${sessionId}`);
 
   if (!response.ok) {
     let errorMessage = `Errore nel download del PDF del manga: ${response.statusText}`;
@@ -1110,7 +905,6 @@ export async function getBookCritique(sessionId: string): Promise<LiteraryCritiq
 export async function getCritiqueAudio(sessionId: string): Promise<Blob> {
   const response = await fetch(`${API_BASE}/critique/audio/${sessionId}`, {
     method: 'POST',
-    credentials: 'include',
   });
   
   if (!response.ok) {
@@ -1133,7 +927,6 @@ export async function getCritiqueAudio(sessionId: string): Promise<Blob> {
 export async function getChapterAudio(sessionId: string, chapterIndex: number): Promise<Blob> {
   const response = await fetch(`${API_BASE}/book/audio/${sessionId}/${chapterIndex}`, {
     method: 'GET',
-    credentials: 'include',
   });
   
   if (!response.ok) {
@@ -1183,9 +976,7 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
 }
 
 export async function exportBook(sessionId: string, format: 'pdf' | 'epub' | 'docx'): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`${API_BASE}/book/export/${sessionId}?format=${format}`, {
-    credentials: 'include',
-  });
+  const response = await fetch(`${API_BASE}/book/export/${sessionId}?format=${format}`);
   
   if (!response.ok) {
     let errorMessage = `Errore nell'export del libro in formato ${format}: ${response.statusText}`;
@@ -1278,16 +1069,50 @@ export interface AppConfig {
   frontend: {
     polling_interval?: number;
     polling_interval_critique?: number;
-    mode_availability_defaults?: {
-      flash?: number;
-      pro?: number;
-      ultra?: number;
-    };
   };
   manga_generation?: {
     page_count?: number;
     min_page_count?: number;
     max_page_count?: number;
+  };
+  llm_models?: {
+    catalog?: Record<string, { api_id?: string; purpose?: string; label?: string; description?: string }>;
+    defaults?: {
+      text?: string;
+      image?: string;
+      cover_image?: string;
+      tts?: string;
+    };
+    stage_model_overrides?: Record<string, string>;
+    text_models?: string[];
+    image_models?: string[];
+    tts_model?: string;
+    generation_modes?: string[];
+  };
+  time_estimation?: {
+    fallback_seconds_per_chapter?: number;
+    fallback_by_model?: Record<string, number>;
+    linear_model_params?: Record<string, { a?: number; b?: number }>;
+  };
+  cost_estimation?: {
+    tokens_per_page?: number;
+    exchange_rate_usd_to_eur?: number;
+    model_costs?: Record<string, { input_cost_per_million?: number; output_cost_per_million?: number }>;
+    image_generation_cost?: number;
+    manga_image_generation_cost?: number;
+    preview?: {
+      book_chapters?: number;
+      book_pages?: number;
+      manga_pages?: number;
+      questions_seconds?: number;
+      draft_seconds?: number;
+      outline_seconds?: number;
+      critique_seconds?: number;
+      cover_seconds?: number;
+      manga_planning_seconds?: number;
+      manga_page_seconds?: number;
+      manga_cover_seconds?: number;
+    };
   };
 }
 
@@ -1308,11 +1133,6 @@ export async function getAppConfig(): Promise<AppConfig> {
       frontend: {
         polling_interval: 2000,
         polling_interval_critique: 5000,
-        mode_availability_defaults: {
-          flash: 10,
-          pro: 5,
-          ultra: 1,
-        },
       },
       manga_generation: {
         page_count: 10,
@@ -1332,7 +1152,7 @@ export interface LibraryEntry {
   content_type: 'book' | 'manga';
   title: string;
   author: string;
-  llm_model: string;  // Ora contiene la modalità (Flash, Pro, Ultra) invece del nome del modello
+  llm_model: string;  // Modalità Standard / Ultra
   genre?: string;
   manga_type?: MangaType;
   created_at: string;
@@ -1350,9 +1170,6 @@ export interface LibraryEntry {
   cover_url?: string;
   writing_time_minutes?: number;
   estimated_cost?: number;
-  is_shared?: boolean;  // True se è un libro condiviso (per destinatario)
-  shared_by_id?: string;  // ID utente che ha condiviso (per destinatario)
-  shared_by_name?: string;  // Nome utente che ha condiviso (per destinatario)
 }
 
 export interface LibraryStats {
@@ -1400,7 +1217,7 @@ export interface LibraryResponse {
 
 export interface LibraryFilters {
   status?: string;
-  mode?: string;  // Modalità (Flash, Pro, Ultra) - preferito rispetto a llm_model
+  mode?: string;  // Modalità (Standard, Ultra)
   llm_model?: string;  // Retrocompatibilità, deprecato
   genre?: string;
   search?: string;
@@ -1439,9 +1256,7 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
   }
   
   const url = `${API_BASE}/library${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    credentials: 'include',
-  });
+  const response = await fetch(url);
   
   if (!response.ok) {
     const error = await response.json();
@@ -1452,9 +1267,7 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
 }
 
 export async function getLibraryStats(): Promise<LibraryStats> {
-  const response = await fetch(`${API_BASE}/library/stats`, {
-    credentials: 'include',
-  });
+  const response = await fetch(`${API_BASE}/library/stats`);
   
   if (!response.ok) {
     let errorMessage = `Errore nel recupero delle statistiche: ${response.statusText}`;
@@ -1479,9 +1292,7 @@ export async function getLibraryStats(): Promise<LibraryStats> {
 }
 
 export async function getAdvancedStats(): Promise<AdvancedStats> {
-  const response = await fetch(`${API_BASE}/library/stats/advanced`, {
-    credentials: 'include',
-  });
+  const response = await fetch(`${API_BASE}/library/stats/advanced`);
   
   if (!response.ok) {
     const error = await response.json();
@@ -1489,114 +1300,6 @@ export async function getAdvancedStats(): Promise<AdvancedStats> {
   }
   
   return response.json();
-}
-
-export interface UsersStats {
-  total_users: number;
-  users_with_books: Array<{
-    user_id: string;
-    name: string;
-    email: string;
-    books_count: number;
-    created_at?: string;
-  }>;
-}
-
-export async function getUsersStats(): Promise<UsersStats> {
-  const response = await fetch(`${API_BASE}/admin/users/stats`, {
-    credentials: 'include',
-  });
-  
-  if (!response.ok) {
-    let errorMessage = `Errore nel recupero delle statistiche utenti: ${response.statusText}`;
-    try {
-      const error = await response.json();
-      errorMessage = error.detail || errorMessage;
-    } catch {
-      // Se la risposta non è JSON valido (es. connessione interrotta), usa il messaggio di default
-      const text = await response.text().catch(() => '');
-      if (text) {
-        errorMessage = `Errore: ${text.substring(0, 100)}`;
-      }
-    }
-    throw new Error(errorMessage);
-  }
-  
-  try {
-    return await response.json();
-  } catch (e) {
-    throw new Error(`Errore nel parsing della risposta: la connessione potrebbe essere stata interrotta. Riprova.`);
-  }
-}
-
-export async function deleteUserAdmin(email: string): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(email)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Errore nell'eliminazione dell'utente: ${response.statusText}`;
-    try {
-      const error = await response.json();
-      errorMessage = error.detail || errorMessage;
-    } catch {
-      // Ignora errori di parsing
-    }
-    throw new Error(errorMessage);
-  }
-  
-  return await response.json();
-}
-
-// ===== Pending Books (Admin) =====
-
-export interface PendingBook {
-  session_id: string;
-  user_email: string;
-  user_name: string;
-  title: string;
-  status: 'draft' | 'outline' | 'writing' | 'paused';
-  model: string;
-  phase: string;
-  current_chapter: number;
-  total_chapters: number;
-  is_paused: boolean;
-  is_complete: boolean;
-  error?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface PendingBooksResponse {
-  total: number;
-  by_user: Record<string, {
-    name: string;
-    count: number;
-    books: PendingBook[];
-  }>;
-  by_status: Record<string, number>;
-  with_errors: number;
-}
-
-export async function getPendingBooks(): Promise<PendingBooksResponse> {
-  const response = await fetch(`${API_BASE}/admin/books/pending`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Errore nel recupero dei libri in sospeso: ${response.statusText}`;
-    try {
-      const error = await response.json();
-      errorMessage = error.detail || errorMessage;
-    } catch {
-      // Ignora errori di parsing
-    }
-    throw new Error(errorMessage);
-  }
-
-  return await response.json();
 }
 
 export async function deleteBook(sessionId: string): Promise<void> {
@@ -1681,1065 +1384,4 @@ export async function analyzeExternalPdf(
     }
     throw error;
   }
-}
-
-// ===== Auth API Functions =====
-
-export async function login(credentials: LoginRequest): Promise<AuthResponse> {
-  try {
-    const response = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // Include cookies for session management
-      body: JSON.stringify(credentials),
-    });
-
-    if (!response.ok) {
-      let errorDetail = 'Email o password non corretti';
-      try {
-        const error = await response.json();
-        errorDetail = error.detail || errorDetail;
-      } catch {
-        // Se non è JSON, usa il messaggio di default
-      }
-      throw new Error(errorDetail);
-    }
-
-    return response.json();
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
-    }
-    throw err;
-  }
-}
-
-export async function register(userData: RegisterRequest): Promise<RegisterResponse> {
-  try {
-    const response = await fetch(`${API_BASE}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify(userData),
-    });
-
-    if (!response.ok) {
-      let errorDetail = 'Errore nella registrazione';
-      try {
-        const error = await response.json();
-        errorDetail = error.detail || errorDetail;
-      } catch {
-        // Se non è JSON, usa il messaggio di default
-      }
-      throw new Error(errorDetail);
-    }
-
-    return response.json();
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
-    }
-    throw err;
-  }
-}
-
-export async function checkVerificationToken(token: string): Promise<CheckVerificationTokenResponse> {
-  const response = await fetch(`${API_BASE}/auth/verify/check?token=${encodeURIComponent(token)}`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Token non valido o scaduto';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function verifyEmail(token: string): Promise<VerifyEmailResponse> {
-  const response = await fetch(`${API_BASE}/auth/verify`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ token }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Token non valido o scaduto';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function resendVerification(email: string): Promise<ResendVerificationResponse> {
-  try {
-    const response = await fetch(`${API_BASE}/auth/resend-verification`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      let errorDetail = 'Errore nel reinvio email';
-      try {
-        const error = await response.json();
-        errorDetail = error.detail || errorDetail;
-      } catch {
-        // Se non è JSON, usa il messaggio di default
-      }
-      throw new Error(errorDetail);
-    }
-
-    return response.json();
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw new Error('Connessione al backend non disponibile. Verifica che il backend sia avviato su porta 8000.');
-    }
-    throw err;
-  }
-}
-
-export async function logout(): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(`${API_BASE}/auth/logout`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('Errore nel logout');
-  }
-
-  return response.json();
-}
-
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const response = await fetch(`${API_BASE}/auth/me`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      return null; // Non autenticato
-    }
-
-    if (!response.ok) {
-      throw new Error('Errore nel recupero utente');
-    }
-
-    return response.json();
-  } catch (error) {
-    console.error('[API] Errore nel recupero utente corrente:', error);
-    return null;
-  }
-}
-
-export async function getUserCredits(): Promise<UserCreditsResponse | null> {
-  try {
-    const response = await fetch(`${API_BASE}/auth/credits`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      return null; // Non autenticato
-    }
-
-    if (!response.ok) {
-      console.warn('[API] Errore nel recupero crediti, uso default');
-      return null;
-    }
-
-    return response.json();
-  } catch (error) {
-    console.error('[API] Errore nel recupero crediti utente:', error);
-    return null;
-  }
-}
-
-// ===== Credit System API =====
-
-export async function getCreditBalance(): Promise<CreditBalanceResponse> {
-  const response = await fetch(`${API_BASE}/credits/balance`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    // Fallback con valori di default
-    return {
-      credits: 10,
-      credits_reset_at: null,
-      next_reset_at: new Date().toISOString(),
-      mode_costs: { flash: 1, pro: 3, ultra: 5 },
-      total_purchased: 0,
-      total_consumed: 0,
-    };
-  }
-
-  return response.json();
-}
-
-export async function getCreditPackages(): Promise<CreditPackagesResponse> {
-  const response = await fetch(`${API_BASE}/credits/packages`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    return { packages: [] };
-  }
-
-  return response.json();
-}
-
-export async function purchasePackage(packageId: string): Promise<CreditPurchaseResponse> {
-  const response = await fetch(`${API_BASE}/credits/purchase`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ package_id: packageId }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore durante l\'acquisto';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Ignora errori di parsing
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getCreditTransactions(
-  skip: number = 0,
-  limit: number = 20,
-  type?: string
-): Promise<CreditTransactionResponse> {
-  const params = new URLSearchParams({
-    skip: skip.toString(),
-    limit: limit.toString(),
-  });
-  if (type) {
-    params.append('tx_type', type);
-  }
-
-  const response = await fetch(`${API_BASE}/credits/transactions?${params}`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    return { transactions: [], total: 0, has_more: false };
-  }
-
-  return response.json();
-}
-
-export async function forgotPassword(email: string): Promise<ForgotPasswordResponse> {
-  console.log('[API] forgotPassword chiamato per email:', email);
-  console.log('[API] URL:', `${API_BASE}/auth/password/forgot`);
-  
-  try {
-    const response = await fetch(`${API_BASE}/auth/password/forgot`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ email }),
-    });
-
-    console.log('[API] forgotPassword response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetail = 'Errore nella richiesta reset password';
-      try {
-        const error = await response.json();
-        errorDetail = error.detail || errorDetail;
-        console.error('[API] forgotPassword error response:', error);
-      } catch (e) {
-        console.error('[API] forgotPassword errore nel parsing JSON:', e);
-        // Se non è JSON, usa il messaggio di default
-      }
-      throw new Error(errorDetail);
-    }
-
-    const result = await response.json();
-    console.log('[API] forgotPassword success response:', result);
-    return result;
-  } catch (error) {
-    console.error('[API] forgotPassword eccezione:', error);
-    throw error;
-  }
-}
-
-export async function resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
-  const response = await fetch(`${API_BASE}/auth/password/reset`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ token, new_password: newPassword }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel reset password';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-// ===== Notifications API =====
-
-export interface Notification {
-  id: string;
-  user_id: string;
-  type: 'connection_request' | 'connection_accepted' | 'book_shared' | 'book_share_accepted' | 'system';
-  title: string;
-  message: string;
-  data?: Record<string, any>;
-  is_read: boolean;
-  created_at: string;
-}
-
-export interface NotificationResponse {
-  notifications: Notification[];
-  unread_count: number;
-  total: number;
-  has_more: boolean;
-}
-
-export interface UnreadCountResponse {
-  unread_count: number;
-}
-
-export interface NotificationMarkReadResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface NotificationMarkAllReadResponse {
-  success: boolean;
-  message: string;
-  updated_count: number;
-}
-
-export interface NotificationDeleteResponse {
-  success: boolean;
-  message: string;
-}
-
-export async function getNotifications(
-  limit?: number,
-  skip?: number,
-  unreadOnly?: boolean
-): Promise<NotificationResponse> {
-  const params = new URLSearchParams();
-  if (limit !== undefined) params.append('limit', limit.toString());
-  if (skip !== undefined) params.append('skip', skip.toString());
-  if (unreadOnly !== undefined) params.append('unread_only', unreadOnly.toString());
-
-  const url = `${API_BASE}/notifications${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero delle notifiche';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getUnreadCount(): Promise<UnreadCountResponse> {
-  const response = await fetch(`${API_BASE}/notifications/unread-count`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    handleUnauthorized(response.status);
-    let errorDetail = `[${response.status}] Errore nel recupero del conteggio notifiche`;
-    try {
-      const error = await response.json();
-      errorDetail = `[${response.status}] ${error.detail || 'Errore nel recupero del conteggio notifiche'}`;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function markNotificationRead(notificationId: string): Promise<NotificationMarkReadResponse> {
-  const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
-    method: 'PATCH',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel marcare la notifica come letta';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function markAllNotificationsRead(): Promise<NotificationMarkAllReadResponse> {
-  const response = await fetch(`${API_BASE}/notifications/read-all`, {
-    method: 'PATCH',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel marcare tutte le notifiche come lette';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function deleteNotification(notificationId: string): Promise<NotificationDeleteResponse> {
-  const response = await fetch(`${API_BASE}/notifications/${notificationId}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'eliminazione della notifica';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-// ===== Book Shares API =====
-
-export interface BookShare {
-  id: string;
-  book_session_id: string;
-  owner_id: string;
-  recipient_id: string;
-  status: 'pending' | 'accepted' | 'declined';
-  created_at: string;
-  updated_at: string;
-  owner_name?: string;
-  recipient_name?: string;
-  book_title?: string;
-}
-
-export interface BookShareResponse {
-  shares: BookShare[];
-  total: number;
-  has_more: boolean;
-}
-
-export interface BookShareActionResponse {
-  success: boolean;
-  message: string;
-}
-
-export async function shareBook(sessionId: string, recipientEmail: string): Promise<BookShare> {
-  const response = await fetch(`${API_BASE}/books/${sessionId}/share`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ recipient_email: recipientEmail }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nella condivisione del libro';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getSharedBooks(
-  status?: 'pending' | 'accepted' | 'declined',
-  limit?: number,
-  skip?: number
-): Promise<BookShareResponse> {
-  const params = new URLSearchParams();
-  if (status) params.append('status', status);
-  if (limit !== undefined) params.append('limit', limit.toString());
-  if (skip !== undefined) params.append('skip', skip.toString());
-
-  const url = `${API_BASE}/books/shares${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero dei libri condivisi';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getSentShares(
-  status?: 'pending' | 'accepted' | 'declined',
-  limit?: number,
-  skip?: number
-): Promise<BookShareResponse> {
-  const params = new URLSearchParams();
-  if (status) params.append('status', status);
-  if (limit !== undefined) params.append('limit', limit.toString());
-  if (skip !== undefined) params.append('skip', skip.toString());
-
-  const url = `${API_BASE}/books/shares/sent${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero dei libri condivisi con altri';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function acceptBookShare(shareId: string): Promise<BookShare> {
-  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ action: 'accept' }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'accettazione della condivisione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function declineBookShare(shareId: string): Promise<BookShare> {
-  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ action: 'decline' }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel rifiuto della condivisione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function revokeBookShare(shareId: string): Promise<BookShareActionResponse> {
-  const response = await fetch(`${API_BASE}/books/shares/${shareId}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nella revoca della condivisione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getBookShares(sessionId: string): Promise<BookShareResponse> {
-  const response = await fetch(`${API_BASE}/books/${sessionId}/shares`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero delle condivisioni del libro';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-// ===== Referral API Functions =====
-
-export interface Referral {
-  id: string;
-  referrer_id: string;
-  invited_email: string;
-  status: 'pending' | 'registered' | 'expired';
-  token: string;
-  created_at: string;
-  registered_at?: string;
-  invited_user_id?: string;
-  referrer_name?: string;
-}
-
-export interface ReferralStats {
-  total_sent: number;
-  total_registered: number;
-  pending: number;
-}
-
-export async function sendReferral(email: string): Promise<Referral> {
-  const response = await fetch(`${API_BASE}/referrals`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ email }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'invio dell\'invito';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getReferrals(limit: number = 50, skip: number = 0): Promise<Referral[]> {
-  const response = await fetch(`${API_BASE}/referrals?limit=${limit}&skip=${skip}`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero degli inviti';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getReferralStats(): Promise<ReferralStats> {
-  const response = await fetch(`${API_BASE}/referrals/stats`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero delle statistiche referral';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-// ===== Connections API =====
-
-export interface Connection {
-  id: string;
-  from_user_id: string;
-  to_user_id: string;
-  status: 'pending' | 'accepted';
-  created_at: string;
-  updated_at: string;
-  from_user_name?: string;
-  to_user_name?: string;
-  from_user_email?: string;
-  to_user_email?: string;
-}
-
-export interface ConnectionRequest {
-  email: string;
-}
-
-export interface ConnectionResponse {
-  connections: Connection[];
-  total: number;
-  has_more: boolean;
-}
-
-export interface UserSearchResponse {
-  found: boolean;
-  user?: User;
-  is_connected: boolean;
-  has_pending_request: boolean;
-  pending_request_from_me: boolean;
-  connection_id?: string;
-}
-
-export interface ConnectionActionResponse {
-  success: boolean;
-  message: string;
-}
-
-export async function searchUser(email: string): Promise<UserSearchResponse> {
-  const params = new URLSearchParams({ email });
-  const response = await fetch(`${API_BASE}/connections/search?${params.toString()}`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nella ricerca utente';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getConnections(
-  status?: 'pending' | 'accepted',
-  limit?: number,
-  skip?: number
-): Promise<ConnectionResponse> {
-  const params = new URLSearchParams();
-  if (status) params.append('status', status);
-  if (limit !== undefined) params.append('limit', limit.toString());
-  if (skip !== undefined) params.append('skip', skip.toString());
-
-  const url = `${API_BASE}/connections${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero delle connessioni';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getPendingRequests(incomingOnly?: boolean): Promise<ConnectionResponse> {
-  const params = new URLSearchParams();
-  if (incomingOnly !== undefined) params.append('incoming_only', incomingOnly.toString());
-
-  const url = `${API_BASE}/connections/pending${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nel recupero delle richieste pendenti';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function sendConnectionRequest(email: string): Promise<Connection> {
-  const response = await fetch(`${API_BASE}/connections`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ email }),
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'invio della richiesta di connessione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function acceptConnection(connectionId: string): Promise<Connection> {
-  const response = await fetch(`${API_BASE}/connections/${connectionId}/accept`, {
-    method: 'PATCH',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'accettazione della connessione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function deleteConnection(connectionId: string): Promise<ConnectionActionResponse> {
-  const response = await fetch(`${API_BASE}/connections/${connectionId}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    let errorDetail = 'Errore nell\'eliminazione della connessione';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-export async function getPendingConnectionsCount(): Promise<{ pending_count: number }> {
-  const response = await fetch(`${API_BASE}/connections/pending-count`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    handleUnauthorized(response.status);
-    let errorDetail = `[${response.status}] Errore nel recupero del conteggio richieste pendenti`;
-    try {
-      const error = await response.json();
-      errorDetail = `[${response.status}] ${error.detail || 'Errore nel recupero del conteggio richieste pendenti'}`;
-    } catch {
-      // Se non è JSON, usa il messaggio di default
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
-}
-
-// ===== GDPR API Functions =====
-
-export interface GdprDataSummary {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    created_at: string | null;
-    privacy_accepted_at: string | null;
-    terms_accepted_at: string | null;
-  };
-  data_counts: {
-    books: number;
-    notifications: number;
-    connections: number;
-  };
-}
-
-export interface DeleteAccountRequest {
-  password: string;
-  confirm: boolean;
-}
-
-export interface DeleteAccountResponse {
-  success: boolean;
-  message: string;
-  deleted: {
-    books: number;
-    notifications: number;
-  };
-}
-
-export async function getGdprDataSummary(): Promise<GdprDataSummary> {
-  const response = await fetch(`${API_BASE}/gdpr/data-summary`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    handleUnauthorized(response.status);
-    throw new Error('Errore nel recupero del riepilogo dati');
-  }
-
-  return response.json();
-}
-
-export async function exportUserData(): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/gdpr/export`, {
-    method: 'GET',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    handleUnauthorized(response.status);
-    throw new Error('Errore durante l\'export dei dati');
-  }
-
-  return response.blob();
-}
-
-export async function deleteAccount(request: DeleteAccountRequest): Promise<DeleteAccountResponse> {
-  const response = await fetch(`${API_BASE}/gdpr/account`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    handleUnauthorized(response.status);
-    let errorDetail = 'Errore durante la cancellazione dell\'account';
-    try {
-      const error = await response.json();
-      errorDetail = error.detail || errorDetail;
-    } catch {
-      // ignore
-    }
-    throw new Error(errorDetail);
-  }
-
-  return response.json();
 }

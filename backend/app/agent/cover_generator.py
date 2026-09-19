@@ -9,6 +9,12 @@ from PIL import Image as PILImage
 from app.core.config import get_app_config
 from app.core.logging import get_logger
 from app.llm import LLMTraceRecorder, build_google_genai_client, get_google_backend_config
+from app.llm.model_routing import (
+    ALLOWED_IMAGE_MODELS,
+    DEFAULT_COVER_IMAGE_MODEL,
+    image_size_for_model,
+    map_book_model_name,
+)
 
 
 logger = get_logger("cover-generator")
@@ -21,20 +27,11 @@ async def generate_book_cover(
     plot: str,
     api_key: Optional[str] = None,
     cover_style: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> str:
     """
-    Genera la copertina completa del libro (con titolo, autore e immagine) usando gemini-3.1-flash-image-preview.
-    Se fallisce, prova con gemini-2.5-flash-image come fallback.
-    
-    Args:
-        session_id: ID della sessione
-        title: Titolo del libro
-        author: Nome dell'autore (user_name, non autore di riferimento)
-        plot: Trama estesa del libro
-        api_key: API key opzionale per fallback Gemini Developer API locale
-    
-    Returns:
-        Path del file immagine salvato
+    Genera la copertina completa del libro (con titolo, autore e immagine).
+    Prova il modello richiesto e, se fallisce, l'altro modello immagine del catalogo.
     """
     backend = get_google_backend_config(api_key=api_key)
     client = build_google_genai_client(api_key=api_key)
@@ -92,29 +89,38 @@ La copertina deve essere:
     # Lista dei modelli da provare (primario e fallback)
     # Per ogni modello, specifichiamo anche la configurazione dell'immagine
     # NOTA: response_modalities=["IMAGE"] è fondamentale per ricevere immagini
+    primary_model = map_book_model_name(model_name) if model_name else DEFAULT_COVER_IMAGE_MODEL
+    if primary_model not in ALLOWED_IMAGE_MODELS:
+        primary_model = DEFAULT_COVER_IMAGE_MODEL
+    fallback_model = next((item for item in ALLOWED_IMAGE_MODELS if item != primary_model), None)
+
     models_to_try = [
         {
-            'name': 'gemini-3.1-flash-image-preview',
+            'name': primary_model,
             'type': 'primario',
             'config': {
-                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
+                'response_modalities': ['IMAGE'],
                 'image_config': {
-                    'aspect_ratio': aspect_ratio,  # Ratio configurabile (default: 2:3 per PDF A4)
-                    'image_size': '2K'  # Alta risoluzione per copertina professionale
-                }
-            }
-        },
-        {
-            'name': 'gemini-2.5-flash-image',
-            'type': 'fallback',
-            'config': {
-                'response_modalities': ['IMAGE'],  # Richiedi esplicitamente output immagine
-                'image_config': {
-                    'aspect_ratio': aspect_ratio  # Ratio configurabile (default: 2:3 per PDF A4)
+                    'aspect_ratio': aspect_ratio,
+                    'image_size': image_size_for_model(primary_model),
                 }
             }
         },
     ]
+    if fallback_model:
+        models_to_try.append(
+            {
+                'name': fallback_model,
+                'type': 'fallback',
+                'config': {
+                    'response_modalities': ['IMAGE'],
+                    'image_config': {
+                        'aspect_ratio': aspect_ratio,
+                        'image_size': image_size_for_model(fallback_model),
+                    }
+                }
+            }
+        )
     
     sessions_dir = Path(__file__).parent.parent.parent / "sessions"
     sessions_dir.mkdir(exist_ok=True)

@@ -16,10 +16,9 @@ interface BookCardProps {
   onResume?: (book: LibraryEntry) => void;
   onRead?: (book: LibraryEntry) => void;
   onShowCritique?: (book: LibraryEntry) => void;
-  onShare?: (sessionId: string, title: string) => void; // Callback per aprire modal condivisione
 }
 
-export default function BookCard({ book, onDelete, onContinue, onResume, onRead, onShowCritique, onShare }: BookCardProps) {
+export default function BookCard({ book, onDelete, onContinue, onResume, onRead, onShowCritique }: BookCardProps) {
   const [regenerating, setRegenerating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
@@ -378,15 +377,6 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
           {/* Sezione Azioni (solo se complete) */}
           {book.status === 'complete' && (
             <div className="book-card-menu-section">
-              {/* Condividi: solo per libri propri (non condivisi) */}
-              {book.status === 'complete' && !book.is_shared && onShare && (
-                <button
-                  className="book-card-menu-item"
-                  onClick={() => handleMenuAction(() => onShare(book.session_id, book.title))}
-                >
-                  📤 Condividi
-                </button>
-              )}
               {!isManga && book.status === 'complete' && (
                 <button
                   className="book-card-menu-item book-card-menu-item-regenerate"

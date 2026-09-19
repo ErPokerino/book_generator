@@ -1,5 +1,5 @@
-default_model: "gemini-3.1-pro-preview"  # Opzioni: "gemini-3.1-pro-preview" o "gpt-5.2" o "gpt-5.2-pro"
-fallback_model: "gemini-3-flash-preview"  # Fallback sempre Gemini (più affidabile)
+default_model: "gemini-3.8-flash"
+fallback_model: "gemini-3.5-flash-lite"
 
 # Bassa temperatura per maggiore oggettività
 temperature: 0.0

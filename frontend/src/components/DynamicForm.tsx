@@ -1,9 +1,8 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer, MODE_COSTS, ModeType } from '../api/client';
+import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, startBookGeneration, restoreSession, FieldConfig, SubmissionRequest, SubmissionResponse, Question, QuestionAnswer } from '../api/client';
 import { useToast } from '../hooks/useToast';
-import { useAuth } from '../contexts/AuthContext';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
 import WritingStep from './WritingStep';
@@ -11,8 +10,13 @@ import ErrorBoundary from './ErrorBoundary';
 import StepIndicator from './StepIndicator';
 import PlotTextarea from './PlotTextarea';
 import PageTransition from './ui/PageTransition';
-import CreationJourneyPanel from './CreationJourneyPanel';
-import { useUserPoints } from '../hooks/useUserPoints';
+import CreationJourneyPanel, { GenerationMode } from './CreationJourneyPanel';
+import ModelSettingsPanel, {
+  BOOK_STAGES,
+  DEFAULT_TEXT_MODEL,
+  ModelSettingsValue,
+  buildModelOverrides,
+} from './ModelSettingsPanel';
 import './DynamicForm.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
@@ -20,16 +24,74 @@ const OutlineEditor = lazy(() => import('./OutlineEditor'));
 
 const SESSION_STORAGE_KEY = 'current_book_session_id';
 const FORM_DATA_STORAGE_KEY = 'dynamicForm.formData';
+const MODEL_SETTINGS_STORAGE_KEY = 'dynamicForm.modelSettings';
+const DEFAULT_AUTHOR = 'Autore';
 
-function getModeFromModel(modelName?: string | null): ModeType {
-  const normalized = (modelName || '').toLowerCase();
-  if (normalized.includes('ultra')) return 'ultra';
-  if (normalized.includes('pro')) return 'pro';
-  return 'flash';
+function defaultBookModelSettings(): ModelSettingsValue {
+  return {
+    generationMode: 'standard',
+    stageModels: Object.fromEntries(BOOK_STAGES.map((stage) => [stage.id, stage.defaultModel])),
+  };
+}
+
+function hydrateBookModelSettings(raw?: Record<string, unknown> | null): ModelSettingsValue {
+  const defaults = defaultBookModelSettings();
+  if (!raw) return defaults;
+  const incomingStages = raw.stageModels && typeof raw.stageModels === 'object'
+    ? (raw.stageModels as Record<string, string>)
+    : {};
+  const stageModels = { ...defaults.stageModels, ...incomingStages };
+  if (typeof raw.textModel === 'string') {
+    for (const stage of BOOK_STAGES.filter((item) => item.purpose === 'text')) {
+      if (!incomingStages[stage.id]) stageModels[stage.id] = raw.textModel;
+    }
+  }
+  if (typeof raw.imageModel === 'string') {
+    for (const stage of BOOK_STAGES.filter((item) => item.purpose === 'image')) {
+      if (!incomingStages[stage.id]) stageModels[stage.id] = raw.imageModel;
+    }
+  }
+  return {
+    generationMode: raw.generationMode === 'ultra' ? 'ultra' : 'standard',
+    stageModels,
+  };
+}
+
+function modelSettingsFromRequest(data?: SubmissionRequest | null): ModelSettingsValue {
+  const defaults = defaultBookModelSettings();
+  if (!data) return defaults;
+  const overrides = data.model_overrides || {};
+  const stageModels = { ...defaults.stageModels };
+  for (const stage of BOOK_STAGES) {
+    if (overrides[stage.id]) {
+      stageModels[stage.id] = overrides[stage.id];
+    } else if (stage.purpose === 'text' && overrides.text) {
+      stageModels[stage.id] = overrides.text;
+    } else if (stage.purpose === 'image' && (overrides.cover || overrides.image)) {
+      stageModels[stage.id] = overrides.cover || overrides.image;
+    } else if (stage.id === 'chapters' && data.llm_model?.includes('lite')) {
+      stageModels[stage.id] = 'gemini-3.5-flash-lite';
+    }
+  }
+  return {
+    generationMode: data.generation_mode === 'ultra' || (data.llm_model || '').includes('ultra') ? 'ultra' : 'standard',
+    stageModels,
+  };
+}
+
+function applyDefaultAuthor(data: Record<string, string>): Record<string, string> {
+  if (data.author?.trim()) {
+    return data;
+  }
+  return { ...data, author: DEFAULT_AUTHOR };
+}
+
+function getModeFromModel(modelName?: string | null, generationMode?: string | null): GenerationMode {
+  if (generationMode === 'ultra' || (modelName || '').toLowerCase().includes('ultra')) return 'ultra';
+  return 'standard';
 }
 
 export default function DynamicForm() {
-  const { user } = useAuth();
   const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +112,11 @@ export default function DynamicForm() {
   const [isEditingOutline, setIsEditingOutline] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
-  const { userPoints, nextPointsReset, refreshUserPoints } = useUserPoints(currentStep);
-  const selectedMode = getModeFromModel(formData.llm_model || formPayload?.llm_model);
+  const [modelSettings, setModelSettings] = useState<ModelSettingsValue>(defaultBookModelSettings);
+  const selectedMode = getModeFromModel(
+    formData.llm_model || formPayload?.llm_model,
+    modelSettings.generationMode || formPayload?.generation_mode,
+  );
 
   useEffect(() => {
     loadConfig();
@@ -69,10 +134,21 @@ export default function DynamicForm() {
         try {
           const parsed = JSON.parse(savedFormData);
           if (parsed && typeof parsed === 'object') {
-            setFormData(parsed);
+            setFormData(applyDefaultAuthor(parsed));
           }
         } catch (err) {
           console.warn('[DynamicForm] Errore nel parsing formData salvato:', err);
+        }
+      }
+      const savedModelSettings = localStorage.getItem(MODEL_SETTINGS_STORAGE_KEY);
+      if (savedModelSettings) {
+        try {
+          const parsed = JSON.parse(savedModelSettings);
+          if (parsed && typeof parsed === 'object') {
+            setModelSettings(hydrateBookModelSettings(parsed));
+          }
+        } catch (err) {
+          console.warn('[DynamicForm] Errore nel parsing modelSettings salvato:', err);
         }
       }
     } catch (err) {
@@ -102,7 +178,7 @@ export default function DynamicForm() {
           'llm_model', 'plot', 'genre', 'subgenre', 'target_audience', 'theme',
           'protagonist', 'protagonist_archetype', 'character_arc', 'point_of_view',
           'narrative_voice', 'style', 'temporal_structure', 'pace', 'realism',
-          'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style'
+          'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style', 'generation_mode'
         ];
         formDataKeys.forEach(key => {
           const value = restoreData.form_data[key];
@@ -110,10 +186,12 @@ export default function DynamicForm() {
             formDataObj[key] = String(value);
           }
         });
-        setFormData(formDataObj);
+        const restoredFormData = applyDefaultAuthor(formDataObj);
+        setFormData(restoredFormData);
+        setModelSettings(modelSettingsFromRequest(restoreData.form_data));
         // Salva anche in localStorage per persistenza
         try {
-          localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(formDataObj));
+          localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(restoredFormData));
         } catch (err) {
           console.warn('[DynamicForm] Errore nel salvataggio formData dopo restore:', err);
         }
@@ -249,15 +327,10 @@ export default function DynamicForm() {
         // Imposta default per llm_model se esiste
         const llmModelField = data.fields.find(f => f.id === 'llm_model');
         if (llmModelField && llmModelField.type === 'select') {
-          initialData['llm_model'] = 'gemini-3-flash';
+          initialData['llm_model'] = DEFAULT_TEXT_MODEL;
         }
-        
-        // Imposta default per user_name con il nome dell'utente loggato se disponibile
-        if (user?.name) {
-          initialData['user_name'] = user.name;
-        }
-        
-        setFormData(initialData);
+
+        setFormData(applyDefaultAuthor(initialData));
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della configurazione';
@@ -272,9 +345,11 @@ export default function DynamicForm() {
   const handleResetToForm = () => {
     // Reset di tutti gli stati per tornare al form iniziale
     setFormData({});
+    setModelSettings(defaultBookModelSettings());
     // Rimuovi formData salvato da localStorage
     try {
       localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+      localStorage.removeItem(MODEL_SETTINGS_STORAGE_KEY);
     } catch (err) {
       // Ignora errori
     }
@@ -302,7 +377,7 @@ export default function DynamicForm() {
       config.fields.forEach(field => {
         initialData[field.id] = '';
       });
-      setFormData(initialData);
+      setFormData(applyDefaultAuthor(initialData));
     }
   };
 
@@ -327,28 +402,22 @@ export default function DynamicForm() {
     }
   };
 
-  // FE-only: nel form "Nuovo libro" mostriamo solo Gemini 3.
-  // Se per qualche motivo (restore/legacy) è selezionato un 2.5, forziamo un Gemini 3.
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODEL_SETTINGS_STORAGE_KEY, JSON.stringify(modelSettings));
+    } catch (err) {
+      console.warn('[DynamicForm] Errore nel salvataggio modelSettings:', err);
+    }
+  }, [modelSettings]);
+
+  // Migra alias legacy verso i modelli attuali.
   useEffect(() => {
     if (currentStep !== 'form') return;
-    if (!config?.fields) return;
-
     const current = formData.llm_model;
     if (!current) return;
-    if (current.startsWith('gemini-3-')) return;
-
-    const llmField = config.fields.find(f => f.id === 'llm_model');
-    const options = llmField?.options ?? [];
-    const preferred =
-      options.find(o => String(o.value) === 'gemini-3-flash')?.value ??
-      options.find(o => String(o.value).startsWith('gemini-3-'))?.value ??
-      'gemini-3-flash';
-
-    const next = String(preferred);
-    if (next === current) return;
-
-    setFormData(prev => ({ ...prev, llm_model: next }));
-  }, [currentStep, config, formData.llm_model]);
+    if (current === DEFAULT_TEXT_MODEL || current === 'gemini-3.5-flash-lite') return;
+    setFormData(prev => ({ ...prev, llm_model: DEFAULT_TEXT_MODEL }));
+  }, [currentStep, formData.llm_model]);
 
   const validateForm = (): boolean => {
     if (!config) return false;
@@ -381,7 +450,9 @@ export default function DynamicForm() {
     try {
       // Costruisce il payload secondo lo schema SubmissionRequest
       const payload: SubmissionRequest = {
-        llm_model: formData.llm_model || '',
+        llm_model: modelSettings.stageModels.chapters || DEFAULT_TEXT_MODEL,
+        generation_mode: modelSettings.generationMode || 'standard',
+        model_overrides: buildModelOverrides(modelSettings, BOOK_STAGES),
         plot: formData.plot || '',
       };
 
@@ -399,6 +470,8 @@ export default function DynamicForm() {
           (payload as any)[fieldId] = formData[fieldId].trim();
         }
       });
+
+      payload.author = formData.author?.trim() || DEFAULT_AUTHOR;
       
       // Aggiungi sempre user_name anche se vuoto, per mostrarlo nella struttura
       if (formData.user_name !== undefined) {
@@ -423,32 +496,14 @@ export default function DynamicForm() {
         console.log('[DynamicForm] Avvio generazione domande');
         const questionsResponse = await generateQuestions(payload);
         console.log('[DynamicForm] Generazione domande completata:', questionsResponse);
-        
-        // Controlla se la risposta indica crediti esauriti
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const anyResponse = questionsResponse as any;
-        if (anyResponse.error_type === 'credits_exhausted') {
-          // Crediti esauriti - mostra messaggio user-friendly
-          toast.error(anyResponse.message || `Hai esaurito i crediti per la modalità ${anyResponse.mode}. I crediti si ricaricano ogni lunedì.`, {
-            duration: 6000,
-          });
-          // Ricarica i crediti per aggiornare la UI
-          await refreshUserPoints();
-          return;
-        }
-        
+
         setSessionId(questionsResponse.session_id);
         // Salva sessionId in localStorage per permettere il ripristino
         localStorage.setItem(SESSION_STORAGE_KEY, questionsResponse.session_id);
-        
+
         setQuestions(questionsResponse.questions);
         toast.success('Domande generate con successo!');
         setCurrentStep('questions');
-        
-        // Ricarica i crediti per aggiornare la UI dopo il consumo
-        if (user) {
-          await refreshUserPoints();
-        }
       } catch (err) {
         console.error('[DynamicForm] Errore nella generazione domande:', err);
         const errorMessage = err instanceof Error ? err.message : 'Errore nella generazione delle domande';
@@ -532,7 +587,7 @@ export default function DynamicForm() {
   };
 
   // Lista campi Base (ordine desiderato)
-  const baseFieldIds = ['plot', 'genre', 'cover_style', 'user_name', 'author', 'llm_model'];
+  const baseFieldIds = ['plot', 'genre', 'cover_style', 'user_name', 'author'];
   const baseFieldIdsSet = new Set(baseFieldIds);
 
   // Raggruppa campi in Base e Avanzate
@@ -645,144 +700,8 @@ export default function DynamicForm() {
         );
       }
 
-      // Modello LLM: UI a chip (solo Gemini 3)
       if (field.id === 'llm_model') {
-        const options = (field.options ?? []).filter(opt => {
-          const value = String(opt.value ?? '');
-          return value.startsWith('gemini-3-');
-        });
-
-        // Fallback: se non ci sono opzioni (config inattesa), usa select classico.
-        if (options.length === 0) {
-          return (
-            <div key={field.id} className="form-field">
-              <label htmlFor={field.id}>
-                {field.label}
-                {field.required && <span className="required"> *</span>}
-                {renderInfoIcon()}
-              </label>
-              <select
-                id={field.id}
-                value={fieldValue}
-                onChange={(e) => handleChange(field.id, e.target.value)}
-                className={fieldError ? 'error' : ''}
-              >
-                {field.options?.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label || opt.value}
-                  </option>
-                ))}
-              </select>
-              {fieldError && <span className="error-message">{fieldError}</span>}
-            </div>
-          );
-        }
-
-        const labelId = `${field.id}-label`;
-        const currentPoints = userPoints ?? 10;
-
-        return (
-          <div key={field.id} className="form-field">
-            <label id={labelId}>
-              {field.label}
-              {field.required && <span className="required"> *</span>}
-              {renderInfoIcon()}
-            </label>
-
-            {/* Display crediti disponibili */}
-            <div className="points-balance">
-              <span className="points-icon">💎</span>
-              <span className="points-value">{currentPoints}</span>
-              <span className="points-label">crediti disponibili</span>
-            </div>
-
-            <div
-              className={`llm-model-chips ${fieldError ? 'error' : ''}`}
-              role="radiogroup"
-              aria-labelledby={labelId}
-            >
-              {options.map((opt) => {
-                const value = String(opt.value ?? '');
-                const selected = value === fieldValue;
-                
-                // Estrai modalità dal value
-                let modeName = '';
-                let modeClass = '';
-                let modeKey: 'flash' | 'pro' | 'ultra' = 'flash';
-                let modeDescription = '';
-                let modeTradeoff = '';
-                
-                if (value.includes('flash')) {
-                  modeName = 'FLASH';
-                  modeClass = 'mode-flash';
-                  modeKey = 'flash';
-                  modeDescription = 'Esplorazione e prove';
-                  modeTradeoff = 'Ideale per test rapidi';
-                } else if (value.includes('ultra')) {
-                  modeName = 'ULTRA';
-                  modeClass = 'mode-ultra';
-                  modeKey = 'ultra';
-                  modeDescription = 'Rifinitura avanzata';
-                  modeTradeoff = 'Testi più estesi';
-                } else if (value.includes('pro')) {
-                  modeName = 'PRO';
-                  modeClass = 'mode-pro';
-                  modeKey = 'pro';
-                  modeDescription = 'Scrittura principale';
-                  modeTradeoff = 'Scelta consigliata';
-                }
-                
-                // Sistema crediti: costo per modalità e verifica disponibilità
-                const cost = MODE_COSTS[modeKey as ModeType];
-                const currentPoints = userPoints ?? 10; // Default 10 crediti se non caricati
-                const canAfford = currentPoints >= cost;
-                const isExhausted = !canAfford;
-                
-                // Determina se mostrare warning per crediti bassi (può permettersi solo 1 uso)
-                const usesRemaining = Math.floor(currentPoints / cost);
-                const showLowPointsWarning = canAfford && usesRemaining === 1 && modeKey !== 'ultra';
-                
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`llm-model-chip ${modeClass} ${selected ? 'selected' : ''} ${isExhausted ? 'exhausted' : ''}`}
-                    onClick={isExhausted ? undefined : () => handleChange(field.id, value)}
-                    aria-pressed={selected}
-                    disabled={isExhausted}
-                    title={isExhausted ? `Crediti insufficienti per ${modeName}. Servono ${cost} crediti, ne hai ${currentPoints}. Si ricaricano ogni lunedì.` : undefined}
-                  >
-                    {selected && (
-                      <span className="selection-label" aria-label="Selezionata">
-                        Selezionata
-                      </span>
-                    )}
-                    <span className="mode-name">{modeName}</span>
-                    <span className="mode-description">{modeDescription}</span>
-                    <span className="mode-tradeoff">{modeTradeoff}</span>
-                    <span className={`mode-availability ${isExhausted ? 'exhausted' : ''} ${showLowPointsWarning ? 'low-availability' : ''}`}>
-                      {isExhausted ? (
-                        <>
-                          <span>Crediti insufficienti</span>
-                          <span className="availability-count">Costo: {cost} crediti</span>
-                        </>
-                      ) : showLowPointsWarning ? (
-                        <>
-                          <span className="availability-warning-hint">Ultimo uso disponibile</span>
-                          <span className="availability-count">Costo: {cost} {cost === 1 ? 'credito' : 'crediti'}</span>
-                        </>
-                      ) : (
-                        <span className="availability-count">Costo: {cost} {cost === 1 ? 'credito' : 'crediti'}</span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {fieldError && <span className="error-message">{fieldError}</span>}
-          </div>
-        );
+        return null;
       }
 
       return (
@@ -1062,36 +981,9 @@ export default function DynamicForm() {
                 console.log('[DEBUG] Risposta:', response);
                 setCurrentStep('writing');
                 toast.success('Scrittura del libro avviata con successo!');
-                
-                // Ricarica i crediti per aggiornare la UI dopo il consumo
-                if (user) {
-                  try {
-                    await refreshUserPoints();
-                  } catch (creditsErr) {
-                    console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
-                  }
-                }
               } catch (err) {
                 console.error('[DEBUG] Errore:', err);
-                
-                // Gestisci errori di crediti esauriti
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const anyErr = err as any;
-                if (anyErr.error_type === 'credits_exhausted') {
-                  toast.error(anyErr.message || `Hai esaurito i crediti per la modalità ${anyErr.mode || 'selezionata'}. I crediti si ricaricano ogni lunedì.`, {
-                    duration: 6000,
-                  });
-                  // Ricarica i crediti per aggiornare la UI
-                  if (user) {
-                    try {
-                      await refreshUserPoints();
-                    } catch (creditsErr) {
-                      console.warn('[DynamicForm] Errore nel ricaricamento crediti:', creditsErr);
-                    }
-                  }
-                } else {
-                  toast.error(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
-                }
+                toast.error(err instanceof Error ? err.message : 'Errore nell\'avvio della scrittura del libro');
               } finally {
                 setIsStartingWriting(false);
               }
@@ -1170,8 +1062,6 @@ export default function DynamicForm() {
               selectedMode={selectedMode}
               sessionId={sessionId}
               restoreStatus={restoreStatus}
-              userPoints={userPoints}
-              nextPointsReset={nextPointsReset}
             />
           
           {loading ? (
@@ -1200,6 +1090,13 @@ export default function DynamicForm() {
                 
                 {/* Campi Base */}
                 <div className="form-fields-base">
+                  <ModelSettingsPanel
+                    value={modelSettings}
+                    onChange={setModelSettings}
+                    stages={BOOK_STAGES}
+                    showGenerationMode
+                    kind="book"
+                  />
                   {baseFields.map((field) => renderField(field))}
                 </div>
                 

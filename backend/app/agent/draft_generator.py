@@ -157,7 +157,7 @@ Genera una bozza estesa che sviluppi in dettaglio la trama, incorporando tutte l
 Restituisci esclusivamente il JSON finale richiesto."""
 
     user_prompt = HumanMessage(content=user_prompt_content)
-    gemini_model = get_stage_model("draft", form_data.llm_model)
+    gemini_model = get_stage_model("draft", form_data.llm_model, form_data=form_data)
     temperature = get_temperature_for_agent("draft_generator", gemini_model)
     trace = LLMTraceRecorder(
         stage="draft",

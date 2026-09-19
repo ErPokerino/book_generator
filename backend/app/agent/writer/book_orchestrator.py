@@ -11,6 +11,7 @@ from app.agent.session_store_helpers import (
     get_session_async,
     pause_writing_async,
     resume_writing_async,
+    set_real_cost_async,
     start_chapter_timing_async,
     update_book_chapter_async,
     update_token_usage_async,
@@ -42,6 +43,23 @@ def _calculate_total_pages(completed_chapters: list[dict[str, Any]]) -> int:
     toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
     toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page) if completed_chapters else 0
     return chapters_pages + cover_pages + toc_pages
+
+
+async def _refresh_running_cost(session_store, session_id: str) -> None:
+    try:
+        from app.services.cost_service import calculate_real_generation_cost
+
+        session = await get_session_async(session_store, session_id)
+        if not session:
+            return
+        real_cost = calculate_real_generation_cost(session)
+        if real_cost is not None:
+            await set_real_cost_async(session_store, session_id, real_cost)
+    except Exception as exc:
+        logger.warning(
+            "Impossibile aggiornare il costo in corso",
+            context={"session_id": session_id, "error": str(exc)},
+        )
 
 
 async def _initialize_writing_progress(
@@ -170,6 +188,7 @@ async def _run_book_generation_loop(
                     output_tokens=chapter_token_usage.get("output_tokens", 0),
                     model=chapter_token_usage.get("model", "gemini-3.1-pro-preview"),
                 )
+                await _refresh_running_cost(session_store, session_id)
                 chapter_content = validate_generated_chapter_text(
                     chapter_content,
                     section["title"],

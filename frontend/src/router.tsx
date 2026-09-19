@@ -12,19 +12,7 @@ const LibraryView = lazy(() => import('./components/LibraryView'));
 const BookReader = lazy(() => import('./components/BookReader'));
 const BenchmarkView = lazy(() => import('./components/BenchmarkView'));
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
-const ConnectionsView = lazy(() => import('./components/ConnectionsView'));
-const NotificationsPage = lazy(() => import('./components/NotificationsPage'));
-const LoginPage = lazy(() => import('./components/LoginPage'));
-const RegisterPage = lazy(() => import('./components/RegisterPage'));
-const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
-const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
-const VerifyEmailPage = lazy(() => import('./components/VerifyEmailPage'));
 const OnboardingCarousel = lazy(() => import('./components/Onboarding/OnboardingCarousel'));
-const PrivacySettings = lazy(() => import('./components/PrivacySettings'));
-const WalletPage = lazy(() => import('./components/wallet/WalletPage'));
-const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
-const CookiePolicy = lazy(() => import('./components/legal/CookiePolicy'));
-const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
 
 function RouteFallback() {
   return (
@@ -97,56 +85,6 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/login',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <LoginPage />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/register',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <RegisterPage />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/forgot-password',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <ForgotPasswordPage />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/reset-password',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <ResetPasswordPage />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/verify',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <VerifyEmailPage />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
     path: '/new',
     element: (
       <AppLayout>
@@ -210,79 +148,6 @@ export const router = createBrowserRouter([
           <AnalyticsView />
         </LazyPage>
       </AppLayout>
-    ),
-  },
-  {
-    path: '/notifications',
-    element: (
-      <AppLayout>
-        <LazyPage>
-          <NotificationsPage />
-        </LazyPage>
-      </AppLayout>
-    ),
-  },
-  {
-    path: '/connections',
-    element: (
-      <AppLayout>
-        <LazyPage>
-          <ConnectionsView />
-        </LazyPage>
-      </AppLayout>
-    ),
-  },
-  // Wallet (Crediti)
-  {
-    path: '/wallet',
-    element: (
-      <AppLayout>
-        <LazyPage>
-          <WalletPage />
-        </LazyPage>
-      </AppLayout>
-    ),
-  },
-  // Privacy Settings (autenticato)
-  {
-    path: '/settings/privacy',
-    element: (
-      <AppLayout>
-        <LazyPage>
-          <PrivacySettings />
-        </LazyPage>
-      </AppLayout>
-    ),
-  },
-  // Pagine legali (pubbliche)
-  {
-    path: '/privacy',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <PrivacyPolicy />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/cookies',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <CookiePolicy />
-        </LazyPage>
-      </ErrorBoundary>
-    ),
-  },
-  {
-    path: '/terms',
-    element: (
-      <ErrorBoundary>
-        <LazyPage>
-          <TermsOfService />
-        </LazyPage>
-      </ErrorBoundary>
     ),
   },
 ]);

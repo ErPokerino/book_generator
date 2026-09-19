@@ -1,4 +1,5 @@
 from typing import Optional
+import re
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -7,6 +8,7 @@ from app.core.logging import get_logger
 from app.llm import (
     LLMTraceRecorder,
     OutlineGenerationPayload,
+    OutlineSectionPayload,
     append_contract_instructions,
     build_google_chat_model,
     get_stage_model,
@@ -19,11 +21,97 @@ from app.models import SubmissionRequest, QuestionAnswer
 
 logger = get_logger("outline-generator")
 
+_HEADING_LINE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_METADATA_HEADINGS = {
+    "eventi chiave",
+    "focus personaggi",
+    "atmosfera e temi",
+    "atmosfera",
+    "temi",
+    "collegamenti narrativi",
+    "collegamenti",
+    "dettaglio",
+    "note",
+}
+
+
+def sanitize_outline_description(text: str) -> str:
+    """Evita che le note di un capitolo vengano parsate come nuovi heading markdown."""
+    if not text:
+        return text
+    lines: list[str] = []
+    for raw in text.splitlines():
+        match = _HEADING_LINE.match(raw.strip())
+        if match:
+            lines.append(f"**{match.group(2).strip()}**")
+            continue
+        lines.append(raw)
+    return "\n".join(lines).strip()
+
+
+def expand_nested_outline_section(section: OutlineSectionPayload) -> list[OutlineSectionPayload]:
+    """Estrae heading markdown annidati nella description e li promuove a sezioni."""
+    preface: list[str] = []
+    nested: list[OutlineSectionPayload] = []
+    current_title: str | None = None
+    current_body: list[str] = []
+
+    def flush() -> None:
+        nonlocal current_title, current_body
+        if not current_title:
+            return
+        nested.append(
+            OutlineSectionPayload(
+                title=current_title,
+                description=sanitize_outline_description("\n".join(current_body)) or current_title,
+                level=max(int(section.level) + 1, 3),
+            )
+        )
+        current_title = None
+        current_body = []
+
+    for raw in (section.description or "").splitlines():
+        match = _HEADING_LINE.match(raw.strip())
+        if not match:
+            if current_title:
+                current_body.append(raw)
+            else:
+                preface.append(raw)
+            continue
+        title = match.group(2).strip()
+        if title.lower() in _METADATA_HEADINGS:
+            formatted = f"**{title}**"
+            if current_title:
+                current_body.append(formatted)
+            else:
+                preface.append(formatted)
+            continue
+        flush()
+        current_title = title
+    flush()
+
+    parent_description = sanitize_outline_description("\n".join(preface)) or section.title
+    parent = OutlineSectionPayload(
+        title=section.title,
+        description=parent_description,
+        level=section.level,
+    )
+    if not nested:
+        return [parent]
+    return [parent, *nested]
+
+
+def normalize_outline_payload(payload: OutlineGenerationPayload) -> OutlineGenerationPayload:
+    expanded: list[OutlineSectionPayload] = []
+    for section in payload.sections:
+        expanded.extend(expand_nested_outline_section(section))
+    return OutlineGenerationPayload(sections=expanded)
+
 
 def _validate_outline_payload(payload: OutlineGenerationPayload) -> OutlineGenerationPayload:
     if not payload.sections:
         raise ValueError("Outline privo di sezioni.")
-    return payload
+    return normalize_outline_payload(payload)
 
 
 def load_outline_agent_context() -> str:
@@ -95,13 +183,16 @@ def format_input_for_outline(
 
 def render_outline_markdown(payload: OutlineGenerationPayload) -> str:
     """Rende l'outline strutturato in markdown per UI e parser legacy."""
+    normalized = normalize_outline_payload(payload)
     lines: list[str] = []
-    for section in payload.sections:
+    for section in normalized.sections:
         header_prefix = "#" * section.level
         lines.append(f"{header_prefix} {section.title.strip()}")
         lines.append("")
-        lines.append(section.description.strip())
-        lines.append("")
+        description = sanitize_outline_description(section.description.strip())
+        if description:
+            lines.append(description)
+            lines.append("")
     outline_text = "\n".join(lines).strip()
     if not outline_text:
         raise ValueError("Outline vuoto dopo il rendering markdown.")
@@ -188,7 +279,7 @@ Restituisci l'outline come JSON strutturato: una lista ordinata di sezioni/capit
 La struttura deve essere ampia e stratificata, includendo non solo gli eventi principali, ma anche approfondimenti su personaggi, temi, atmosfere, sottotrame e sviluppi narrativi."""
 
     user_prompt = HumanMessage(content=user_prompt_content)
-    gemini_model = get_stage_model("outline", form_data.llm_model)
+    gemini_model = get_stage_model("outline", form_data.llm_model, form_data=form_data)
     temperature = get_temperature_for_agent("outline_generator", gemini_model)
     trace = LLMTraceRecorder(
         stage="outline",

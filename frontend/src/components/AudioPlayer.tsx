@@ -116,12 +116,10 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
       
       if (err instanceof Error) {
         errorMessage = err.message;
-        if (errorMessage.includes('non è abilitata') || errorMessage.includes('Text-to-Speech')) {
-          errorMessage = 'L\'API Text-to-Speech non è abilitata. Contatta l\'amministratore.';
-        } else if (errorMessage.includes('Permessi insufficienti') || errorMessage.includes('permission')) {
-          errorMessage = 'Permessi insufficienti per il servizio audio.';
-        } else if (errorMessage.includes('Credenziali') || errorMessage.includes('credentials')) {
-          errorMessage = 'Problema con le credenziali Google Cloud.';
+        if (errorMessage.includes('Chiave Gemini') || errorMessage.includes('API key')) {
+          errorMessage = 'Chiave Gemini mancante o non valida.';
+        } else if (errorMessage.includes('TTS') || errorMessage.includes('sintesi')) {
+          errorMessage = 'Errore nella sintesi vocale Gemini.';
         }
       }
       

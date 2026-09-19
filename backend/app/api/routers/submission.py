@@ -22,7 +22,9 @@ async def submit_form(data: SubmissionRequest):
             )
         
         # Valida il modello LLM
-        if data.llm_model not in config.llm_models:
+        from app.llm.model_routing import is_known_text_model
+
+        if data.llm_model not in config.llm_models and not is_known_text_model(data.llm_model):
             print(f"[SUBMIT FORM] ERRORE: Modello LLM non valido: {data.llm_model}")
             raise HTTPException(
                 status_code=400,

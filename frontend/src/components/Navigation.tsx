@@ -1,54 +1,17 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { UserPlus } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import './Navigation.css';
-import { useAuth } from '../contexts/AuthContext';
-import { useNotifications } from '../contexts/NotificationContext';
-import ConfirmModal from './ConfirmModal';
-import NotificationBell from './NotificationBell';
 
 export default function Navigation() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const { pendingConnectionsCount } = useNotifications();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-  };
-
-  const handleLogoutConfirm = async () => {
-    await handleLogoutAndRedirect();
-  };
-
-  const handleLogoutCancel = () => {
-    setShowLogoutConfirm(false);
-  };
-
-  const handleLogoutAndRedirect = async () => {
-    setShowLogoutConfirm(false);
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Errore nel logout:', error);
-      setIsLoggingOut(false);
-    }
-  };
-
-
   return (
     <nav className="main-navigation">
       <div className="nav-brand">
-        <img 
-          src="/logo-narrai.png" 
-          alt="NarrAI" 
+        <img
+          src="/logo-narrai.png"
+          alt="NarrAI"
           className="nav-logo"
         />
       </div>
-      
+
       {/* Desktop Navigation Links */}
       <div className="nav-desktop-links">
         <div className="nav-links">
@@ -76,82 +39,14 @@ export default function Navigation() {
           >
             Valuta
           </NavLink>
-          {user?.role === 'admin' && (
-            <NavLink
-              to="/analytics"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
-              Analisi
-            </NavLink>
-          )}
           <NavLink
-            to="/connections"
+            to="/analytics"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            style={{ position: 'relative' }}
           >
-            <UserPlus size={18} style={{ marginRight: '0.5rem' }} />
-            Connetti
-            {pendingConnectionsCount > 0 && (
-              <span className="nav-link-badge">{pendingConnectionsCount > 99 ? '99+' : pendingConnectionsCount}</span>
-            )}
+            Analisi
           </NavLink>
         </div>
-        
-        {user && (
-          <div className="nav-user">
-            <NotificationBell />
-            <span className="nav-user-name">{user.name}</span>
-            {user.role === 'admin' && (
-              <span className="nav-user-badge">Admin</span>
-            )}
-            <NavLink
-              to="/wallet"
-              className="nav-wallet-link"
-              title="Crediti"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="M16 12a2 2 0 1 0 0 0" />
-                <path d="M2 10h20" />
-              </svg>
-            </NavLink>
-            <NavLink
-              to="/settings/privacy"
-              className="nav-privacy-link"
-              title="Impostazioni Privacy"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </NavLink>
-            <button
-              className="nav-logout-button"
-              onClick={handleLogoutClick}
-              disabled={isLoggingOut}
-              title="Logout"
-            >
-              {isLoggingOut ? 'Uscita...' : 'Esci'}
-            </button>
-          </div>
-        )}
       </div>
-
-      {/* Mobile: Solo NotificationBell */}
-      <div className="nav-mobile-only">
-        <NotificationBell />
-      </div>
-
-      <ConfirmModal
-        isOpen={showLogoutConfirm}
-        title="Conferma Logout"
-        message="Sei sicuro di voler uscire?"
-        confirmText="Esci"
-        cancelText="Annulla"
-        onConfirm={handleLogoutConfirm}
-        onCancel={handleLogoutCancel}
-        variant="info"
-      />
     </nav>
   );
 }
-

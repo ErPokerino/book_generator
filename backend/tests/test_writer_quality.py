@@ -93,6 +93,57 @@ def test_parse_outline_sections_prefers_level3_chapters_under_structural_parts()
     assert [section["section_index"] for section in sections] == [0, 1]
 
 
+def test_parse_outline_sections_skips_structural_containers_when_chapters_exist() -> None:
+    outline_text = """
+## Introduzione: L'Equazione del Rimpianto
+- Contesto generale.
+
+## Capitolo 1: La Pioggia di Roma
+- Apertura.
+
+## Atto I: L'Arrivo
+- Contenitore strutturale.
+
+## Capitolo 2: Fluttuazioni e Solitudine
+- Sviluppo.
+
+## Archi dei Personaggi Secondari
+- Non è un capitolo.
+""".strip()
+
+    sections = parse_outline_sections(outline_text)
+
+    assert [section["title"] for section in sections] == [
+        "Capitolo 1: La Pioggia di Roma",
+        "Capitolo 2: Fluttuazioni e Solitudine",
+    ]
+
+
+def test_render_outline_expands_nested_headings_in_descriptions() -> None:
+    from app.agent.outline_generator import render_outline_markdown
+    from app.llm import OutlineGenerationPayload, OutlineSectionPayload
+
+    markdown = render_outline_markdown(
+        OutlineGenerationPayload(
+            sections=[
+                OutlineSectionPayload(
+                    title="Atto I: L'Arrivo",
+                    description="## Capitolo 1: La Pioggia\n- Apertura.\n\n## Eventi chiave\n- Pioggia.\n\n## Capitolo 2: Il Laboratorio\n- Discesa.",
+                    level=2,
+                )
+            ]
+        )
+    )
+    sections = parse_outline_sections(markdown)
+
+    assert [section["title"] for section in sections] == [
+        "Capitolo 1: La Pioggia",
+        "Capitolo 2: Il Laboratorio",
+    ]
+    assert "**Eventi chiave**" in markdown
+    assert "## Eventi chiave" not in markdown
+
+
 def test_story_bible_tracks_versions_cards_and_continuity(
     rich_submission_request: SubmissionRequest,
 ) -> None:
@@ -193,9 +244,10 @@ def test_format_writer_context_uses_story_bible_and_recent_chapters_only(
     assert "## STORY BIBLE DEL ROMANZO" in context
     assert "### Chapter Cards Rilevanti" in context
     assert "### Capitolo 1: La promessa\nTESTO INTEGRALE CAPITOLO UNO" not in context
-    assert "TESTO INTEGRALE CAPITOLO DUE" in context
-    assert "TESTO INTEGRALE CAPITOLO TRE" in context
+    assert "### Capitolo 2: Il ponte\nTESTO INTEGRALE CAPITOLO DUE" not in context
+    assert "### Capitolo 3: La capitale sommersa\nTESTO INTEGRALE CAPITOLO TRE" in context
     assert "Capitolo 1: La promessa:" in context
+    assert "Capitolo 2: Il ponte:" in context
 
 
 def test_session_data_serializes_story_bible(submission_request: SubmissionRequest) -> None:
@@ -207,26 +259,25 @@ def test_session_data_serializes_story_bible(submission_request: SubmissionReque
     assert restored.story_bible == session.story_bible
 
 
-def test_should_run_chapter_review_only_for_enabled_modes_and_lengths(
+def test_should_run_chapter_review_is_disabled(
     submission_request: SubmissionRequest,
 ) -> None:
     review_config = {
         "review": {
             "chapters": {
                 "enabled": True,
-                "target_modes": ["pro", "ultra"],
+                "target_modes": ["pro", "ultra", "standard"],
                 "min_chapter_words": 10,
             }
         }
     }
     long_text = " ".join(["parola"] * 20)
 
-    flash_request = submission_request.model_copy(update={"llm_model": "gemini-2.5-flash"})
-    pro_request = submission_request.model_copy(update={"llm_model": "gemini-3-pro"})
+    ultra_request = submission_request.model_copy(update={"generation_mode": "ultra"})
+    standard_request = submission_request.model_copy(update={"generation_mode": "standard"})
 
-    assert should_run_chapter_review(flash_request, long_text, review_config) is False
-    assert should_run_chapter_review(pro_request, long_text, review_config) is True
-    assert should_run_chapter_review(pro_request, "troppo breve", review_config) is False
+    assert should_run_chapter_review(standard_request, long_text, review_config) is False
+    assert should_run_chapter_review(ultra_request, long_text, review_config) is False
 
 
 def test_parse_chapter_review_response_reads_json_payload() -> None:

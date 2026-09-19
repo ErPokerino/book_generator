@@ -205,19 +205,9 @@
   position: relative;
 }
 
-/* Su desktop, nav-user dentro il container deve essere spinto a destra */
-.nav-desktop-links > .nav-user {
-  margin-left: auto;
-}
-
 /* Su desktop, nav-links si centra grazie al margin auto */
 .nav-desktop-links > .nav-links {
   margin: 0 auto;
-}
-
-/* Mobile Only - NotificationBell */
-.nav-mobile-only {
-  display: none;
 }
 
 /* Responsive */
@@ -252,119 +242,10 @@
     display: none;
   }
 
-  /* Mostra solo NotificationBell su mobile */
-  .nav-mobile-only {
-    display: flex;
-    align-items: center;
-    margin-left: auto;
-  }
-
   /* Nascondi hamburger menu (non più usato) */
   .nav-menu-toggle,
   .nav-menu-overlay,
   .nav-mobile-container {
     display: none !important;
   }
-}
-
-/* User Section */
-.nav-user {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-left: auto;
-  flex-shrink: 0; /* Previene che la sezione utente si rimpicciolisca */
-  min-width: fit-content; /* Assicura spazio minimo per contenuto */
-  padding-left: 1rem; /* Spazio aggiuntivo se necessario */
-}
-
-.nav-user-name {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.875rem;
-  font-weight: 500;
-  white-space: nowrap; /* Previene il wrapping del nome */
-  overflow: visible; /* Assicura che il testo sia visibile */
-  text-overflow: ellipsis; /* Se necessario, mostra "..." invece di tagliare */
-  max-width: none; /* Rimuove limite per mostrare nome completo */
-  min-width: fit-content; /* Assicura spazio per nome completo */
-}
-
-.nav-user-badge {
-  padding: 0.25rem 0.5rem;
-  background: rgba(201, 72, 91, 0.3);
-  border: 1px solid rgba(201, 72, 91, 0.5);
-  border-radius: var(--radius-sm);
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.nav-logout-button {
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  font-family: inherit;
-}
-
-.nav-logout-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.nav-logout-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.nav-wallet-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
-  background: rgba(99, 102, 241, 0.2);
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.95);
-  transition: all var(--transition-fast);
-}
-
-.nav-wallet-link:hover {
-  background: rgba(99, 102, 241, 0.3);
-  border-color: rgba(99, 102, 241, 0.5);
-  color: white;
-}
-
-.nav-wallet-link svg {
-  width: 18px;
-  height: 18px;
-}
-
-.nav-privacy-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.9);
-  transition: all var(--transition-fast);
-}
-
-.nav-privacy-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: white;
-}
-
-.nav-privacy-link svg {
-  width: 18px;
-  height: 18px;
 }

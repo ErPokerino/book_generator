@@ -17,7 +17,7 @@ from app.llm import (
     invoke_structured_chat_model,
 )
 from app.llm.runtime import build_google_chat_model
-from app.llm.model_routing import get_stage_model
+from app.llm.model_routing import get_stage_model, map_book_model_name, resolve_generation_mode
 from app.llm.tracing import LLMTraceRecorder
 
 
@@ -459,10 +459,67 @@ def test_get_stage_model_reads_overrides_from_config(monkeypatch) -> None:
         "app.llm.model_routing.get_app_config",
         lambda: {
             "llm_models": {
-                "stage_model_overrides": {"questions": "gemini-custom-json"},
+                "stage_model_overrides": {"questions": "gemini-3.5-flash-lite"},
+                "defaults": {"text": "gemini-3.8-flash"},
+                "catalog": {
+                    "gemini-3.8-flash": {"api_id": "gemini-3.8-flash", "purpose": "text"},
+                    "gemini-3.5-flash-lite": {"api_id": "gemini-3.5-flash-lite", "purpose": "text"},
+                },
             }
         },
     )
 
-    assert get_stage_model("questions", "gemini-2.5-flash") == "gemini-custom-json"
-    assert get_stage_model("book", "gemini-3-flash") == "gemini-3-flash-preview"
+    assert get_stage_model("questions") == "gemini-3.5-flash-lite"
+    assert get_stage_model("book", "gemini-3.8-flash") == "gemini-3.8-flash"
+
+
+def test_get_stage_model_prefers_request_overrides(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.llm.model_routing.get_app_config",
+        lambda: {
+            "llm_models": {
+                "stage_model_overrides": {"questions": "gemini-3.8-flash"},
+                "defaults": {"text": "gemini-3.8-flash"},
+            }
+        },
+    )
+
+    assert get_stage_model(
+        "questions",
+        overrides={"questions": "gemini-3.5-flash-lite"},
+    ) == "gemini-3.5-flash-lite"
+    assert get_stage_model(
+        "draft",
+        overrides={"text": "gemini-3.5-flash-lite"},
+    ) == "gemini-3.5-flash-lite"
+
+
+def test_map_book_model_name_uses_catalog(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.llm.model_routing.get_app_config",
+        lambda: {
+            "llm_models": {
+                "catalog": {
+                    "gemini-3.8-flash": {"api_id": "gemini-3.8-flash", "mode": "standard"},
+                    "gemini-3-ultra": {
+                        "api_id": "gemini-3.8-flash",
+                        "mode": "ultra",
+                    },
+                }
+            }
+        },
+    )
+
+    assert map_book_model_name("gemini-3.8-flash") == "gemini-3.8-flash"
+    assert map_book_model_name("gemini-3-flash") == "gemini-3.8-flash"
+    assert map_book_model_name("gemini-3-ultra") == "gemini-3.8-flash"
+    assert resolve_generation_mode("gemini-3-ultra") == "ultra"
+    assert resolve_generation_mode("gemini-3.8-flash", "ultra") == "ultra"
+    assert resolve_generation_mode("gemini-3.8-flash", "standard") == "standard"
+
+
+def test_image_size_for_model_uses_1k_for_lite() -> None:
+    from app.llm.model_routing import image_size_for_model
+
+    assert image_size_for_model("gemini-3.1-flash-lite-image") == "1K"
+    assert image_size_for_model("gemini-3.1-flash-image") == "2K"

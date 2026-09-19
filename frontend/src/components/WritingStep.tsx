@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getBookProgress, BookProgress, regenerateBookCritique, getAppConfig, AppConfig, resumeBookGeneration } from '../api/client';
 import AlertModal from './AlertModal';
 import ProgressBar from './ui/ProgressBar';
 import FadeIn from './ui/FadeIn';
 import { useToast } from '../hooks/useToast';
+import { elapsedMinutesBetween, formatElapsed, formatEstimateCost } from '../utils/estimateGeneration';
 import './WritingStep.css';
 
 interface WritingStepProps {
@@ -29,6 +30,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   });
   const latestProgressRef = useRef<BookProgress | null>(null);
   const consecutiveFailuresRef = useRef(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const getScoreColor = (score: number): string => {
     // Score da 0 a 10
@@ -58,6 +60,12 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
       // Continua con valori di default
     });
   }, []);
+
+  useEffect(() => {
+    if (!progress || progress.is_complete || progress.is_paused) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [progress?.is_complete, progress?.is_paused, progress]);
 
   useEffect(() => {
     if (!sessionId || !isPolling) return;
@@ -157,6 +165,11 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
   }, [sessionId, isPolling, onComplete, appConfig]);
+
+  const elapsedMinutes = useMemo(() => {
+    if (!progress) return null;
+    return elapsedMinutesBetween(progress.started_at, nowMs) ?? progress.writing_time_minutes ?? null;
+  }, [nowMs, progress]);
 
   if (fatalError) {
     return (
@@ -273,25 +286,43 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
           )}
         </AnimatePresence>
 
-        {/* Stima tempo rimanente - mostra sempre se disponibile e libro non completato */}
-        {!progress.is_complete && progress.total_steps > 0 && (
-          progress.estimated_time_minutes !== undefined && progress.estimated_time_minutes !== null ? (
+        {/* Tempo trascorso, costo attuale e stima rimanente */}
+        <div className="generation-metrics">
+          {elapsedMinutes != null && (
             <div className="estimated-time">
               <span className="time-icon">⏱️</span>
               <span className="time-text">
-                Tempo stimato: ~{Math.max(1, Math.round(progress.estimated_time_minutes))} minuti
-                {progress.estimated_time_confidence === 'high' && ' (stima affidabile)'}
-                {progress.estimated_time_confidence === 'medium' && ' (stima approssimativa)'}
-                {progress.estimated_time_confidence === 'low' && ' (stima indicativa)'}
+                Tempo trascorso: {formatElapsed(elapsedMinutes)}
               </span>
             </div>
-          ) : (
+          )}
+          {progress.estimated_cost != null && (
             <div className="estimated-time">
-              <span className="time-icon">⏱️</span>
-              <span className="time-text">Calcolo stima tempo in corso...</span>
+              <span className="time-icon">💶</span>
+              <span className="time-text">
+                Costo attuale: {formatEstimateCost(progress.estimated_cost)}
+              </span>
             </div>
-          )
-        )}
+          )}
+          {!progress.is_complete && progress.total_steps > 0 && (
+            progress.estimated_time_minutes !== undefined && progress.estimated_time_minutes !== null ? (
+              <div className="estimated-time">
+                <span className="time-icon">⏳</span>
+                <span className="time-text">
+                  Tempo rimanente: ~{Math.max(1, Math.round(progress.estimated_time_minutes))} min
+                  {progress.estimated_time_confidence === 'high' && ' (stima affidabile)'}
+                  {progress.estimated_time_confidence === 'medium' && ' (stima approssimativa)'}
+                  {progress.estimated_time_confidence === 'low' && ' (stima indicativa)'}
+                </span>
+              </div>
+            ) : (
+              <div className="estimated-time">
+                <span className="time-icon">⏳</span>
+                <span className="time-text">Calcolo stima tempo in corso...</span>
+              </div>
+            )
+          )}
+        </div>
 
         {critiqueFailed && (
           <div className="critique-error-indicator">

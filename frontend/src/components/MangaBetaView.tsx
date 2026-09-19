@@ -18,6 +18,12 @@ import {
 } from '../api/client';
 import ProgressBar from './ui/ProgressBar';
 import { useToast } from '../hooks/useToast';
+import ModelSettingsPanel, {
+  MANGA_STAGES,
+  ModelSettingsValue,
+  buildModelOverrides,
+} from './ModelSettingsPanel';
+import { elapsedMinutesBetween, formatElapsed, formatEstimateCost } from '../utils/estimateGeneration';
 import './MangaBetaView.css';
 
 const STORAGE_KEY = 'current_manga_session_id';
@@ -50,6 +56,12 @@ interface MangaBetaFormState {
   page_color_mode: MangaCreateRequest['page_color_mode'];
   main_characters: MangaCharacterInput[];
   page_count: number;
+}
+
+function defaultMangaModelSettings(): ModelSettingsValue {
+  return {
+    stageModels: Object.fromEntries(MANGA_STAGES.map((stage) => [stage.id, stage.defaultModel])),
+  };
 }
 
 const createEmptyCharacter = (): MangaCharacterInput => ({ name: '', description: '' });
@@ -90,6 +102,15 @@ function formatPageCount(pageCount?: number | null): string {
 
 function formatPageColorMode(mode?: MangaCreateRequest['page_color_mode'] | null): string {
   return PAGE_COLOR_MODE_OPTIONS.find((option) => option.value === mode)?.label ?? 'Bianco e nero';
+}
+
+function RequiredMark() {
+  return (
+    <span className="manga-required" aria-hidden="true">
+      {' '}
+      *
+    </span>
+  );
 }
 
 function formatPageStatus(status: MangaReaderResponse['pages'][number]['status']): string {
@@ -164,6 +185,7 @@ function MangaSessionPanel({
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const progressRef = useRef<MangaProgress | null>(initialProgress);
   const failuresRef = useRef(0);
 
@@ -229,6 +251,18 @@ function MangaSessionPanel({
     };
   }, [sessionId, isPolling, appConfig, toast]);
 
+  const generationActive = Boolean(
+    progress && !progress.is_complete && !progress.is_paused && progress.status !== 'failed',
+  );
+
+  useEffect(() => {
+    if (!generationActive) {
+      return;
+    }
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [generationActive]);
+
   const visiblePages = reader?.pages ?? progress?.completed_pages ?? [];
   const requestedMinPages =
     progress?.requested_min_pages
@@ -254,6 +288,25 @@ function MangaSessionPanel({
   const showPageProgress =
     (progress?.current_phase ?? 'planning') === 'generating_pages' || Boolean(progress?.is_complete);
   const costBreakdown = (progress?.cost_breakdown ?? {}) as Record<string, number>;
+  const currentCostEur =
+    typeof progress?.current_cost_eur === 'number'
+      ? progress.current_cost_eur
+      : typeof costBreakdown.current_cost_eur === 'number'
+        ? costBreakdown.current_cost_eur
+        : null;
+  const estimatedCostEur =
+    typeof progress?.estimated_cost === 'number'
+      ? progress.estimated_cost
+      : typeof costBreakdown.estimated_total_eur === 'number'
+        ? costBreakdown.estimated_total_eur
+        : null;
+  const elapsedMinutes = elapsedMinutesBetween(
+    progress?.started_at,
+    nowMs,
+    progress?.is_complete || progress?.is_paused || progress?.status === 'failed'
+      ? progress?.completed_at ?? progress?.updated_at
+      : null,
+  );
 
   if (fatalError) {
     return (
@@ -373,14 +426,26 @@ function MangaSessionPanel({
           </div>
         )}
 
-        {typeof progress.estimated_cost === 'number' && (
-          <div className="manga-cost-row">
-            <span>Costo stimato: EUR {progress.estimated_cost.toFixed(progress.estimated_cost >= 0.01 ? 2 : 4)}</span>
-            {typeof costBreakdown.current_cost_eur === 'number' && (
-              <span>Costo attuale: EUR {costBreakdown.current_cost_eur.toFixed(costBreakdown.current_cost_eur >= 0.01 ? 2 : 4)}</span>
-            )}
-          </div>
-        )}
+        <div className="manga-generation-metrics">
+          {elapsedMinutes != null && (
+            <div className="manga-metric-chip">
+              <span>Tempo trascorso</span>
+              <strong>{formatElapsed(elapsedMinutes)}</strong>
+            </div>
+          )}
+          {currentCostEur != null && (
+            <div className="manga-metric-chip">
+              <span>Costo attuale</span>
+              <strong>{formatEstimateCost(currentCostEur)}</strong>
+            </div>
+          )}
+          {estimatedCostEur != null && !progress.is_complete && (
+            <div className="manga-metric-chip">
+              <span>Costo stimato finale</span>
+              <strong>{formatEstimateCost(estimatedCostEur)}</strong>
+            </div>
+          )}
+        </div>
 
         {progress.is_paused && (
           <div className="manga-paused-box">
@@ -489,6 +554,8 @@ export default function MangaBetaView() {
   const [searchParams] = useSearchParams();
   const toast = useToast();
   const [formState, setFormState] = useState<MangaBetaFormState>(createDefaultFormState);
+  const [modelSettings, setModelSettings] = useState<ModelSettingsValue>(defaultMangaModelSettings);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [initialProgress, setInitialProgress] = useState<MangaProgress | null>(null);
@@ -592,21 +659,25 @@ export default function MangaBetaView() {
     setInitialProgress(null);
     setInitialReader(null);
     setFormState(createDefaultFormState());
+    setModelSettings(defaultMangaModelSettings());
     navigate('/manga', { replace: true });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextErrors: Record<string, string> = {};
     if (!formState.plot.trim()) {
-      toast.error('Inserisci una traccia iniziale prima di generare il manga.');
-      return;
+      nextErrors.plot = 'Inserisci la trama di partenza.';
     }
     if (cleanedCharacters.length === 0) {
-      toast.error('Aggiungi almeno un personaggio principale con nome e descrizione.');
-      return;
+      nextErrors.characters = 'Aggiungi almeno un personaggio con nome e descrizione.';
     }
     if (formState.page_count < minPageLimit || formState.page_count > maxPageLimit) {
-      toast.error(`Seleziona un numero di pagine valido tra ${minPageLimit} e ${maxPageLimit}.`);
+      nextErrors.page_count = `Seleziona un numero di pagine tra ${minPageLimit} e ${maxPageLimit}.`;
+    }
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error(Object.values(nextErrors)[0]);
       return;
     }
 
@@ -619,6 +690,7 @@ export default function MangaBetaView() {
       page_count: formState.page_count,
       min_pages: formState.page_count,
       max_pages: formState.page_count,
+      model_overrides: buildModelOverrides(modelSettings, MANGA_STAGES),
     };
 
     try {
@@ -672,6 +744,13 @@ export default function MangaBetaView() {
       </section>
 
       <form className="manga-form-card" onSubmit={handleSubmit}>
+        <ModelSettingsPanel
+          value={modelSettings}
+          onChange={setModelSettings}
+          stages={MANGA_STAGES}
+          kind="manga"
+          mangaPageCount={formState.page_count}
+        />
         <div className="manga-form-grid">
           <label className="manga-field">
             <span>Titolo opzionale</span>
@@ -718,39 +797,58 @@ export default function MangaBetaView() {
             </select>
           </label>
 
-          <label className="manga-field">
-            <span>Numero pagine</span>
+          <label className={`manga-field${fieldErrors.page_count ? ' has-error' : ''}`}>
+            <span>
+              Numero pagine
+              <RequiredMark />
+            </span>
             <input
               type="number"
               min={minPageLimit}
               max={maxPageLimit}
               step={1}
+              required
+              aria-required="true"
               value={formState.page_count}
-              onChange={(event) =>
+              onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, page_count: '' }));
                 setFormState((current) => ({
                   ...current,
                   page_count: Number(event.target.value),
-                }))
-              }
+                }));
+              }}
             />
+            {fieldErrors.page_count ? <em className="manga-field-error">{fieldErrors.page_count}</em> : null}
           </label>
         </div>
 
-        <label className="manga-field">
-          <span>Trama di partenza</span>
+        <label className={`manga-field${fieldErrors.plot ? ' has-error' : ''}`}>
+          <span>
+            Trama di partenza
+            <RequiredMark />
+          </span>
           <textarea
             value={formState.plot}
-            onChange={(event) => setFormState((current) => ({ ...current, plot: event.target.value }))}
+            onChange={(event) => {
+              setFieldErrors((current) => ({ ...current, plot: '' }));
+              setFormState((current) => ({ ...current, plot: event.target.value }));
+            }}
             rows={8}
+            required
+            aria-required="true"
             placeholder="Descrivi il conflitto, i protagonisti e il finale che vorresti ottenere."
           />
+          {fieldErrors.plot ? <em className="manga-field-error">{fieldErrors.plot}</em> : null}
         </label>
 
         <div className="manga-characters-card">
           <div className="manga-characters-header">
             <div>
-              <h3>Personaggi principali</h3>
-              <p>Nome e descrizione servono al planner per mantenere coerenza tra le pagine.</p>
+              <h3>
+                Personaggi principali
+                <RequiredMark />
+              </h3>
+              <p>Almeno un personaggio con nome e descrizione è obbligatorio, così il planner resta coerente tra le pagine.</p>
             </div>
             <button
               type="button"
@@ -770,33 +868,45 @@ export default function MangaBetaView() {
             {formState.main_characters.map((character, index) => (
               <div key={`character-${index}`} className="manga-character-editor">
                 <label className="manga-field">
-                  <span>Nome</span>
+                  <span>
+                    Nome
+                    <RequiredMark />
+                  </span>
                   <input
                     type="text"
                     value={character.name}
-                    onChange={(event) =>
+                    required
+                    aria-required="true"
+                    onChange={(event) => {
+                      setFieldErrors((current) => ({ ...current, characters: '' }));
                       setFormState((current) => ({
                         ...current,
                         main_characters: current.main_characters.map((item, itemIndex) =>
                           itemIndex === index ? { ...item, name: event.target.value } : item,
                         ),
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="Es. Akira"
                   />
                 </label>
                 <label className="manga-field">
-                  <span>Descrizione</span>
+                  <span>
+                    Descrizione
+                    <RequiredMark />
+                  </span>
                   <textarea
                     value={character.description}
-                    onChange={(event) =>
+                    required
+                    aria-required="true"
+                    onChange={(event) => {
+                      setFieldErrors((current) => ({ ...current, characters: '' }));
                       setFormState((current) => ({
                         ...current,
                         main_characters: current.main_characters.map((item, itemIndex) =>
                           itemIndex === index ? { ...item, description: event.target.value } : item,
                         ),
-                      }))
-                    }
+                      }));
+                    }}
                     rows={4}
                     placeholder="Aspetto, carattere, ruolo nella storia, dettagli visivi importanti."
                   />
@@ -818,6 +928,7 @@ export default function MangaBetaView() {
               </div>
             ))}
           </div>
+          {fieldErrors.characters ? <em className="manga-field-error">{fieldErrors.characters}</em> : null}
         </div>
 
         <div className="manga-submit-row">

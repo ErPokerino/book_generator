@@ -127,7 +127,7 @@ async def test_generate_critique_artifact_auto_detects_provider_credentials(
                 "cons": ["Finale rapido"],
                 "summary": "Critica completata.",
             },
-            {"input_tokens": 11, "output_tokens": 7, "model": "gpt-5.2"},
+            {"input_tokens": 11, "output_tokens": 7, "model": "gemini-3.1-pro-preview"},
         )
 
     monkeypatch.setattr("app.services.book_generation_service._resolve_pdf_bytes", fake_resolve_pdf_bytes)
@@ -151,4 +151,4 @@ async def test_generate_critique_artifact_auto_detects_provider_credentials(
     assert captured["title"] == "La prova condivisa"
     assert session.critique_status == "completed"
     assert session.literary_critique["score"] == pytest.approx(8.4)
-    assert session.token_usage["critique"]["model"] == "gpt-5.2"
+    assert session.token_usage["critique"]["model"] == "gemini-3.1-pro-preview"

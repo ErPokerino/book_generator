@@ -1,14 +1,13 @@
-import { Clock3, Coins, RefreshCw, Save, type LucideIcon } from 'lucide-react';
-import { MODE_COSTS, ModeType } from '../api/client';
+import { Gauge, RefreshCw, Save, type LucideIcon } from 'lucide-react';
 import './CreationJourneyPanel.css';
+
+export type GenerationMode = 'standard' | 'ultra';
 
 interface CreationJourneyPanelProps {
   currentStep: 'form' | 'questions' | 'draft' | 'summary' | 'writing';
-  selectedMode?: ModeType;
+  selectedMode?: GenerationMode;
   sessionId?: string | null;
   restoreStatus?: 'restored' | 'failed' | 'idle';
-  userPoints?: number | null;
-  nextPointsReset?: string | null;
 }
 
 interface SummaryItem {
@@ -19,10 +18,9 @@ interface SummaryItem {
   hint?: string;
 }
 
-const MODE_COPY: Record<ModeType, { label: string; duration: string }> = {
-  flash: { label: 'Flash', duration: '5-10 min' },
-  pro: { label: 'Pro', duration: '8-15 min' },
-  ultra: { label: 'Ultra', duration: '10-20 min' },
+const MODE_COPY: Record<GenerationMode, { label: string }> = {
+  standard: { label: 'Standard' },
+  ultra: { label: 'Ultra' },
 };
 
 const STEP_LABELS: Record<CreationJourneyPanelProps['currentStep'], string> = {
@@ -38,30 +36,14 @@ const STEP_DESCRIPTIONS: Record<CreationJourneyPanelProps['currentStep'], string
   questions: 'Aggiungi i dettagli che guideranno il progetto narrativo.',
   draft: 'Rifinisci la bozza prima di passare alla struttura.',
   summary: 'Controlla la struttura finale prima di avviare la scrittura.',
-  writing: 'Segui l avanzamento della generazione e delle revisioni.',
+  writing: 'Segui l avanzamento della generazione.',
 };
-
-function formatResetDate(value?: string | null) {
-  if (!value) return 'non disponibile';
-  try {
-    return new Date(value).toLocaleString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return value;
-  }
-}
 
 export default function CreationJourneyPanel({
   currentStep,
-  selectedMode = 'flash',
+  selectedMode = 'standard',
   sessionId,
   restoreStatus = 'idle',
-  userPoints = null,
-  nextPointsReset = null,
 }: CreationJourneyPanelProps) {
   const modeInfo = MODE_COPY[selectedMode];
   const sessionSummary: SummaryItem | null =
@@ -86,26 +68,11 @@ export default function CreationJourneyPanel({
   const summaryItems: SummaryItem[] = [
     {
       key: 'mode',
-      icon: Coins,
-      label: 'Modalita',
+      icon: Gauge,
+      label: 'Modalità',
       value: modeInfo.label,
-      hint: `${MODE_COSTS[selectedMode]} ${MODE_COSTS[selectedMode] === 1 ? 'punto' : 'punti'}`,
-    },
-    {
-      key: 'duration',
-      icon: Clock3,
-      label: 'Tempo',
-      value: modeInfo.duration,
-      hint: 'Stima media',
     },
     ...(sessionSummary ? [sessionSummary] : []),
-    {
-      key: 'balance',
-      icon: Coins,
-      label: 'Saldo',
-      value: userPoints == null ? '...' : String(userPoints),
-      hint: nextPointsReset ? `Reset ${formatResetDate(nextPointsReset)}` : 'Punti disponibili',
-    },
   ];
 
   return (

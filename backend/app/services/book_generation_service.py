@@ -17,6 +17,7 @@ from app.agent.session_store_helpers import (
     set_real_cost_async,
 )
 from app.core.logging import get_logger
+from app.llm.model_routing import get_stage_model
 from app.services.storage_service import get_storage_service
 from app.services.cost_service import calculate_real_generation_cost
 from app.services.process_job_service import (
@@ -88,16 +89,16 @@ async def _store_cover_path(
         cover_filename = f"{session_id}_cover.png"
         with open(cover_path, "rb") as handle:
             cover_data = handle.read()
-        gcs_path = storage_service.upload_file(
+        stored_path = storage_service.upload_file(
             data=cover_data,
             destination_path=f"covers/{cover_filename}",
             content_type="image/png",
             user_id=user_id,
         )
-        await update_cover_image_path_async(session_store, session_id, gcs_path)
+        await update_cover_image_path_async(session_store, session_id, stored_path)
         logger.info(
             "Copertina caricata su storage",
-            context={"session_id": session_id, "cover_path": gcs_path},
+            context={"session_id": session_id, "cover_path": stored_path},
         )
     except Exception as exc:
         logger.warning(
@@ -139,6 +140,7 @@ async def _generate_cover_artifact(
         plot=plot,
         api_key=api_key,
         cover_style=cover_style,
+        model_name=get_stage_model("cover", form_data=getattr(session, "form_data", None)),
     )
     if cover_path:
         await _store_cover_path(
@@ -198,6 +200,7 @@ async def _generate_critique_artifact(
             pdf_bytes=pdf_bytes,
             api_key=None,
             google_api_key=api_key,
+            model_name=get_stage_model("critique", form_data=getattr(session, "form_data", None)),
         )
 
         await update_critique_async(session_store, session_id, critique)

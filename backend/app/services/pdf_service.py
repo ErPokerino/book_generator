@@ -332,7 +332,7 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
     image_style = cover_image_style or "width: 100%; height: auto;"
     container_style = "width: 595.276pt; height: 841.890pt; margin: 0; padding: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;"
     
-    # Usa base64 per la copertina (funziona sia per file locali che GCS)
+    # Usa base64 per la copertina (file locale)
     if cover_image_data and cover_image_mime:
         cover_section = f'''    <!-- Copertina -->
     <div class="cover-page" style="{container_style}">
@@ -397,21 +397,20 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
         title_sanitized = f"Libro_{session.session_id[:8]}"
     filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
     
-    # Salva PDF su GCS o locale tramite StorageService
     try:
         storage_service = get_storage_service()
-        user_id = getattr(session, 'user_id', None)  # Ottieni user_id dalla sessione se disponibile
-        gcs_path = storage_service.upload_file(
+        user_id = getattr(session, 'user_id', None)
+        stored_path = storage_service.upload_file(
             data=pdf_content,
             destination_path=f"books/{filename}",
             content_type="application/pdf",
             user_id=user_id,
         )
-        print(f"[BOOK PDF] PDF salvato: {gcs_path}")
+        print(f"[BOOK PDF] PDF salvato: {stored_path}")
     except Exception as e:
         print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
         # Non blocchiamo il download HTTP se il salvataggio fallisce
-        gcs_path = None
+        stored_path = None
     
     return pdf_content, filename
 

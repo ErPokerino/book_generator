@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getLibraryStats, getAdvancedStats, getUsersStats, deleteUserAdmin, getPendingBooks, LibraryStats, AdvancedStats, UsersStats, PendingBooksResponse } from '../api/client';
+import { getLibraryStats, getAdvancedStats, LibraryStats, AdvancedStats } from '../api/client';
 import Dashboard from './Dashboard';
 import ModelComparisonTable from './ModelComparisonTable';
 import { SkeletonBox, SkeletonChart } from './Skeleton';
 import { useToast } from '../hooks/useToast';
-import ConfirmModal from './ConfirmModal';
 import PageHeader from './ui/PageHeader';
 import EmptyState from './ui/EmptyState';
 import {
@@ -23,50 +22,18 @@ export default function AnalyticsView() {
   const toast = useToast();
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [advancedStats, setAdvancedStats] = useState<AdvancedStats | null>(null);
-  const [usersStats, setUsersStats] = useState<UsersStats | null>(null);
-  const [pendingBooks, setPendingBooks] = useState<PendingBooksResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [deletingUser, setDeletingUser] = useState<string | null>(null);
-  const [pendingDeleteUser, setPendingDeleteUser] = useState<{ email: string; name: string } | null>(null);
-
-  const handleDeleteUser = async (email: string, name: string) => {
-    setPendingDeleteUser({ email, name });
-  };
-
-  const confirmDeleteUser = async () => {
-    if (!pendingDeleteUser) {
-      return;
-    }
-    
-    setDeletingUser(pendingDeleteUser.email);
-    try {
-      await deleteUserAdmin(pendingDeleteUser.email);
-      toast.success(`Utente ${pendingDeleteUser.email} eliminato con successo`);
-      // Ricarica le statistiche utenti
-      const usersData = await getUsersStats();
-      setUsersStats(usersData);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Errore nell\'eliminazione dell\'utente');
-    } finally {
-      setDeletingUser(null);
-      setPendingDeleteUser(null);
-    }
-  };
 
   useEffect(() => {
     const loadStats = async () => {
       try {
         setLoading(true);
-        const [statsData, advancedData, usersData, pendingData] = await Promise.all([
+        const [statsData, advancedData] = await Promise.all([
           getLibraryStats(),
           getAdvancedStats(),
-          getUsersStats(),
-          getPendingBooks(),
         ]);
         setStats(statsData);
         setAdvancedStats(advancedData);
-        setUsersStats(usersData);
-        setPendingBooks(pendingData);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Errore nel caricamento delle statistiche');
       } finally {
@@ -95,59 +62,13 @@ export default function AnalyticsView() {
     }));
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'N/A';
-    try {
-      return new Date(dateStr).toLocaleDateString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    } catch {
-      return 'N/A';
-    }
-  };
-
-  const exportUsersToCSV = () => {
-    if (!usersStats || !usersStats.users_with_books) {
-      toast.error('Nessun dato utente disponibile');
-      return;
-    }
-
-    const headers = ['Nome', 'Email', 'Libri Generati', 'Data Registrazione'];
-    const rows = usersStats.users_with_books.map(user => [
-      user.name || 'N/A',
-      user.email || 'N/A',
-      user.books_count.toString(),
-      formatDate(user.created_at)
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `utenti_narrai_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast.success('CSV esportato con successo');
-  };
-
   if (loading) {
     return (
       <div className="analytics-view">
         <PageHeader
-          eyebrow="Admin Analytics"
+          eyebrow="Analytics"
           title="Analisi e statistiche"
-          description="Panoramica operativa su libreria, utenti e libri in sospeso."
+          description="Panoramica operativa sulla libreria locale."
         />
         
         {/* Skeleton Statistiche Base */}
@@ -180,7 +101,7 @@ export default function AnalyticsView() {
       <div className="analytics-view">
         <EmptyState
           title="Nessun dato disponibile"
-          description="Le metriche appariranno qui non appena saranno disponibili libri e utenti da analizzare."
+          description="Le metriche appariranno qui non appena saranno disponibili libri da analizzare."
         />
       </div>
     );
@@ -189,14 +110,9 @@ export default function AnalyticsView() {
   return (
     <div className="analytics-view">
       <PageHeader
-        eyebrow="Admin Analytics"
+        eyebrow="Analytics"
         title="Analisi e statistiche"
-        description="Monitora volumi, utenti, trend e anomalie operative da un unico cruscotto."
-        actions={(
-          <button type="button" className="analytics-primary-action" onClick={exportUsersToCSV}>
-            Esporta utenti CSV
-          </button>
-        )}
+        description="Monitora volumi e trend della libreria locale da un unico cruscotto."
       />
 
       <section className="analytics-overview-grid">
@@ -204,16 +120,6 @@ export default function AnalyticsView() {
           <span className="analytics-overview-label">Libri totali</span>
           <strong>{stats.total_books}</strong>
           <p>{stats.completed_books} completati</p>
-        </article>
-        <article className="analytics-overview-card">
-          <span className="analytics-overview-label">Utenti monitorati</span>
-          <strong>{usersStats?.total_users ?? 0}</strong>
-          <p>{usersStats?.users_with_books.length ?? 0} con almeno un libro</p>
-        </article>
-        <article className="analytics-overview-card analytics-overview-card-warm">
-          <span className="analytics-overview-label">Libri in sospeso</span>
-          <strong>{pendingBooks?.total ?? 0}</strong>
-          <p>{pendingBooks?.with_errors ?? 0} con errori da verificare</p>
         </article>
         <article className="analytics-overview-card">
           <span className="analytics-overview-label">Voto medio</span>
@@ -336,258 +242,6 @@ export default function AnalyticsView() {
         </section>
       )}
 
-      {/* Statistiche Utenti */}
-      {usersStats && (
-        <section className="analytics-section">
-          <h2 className="section-title">Statistiche Utenti</h2>
-          <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'inline-block',
-              padding: '1rem 2rem',
-              background: 'linear-gradient(135deg, var(--primary-dark), var(--primary-light))',
-              borderRadius: 'var(--radius-md)',
-              color: 'white',
-              fontSize: '1.1rem',
-              fontWeight: 600,
-            }}>
-              👥 Totale Utenti: {usersStats.total_users}
-            </div>
-            <button onClick={exportUsersToCSV} className="analytics-inline-action">
-              📥 Esporta CSV
-            </button>
-          </div>
-          
-          {usersStats.users_with_books.length > 0 && (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                marginTop: '1rem',
-              }}>
-                <thead>
-                  <tr style={{
-                    background: 'var(--surface-elevated)',
-                    borderBottom: '2px solid var(--border)',
-                  }}>
-                    <th style={{
-                      padding: '0.75rem 1rem',
-                      textAlign: 'left',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>Nome</th>
-                    <th style={{
-                      padding: '0.75rem 1rem',
-                      textAlign: 'left',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>Email</th>
-                    <th style={{
-                      padding: '0.75rem 1rem',
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>Libri Generati</th>
-                    <th style={{
-                      padding: '0.75rem 1rem',
-                      textAlign: 'center',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>Data Registrazione</th>
-                    <th style={{
-                      padding: '0.75rem 1rem',
-                      textAlign: 'center',
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                    }}>Azioni</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersStats.users_with_books.map((user) => (
-                    <tr
-                      key={user.user_id}
-                      style={{
-                        borderBottom: '1px solid var(--border-light)',
-                      }}
-                    >
-                      <td style={{
-                        padding: '0.75rem 1rem',
-                        color: 'var(--text-primary)',
-                      }}>{user.name}</td>
-                      <td style={{
-                        padding: '0.75rem 1rem',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.9rem',
-                      }}>{user.email}</td>
-                      <td style={{
-                        padding: '0.75rem 1rem',
-                        textAlign: 'right',
-                        fontWeight: 600,
-                        color: 'var(--accent)',
-                      }}>{user.books_count}</td>
-                      <td style={{
-                        padding: '0.75rem 1rem',
-                        textAlign: 'center',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.9rem',
-                      }}>{formatDate(user.created_at)}</td>
-                      <td style={{
-                        padding: '0.75rem 1rem',
-                        textAlign: 'center',
-                      }}>
-                        <button
-                          onClick={() => handleDeleteUser(user.email, user.name)}
-                          disabled={deletingUser === user.email}
-                          style={{
-                            padding: '0.4rem 0.75rem',
-                            background: deletingUser === user.email ? 'var(--text-muted)' : '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: deletingUser === user.email ? 'not-allowed' : 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 500,
-                            transition: 'background 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            if (deletingUser !== user.email) {
-                              e.currentTarget.style.background = '#c82333';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (deletingUser !== user.email) {
-                              e.currentTarget.style.background = '#dc3545';
-                            }
-                          }}
-                        >
-                          {deletingUser === user.email ? '...' : '🗑️ Elimina'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Libri in Sospeso */}
-      {pendingBooks && pendingBooks.total > 0 && (
-        <section className="analytics-section">
-          <h2 className="section-title">Libri in Sospeso</h2>
-          <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <div style={{
-              display: 'inline-block',
-              padding: '0.75rem 1.5rem',
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              borderRadius: 'var(--radius-md)',
-              color: 'white',
-              fontSize: '1rem',
-              fontWeight: 600,
-            }}>
-              ⏳ Totale: {pendingBooks.total}
-            </div>
-            {Object.entries(pendingBooks.by_status).map(([status, count]) => (
-              <div key={status} style={{
-                display: 'inline-block',
-                padding: '0.5rem 1rem',
-                background: 'var(--surface-elevated)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--text-primary)',
-                fontSize: '0.9rem',
-                border: '1px solid var(--border-light)',
-              }}>
-                {status}: {count}
-              </div>
-            ))}
-            {pendingBooks.with_errors > 0 && (
-              <div style={{
-                display: 'inline-block',
-                padding: '0.5rem 1rem',
-                background: '#dc3545',
-                borderRadius: 'var(--radius-md)',
-                color: 'white',
-                fontSize: '0.9rem',
-              }}>
-                ⚠️ Con errori: {pendingBooks.with_errors}
-              </div>
-            )}
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-            }}>
-              <thead>
-                <tr style={{
-                  background: 'var(--surface-elevated)',
-                  borderBottom: '2px solid var(--border)',
-                }}>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Titolo</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Utente</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Stato</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Fase</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Progresso</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Errore</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(pendingBooks.by_user).flatMap(([, userData]) =>
-                  userData.books.map((book) => (
-                    <tr
-                      key={book.session_id}
-                      style={{
-                        borderBottom: '1px solid var(--border-light)',
-                        background: book.error ? 'rgba(220, 53, 69, 0.05)' : undefined,
-                      }}
-                    >
-                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {book.title}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        <div>{book.user_name}</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{book.user_email}</div>
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                        <span style={{
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: '0.8rem',
-                          fontWeight: 500,
-                          background: book.status === 'paused' ? '#f59e0b' : book.status === 'writing' ? '#10b981' : 'var(--primary)',
-                          color: 'white',
-                        }}>
-                          {book.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                        {book.phase}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center', fontWeight: 600, color: 'var(--accent)' }}>
-                        {book.current_chapter}/{book.total_chapters}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', color: '#dc3545', fontSize: '0.85rem', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {book.error || '-'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-      <ConfirmModal
-        isOpen={!!pendingDeleteUser}
-        title="Conferma eliminazione utente"
-        message={pendingDeleteUser ? `Sei sicuro di voler eliminare l'utente "${pendingDeleteUser.name}" (${pendingDeleteUser.email})? Questa azione è irreversibile.` : ''}
-        confirmText="Elimina utente"
-        cancelText="Annulla"
-        onConfirm={confirmDeleteUser}
-        onCancel={() => setPendingDeleteUser(null)}
-        variant="warning"
-      />
     </div>
   );
 }

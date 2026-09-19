@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import Response, FileResponse, RedirectResponse
+from fastapi.responses import Response
 
 from app.models import (
     LibraryResponse,
@@ -22,6 +22,7 @@ from app.agent.session_store_helpers import (
     update_cover_image_path_async,
 )
 from app.agent.cover_generator import generate_book_cover
+from app.llm.model_routing import get_stage_model, resolve_generation_mode
 from app.services.storage_service import get_storage_service
 from app.services.stats_service import (
     get_cached_stats,
@@ -175,22 +176,18 @@ async def get_library_endpoint(
         
         # Filtra per modalità se necessario
         if mode:
-            models_for_mode = mode_to_llm_models(mode)
-            if models_for_mode:
-                all_sessions = {
-                    sid: sess for sid, sess in all_sessions.items()
-                    if sess.form_data and sess.form_data.llm_model in models_for_mode
-                }
-            else:
-                all_sessions = {}
+            all_sessions = {
+                sid: sess for sid, sess in all_sessions.items()
+                if sess.form_data and resolve_generation_mode(form_data=sess.form_data) == (
+                    "ultra" if str(mode).lower() == "ultra" else "standard"
+                )
+            }
         elif llm_model and not filter_llm_model:
-            detected_mode = llm_model_to_mode(llm_model)
-            models_for_mode = mode_to_llm_models(detected_mode)
-            if models_for_mode:
-                all_sessions = {
-                    sid: sess for sid, sess in all_sessions.items()
-                    if sess.form_data and sess.form_data.llm_model in models_for_mode
-                }
+            wanted_mode = "ultra" if "ultra" in str(llm_model).lower() else "standard"
+            all_sessions = {
+                sid: sess for sid, sess in all_sessions.items()
+                if sess.form_data and resolve_generation_mode(form_data=sess.form_data) == wanted_mode
+            }
         
         # Converti tutte le sessioni in LibraryEntry
         entries = []
@@ -514,50 +511,19 @@ async def get_cover_image_endpoint(
             )
         
         cover_path_str = session.cover_image_path
-        
-        # Se il path è su GCS, usa StorageService
-        if cover_path_str.startswith("gs://"):
-            storage_service = get_storage_service()
-            
-            signed_url = storage_service.get_signed_url(cover_path_str, expiration_minutes=60)
-            if signed_url and signed_url.startswith("http"):
-                return RedirectResponse(url=signed_url)
-            
-            try:
-                cover_data = storage_service.download_file(cover_path_str)
-                if cover_data:
-                    suffix = Path(cover_path_str).suffix.lower()
-                    media_type = 'image/png' if suffix == '.png' else 'image/jpeg'
-                    return Response(content=cover_data, media_type=media_type)
-            except FileNotFoundError as download_err:
-                error_msg = str(download_err)
-                print(f"[COVER IMAGE] Errore download da GCS: {error_msg}")
-                raise HTTPException(
-                    status_code=404,
-                    detail=error_msg
-                )
-            except Exception as download_err:
-                print(f"[COVER IMAGE] Errore download da GCS: {download_err}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Errore nel recupero della copertina: {str(download_err)}"
-                )
-        
-        # Path locale
-        cover_path = Path(cover_path_str)
-        if not cover_path.exists():
+        storage_service = get_storage_service()
+
+        try:
+            cover_data = storage_service.download_file(cover_path_str)
+        except FileNotFoundError:
             raise HTTPException(
                 status_code=404,
                 detail="File copertina non trovato"
             )
-        
-        suffix = cover_path.suffix.lower()
+
+        suffix = Path(cover_path_str).suffix.lower()
         media_type = 'image/png' if suffix == '.png' else 'image/jpeg'
-        
-        return FileResponse(
-            path=str(cover_path),
-            media_type=media_type,
-        )
+        return Response(content=cover_data, media_type=media_type)
     
     except HTTPException:
         raise
@@ -614,26 +580,26 @@ async def regenerate_cover_endpoint(
             plot=sanitized_plot,
             api_key=api_key,
             cover_style=session.form_data.cover_style,
+            model_name=get_stage_model("cover", form_data=session.form_data),
         )
         
-        # Carica copertina su GCS
         try:
             storage_service = get_storage_service()
             user_id = None
             cover_filename = f"{session_id}_cover.png"
             with open(cover_path, 'rb') as f:
                 cover_data = f.read()
-            gcs_path = storage_service.upload_file(
+            stored_path = storage_service.upload_file(
                 data=cover_data,
                 destination_path=f"covers/{cover_filename}",
                 content_type="image/png",
                 user_id=user_id,
             )
-            await update_cover_image_path_async(session_store, session_id, gcs_path)
-            print(f"[REGENERATE COVER] Copertina rigenerata e caricata su GCS: {gcs_path}")
-            return {"success": True, "cover_path": gcs_path}
+            await update_cover_image_path_async(session_store, session_id, stored_path)
+            print(f"[REGENERATE COVER] Copertina rigenerata: {stored_path}")
+            return {"success": True, "cover_path": stored_path}
         except Exception as e:
-            print(f"[REGENERATE COVER] ERRORE nel caricamento copertina su GCS: {e}, uso path locale")
+            print(f"[REGENERATE COVER] ERRORE nel salvataggio copertina: {e}, uso path locale")
             await update_cover_image_path_async(session_store, session_id, str(cover_path))
             print(f"[REGENERATE COVER] Copertina rigenerata con successo: {cover_path}")
             return {"success": True, "cover_path": str(cover_path)}

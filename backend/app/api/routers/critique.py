@@ -21,8 +21,8 @@ async def generate_critique_audio_endpoint(
     voice_name: Optional[str] = None,
 ):
     """
-    Genera audio MP3 della critica letteraria usando Google Cloud Text-to-Speech.
-    Restituisce un file MP3 che può essere riprodotto nel browser.
+    Genera audio della critica letteraria usando Gemini TTS.
+    Restituisce un file WAV riproducibile nel browser.
     """
     try:
         session_store = get_session_store()
@@ -35,9 +35,9 @@ async def generate_critique_audio_endpoint(
         
         return Response(
             content=audio_content,
-            media_type="audio/mpeg",
+            media_type="audio/wav",
             headers={
-                "Content-Disposition": f'attachment; filename="critique_{session_id}.mp3"',
+                "Content-Disposition": f'attachment; filename="critique_{session_id}.wav"',
                 "Cache-Control": "public, max-age=3600",
             }
         )

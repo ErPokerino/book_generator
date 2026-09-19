@@ -2,25 +2,18 @@
 from typing import Optional
 
 
-def get_generation_method(model_name: str) -> str:
+def get_generation_method(model_name: Optional[str], generation_mode: Optional[str] = None) -> str:
     """
-    Determina il metodo di generazione in base al modello.
-    
-    Args:
-        model_name: Nome del modello (es. "gemini-3-ultra", "gemini-3-flash")
+    Determina il metodo di generazione in base al modello e alla modalità.
     
     Returns:
-        'flash', 'pro', 'ultra', o 'default'
+        'standard', 'ultra', o 'default'
     """
-    if not model_name:
-        return "default"
-    model_lower = model_name.lower()
-    if "ultra" in model_lower:
-        return "ultra"
-    elif "pro" in model_lower:
-        return "pro"
-    elif "flash" in model_lower:
-        return "flash"
+    from app.llm.model_routing import resolve_generation_mode
+
+    if generation_mode or model_name:
+        resolved = resolve_generation_mode(model_name, generation_mode)
+        return resolved
     return "default"
 
 
@@ -30,7 +23,7 @@ def estimate_linear_params_from_history(sessions: list, method: str) -> Optional
     
     Args:
         sessions: Lista di sessioni con chapter_timings
-        method: Metodo di generazione ('flash', 'pro', 'ultra')
+        method: Metodo di generazione ('standard', 'ultra')
     
     Returns:
         Tupla (a, b) o None se non ci sono abbastanza dati
@@ -44,7 +37,10 @@ def estimate_linear_params_from_history(sessions: list, method: str) -> Optional
             continue
         
         # Verifica che il metodo della sessione corrisponda
-        session_method = get_generation_method(session.form_data.llm_model if session.form_data else None)
+        session_method = get_generation_method(
+            session.form_data.llm_model if session.form_data else None,
+            getattr(session.form_data, "generation_mode", None) if session.form_data else None,
+        )
         if session_method != method:
             continue
         
@@ -94,7 +90,9 @@ def get_linear_params_for_method(method: str, app_config: dict) -> tuple[float, 
     """
     time_est = app_config.get("time_estimation", {})
     linear_params = time_est.get("linear_model_params", {})
-    params = linear_params.get(method, linear_params.get("default", {}))
+    if method in {"standard", "flash"}:
+        method = "standard" if "standard" in linear_params else "flash"
+    params = linear_params.get(method, linear_params.get("flash", linear_params.get("default", {})))
     a = params.get("a", 0.2)
     b = params.get("b", 40.0)
     return (a, b)

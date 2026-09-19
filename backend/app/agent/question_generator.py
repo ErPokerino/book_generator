@@ -126,7 +126,7 @@ async def generate_questions(
 Genera solo domande davvero utili e non ridondanti rispetto ai dati già presenti.
 Rispondi esclusivamente con il JSON finale."""
 
-    gemini_model = get_stage_model("questions", form_data.llm_model)
+    gemini_model = get_stage_model("questions", form_data.llm_model, form_data=form_data)
     temperature = get_temperature_for_agent("question_generator", gemini_model)
     trace = LLMTraceRecorder(
         stage="questions",

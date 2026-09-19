@@ -6,9 +6,7 @@ import re
 from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-from app.core.config import get_app_config, get_temperature_for_agent
+from app.core.config import get_temperature_for_agent
 from app.core.logging import get_logger
 from app.llm import (
     LLMTraceRecorder,
@@ -135,27 +133,12 @@ def _validate_manga_plan(plan: MangaPlan, *, request: MangaCreateRequest) -> Man
 
 
 def _build_manga_chat_llm(*, model_name: str, api_key: Optional[str], temperature: float):
-    if not api_key:
-        return build_google_chat_model(
-            model_name=model_name,
-            api_key=api_key,
-            temperature=temperature,
-            max_output_tokens=get_max_output_tokens(model_name),
-        )
-
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key,
+    return build_google_chat_model(
+        model_name=model_name,
+        api_key=api_key,
         temperature=temperature,
         max_output_tokens=get_max_output_tokens(model_name),
     )
-    structured_method = str(
-        get_app_config().get("llm_models", {}).get("structured_output_method", "json_schema")
-        or "json_schema"
-    )
-    setattr(llm, "_google_backend_provider", "developer_api")
-    setattr(llm, "_google_structured_output_method", structured_method)
-    return llm
 
 
 async def generate_manga_plan(
@@ -165,7 +148,7 @@ async def generate_manga_plan(
     api_key: Optional[str] = None,
 ) -> tuple[MangaPlan, dict[str, int], str]:
     """Genera titolo, bible personaggi e piani pagina in un solo output strutturato."""
-    stage_model = get_stage_model("manga_planning")
+    stage_model = get_stage_model("manga_planning", overrides=getattr(request, "model_overrides", None))
     llm = _build_manga_chat_llm(
         model_name=stage_model,
         api_key=api_key,

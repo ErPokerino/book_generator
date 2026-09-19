@@ -39,6 +39,7 @@ from app.services.book_generation_service import (
 )
 from app.core.config import get_app_config
 from app.services.process_job_service import begin_process_job_async
+from app.services.cost_service import calculate_real_generation_cost
 
 # Helper functions (temporarily defined here, will be moved to utils later)
 def get_model_abbreviation(model_name: str) -> str:
@@ -76,107 +77,6 @@ def markdown_to_html(text: str) -> str:
     html = markdown.markdown(text, extensions=['nl2br', 'fenced_code'])
     return html
 
-
-def calculate_generation_cost(session, total_pages: Optional[int]) -> Optional[float]:
-    """Calcola il costo stimato di generazione dei capitoli del libro."""
-    if not total_pages or total_pages <= 0:
-        return None
-    
-    try:
-        from app.core.config import (
-            get_tokens_per_page,
-            get_model_pricing,
-            get_exchange_rate_usd_to_eur,
-        )
-        from app.agent.writer_generator import map_model_name
-        
-        tokens_per_page = get_tokens_per_page()
-        model_name = session.form_data.llm_model if session.form_data else None
-        if not model_name:
-            return None
-        
-        gemini_model = map_model_name(model_name)
-        pricing = get_model_pricing(gemini_model)
-        input_cost_per_million = pricing["input_cost_per_million"]
-        output_cost_per_million = pricing["output_cost_per_million"]
-        
-        from app.core.config import get_token_estimates
-        token_estimates = get_token_estimates()
-        context_base_tokens = token_estimates.get("context_base", 8000)
-        
-        # Calcola usando formula chiusa O(1)
-        chapters = session.book_chapters or []
-        num_chapters = len(chapters)
-        if num_chapters == 0:
-            return None
-        
-        avg_pages_per_chapter = total_pages / num_chapters if num_chapters > 0 else 0
-        chapters_pages = total_pages - 1  # Escludi copertina
-        
-        # Formula chiusa: sum(i=1 to N) di (i-1) = N * (N-1) / 2
-        cumulative_pages_sum = (num_chapters * (num_chapters - 1) / 2) * avg_pages_per_chapter
-        
-        chapters_input = num_chapters * context_base_tokens
-        chapters_input += cumulative_pages_sum * tokens_per_page
-        
-        chapters_output = chapters_pages * tokens_per_page
-        
-        cost_usd = (chapters_input * input_cost_per_million / 1_000_000) + (chapters_output * output_cost_per_million / 1_000_000)
-        
-        exchange_rate = get_exchange_rate_usd_to_eur()
-        cost_eur = cost_usd * exchange_rate
-        
-        return round(cost_eur, 4)
-    except Exception as e:
-        print(f"[CALCULATE_COST] Errore nel calcolo costo: {e}")
-        return None
-
-
-async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
-    """Calcola la stima del tempo rimanente per completare il libro usando modello lineare."""
-    try:
-        try:
-            current_step = int(current_step)
-        except (ValueError, TypeError):
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: current_step non è un numero valido ({current_step}), uso 0")
-            current_step = 0
-        
-        try:
-            total_steps = int(total_steps)
-        except (ValueError, TypeError):
-            print(f"[CALCULATE_ESTIMATED_TIME] WARNING: total_steps non è un numero valido ({total_steps}), uso 0")
-            total_steps = 0
-        
-        if total_steps <= 0:
-            return None, None
-        
-        remaining_chapters = total_steps - current_step
-        if remaining_chapters <= 0:
-            return None, None
-        
-        app_config = get_app_config()
-        session_store = get_session_store()
-        session = await get_session_async(session_store, session_id)
-        
-        current_model = session.form_data.llm_model if session and session.form_data else None
-        
-        from app.utils.stats_utils import get_generation_method, get_linear_params_for_method, calculate_residual_time_linear
-        method = get_generation_method(current_model)
-        a, b = get_linear_params_for_method(method, app_config)
-        
-        k = current_step + 1
-        N = total_steps
-        
-        estimated_seconds = calculate_residual_time_linear(k, N, a, b)
-        estimated_minutes = estimated_seconds / 60
-        
-        return round(estimated_minutes, 1), None
-        
-    except Exception as e:
-        print(f"[CALCULATE_ESTIMATED_TIME] ERRORE nel calcolo stima tempo: {e}")
-        import traceback
-        traceback.print_exc()
-        return None, None
 
 router = APIRouter(prefix="/api/book", tags=["book"])
 
@@ -362,17 +262,16 @@ async def generate_book_pdf(session_id: str) -> Response:
         title_sanitized = f"Libro_{session_id[:8]}"
     filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
     
-    # Salva PDF su GCS o locale tramite StorageService
     try:
         storage_service = get_storage_service()
         user_id = None
-        gcs_path = storage_service.upload_file(
+        stored_path = storage_service.upload_file(
             data=pdf_content,
             destination_path=f"books/{filename}",
             content_type="application/pdf",
             user_id=user_id,
         )
-        print(f"[BOOK PDF] PDF salvato: {gcs_path}")
+        print(f"[BOOK PDF] PDF salvato: {stored_path}")
     except Exception as e:
         print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
         import traceback
@@ -640,15 +539,20 @@ async def get_book_progress_endpoint(
             toc_pages = math.ceil(len(completed_chapters) / toc_chapters_per_page)
             total_pages = chapters_pages + cover_pages + toc_pages
         
-        # Calcola writing_time_minutes se disponibile o calcolabile
+        # Tempo trascorso dall'inizio della scrittura, anche mentre è in corso
         writing_time_minutes = progress.get('writing_time_minutes')
-        if writing_time_minutes is None and is_complete:
-            if session.writing_start_time and session.writing_end_time:
-                delta = session.writing_end_time - session.writing_start_time
-                writing_time_minutes = delta.total_seconds() / 60
+        start_time = session.writing_start_time
+        end_time = session.writing_end_time
+        if start_time:
+            elapsed_end = end_time or datetime.now()
+            writing_time_minutes = max(0.0, (elapsed_end - start_time).total_seconds() / 60)
+        elif writing_time_minutes is None and is_complete:
+            writing_time_minutes = None
         
-        # Usa il costo reale basato sui token effettivi (None per libri vecchi senza tracking)
-        estimated_cost = getattr(session, 'real_cost_eur', None)
+        # Costo reale dai token già usati (anche a metà generazione)
+        estimated_cost = calculate_real_generation_cost(session)
+        if estimated_cost is None:
+            estimated_cost = getattr(session, 'real_cost_eur', None)
         
         # Recupera la valutazione critica se disponibile
         critique = None
@@ -932,9 +836,9 @@ async def get_chapter_audio_endpoint(
         audio_content = await generate_chapter_audio(session_id, chapter_index, voice_name)
         return Response(
             content=audio_content,
-            media_type="audio/mpeg",
+            media_type="audio/wav",
             headers={
-                "Content-Disposition": f'attachment; filename="chapter_{chapter_index}.mp3"'
+                "Content-Disposition": f'attachment; filename="chapter_{chapter_index}.wav"'
             }
         )
     except HTTPException:
@@ -1052,24 +956,23 @@ async def regenerate_book_critique_endpoint(
         await update_critique_status_async(session_store, session_id, "failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Errore nel generare il PDF per la critica: {e}")
 
-    # La funzione generate_literary_critique_from_pdf gestisce automaticamente
-    # quale API key usare in base al provider configurato (Gemini o OpenAI)
-    from app.core.config import get_literary_critic_config, detect_critic_provider, normalize_critic_model_name
+    from app.core.config import get_literary_critic_config
     from app.agent.literary_critic import generate_literary_critique_from_pdf
+    from app.llm.model_routing import get_stage_model
     
     critic_cfg = get_literary_critic_config()
-    model_name = normalize_critic_model_name(critic_cfg.get("default_model", "gemini-3.1-pro-preview"))
-    provider = detect_critic_provider(model_name)
+    model_name = get_stage_model("critique", form_data=session.form_data) or critic_cfg.get("default_model")
     print(f"[REGENERATE_CRITIQUE] Endpoint chiamato per sessione {session_id}", file=sys.stderr)
-    print(f"[REGENERATE_CRITIQUE] Configurazione critico: modello={model_name}, provider={provider.upper()}", file=sys.stderr)
+    print(f"[REGENERATE_CRITIQUE] Configurazione critico: modello={model_name}, provider=GEMINI", file=sys.stderr)
     
-    api_key = None  # Passiamo None, la funzione leggerà da env appropriato
+    api_key = None  # Passiamo None, la funzione leggerà GOOGLE_API_KEY da env
     try:
         critique, token_usage = await generate_literary_critique_from_pdf(
             title=session.current_title or "Romanzo",
             author=session.form_data.user_name or "Autore",
             pdf_bytes=bytes(pdf_bytes),
             api_key=api_key,  # None = auto-detect da env
+            model_name=model_name,
         )
     except Exception as e:
         await update_critique_status_async(session_store, session_id, "failed", error=str(e))

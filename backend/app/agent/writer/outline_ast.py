@@ -103,8 +103,11 @@ def parse_outline_sections(outline_text: str) -> list[dict[str, Any]]:
     ):
         filtered_sections = [section for section in sections if section["level"] == 3]
         selection_mode = "level3"
+    elif explicit_chapters_level2 and structural_containers:
+        filtered_sections = explicit_chapters_level2
+        selection_mode = "level2-explicit-skip-containers"
     elif explicit_chapters_level2:
-        filtered_sections = [section for section in sections if section["level"] == 2]
+        filtered_sections = explicit_chapters_level2
         selection_mode = "level2-explicit"
     else:
         filtered_sections = [section for section in sections if section["level"] == 2]

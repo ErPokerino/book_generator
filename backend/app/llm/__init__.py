@@ -16,8 +16,12 @@ from app.llm.model_routing import (
     get_max_output_tokens,
     get_stage_model,
     get_structured_output_method,
+    get_writer_split_calls,
+    is_known_text_model,
     map_book_model_name,
+    public_llm_catalog,
     resolve_generation_mode,
+    image_size_for_model,
 )
 from app.llm.prompts import append_contract_instructions, load_prompt_file
 from app.llm.runtime import (
@@ -56,11 +60,15 @@ __all__ = [
     "get_max_output_tokens",
     "get_stage_model",
     "get_structured_output_method",
+    "get_writer_split_calls",
+    "image_size_for_model",
+    "is_known_text_model",
     "invoke_chat_model",
     "invoke_structured_chat_model",
     "is_retryable_llm_error",
     "load_prompt_file",
     "map_book_model_name",
     "parse_json_model",
+    "public_llm_catalog",
     "resolve_generation_mode",
 ]

@@ -26,7 +26,6 @@ from app.llm import (
     get_max_output_tokens,
     invoke_structured_chat_model,
     parse_json_model,
-    resolve_generation_mode,
 )
 from app.models import SubmissionRequest
 
@@ -38,14 +37,8 @@ def should_run_chapter_review(
     chapter_text: str,
     app_config: Optional[dict[str, Any]] = None,
 ) -> bool:
-    """Determina se attivare il pass review->revise per il capitolo."""
-    settings = get_chapter_review_settings(app_config)
-    if not settings["enabled"]:
-        return False
-    mode = resolve_generation_mode(form_data.llm_model)
-    if mode not in settings["target_modes"]:
-        return False
-    return len(chapter_text.split()) >= settings["min_chapter_words"]
+    """La review per-capitolo è disattivata: Ultra usa solo le due chiamate writer."""
+    return False
 
 
 def parse_chapter_review_response(response_text: str, max_issues: int = 5) -> dict[str, Any]:

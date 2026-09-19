@@ -1,148 +1,204 @@
-"""Service per la generazione di audio Text-to-Speech."""
-import os
-import sys
-from pathlib import Path
-from typing import Optional
+"""Service per la generazione di audio Text-to-Speech via Gemini."""
+from __future__ import annotations
 
-from google.cloud import texttospeech
+import asyncio
+import io
+import re
+import sys
+import wave
+from typing import Any, Optional
+
 from fastapi import HTTPException
+from google.genai import types
 
 from app.models import LiteraryCritique
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
+from app.llm import build_google_genai_client
+from app.llm.model_routing import DEFAULT_TTS_MODEL, get_stage_model
 from app.services.storage_service import get_storage_service
 
-
-def setup_google_tts_credentials():
-    """Configura le credenziali Google Cloud per Text-to-Speech."""
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    
-    if not cred_path:
-        root_dir = Path(__file__).parent.parent.parent
-        default_cred_path = root_dir / "credentials" / "narrai-app-credentials.json"
-        if default_cred_path.exists():
-            cred_path = str(default_cred_path)
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_path
-            print(f"[TTS] Usando credenziali di default: {cred_path}", file=sys.stderr)
-        else:
-            print(f"[TTS] WARNING: Nessuna credenziale trovata. Cerca GOOGLE_APPLICATION_CREDENTIALS o credentials/narrai-app-credentials.json", file=sys.stderr)
-    elif not Path(cred_path).is_absolute():
-        root_dir = Path(__file__).parent.parent.parent
-        abs_cred_path = (root_dir / cred_path.lstrip("./")).resolve()
-        if abs_cred_path.exists():
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(abs_cred_path)
-            print(f"[TTS] Credenziali caricate da: {abs_cred_path}", file=sys.stderr)
-        else:
-            print(f"[TTS] WARNING: Path credenziali non trovato: {abs_cred_path}", file=sys.stderr)
-    else:
-        if Path(cred_path).exists():
-            print(f"[TTS] Credenziali caricate da: {cred_path}", file=sys.stderr)
-        else:
-            print(f"[TTS] WARNING: Path credenziali non trovato: {cred_path}", file=sys.stderr)
+DEFAULT_VOICE = "Kore"
+TTS_SAMPLE_RATE = 24000
+MAX_CHUNK_CHARS = 3500
 
 
 def handle_tts_error(e: Exception) -> HTTPException:
     """Gestisce errori del servizio Text-to-Speech con messaggi user-friendly."""
     error_str = str(e)
-    
-    if "SERVICE_DISABLED" in error_str or "has not been used" in error_str or "it is disabled" in error_str:
-        project_id = "274471015864"
-        import re
-        project_match = re.search(r'project[:\s]+(\d+)', error_str, re.IGNORECASE)
-        if project_match:
-            project_id = project_match.group(1)
-        
-        return HTTPException(
-            status_code=503,
-            detail=f"L'API Text-to-Speech non è abilitata nel progetto Google Cloud. Per abilitarla, visita: https://console.cloud.google.com/apis/library/texttospeech.googleapis.com?project={project_id} e clicca su 'Abilita'."
-        )
-    elif "403" in error_str or "permission" in error_str.lower() or "forbidden" in error_str.lower():
-        return HTTPException(
-            status_code=403,
-            detail="Permessi insufficienti per utilizzare il servizio Text-to-Speech. Verifica che il service account abbia il ruolo 'Cloud Text-to-Speech API User'."
-        )
-    elif "401" in error_str or "unauthorized" in error_str.lower() or "invalid credentials" in error_str.lower():
+    lowered = error_str.lower()
+    if "api key" in lowered or "401" in error_str or "unauthorized" in lowered:
         return HTTPException(
             status_code=401,
-            detail="Credenziali Google Cloud non valide o scadute. Verifica il file di credenziali."
+            detail="Chiave Gemini mancante o non valida. Verifica GOOGLE_API_KEY nel file .env.",
         )
-    else:
+    if "404" in error_str or "not found" in lowered:
         return HTTPException(
-            status_code=500,
-            detail=f"Errore nella configurazione del servizio di sintesi vocale: {error_str}"
+            status_code=503,
+            detail="Il modello TTS Gemini non è disponibile per questa chiave. Riprova più tardi.",
         )
+    return HTTPException(
+        status_code=500,
+        detail=f"Errore nella sintesi vocale: {error_str}",
+    )
+
+
+def _pcm_to_wav(pcm: bytes, sample_rate: int = TTS_SAMPLE_RATE, sample_width: int = 2, channels: int = 1) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm)
+    return buffer.getvalue()
+
+
+def _extract_inline_audio(response: Any) -> tuple[bytes, str]:
+    candidates = getattr(response, "candidates", None) or []
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) if content is not None else None
+        if not parts:
+            continue
+        for part in parts:
+            inline_data = getattr(part, "inline_data", None)
+            if inline_data is None or not getattr(inline_data, "data", None):
+                continue
+            raw = inline_data.data
+            if isinstance(raw, str):
+                import base64
+
+                raw = base64.b64decode(raw)
+            mime = str(getattr(inline_data, "mime_type", "") or "audio/pcm")
+            return bytes(raw), mime
+    raise ValueError("La risposta TTS non contiene audio")
+
+
+def _chunk_text(full_text: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
+    chunks: list[str] = []
+    paragraphs = full_text.split("\n")
+    current = ""
+    for paragraph in paragraphs:
+        piece = paragraph if paragraph.endswith("\n") else f"{paragraph}\n"
+        if len(current) + len(piece) < max_chars:
+            current += piece
+            continue
+        if current.strip():
+            chunks.append(current.strip())
+        if len(piece) >= max_chars:
+            for index in range(0, len(piece), max_chars):
+                chunks.append(piece[index : index + max_chars].strip())
+            current = ""
+        else:
+            current = piece
+    if current.strip():
+        chunks.append(current.strip())
+    return [chunk for chunk in chunks if chunk]
+
+
+def _resolve_voice(voice_name: Optional[str]) -> str:
+    if not voice_name:
+        return DEFAULT_VOICE
+    if voice_name.startswith("it-IT-") or voice_name.startswith("en-"):
+        return DEFAULT_VOICE
+    return voice_name
+
+
+async def _synthesize_chunks(text: str, *, form_data=None, voice_name: Optional[str] = None) -> bytes:
+    model_name = get_stage_model("tts", form_data=form_data) or DEFAULT_TTS_MODEL
+    voice = _resolve_voice(voice_name)
+    client = build_google_genai_client()
+    speech_config = None
+    if hasattr(types, "SpeechConfig") and hasattr(types, "VoiceConfig") and hasattr(types, "PrebuiltVoiceConfig"):
+        speech_config = types.SpeechConfig(
+            voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
+            )
+        )
+
+    config_kwargs: dict[str, Any] = {"response_modalities": ["AUDIO"]}
+    if speech_config is not None:
+        config_kwargs["speech_config"] = speech_config
+    config_obj = types.GenerateContentConfig(**config_kwargs) if hasattr(types, "GenerateContentConfig") else config_kwargs
+
+    pcm_parts: list[bytes] = []
+    mime_type = "audio/pcm"
+    for chunk in _chunk_text(text):
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=model_name,
+            contents=chunk,
+            config=config_obj,
+        )
+        audio_bytes, mime_type = _extract_inline_audio(response)
+        pcm_parts.append(audio_bytes)
+
+    combined = b"".join(pcm_parts)
+    if "wav" in mime_type or "mpeg" in mime_type or "mp3" in mime_type:
+        return combined
+    return _pcm_to_wav(combined)
 
 
 async def generate_critique_audio(
     session_id: str,
     voice_name: Optional[str] = None,
 ) -> bytes:
-    """
-    Genera audio MP3 della critica letteraria usando Google Cloud Text-to-Speech.
-    """
+    """Genera audio WAV della critica letteraria usando Gemini TTS."""
     session_store = get_session_store()
     session = await get_session_async(session_store, session_id, user_id=None)
-    
+
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
-    
+
     if not session.literary_critique:
         raise HTTPException(status_code=404, detail="Critica non disponibile per questo libro")
-    
+
     critique = session.literary_critique
     if isinstance(critique, dict):
         critique = LiteraryCritique(**critique)
-    
+
     text_parts = []
     if critique.summary:
         text_parts.append(f"Sintesi: {critique.summary}")
-    if critique.pros and len(critique.pros) > 0:
-        pros_text = ". ".join(critique.pros)
-        text_parts.append(f"Punti di forza: {pros_text}")
-    if critique.cons and len(critique.cons) > 0:
-        cons_text = ". ".join(critique.cons)
-        text_parts.append(f"Punti di debolezza: {cons_text}")
-    
+    if critique.pros:
+        text_parts.append(f"Punti di forza: {'. '.join(critique.pros)}")
+    if critique.cons:
+        text_parts.append(f"Punti di debolezza: {'. '.join(critique.cons)}")
+
     if not text_parts:
         raise HTTPException(status_code=400, detail="Critica vuota, nessun contenuto da leggere")
-    
+
     full_text = ". ".join(text_parts)
-    max_chars = 4500
-    if len(full_text) > max_chars:
-        full_text = full_text[:max_chars] + "..."
-    
-    if not voice_name:
-        voice_name = "it-IT-Standard-A"
-    
+    if len(full_text) > 4500:
+        full_text = full_text[:4500] + "..."
+
+    storage_service = get_storage_service()
+    cache_path = f"books/audio/{session_id}_critique.wav"
     try:
-        setup_google_tts_credentials()
-        client = texttospeech.TextToSpeechClient()
-    except Exception as e:
-        raise handle_tts_error(e)
-    
-    synthesis_input = texttospeech.SynthesisInput(text=full_text)
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="it-IT",
-        name=voice_name,
-        ssml_gender=texttospeech.SsmlVoiceGender.FEMALE,
-    )
-    
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3,
-        speaking_rate=1.0,
-        pitch=0.0,
-        volume_gain_db=0.0,
-    )
-    
+        if storage_service.exists(cache_path):
+            return storage_service.download_file(cache_path)
+    except Exception as exc:
+        print(f"[TTS CRITIQUE] Errore verifica cache: {exc}", file=sys.stderr)
+
     try:
-        response = client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice,
-            audio_config=audio_config,
+        audio_data = await _synthesize_chunks(
+            full_text,
+            form_data=getattr(session, "form_data", None),
+            voice_name=voice_name,
         )
-        return response.audio_content
-    except Exception as e:
-        raise handle_tts_error(e)
+        try:
+            storage_service.upload_file(
+                data=audio_data,
+                destination_path=cache_path,
+                content_type="audio/wav",
+            )
+        except Exception as exc:
+            print(f"[TTS CRITIQUE] Cache non salvata: {exc}", file=sys.stderr)
+        return audio_data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise handle_tts_error(exc)
 
 
 async def generate_chapter_audio(
@@ -150,116 +206,50 @@ async def generate_chapter_audio(
     chapter_index: int,
     voice_name: Optional[str] = None,
 ) -> bytes:
-    """
-    Genera o recupera dal caching l'audio MP3 del capitolo.
-    """
+    """Genera audio WAV di un capitolo usando Gemini TTS."""
     session_store = get_session_store()
     session = await get_session_async(session_store, session_id, user_id=None)
-    
+
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
-    
+
     if not session.book_chapters or chapter_index < 0 or chapter_index >= len(session.book_chapters):
         raise HTTPException(status_code=404, detail="Capitolo non trovato")
-        
+
     chapter = session.book_chapters[chapter_index]
-    chapter_title = chapter.get('title', f'Capitolo {chapter_index + 1}')
-    chapter_content = chapter.get('content', '')
-    
+    chapter_title = chapter.get("title", f"Capitolo {chapter_index + 1}")
+    chapter_content = chapter.get("content", "")
     if not chapter_content:
         raise HTTPException(status_code=400, detail="Contenuto del capitolo vuoto")
-        
+
     storage_service = get_storage_service()
-    cache_path = f"books/audio/{session_id}_chapter_{chapter_index}.mp3"
-    
-    # Try to get from cache
+    cache_path = f"books/audio/{session_id}_chapter_{chapter_index}.wav"
     try:
-        gcs_cache_path = f"gs://{storage_service.bucket_name}/{cache_path}" if storage_service.gcs_enabled else cache_path
-        if storage_service.file_exists(gcs_cache_path) or storage_service.file_exists(cache_path):
-            try:
-                audio_data = storage_service.download_file(gcs_cache_path if storage_service.gcs_enabled else cache_path)
-                print(f"[TTS CHAPTER] Restituito audio da cache: {cache_path}", file=sys.stderr)
-                return audio_data
-            except Exception as e:
-                print(f"[TTS CHAPTER] Errore lettura cache: {e}", file=sys.stderr)
-    except Exception as e:
-        print(f"[TTS CHAPTER] Errore verifica cache: {e}", file=sys.stderr)
-        
-    # Remove markdown for reading
-    import re
-    clean_text = re.sub(r'#+\s*', '', chapter_content)
-    clean_text = clean_text.replace('*', '').replace('_', '')
+        if storage_service.exists(cache_path):
+            return storage_service.download_file(cache_path)
+    except Exception as exc:
+        print(f"[TTS CHAPTER] Errore verifica cache: {exc}", file=sys.stderr)
+
+    clean_text = re.sub(r"#+\s*", "", chapter_content)
+    clean_text = clean_text.replace("*", "").replace("_", "")
     full_text = f"{chapter_title}. {clean_text}"
-    
-    if not voice_name:
-        voice_name = session.form_data.narrative_voice if session.form_data and session.form_data.narrative_voice else "it-IT-Standard-A"
-        
+
     try:
-        setup_google_tts_credentials()
-        client = texttospeech.TextToSpeechClient()
-    except Exception as e:
-        raise handle_tts_error(e)
-        
-    ssml_gender = texttospeech.SsmlVoiceGender.FEMALE if "-A" in voice_name or "-B" in voice_name else texttospeech.SsmlVoiceGender.MALE
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="it-IT",
-        name=voice_name,
-        ssml_gender=ssml_gender,
-    )
-    
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3,
-    )
-    
-    # Chunking max 4000 chars per Google TTS limits
-    max_chunk_size = 4000
-    chunks = []
-    paragraphs = full_text.split('\n')
-    current_chunk = ""
-    for p in paragraphs:
-        if len(current_chunk) + len(p) < max_chunk_size:
-            current_chunk += p + "\n"
-        else:
-            if current_chunk:
-                chunks.append(current_chunk)
-            if len(p) >= max_chunk_size:
-                for i in range(0, len(p), max_chunk_size):
-                    chunks.append(p[i:i+max_chunk_size])
-                current_chunk = ""
-            else:
-                current_chunk = p + "\n"
-                
-    if current_chunk:
-        chunks.append(current_chunk)
-        
-    combined_audio = b''
-    try:
-        for chunk in chunks:
-            if not chunk.strip():
-                continue
-            synthesis_input = texttospeech.SynthesisInput(text=chunk)
-            response = client.synthesize_speech(
-                input=synthesis_input,
-                voice=voice,
-                audio_config=audio_config,
-            )
-            combined_audio += response.audio_content
-            
-        print(f"[TTS CHAPTER] Audio generato con successo per sessione {session_id}, cap {chapter_index} ({len(combined_audio)} bytes)", file=sys.stderr)
-        
-        # Save to cache
+        audio_data = await _synthesize_chunks(
+            full_text,
+            form_data=getattr(session, "form_data", None),
+            voice_name=voice_name,
+        )
         try:
             storage_service.upload_file(
-                data=combined_audio,
+                data=audio_data,
                 destination_path=cache_path,
-                content_type="audio/mpeg",
-                user_id=session.user_id
+                content_type="audio/wav",
             )
-        except Exception as e:
-            print(f"[TTS CHAPTER] Errore salvataggio cache: {e}", file=sys.stderr)
-            
-        return combined_audio
-        
-    except Exception as e:
-        print(f"[TTS CHAPTER] Errore nella sintesi vocale: {e}", file=sys.stderr)
-        raise handle_tts_error(e)
+        except Exception as exc:
+            print(f"[TTS CHAPTER] Cache non salvata: {exc}", file=sys.stderr)
+        return audio_data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise handle_tts_error(exc)

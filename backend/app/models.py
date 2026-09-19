@@ -18,7 +18,6 @@ class FieldConfig(BaseModel):
     options: Optional[list[FieldOption]] = None
     placeholder: Optional[str] = None
     description: Optional[str] = None
-    mode_availability: Optional[Dict[str, int]] = None
 
 
 class ConfigResponse(BaseModel):
@@ -30,6 +29,8 @@ class ConfigResponse(BaseModel):
 
 class SubmissionRequest(BaseModel):
     llm_model: str
+    generation_mode: Literal["standard", "ultra"] = "standard"
+    model_overrides: Optional[Dict[str, str]] = None
     plot: str = Field(..., min_length=1, description="Trama del romanzo (obbligatoria)")
     genre: Optional[str] = None
     subgenre: Optional[str] = None
@@ -49,6 +50,22 @@ class SubmissionRequest(BaseModel):
     author: Optional[str] = None
     user_name: Optional[str] = None
     cover_style: Optional[str] = None
+
+    @field_validator("generation_mode", mode="before")
+    @classmethod
+    def _coerce_generation_mode(cls, value: Any) -> str:
+        if value is None or str(value).strip() == "":
+            return "standard"
+        normalized = str(value).strip().lower()
+        if normalized == "ultra":
+            return "ultra"
+        return "standard"
+
+    @model_validator(mode="after")
+    def _legacy_ultra_alias(self) -> "SubmissionRequest":
+        if self.generation_mode == "standard" and "ultra" in (self.llm_model or "").lower():
+            self.generation_mode = "ultra"
+        return self
 
 
 class SubmissionResponse(BaseModel):
@@ -255,6 +272,10 @@ class MangaCreateRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, description="Titolo opzionale del manga")
     plot: str = Field(..., min_length=1, description="Trama di partenza del mini manga")
     manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"]
+    model_overrides: Optional[Dict[str, str]] = Field(
+        None,
+        description="Override modelli per fase: text, image, manga_planning, manga_pages, manga_cover, manga_back_cover",
+    )
     main_characters: list[MangaCharacterInput] = Field(
         default_factory=list,
         description="Personaggi principali descritti dall'utente",
@@ -358,6 +379,7 @@ class MangaProgress(BaseModel):
     is_paused: bool = False
     error: Optional[str] = None
     estimated_cost: Optional[float] = None
+    current_cost_eur: Optional[float] = None
     cost_breakdown: Optional[Dict[str, Any]] = None
 
 
@@ -476,11 +498,11 @@ class LibraryEntry(BaseModel):
     total_pages: Optional[int] = None
     critique_score: Optional[float] = None
     critique_status: Optional[str] = None
-    pdf_path: Optional[str] = None  # Path GCS (gs://bucket/path) o path locale
+    pdf_path: Optional[str] = None  # Path locale
     pdf_filename: Optional[str] = None
-    pdf_url: Optional[str] = None  # URL firmato temporaneo per accesso PDF
-    cover_image_path: Optional[str] = None  # Path GCS (gs://bucket/path) o path locale
-    cover_url: Optional[str] = None  # URL firmato temporaneo per accesso copertina
+    pdf_url: Optional[str] = None  # Path API locale per accesso PDF
+    cover_image_path: Optional[str] = None  # Path locale
+    cover_url: Optional[str] = None  # Path API locale per accesso copertina
     writing_time_minutes: Optional[float] = None
     estimated_cost: Optional[float] = None  # Costo stimato in EUR
 

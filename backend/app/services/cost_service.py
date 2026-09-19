@@ -17,17 +17,12 @@ def calculate_generation_cost(
     total_pages: Optional[int],
 ) -> Optional[float]:
     """
-    Calcola il costo stimato di generazione dei capitoli del libro.
-    
-    Considera solo il costo di generazione dei capitoli (processo autoregressivo),
-    escludendo bozza, outline, critica e copertina.
-    
-    Args:
-        session: SessionData object
-        total_pages: Numero totale di pagine del libro (None se non disponibile)
-    
-    Returns:
-        Costo stimato in EUR, o None se non calcolabile
+    Stima il costo di generazione dei capitoli.
+
+    Allineato alla pipeline live: prompt writer + story bible euristica
+    + ultimi N capitoli integrali (non tutto il testo precedente).
+    Ultra conta 2 chiamate writer per capitolo. Review/revise Pro-Ultra
+    non è incluso: in UI preferire `real_cost_eur` quando disponibile.
     """
     # Calcola solo se il libro è completo e abbiamo total_pages
     if not total_pages or total_pages <= 0:
@@ -41,47 +36,52 @@ def calculate_generation_cost(
             return None
         
         # Mappa il nome del modello al nome API
-        from app.agent.writer_generator import map_model_name
-        gemini_model = map_model_name(model_name)
+        from app.llm.model_routing import map_book_model_name
+        gemini_model = map_book_model_name(model_name)
         
         # Recupera pricing del modello
         pricing = get_model_pricing(gemini_model)
         input_cost_per_million = pricing["input_cost_per_million"]
         output_cost_per_million = pricing["output_cost_per_million"]
         
-        # Recupera stime token
         token_estimates = get_token_estimates()
-        
-        # Calcola pagine capitoli (escludendo copertina e TOC)
-        chapters_pages = total_pages - 1  # -1 per copertina
+        chapter_estimates = token_estimates.get("chapter", {})
+
+        chapters_pages = total_pages - 1
         app_config = get_app_config()
         toc_chapters_per_page = app_config.get("validation", {}).get("toc_chapters_per_page", 30)
         completed_chapters = len(session.book_chapters) if session.book_chapters else 0
         toc_pages = math.ceil(completed_chapters / toc_chapters_per_page) if completed_chapters > 0 else 0
-        chapters_pages = chapters_pages - toc_pages  # Rimuovi anche TOC
-        
+        chapters_pages = chapters_pages - toc_pages
+
         if chapters_pages <= 0:
-            chapters_pages = max(1, total_pages - 1)  # Fallback minimo
-        
+            chapters_pages = max(1, total_pages - 1)
+
         if completed_chapters == 0:
             print(f"[COST CALCULATION] Nessun capitolo completato per sessione {session.session_id}")
-            return None  # Nessun capitolo, non calcolabile
-        
+            return None
+
         print(f"[COST CALCULATION] Calcolo costo per: modello={gemini_model}, capitoli={completed_chapters}, pagine={chapters_pages}")
-        
-        # Calcolo costo Capitoli (processo autoregressivo)
+
         num_chapters = completed_chapters
-        context_base = token_estimates.get("chapter", {}).get("context_base", 8000)
+        writer_prompt_tokens = int(chapter_estimates.get("writer_prompt_tokens", 2800))
+        story_bible_tokens = int(chapter_estimates.get("story_bible_tokens", 3400))
+        recent_full_chapters = int(chapter_estimates.get("recent_full_chapters", 1))
+        fixed_input = writer_prompt_tokens + story_bible_tokens
         avg_pages_per_chapter = chapters_pages / num_chapters if num_chapters > 0 else chapters_pages
-        
-        # Input totale per tutti i capitoli
-        chapters_input = num_chapters * context_base
-        
-        for i in range(1, num_chapters + 1):
-            previous_pages = (i - 1) * avg_pages_per_chapter
-            chapters_input += previous_pages * tokens_per_page
-        
-        # Output totale
+        avg_chapter_tokens = avg_pages_per_chapter * tokens_per_page
+
+        from app.llm.model_routing import get_writer_split_calls
+        split_calls = get_writer_split_calls(
+            model_name,
+            getattr(session.form_data, "generation_mode", None) if session.form_data else None,
+        )
+
+        chapters_input = 0.0
+        for i in range(num_chapters):
+            full_prev = min(i, recent_full_chapters)
+            chapters_input += (fixed_input + full_prev * avg_chapter_tokens) * split_calls
+
         chapters_output = chapters_pages * tokens_per_page
         
         # Calcola costo

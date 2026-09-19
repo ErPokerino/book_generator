@@ -5,7 +5,7 @@ import './FilterBar.css';
 
 interface FilterBarProps {
   onFiltersChange: (filters: LibraryFilters) => void;
-  availableModes: string[];  // Modalità disponibili (Flash, Pro, Ultra)
+  availableModes: string[];  // Modalità disponibili (Standard, Ultra)
   availableGenres: string[];
 }
 

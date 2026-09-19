@@ -1,7 +1,7 @@
 import os
 import yaml
 from pathlib import Path
-from typing import Any, TypedDict, Optional, Literal
+from typing import Any, TypedDict, Optional
 from app.models import ConfigResponse, FieldConfig, FieldOption
 
 
@@ -45,8 +45,6 @@ def load_config() -> ConfigResponse:
                 for opt in field_data["options"]
             ]
         
-        mode_availability = field_data.get("mode_availability")
-        
         field = FieldConfig(
             id=field_data["id"],
             label=field_data["label"],
@@ -55,7 +53,6 @@ def load_config() -> ConfigResponse:
             options=options,
             placeholder=field_data.get("placeholder"),
             description=field_data.get("description"),
-            mode_availability=mode_availability,
         )
         fields.append(field)
     
@@ -349,7 +346,7 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     Restituisce i costi per input/output per il modello specificato.
     
     Args:
-        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3.1-pro-preview", "gpt-5.2")
+        model_name: Nome del modello (es: "gemini-2.5-flash", "gemini-3.1-pro-preview")
     
     Returns:
         Dizionario con 'input_cost_per_million' e 'output_cost_per_million' in USD
@@ -360,35 +357,27 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     
     # Normalizza il nome del modello per il lookup
     model_normalized = model_name.lower().replace("_", "-")
-    
-    # Prova prima il nome esatto, poi varianti comuni
+    catalog = app_config.get("llm_models", {}).get("catalog", {}) or {}
+    catalog_entry = catalog.get(model_normalized) if isinstance(catalog, dict) else None
+    catalog_api_id = ""
+    if isinstance(catalog_entry, dict):
+        catalog_api_id = str(catalog_entry.get("api_id") or "").lower()
+
     if model_normalized in model_costs:
         costs = model_costs[model_normalized]
+    elif catalog_api_id and catalog_api_id in model_costs:
+        costs = model_costs[catalog_api_id]
     elif "gemini-2.5-flash" in model_normalized:
         costs = model_costs.get("gemini-2.5-flash", {})
     elif "gemini-2.5-pro" in model_normalized:
         costs = model_costs.get("gemini-2.5-pro", {})
     elif "gemini-3-flash" in model_normalized:
         costs = model_costs.get("gemini-3-flash-preview", {})
-    elif "gemini-3-pro" in model_normalized:
+    elif "gemini-3-ultra" in model_normalized:
+        costs = model_costs.get("gemini-3-ultra", model_costs.get("gemini-3.1-pro-preview", {}))
+    elif "gemini-3-pro" in model_normalized or "gemini-3.1-pro" in model_normalized:
         costs = model_costs.get("gemini-3.1-pro-preview", {})
-    # OpenAI GPT 5.2 models
-    elif "gpt-5.2-pro" in model_normalized:
-        costs = model_costs.get("gpt-5.2-pro", {})
-    elif "gpt-5.2-chat" in model_normalized or "gpt-5.2-instant" in model_normalized:
-        costs = model_costs.get("gpt-5.2-chat-latest", {})
-    elif "gpt-5.2" in model_normalized:
-        costs = model_costs.get("gpt-5.2", {})
-    elif "gpt-4o-mini" in model_normalized:
-        costs = model_costs.get("gpt-4o-mini", {})
-    elif "gpt-4o" in model_normalized:
-        costs = model_costs.get("gpt-4o", {})
-    elif "gpt-4-turbo" in model_normalized:
-        costs = model_costs.get("gpt-4-turbo", {})
-    elif "gpt-4" in model_normalized:
-        costs = model_costs.get("gpt-4", {})
     else:
-        # Fallback a default
         costs = model_costs.get("default", {})
     
     return {
@@ -432,72 +421,32 @@ def get_token_estimates() -> dict[str, Any]:
 
 
 
-# --- Literary Critic Provider Support (Gemini + OpenAI) ---
-
-def detect_critic_provider(model_name: str) -> Literal["google", "openai"]:
-    """
-    Rileva il provider LLM dal nome del modello per l'agente critico.
-    
-    Args:
-        model_name: Nome del modello (es: "gemini-3.1-pro-preview", "gpt-5.2", "gpt-5.2-pro")
-    
-    Returns:
-        "google" per modelli Gemini, "openai" per modelli OpenAI
-    """
-    if not model_name:
-        return "google"  # Default per retrocompatibilità
-    
-    model_lower = model_name.lower()
-    if model_lower.startswith(("gpt", "o1", "o3")):
-        return "openai"
-    elif model_lower.startswith(("gemini", "claude")):
-        return "google"
-    else:
-        # Default: assume Gemini per retrocompatibilità
-        return "google"
-
-
 def normalize_critic_model_name(model_name: str) -> str:
     """
-    Normalizza il nome del modello per l'API corretta dell'agente critico.
+    Normalizza il nome del modello per l'API Gemini dell'agente critico.
     
     Args:
         model_name: Nome del modello dall'utente/config
     
     Returns:
-        Nome modello normalizzato per l'API (Gemini o OpenAI)
+        Nome modello normalizzato per l'API Gemini
     """
     if not model_name:
-        return "gemini-3.1-pro-preview"  # Default
+        return "gemini-3.8-flash"  # Default
     
     model_lower = model_name.lower()
     
-    # Mapping modelli Gemini (mantiene formato esistente)
-    if "gemini-3-pro" in model_lower or model_lower == "gemini-3.1-pro-preview":
-        return "gemini-3.1-pro-preview"
-    elif "gemini-3-flash" in model_lower or model_lower == "gemini-3-flash-preview":
-        return "gemini-3-flash-preview"
-    elif "gemini-3-ultra" in model_lower:
-        return "gemini-3-ultra-preview"
-    elif "gemini-2.5-pro" in model_lower:
-        return "gemini-2.5-pro"
-    elif "gemini-2.5-flash" in model_lower:
-        return "gemini-2.5-flash"
+    if "gemini-3.8-flash" in model_lower:
+        return "gemini-3.8-flash"
+    if "gemini-3.5-flash-lite" in model_lower:
+        return "gemini-3.5-flash-lite"
+    if "ultra" in model_lower or "gemini-3-pro" in model_lower or "gemini-3.1-pro" in model_lower:
+        return "gemini-3.8-flash"
+    if "gemini-3-flash" in model_lower:
+        return "gemini-3.8-flash"
+    if "gemini-2.5-pro" in model_lower:
+        return "gemini-3.8-flash"
+    if "gemini-2.5-flash" in model_lower:
+        return "gemini-3.5-flash-lite"
     
-    # Mapping modelli OpenAI GPT 5.2
-    if "gpt-5.2-pro" in model_lower or model_lower == "gpt-5.2-pro":
-        return "gpt-5.2-pro"
-    elif "gpt-5.2-thinking" in model_lower or model_lower == "gpt-5.2":
-        return "gpt-5.2"
-    elif "gpt-5.2-instant" in model_lower or "gpt-5.2-chat" in model_lower:
-        return "gpt-5.2-chat-latest"
-    elif "gpt-4o" in model_lower:
-        # Mantiene il nome completo (es: gpt-4o, gpt-4o-mini, gpt-4o-2024-08-06)
-        return model_name
-    elif "gpt-4-turbo" in model_lower:
-        return "gpt-4-turbo"
-    elif "gpt-4" in model_lower:
-        return "gpt-4"
-    
-    # Default: restituisce il nome originale (per modelli futuri o già normalizzati)
     return model_name

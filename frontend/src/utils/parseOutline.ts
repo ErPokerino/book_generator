@@ -110,13 +110,12 @@ export function parseOutlineSections(outlineText: string): OutlineSection[] {
   // OPPURE se non ci sono capitoli espliciti di livello 2, usa livello 3 se disponibile
   if ((structuralContainerCount > 0 && hasLevel3Sections) ||
       (!hasExplicitChaptersLevel2 && hasLevel3Sections)) {
-    // Prendi solo i capitoli (livello 3)
     filteredSections = sections.filter(s => s.level === 3);
+  } else if (hasExplicitChaptersLevel2 && structuralContainerCount > 0) {
+    filteredSections = explicitChaptersLevel2;
   } else if (hasExplicitChaptersLevel2) {
-    // Prendi le sezioni di livello 2 (capitoli diretti)
-    filteredSections = sections.filter(s => s.level === 2);
+    filteredSections = explicitChaptersLevel2;
   } else {
-    // Fallback: prova con livello 2
     filteredSections = sections.filter(s => s.level === 2);
   }
   

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from fastapi.responses import RedirectResponse, Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import create_session_async, get_session_async, save_session_async
@@ -48,8 +49,12 @@ def _iter_bytes_chunks(data: bytes, chunk_size: int = 1024 * 1024):
 
 def _build_placeholder_submission(request: MangaCreateRequest) -> SubmissionRequest:
     protagonist = ", ".join(character.name for character in request.main_characters[:2]) or None
+    overrides = request.model_overrides or {}
+    text_model = overrides.get("manga_planning") or overrides.get("text") or "gemini-3.8-flash"
     return SubmissionRequest(
-        llm_model="gemini-3-flash",
+        llm_model=text_model,
+        generation_mode="standard",
+        model_overrides=overrides or None,
         plot=request.plot,
         genre=f"manga-beta-{request.manga_type}",
         protagonist=protagonist,
@@ -136,6 +141,8 @@ async def generate_manga_endpoint(
             "current_page_number": 1,
             "current_page_title": "Preparazione storyboard",
             "current_section_name": "Preparazione storyboard",
+            "queued_at": progress.get("queued_at") or datetime.utcnow().isoformat(),
+            "started_at": progress.get("started_at") or datetime.utcnow().isoformat(),
             "is_complete": False,
             "is_paused": False,
             "error": None,
@@ -170,6 +177,7 @@ async def resume_manga_endpoint(
     session_store = get_session_store()
     session = await _get_manga_session_or_404(session_id)
     progress = session.manga_progress or {}
+    original_started_at = progress.get("started_at")
     requested_min_pages, requested_max_pages = get_requested_manga_page_range(session=session)
 
     if progress.get("status") in {"pending", "running"} and not progress.get("is_paused", False):
@@ -214,6 +222,7 @@ async def resume_manga_endpoint(
             "requested_min_pages": int(progress.get("requested_min_pages", requested_min_pages) or requested_min_pages),
             "requested_max_pages": int(progress.get("requested_max_pages", requested_max_pages) or requested_max_pages),
             "planned_total_pages": progress.get("planned_total_pages"),
+            "started_at": original_started_at or progress.get("started_at"),
         }
     )
     session.manga_progress = progress
@@ -293,11 +302,6 @@ async def get_manga_page_image_endpoint(
         raise HTTPException(status_code=404, detail=f"Pagina {page_number} non disponibile")
 
     image_path = page["image_path"]
-    storage_service = get_storage_service()
-    if image_path.startswith("gs://"):
-        signed_url = storage_service.get_signed_url(image_path, expiration_minutes=60)
-        if signed_url and signed_url.startswith("http"):
-            return RedirectResponse(url=signed_url)
 
     try:
         image_bytes = await get_manga_page_image_bytes(session_id, page_number)
@@ -317,12 +321,6 @@ async def get_manga_back_cover_image_endpoint(
     image_path = getattr(session, "back_cover_image_path", None)
     if not image_path:
         raise HTTPException(status_code=404, detail="Retro copertina non disponibile")
-
-    storage_service = get_storage_service()
-    if image_path.startswith("gs://"):
-        signed_url = storage_service.get_signed_url(image_path, expiration_minutes=60)
-        if signed_url and signed_url.startswith("http"):
-            return RedirectResponse(url=signed_url)
 
     try:
         image_bytes = await get_manga_back_cover_image_bytes(session_id)

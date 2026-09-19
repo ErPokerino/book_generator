@@ -7,32 +7,19 @@ dependencies = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
     "pyyaml>=6.0.1",
     "langgraph>=0.2.0",
     "langchain-google-genai>=2.0.0",
-    "langchain-openai>=0.3.0",
     "langchain-core>=0.3.0",
     "python-dotenv>=1.0.0",
     "reportlab>=4.0.0",
-    "google-generativeai>=0.8.0",
     "google-genai>=1.0.0",
     "xhtml2pdf>=0.2.11",
     "markdown>=3.4.0",
     "python-multipart>=0.0.21",
     "ebooklib>=0.18",
     "python-docx>=1.1.0",
-    "motor>=3.3.0",
-    "pymongo>=4.6.0",
-    "passlib[bcrypt]>=1.7.4",
-    "bcrypt>=4.0.0,<5.0.0",
-    "python-jose[cryptography]>=3.3.0",
-    "itsdangerous>=2.1.2",
-    "python-multipart>=0.0.21",
-    "aiofiles>=23.2.1",
-    "google-cloud-storage>=2.10.0",
     "google-cloud-texttospeech>=2.16.0",
-    "PyPDF2>=3.0.0",
     "requests>=2.32.5",
 ]
 
@@ -52,4 +39,3 @@ dev = [
 
 [project.scripts]
 start = "uvicorn.app:main"
-

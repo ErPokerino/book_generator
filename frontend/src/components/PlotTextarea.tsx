@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import './PlotTextarea.css';
 
 interface PlotTextareaProps {
@@ -25,16 +24,13 @@ export default function PlotTextarea({
   error,
   id = 'plot',
 }: PlotTextareaProps) {
-  const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [hasRestored, setHasRestored] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const expandedTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Chiave localStorage legata all'utente (se disponibile)
-  const storageKey = user?.email
-    ? `${STORAGE_KEY_PREFIX}.${user.email}`
-    : STORAGE_KEY_PREFIX;
+  // Chiave localStorage fissa (uso locale single-user)
+  const storageKey = STORAGE_KEY_PREFIX;
 
   // Restore da localStorage al mount (solo se value è vuoto)
   useEffect(() => {

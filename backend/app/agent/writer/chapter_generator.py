@@ -9,15 +9,15 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.agent.writer.common import combine_token_usage, validate_generated_chapter_text
 from app.agent.writer.context_builder import format_writer_context
 from app.agent.writer.prompts import load_writer_agent_context
-from app.agent.writer.review import review_and_maybe_revise_chapter
 from app.core.config import get_app_config, get_temperature_for_agent
 from app.core.logging import get_logger
 from app.llm import (
     LLMTraceRecorder,
     build_google_chat_model,
     get_max_output_tokens,
+    get_stage_model,
+    get_writer_split_calls,
     invoke_chat_model,
-    map_book_model_name,
 )
 from app.models import QuestionAnswer, SubmissionRequest
 
@@ -93,11 +93,11 @@ async def generate_chapter(
 
     Supporta due modalità:
     - Standard: 1 chiamata singola
-    - Long Form (`gemini-3-ultra`): 2 chiamate sequenziali
+    - Ultra: 2 chiamate sequenziali (senza review)
     """
     agent_context = load_writer_agent_context()
-    is_long_form = form_data.llm_model.lower() == "gemini-3-ultra"
-    gemini_model = map_book_model_name(form_data.llm_model)
+    is_long_form = get_writer_split_calls(form_data=form_data) >= 2
+    gemini_model = get_stage_model("chapters", form_data.llm_model, form_data=form_data)
     trace = LLMTraceRecorder(
         stage="chapter-generation",
         session_id=session_id,
@@ -163,35 +163,14 @@ async def generate_chapter(
             current_section["title"],
             app_config=app_config,
         )
-        review_context = format_writer_context(
-            form_data=form_data,
-            question_answers=question_answers,
-            validated_draft=validated_draft,
-            draft_title=draft_title,
-            outline_text=outline_text,
-            previous_chapters=previous_chapters,
-            current_section=current_section,
-            story_bible=story_bible,
-        )
-        chapter_text, review_token_usage = await review_and_maybe_revise_chapter(
-            agent_context=agent_context,
-            formatted_context=review_context,
-            gemini_model=gemini_model,
-            api_key=api_key,
-            form_data=form_data,
-            current_section=current_section,
-            story_bible=story_bible,
-            chapter_text=chapter_text,
-        )
-        final_usage = combine_token_usage(token_usage, review_token_usage)
         trace.record(
             "chapter_generation_completed",
             section=current_section["title"],
             long_form=True,
             chapter_characters=len(chapter_text),
-            token_usage=final_usage,
+            token_usage=token_usage,
         )
-        return chapter_text, final_usage
+        return chapter_text, token_usage
 
     formatted_context = format_writer_context(
         form_data=form_data,
@@ -234,23 +213,12 @@ async def generate_chapter(
         current_section["title"],
         app_config=app_config,
     )
-    chapter_text, review_token_usage = await review_and_maybe_revise_chapter(
-        agent_context=agent_context,
-        formatted_context=formatted_context,
-        gemini_model=gemini_model,
-        api_key=api_key,
-        form_data=form_data,
-        current_section=current_section,
-        story_bible=story_bible,
-        chapter_text=chapter_text,
-    )
-    final_usage = combine_token_usage(token_usage, review_token_usage)
     trace.record(
         "chapter_generation_completed",
         section=current_section["title"],
         long_form=False,
         chapter_characters=len(chapter_text),
-        token_usage=final_usage,
+        token_usage=token_usage,
     )
     logger.info(
         "Capitolo generato con successo",
@@ -260,4 +228,4 @@ async def generate_chapter(
             "long_form": is_long_form,
         },
     )
-    return chapter_text, final_usage
+    return chapter_text, token_usage

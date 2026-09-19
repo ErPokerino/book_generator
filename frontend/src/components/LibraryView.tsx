@@ -12,7 +12,6 @@ import FilterBar from './FilterBar';
 import BookCard from './BookCard';
 import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
-import ShareBookModal from './ShareBookModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
 import PageTransition from './ui/PageTransition';
@@ -29,8 +28,6 @@ export default function LibraryView() {
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
-  const [shareModalSessionId, setShareModalSessionId] = useState<string | null>(null);
-  const [shareModalBookTitle, setShareModalBookTitle] = useState<string>('');
   const [totalBooks, setTotalBooks] = useState(0);  // Totale libri disponibili dal server
   const filtersRef = useRef<LibraryFilters>({});
   const isFirstLoad = useRef(true);
@@ -180,7 +177,7 @@ export default function LibraryView() {
     };
   }, [hasMore, loadingMore, loading, refreshing, loadMoreBooks]);
 
-  // Listener per evento custom di refresh libreria (es: dopo accettazione condivisione)
+  // Listener per evento custom di refresh libreria
   useEffect(() => {
     const handleLibraryRefresh = () => {
       // Ricarica la libreria quando viene emesso l'evento library-refresh
@@ -228,21 +225,6 @@ export default function LibraryView() {
     setCritiqueModalSessionId(null);
   };
 
-  const handleShare = (sessionId: string, title: string) => {
-    setShareModalSessionId(sessionId);
-    setShareModalBookTitle(title);
-  };
-
-  const handleCloseShareModal = () => {
-    setShareModalSessionId(null);
-    setShareModalBookTitle('');
-  };
-
-  const handleShareSuccess = () => {
-    // Ricarica la libreria per vedere eventuali aggiornamenti
-    loadLibrary(filtersRef.current, true);
-  };
-
   const handleResume = (book: LibraryEntry) => {
     if (book.content_type === 'manga') {
       openMangaSession(book.session_id);
@@ -277,7 +259,7 @@ export default function LibraryView() {
   }
 
   // Modalità disponibili (fisso, non più dalla configurazione)
-  const availableModes = ['Flash', 'Pro', 'Ultra'];
+  const availableModes = ['Standard', 'Ultra'];
   const availableGenres = config?.fields
     .find(f => f.id === 'genre')
     ?.options?.map(opt => opt.value) || [];
@@ -314,12 +296,8 @@ export default function LibraryView() {
           </div>
         )}
 
-      {/* Separare libri propri da libri condivisi */}
       {(() => {
-        const ownBooks = books.filter(book => !book.is_shared);
-        const sharedBooks = books.filter(book => book.is_shared);
-
-        if (ownBooks.length === 0 && sharedBooks.length === 0 && !loading) {
+        if (books.length === 0 && !loading) {
           return (
             <div className="empty-library">
               <p>{totalBooks === 0 ? 'Nessun contenuto ancora. Crea il tuo primo libro o manga!' : 'Nessun contenuto trovato con i filtri selezionati.'}</p>
@@ -329,11 +307,10 @@ export default function LibraryView() {
 
         return (
           <>
-            {/* Sezione Libri Propri */}
-            {ownBooks.length > 0 && (
+            {books.length > 0 && (
               <>
                 <div className="library-header">
-                  <h2>La tua libreria ({ownBooks.length}{totalBooks > 0 && ownBooks.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
+                  <h2>La tua libreria ({books.length}{totalBooks > 0 && books.length < totalBooks ? ` di ${totalBooks}` : ''})</h2>
                 </div>
                 <motion.div 
                   className="books-grid"
@@ -348,7 +325,7 @@ export default function LibraryView() {
                   }}
                 >
                   <AnimatePresence mode="popLayout">
-                    {ownBooks.map(book => (
+                    {books.map(book => (
                       <motion.div
                         key={book.session_id}
                         variants={{
@@ -366,7 +343,6 @@ export default function LibraryView() {
                           onResume={handleResume}
                           onRead={book.status === 'complete' ? handleReadBook : undefined}
                           onShowCritique={handleShowCritique}
-                          onShare={handleShare}
                         />
                       </motion.div>
                     ))}
@@ -375,52 +351,6 @@ export default function LibraryView() {
               </>
             )}
 
-            {/* Sezione Libri Condivisi */}
-            {sharedBooks.length > 0 && (
-              <>
-                <div className="library-header shared-section-header">
-                  <h2>Contenuti condivisi ({sharedBooks.length})</h2>
-                  <p className="shared-section-subtitle">Libri e manga che altri utenti hanno condiviso con te</p>
-                </div>
-                <motion.div 
-                  className="books-grid shared-books-grid"
-                  initial="hidden"
-                  animate="visible"
-                  variants={{
-                    visible: {
-                      transition: {
-                        staggerChildren: 0.05
-                      }
-                    }
-                  }}
-                >
-                  <AnimatePresence mode="popLayout">
-                    {sharedBooks.map(book => (
-                      <motion.div
-                        key={book.session_id}
-                        variants={{
-                          hidden: { opacity: 0, y: 20 },
-                          visible: { opacity: 1, y: 0 }
-                        }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        transition={{ duration: 0.3 }}
-                        layout
-                      >
-                        <BookCard
-                          book={book}
-                          onDelete={() => {}}
-                          onContinue={undefined}
-                          onResume={undefined}
-                          onRead={book.status === 'complete' ? handleReadBook : undefined}
-                          onShowCritique={handleShowCritique}
-                          onShare={undefined}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </motion.div>
-              </>
-            )}
 
             {/* Elemento sentinella per infinite scroll */}
             <div ref={loadMoreRef} className="load-more-sentinel">
@@ -448,15 +378,6 @@ export default function LibraryView() {
         />
       )}
 
-      {shareModalSessionId && (
-        <ShareBookModal
-          isOpen={true}
-          sessionId={shareModalSessionId}
-          bookTitle={shareModalBookTitle}
-          onClose={handleCloseShareModal}
-          onSuccess={handleShareSuccess}
-        />
-      )}
       </div>
     </PageTransition>
   );

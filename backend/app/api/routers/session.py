@@ -10,6 +10,7 @@ from app.agent.session_store_helpers import get_session_async
 from app.services.stats_service import (
     calculate_page_count,
     calculate_generation_cost,
+    calculate_estimated_time,
 )
 from app.core.config import get_app_config
 from app.services.manga_generation_service import (
@@ -118,7 +119,6 @@ async def restore_session_endpoint(
                 
                 if total_steps > 0 and current_step_idx < total_steps:
                     try:
-                        from app.main import calculate_estimated_time
                         estimated_time_minutes, estimated_time_confidence = await calculate_estimated_time(
                             session_id, current_step_idx, total_steps
                         )

@@ -81,6 +81,22 @@
   color: var(--text-primary);
 }
 
+.manga-required {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.manga-field-error {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.manga-field.has-error input,
+.manga-field.has-error textarea {
+  border-color: var(--accent);
+}
+
 .manga-field input,
 .manga-field textarea,
 .manga-field select {
@@ -289,10 +305,33 @@
   animation: manga-spin 0.9s linear infinite;
 }
 
-.manga-cost-row {
+.manga-generation-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
   margin-top: 0.95rem;
-  font-size: 0.92rem;
+}
+
+.manga-metric-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 9.5rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 16px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-light);
+}
+
+.manga-metric-chip span {
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-secondary);
+}
+
+.manga-metric-chip strong {
+  font-size: 0.98rem;
+  color: var(--text-primary);
 }
 
 .manga-paused-box {

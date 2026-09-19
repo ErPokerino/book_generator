@@ -105,88 +105,73 @@ def get_model_abbreviation(model_name: str) -> str:
         return model_name.replace("gemini-", "g").replace("-", "").replace("_", "")[:6]
 
 
-def llm_model_to_mode(model_name: Optional[str]) -> str:
-    """Converte il nome del modello LLM in modalità (Flash, Pro, Ultra)."""
-    if not model_name:
-        return "Sconosciuto"
-    
-    model_lower = model_name.lower()
-    if "ultra" in model_lower:
-        return "Ultra"
-    elif "flash" in model_lower:
-        return "Flash"
-    elif "pro" in model_lower:
-        return "Pro"
-    else:
-        return "Sconosciuto"
+def llm_model_to_mode(model_name: Optional[str], generation_mode: Optional[str] = None) -> str:
+    """Converte il nome del modello LLM in modalità (Standard, Ultra)."""
+    from app.llm.model_routing import resolve_generation_mode
+
+    resolved = resolve_generation_mode(model_name, generation_mode)
+    return "Ultra" if resolved == "ultra" else "Standard"
 
 
 def mode_to_llm_models(mode: str) -> list[str]:
-    """Converte una modalità in lista di modelli LLM corrispondenti."""
+    """Converte una modalità in lista di modelli LLM corrispondenti (legacy filter)."""
     mode_lower = mode.lower()
-    if mode_lower == "flash":
-        return ["gemini-2.5-flash", "gemini-3-flash"]
-    elif mode_lower == "pro":
-        return ["gemini-2.5-pro", "gemini-3-pro", "gemini-3.1-pro"]
-    elif mode_lower == "ultra":
+    if mode_lower in {"standard", "flash", "pro"}:
+        return [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-3-flash",
+            "gemini-2.5-pro",
+            "gemini-3-pro",
+            "gemini-3.1-pro",
+        ]
+    if mode_lower == "ultra":
         return ["gemini-3-ultra"]
-    else:
-        return []
+    return []
 
 
 def calculate_generation_cost(session, total_pages: Optional[int]) -> Optional[float]:
-    """Calcola il costo stimato di generazione dei capitoli del libro."""
-    if not total_pages or total_pages <= 0:
-        return None
-    
+    """Delega al cost_service allineato a story bible + ultimi N capitoli."""
+    from app.services.cost_service import calculate_generation_cost as _calculate
+    return _calculate(session, total_pages)
+
+
+async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
+    """Stima il tempo rimanente con il modello lineare t(i) = a*i + b."""
+    from app.agent.session_store_helpers import get_session_async
+    from app.utils.stats_utils import (
+        calculate_residual_time_linear,
+        get_generation_method,
+        get_linear_params_for_method,
+    )
+
     try:
-        from app.core.config import (
-            get_tokens_per_page,
-            get_model_pricing,
-            get_exchange_rate_usd_to_eur,
+        try:
+            current_step = int(current_step)
+        except (ValueError, TypeError):
+            current_step = 0
+        try:
+            total_steps = int(total_steps)
+        except (ValueError, TypeError):
+            total_steps = 0
+
+        if total_steps <= 0 or current_step >= total_steps:
+            return None, None
+
+        app_config = get_app_config()
+        session = await get_session_async(get_session_store(), session_id)
+        current_model = session.form_data.llm_model if session and session.form_data else None
+        method = get_generation_method(
+            current_model,
+            getattr(session.form_data, "generation_mode", None) if session and session.form_data else None,
         )
-        from app.agent.writer_generator import map_model_name
-        
-        tokens_per_page = get_tokens_per_page()
-        model_name = session.form_data.llm_model if session.form_data else None
-        if not model_name:
-            return None
-        
-        gemini_model = map_model_name(model_name)
-        pricing = get_model_pricing(gemini_model)
-        input_cost_per_million = pricing["input_cost_per_million"]
-        output_cost_per_million = pricing["output_cost_per_million"]
-        
-        from app.core.config import get_token_estimates
-        token_estimates = get_token_estimates()
-        context_base_tokens = token_estimates.get("context_base", 8000)
-        
-        # Calcola usando formula chiusa O(1)
-        chapters = session.book_chapters or []
-        num_chapters = len(chapters)
-        if num_chapters == 0:
-            return None
-        
-        avg_pages_per_chapter = total_pages / num_chapters if num_chapters > 0 else 0
-        chapters_pages = total_pages - 1  # Escludi copertina
-        
-        # Formula chiusa: sum(i=1 to N) di (i-1) = N * (N-1) / 2
-        cumulative_pages_sum = (num_chapters * (num_chapters - 1) / 2) * avg_pages_per_chapter
-        
-        chapters_input = num_chapters * context_base_tokens
-        chapters_input += cumulative_pages_sum * tokens_per_page
-        
-        chapters_output = chapters_pages * tokens_per_page
-        
-        cost_usd = (chapters_input * input_cost_per_million / 1_000_000) + (chapters_output * output_cost_per_million / 1_000_000)
-        
-        exchange_rate = get_exchange_rate_usd_to_eur()
-        cost_eur = cost_usd * exchange_rate
-        
-        return round(cost_eur, 4)
+        a, b = get_linear_params_for_method(method, app_config)
+        estimated_seconds = calculate_residual_time_linear(current_step + 1, total_steps, a, b)
+        return round(estimated_seconds / 60, 1), None
     except Exception as e:
-        print(f"[CALCULATE_COST] Errore nel calcolo costo: {e}")
-        return None
+        print(f"[CALCULATE_ESTIMATED_TIME] Errore nel calcolo stima tempo: {e}")
+        return None, None
 
 
 def _sanitize_title_for_filename(title: Optional[str], fallback_prefix: str, session_id: str) -> str:
@@ -211,14 +196,10 @@ def _build_book_pdf_info(session, status: str) -> tuple[Optional[str], Optional[
     title_sanitized = _sanitize_title_for_filename(session.current_title, "Libro", session.session_id)
     expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
 
-    if storage_service.gcs_enabled:
-        pdf_path = f"gs://{storage_service.bucket_name}/books/{expected_filename}"
+    destination = f"books/{expected_filename}"
+    if storage_service.exists(destination):
+        pdf_path = str(Path(__file__).resolve().parent.parent.parent / "books" / expected_filename)
         pdf_filename = expected_filename
-    else:
-        local_pdf_path = Path(__file__).parent.parent.parent / "books" / expected_filename
-        if local_pdf_path.exists():
-            pdf_path = str(local_pdf_path)
-            pdf_filename = expected_filename
 
     return pdf_path, pdf_filename, pdf_url
 
@@ -277,7 +258,10 @@ def _build_book_library_entry(session, status: str) -> LibraryEntry:
 
     estimated_cost = getattr(session, "real_cost_eur", None)
     original_model = session.form_data.llm_model if session.form_data else None
-    mode = llm_model_to_mode(original_model)
+    mode = llm_model_to_mode(
+        original_model,
+        getattr(session.form_data, "generation_mode", None) if session.form_data else None,
+    )
 
     return LibraryEntry(
         session_id=session.session_id,
@@ -334,7 +318,10 @@ def _build_manga_library_entry(session, status: str) -> LibraryEntry:
         writing_time_minutes = (completed_at - started_at).total_seconds() / 60
 
     original_model = session.form_data.llm_model if session.form_data else None
-    mode = llm_model_to_mode(original_model)
+    mode = llm_model_to_mode(
+        original_model,
+        getattr(session.form_data, "generation_mode", None) if session.form_data else None,
+    )
     estimated_cost = getattr(session, "manga_cost_eur", None) or manga_progress.get("estimated_cost")
     cover_url = None
     if session.cover_image_path:

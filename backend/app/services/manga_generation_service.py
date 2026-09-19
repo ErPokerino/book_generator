@@ -14,8 +14,6 @@ from PIL import Image as PILImage
 from google import genai
 from google.genai import types
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-
 from app.agent.manga import generate_manga_plan
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async, save_session_async
@@ -30,6 +28,7 @@ from app.llm import (
     get_stage_model,
     invoke_structured_chat_model,
     is_retryable_llm_error,
+    image_size_for_model,
 )
 from app.models import (
     MangaCharacterProfile,
@@ -225,9 +224,30 @@ def get_runtime_manga_total_steps(session) -> int:
     return requested_max_pages
 
 
-def _get_image_model() -> str:
-    return str(
-        get_app_config().get("manga_generation", {}).get("image_model", "gemini-3.1-flash-image-preview")
+def _manga_overrides(session=None, request: Optional[MangaCreateRequest] = None) -> dict[str, str]:
+    if request is not None and getattr(request, "model_overrides", None):
+        return dict(request.model_overrides)
+    if session is not None:
+        form = getattr(session, "manga_form_data", None) or {}
+        overrides = form.get("model_overrides") or {}
+        if isinstance(overrides, dict):
+            return {str(key): str(value) for key, value in overrides.items() if value}
+        form_data = getattr(session, "form_data", None)
+        if form_data is not None and getattr(form_data, "model_overrides", None):
+            return dict(form_data.model_overrides)
+    return {}
+
+
+def _get_image_model(
+    stage: str = "manga_pages",
+    *,
+    session=None,
+    request: Optional[MangaCreateRequest] = None,
+) -> str:
+    return get_stage_model(
+        stage,
+        overrides=_manga_overrides(session=session, request=request),
+        form_data=getattr(session, "form_data", None) if session is not None else None,
     )
 
 
@@ -250,36 +270,31 @@ def _get_retry_config() -> tuple[int, int]:
     return max_retries, delay_seconds
 
 
-def _get_manga_structured_output_method() -> str:
-    return str(
-        get_app_config().get("llm_models", {}).get("structured_output_method", "json_schema")
-        or "json_schema"
-    )
+def _is_unsupported_image_size_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "image size" in text and ("not supported" in text or "invalid_argument" in text)
+
+
+def _image_generation_config(aspect_ratio: str, image_size: str) -> dict[str, Any]:
+    return {
+        "response_modalities": ["IMAGE"],
+        "image_config": {
+            "aspect_ratio": aspect_ratio,
+            "image_size": image_size,
+        },
+    }
 
 
 def _build_manga_text_llm(*, model_name: str, api_key: Optional[str], temperature: float):
-    if not api_key:
-        return build_google_chat_model(
-            model_name=model_name,
-            api_key=api_key,
-            temperature=temperature,
-            max_output_tokens=get_max_output_tokens(model_name),
-        )
-
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key,
+    return build_google_chat_model(
+        model_name=model_name,
+        api_key=api_key,
         temperature=temperature,
         max_output_tokens=get_max_output_tokens(model_name),
     )
-    setattr(llm, "_google_backend_provider", "developer_api")
-    setattr(llm, "_google_structured_output_method", _get_manga_structured_output_method())
-    return llm
 
 
 def _build_manga_image_client(api_key: Optional[str] = None) -> genai.Client:
-    if api_key:
-        return genai.Client(api_key=api_key)
     return build_google_genai_client(api_key=api_key)
 
 
@@ -425,6 +440,22 @@ def _session_needs_italian_backfill(session) -> bool:
     return any(_text_looks_english(text) for text in candidate_texts)
 
 
+def _manga_cost_snapshot(session) -> dict[str, Any]:
+    planning_phase = (getattr(session, "token_usage", None) or {}).get("manga_planning", {})
+    planning_text_cost_eur = _calculate_text_cost_eur(
+        planning_phase,
+        planning_phase.get("model", "gemini-3.8-flash"),
+    )
+    total_pages = get_resolved_manga_page_count(session) or get_runtime_manga_total_steps(session)
+    return _build_cost_breakdown(
+        planning_text_cost_eur=planning_text_cost_eur,
+        generated_pages_count=len(getattr(session, "manga_pages", []) or []),
+        has_cover=bool(getattr(session, "cover_image_path", None)),
+        has_back_cover=bool(getattr(session, "back_cover_image_path", None)),
+        total_pages=total_pages,
+    )
+
+
 def _build_cost_breakdown(
     *,
     planning_text_cost_eur: float,
@@ -479,6 +510,15 @@ def build_manga_progress_response(session) -> MangaProgress:
     if total_steps <= 0:
         total_steps = planned_total_pages or get_runtime_manga_total_steps(session)
 
+    cost_breakdown = _manga_cost_snapshot(session)
+    stored_breakdown = progress.get("cost_breakdown")
+    if isinstance(stored_breakdown, dict):
+        cost_breakdown = {**stored_breakdown, **cost_breakdown}
+
+    estimated_cost = cost_breakdown.get("estimated_total_eur")
+    current_cost_eur = cost_breakdown.get("current_cost_eur")
+    started_at = progress.get("started_at") or progress.get("queued_at")
+
     return MangaProgress(
         session_id=session.session_id,
         status=progress.get("status"),
@@ -488,7 +528,7 @@ def build_manga_progress_response(session) -> MangaProgress:
         attempt=progress.get("attempt"),
         updated_at=progress.get("updated_at"),
         queued_at=progress.get("queued_at"),
-        started_at=progress.get("started_at"),
+        started_at=started_at,
         completed_at=progress.get("completed_at"),
         job_metrics=progress.get("job_metrics"),
         requested_min_pages=int(progress.get("requested_min_pages", requested_min_pages) or requested_min_pages),
@@ -503,8 +543,9 @@ def build_manga_progress_response(session) -> MangaProgress:
         is_complete=progress.get("is_complete", False),
         is_paused=progress.get("is_paused", False),
         error=progress.get("error"),
-        estimated_cost=progress.get("estimated_cost"),
-        cost_breakdown=progress.get("cost_breakdown"),
+        estimated_cost=estimated_cost,
+        current_cost_eur=current_cost_eur,
+        cost_breakdown=cost_breakdown,
     )
 
 
@@ -564,6 +605,13 @@ async def _update_progress(
     progress.setdefault("requested_max_pages", requested_max_pages)
     progress.setdefault("status", "running")
     progress.setdefault("current_phase", "planning")
+    if not progress.get("started_at"):
+        progress["started_at"] = _now_iso()
+    if progress.get("estimated_cost") is None or progress.get("current_cost_eur") is None:
+        cost_breakdown = _manga_cost_snapshot(session)
+        progress.setdefault("estimated_cost", cost_breakdown["estimated_total_eur"])
+        progress.setdefault("current_cost_eur", cost_breakdown["current_cost_eur"])
+        progress.setdefault("cost_breakdown", cost_breakdown)
     if planned_total_pages is not None:
         progress["planned_total_pages"] = planned_total_pages
     else:
@@ -860,16 +908,12 @@ async def _generate_image_asset(
     previous_pages: Optional[list[dict[str, Any]]] = None,
     reference_image_paths: Optional[list[str]] = None,
     api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> tuple[bytes, dict[str, int]]:
     client = _build_manga_image_client(api_key=api_key)
-    model_name = _get_image_model()
-    config = {
-        "response_modalities": ["IMAGE"],
-        "image_config": {
-            "aspect_ratio": aspect_ratio,
-            "image_size": "2K",
-        },
-    }
+    resolved_model = model_name or _get_image_model()
+    image_size = image_size_for_model(resolved_model)
+    config = _image_generation_config(aspect_ratio, image_size)
     config_obj = types.GenerateContentConfig(**config) if hasattr(types, "GenerateContentConfig") else config
     reference_parts = await _load_reference_image_parts(previous_pages or [], reference_image_paths)
     contents = [
@@ -885,14 +929,31 @@ async def _generate_image_asset(
         try:
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model=model_name,
+                model=resolved_model,
                 contents=contents,
                 config=config_obj,
             )
             image_bytes = _extract_png_bytes_from_image_response(response)
-            return image_bytes, _extract_google_genai_token_usage(response, model_name)
+            return image_bytes, _extract_google_genai_token_usage(response, resolved_model)
         except Exception as exc:
             last_error = exc
+            if (
+                image_size != "1K"
+                and _is_unsupported_image_size_error(exc)
+            ):
+                logger.warning(
+                    "Dimensione immagine non supportata, riprovo a 1K",
+                    context={
+                        "session_id": session_id,
+                        "model": resolved_model,
+                        "image_size": image_size,
+                        "error": str(exc),
+                    },
+                )
+                image_size = "1K"
+                config = _image_generation_config(aspect_ratio, image_size)
+                config_obj = types.GenerateContentConfig(**config) if hasattr(types, "GenerateContentConfig") else config
+                continue
             retryable = is_retryable_llm_error(exc)
             if retryable and attempt < max_retries - 1:
                 delay = retry_delay_seconds * (attempt + 1)
@@ -920,6 +981,7 @@ async def _generate_page_image(
     prompt: str,
     previous_pages: list[dict[str, Any]],
     api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> tuple[bytes, dict[str, int]]:
     return await _generate_image_asset(
         session_id=session_id,
@@ -928,6 +990,7 @@ async def _generate_page_image(
         previous_pages=previous_pages,
         reference_image_paths=None,
         api_key=api_key,
+        model_name=model_name,
     )
 
 
@@ -936,6 +999,7 @@ async def _generate_cover_image(
     session_id: str,
     prompt: str,
     api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> tuple[bytes, dict[str, int]]:
     return await _generate_image_asset(
         session_id=session_id,
@@ -944,6 +1008,7 @@ async def _generate_cover_image(
         previous_pages=None,
         reference_image_paths=None,
         api_key=api_key,
+        model_name=model_name,
     )
 
 
@@ -954,6 +1019,7 @@ async def _generate_back_cover_image(
     previous_pages: Optional[list[dict[str, Any]]] = None,
     reference_image_paths: Optional[list[str]] = None,
     api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> tuple[bytes, dict[str, int]]:
     return await _generate_image_asset(
         session_id=session_id,
@@ -962,6 +1028,7 @@ async def _generate_back_cover_image(
         previous_pages=previous_pages,
         reference_image_paths=reference_image_paths,
         api_key=api_key,
+        model_name=model_name,
     )
 
 
@@ -1015,19 +1082,8 @@ async def _store_back_cover_image(
 
 
 def _recalculate_manga_costs(session) -> dict[str, Any]:
-    planning_phase = (getattr(session, "token_usage", None) or {}).get("manga_planning", {})
-    planning_text_cost_eur = _calculate_text_cost_eur(
-        planning_phase,
-        planning_phase.get("model", "gemini-3-flash-preview"),
-    )
+    cost_breakdown = _manga_cost_snapshot(session)
     total_pages = get_resolved_manga_page_count(session) or get_runtime_manga_total_steps(session)
-    cost_breakdown = _build_cost_breakdown(
-        planning_text_cost_eur=planning_text_cost_eur,
-        generated_pages_count=len(getattr(session, "manga_pages", []) or []),
-        has_cover=bool(getattr(session, "cover_image_path", None)),
-        has_back_cover=bool(getattr(session, "back_cover_image_path", None)),
-        total_pages=total_pages,
-    )
     session.manga_cost_eur = cost_breakdown["current_cost_eur"]
     progress = (getattr(session, "manga_progress", None) or {}).copy()
     if progress:
@@ -1063,7 +1119,11 @@ async def localize_manga_metadata_in_italian_if_needed(
         return False
 
     current_plan = MangaPlan(**session.manga_plan)
-    stage_model = get_stage_model("manga_planning")
+    stage_model = get_stage_model(
+        "manga_localization",
+        overrides=_manga_overrides(session=session),
+        form_data=getattr(session, "form_data", None),
+    )
     llm = _build_manga_text_llm(
         model_name=stage_model,
         api_key=api_key,
@@ -1171,6 +1231,7 @@ async def backfill_manga_cover_if_missing(
             session_id=session_id,
             prompt=cover_prompt,
             api_key=api_key,
+            model_name=_get_image_model("manga_cover", session=session, request=request),
         )
         cover_path = await _store_cover_image(session=session, image_bytes=cover_bytes)
         session.cover_image_path = cover_path
@@ -1229,6 +1290,7 @@ async def backfill_manga_back_cover_if_missing(
             previous_pages=previous_pages,
             reference_image_paths=reference_paths,
             api_key=api_key,
+            model_name=_get_image_model("manga_back_cover", session=session, request=request),
         )
         back_cover_path = await _store_back_cover_image(session=session, image_bytes=back_cover_bytes)
         session.back_cover_image_path = back_cover_path
@@ -1357,6 +1419,7 @@ async def _run_generation_loop(
             session_id=session_id,
             prompt=cover_prompt,
             api_key=api_key,
+            model_name=_get_image_model("manga_cover", session=session, request=request),
         )
 
         session = await get_session_async(get_session_store(), session_id)
@@ -1442,6 +1505,7 @@ async def _run_generation_loop(
             prompt=prompt,
             previous_pages=completed_pages,
             api_key=api_key,
+            model_name=_get_image_model("manga_pages", session=session, request=request),
         )
 
         session = await get_session_async(get_session_store(), session_id)
@@ -1536,6 +1600,7 @@ async def _run_generation_loop(
         previous_pages=completed_pages,
         reference_image_paths=back_cover_reference_paths,
         api_key=api_key,
+        model_name=_get_image_model("manga_back_cover", session=session, request=request),
     )
 
     session = await get_session_async(get_session_store(), session_id)

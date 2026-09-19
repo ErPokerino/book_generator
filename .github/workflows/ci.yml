@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - local-only
 
 jobs:
   backend:

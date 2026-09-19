@@ -1,5 +1,10 @@
 # Documentazione Funzionale - NarrAI
 
+> **Versione locale (2026):** nessun login, nessun credito, nessuna rete sociale.
+> Restano: wizard libro, libreria, export, critica, copertina, manga beta, TTS opzionale, analytics locale.
+> Autenticazione, condivisioni, connessioni, notifiche, crediti e GDPR **non sono più nel prodotto**.
+> Modelli e costi: [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md).
+
 ## Indice
 
 1. [Flusso Generazione Libro](#flusso-generazione-libro)

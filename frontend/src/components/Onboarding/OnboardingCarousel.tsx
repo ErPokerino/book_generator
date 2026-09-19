@@ -38,9 +38,8 @@ const screens: OnboardingScreen[] = [
     title: 'Scegli la modalità',
     description: (
       <ul className="onboarding-modes-list">
-        <li><strong>Flash</strong>: rapidità</li>
-        <li><strong>Pro</strong>: massima qualità</li>
-        <li><strong>Ultra</strong>: libri estesi</li>
+        <li><strong>Standard</strong>: un passaggio per capitolo</li>
+        <li><strong>Ultra</strong>: due passaggi, capitoli più estesi</li>
       </ul>
     ),
     icon: <ModesIcon className="onboarding-icon-svg" size={80} />,

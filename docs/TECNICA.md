@@ -1,5 +1,10 @@
 # Documentazione Tecnica - NarrAI
 
+> **Versione locale (2026):** app single-user, solo Gemini Developer API, persistenza File JSON.
+> Rimossi Vertex AI, MongoDB, GCS, auth, crediti, social, GDPR e OpenAI.
+> Catalogo modelli e stime: [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md). Setup: [README.md](../README.md).
+> Le sezioni sotto possono ancora citare il vecchio stack cloud; in caso di conflitto vale questa nota.
+
 ## Indice
 
 1. [Architettura del Sistema](#architettura-del-sistema)

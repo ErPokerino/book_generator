@@ -169,6 +169,57 @@ def test_manga_progress_and_reader_use_resolved_page_count(session_store) -> Non
     assert len(reader.pages) == 3
 
 
+def test_manga_progress_exposes_live_cost_and_started_at(session_store) -> None:
+    session = session_store.get_session("session-1")
+    assert session is not None
+
+    request = _make_request(page_count=10)
+    plan = _make_plan(10)
+
+    session.content_type = "manga"
+    session.manga_form_data = request.model_dump()
+    session.manga_plan = plan.model_dump()
+    session.cover_image_path = "cover.png"
+    session.manga_pages = [
+        {
+            "page_number": 1,
+            "title": "Pagina 1",
+            "summary": "Il conflitto procede.",
+            "dialogue": ["Andiamo!"],
+            "image_path": "manga/session-1/page_01.png",
+            "status": "completed",
+        }
+    ]
+    session.token_usage = {
+        "manga_planning": {
+            "input_tokens": 1000,
+            "output_tokens": 500,
+            "model": "gemini-3.8-flash",
+        }
+    }
+    session.manga_progress = {
+        "status": "running",
+        "current_phase": "generating_pages",
+        "current_step": 1,
+        "total_steps": 10,
+        "queued_at": "2026-09-19T12:00:00",
+        "current_page_number": 2,
+        "current_page_title": "Pagina 2",
+    }
+
+    progress = build_manga_progress_response(session)
+
+    assert progress.started_at is not None
+    assert progress.started_at.isoformat().startswith("2026-09-19T12:00:00")
+    assert progress.current_cost_eur is not None
+    assert progress.estimated_cost is not None
+    assert progress.current_cost_eur > 0
+    assert progress.estimated_cost > progress.current_cost_eur
+    assert progress.cost_breakdown is not None
+    assert progress.cost_breakdown["generated_pages_count"] == 1
+    assert progress.cost_breakdown["cover_generated"] is True
+
+
 def test_build_back_cover_reference_image_paths_uses_cover_and_final_pages(monkeypatch) -> None:
     monkeypatch.setattr(manga_service, "_get_max_reference_images", lambda: 4)
 
