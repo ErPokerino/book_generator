@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -221,9 +220,10 @@ class SessionStore:
         session_id: str,
         form_data: SubmissionRequest,
         question_answers: list[QuestionAnswer],
+        user_id: Optional[str] = None,
     ) -> SessionData:
         """Crea una nuova sessione."""
-        session = SessionData(session_id, form_data, question_answers)
+        session = SessionData(session_id, form_data, question_answers, user_id=user_id)
         self._sessions[session_id] = session
         return session
     
@@ -403,29 +403,32 @@ class SessionStore:
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
-        
+
         session.questions_progress = progress_dict
         session.update_timestamp()
+        self._save_sessions()
         return session
-    
+
     def update_draft_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
         """Aggiorna lo stato di avanzamento della generazione bozza."""
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
-        
+
         session.draft_progress = progress_dict
         session.update_timestamp()
+        self._save_sessions()
         return session
-    
+
     def update_outline_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
         """Aggiorna lo stato di avanzamento della generazione outline."""
         session = self.get_session(session_id)
         if not session:
             raise ValueError(f"Sessione {session_id} non trovata")
-        
+
         session.outline_progress = progress_dict
         session.update_timestamp()
+        self._save_sessions()
         return session
     
     def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:
@@ -448,7 +451,8 @@ class SessionStore:
         
         session.writing_progress["estimated_cost"] = estimated_cost
         session.update_timestamp()
-        
+        self._save_sessions()
+
         return True
     
     def update_token_usage(
@@ -640,6 +644,7 @@ class SessionStore:
         session.critique_status = status
         session.critique_error = error
         session.update_timestamp()
+        self._save_sessions()
         # Se fallita, non cancelliamo automaticamente una critica già presente (utile per storico/debug)
         return session
 
@@ -772,11 +777,34 @@ class FileSessionStore(SessionStore):
         session_id: str,
         form_data: SubmissionRequest,
         question_answers: list[QuestionAnswer],
+        user_id: Optional[str] = None,
     ) -> SessionData:
         """Crea una nuova sessione e salva su file."""
-        session = super().create_session(session_id, form_data, question_answers)
+        session = super().create_session(session_id, form_data, question_answers, user_id=user_id)
         self._save_sessions()
         return session
+
+    def get_all_sessions(
+        self,
+        user_id: Optional[str] = None,
+        fields: Optional[list] = None,
+        status: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        genre: Optional[str] = None,
+    ) -> Dict[str, SessionData]:
+        """Restituisce tutte le sessioni, con filtri opzionali (fields ignorato su file)."""
+        result = dict(self._sessions)
+        if user_id:
+            result = {sid: sess for sid, sess in result.items() if sess.user_id == user_id}
+        if llm_model:
+            result = {sid: sess for sid, sess in result.items()
+                      if sess.form_data and sess.form_data.llm_model == llm_model}
+        if genre:
+            result = {sid: sess for sid, sess in result.items()
+                      if sess.form_data and sess.form_data.genre == genre}
+        if status and status != "all":
+            result = {sid: sess for sid, sess in result.items() if sess.get_status() == status}
+        return result
 
     def save_session(self, session: SessionData) -> SessionData:
         """Salva una sessione su file."""
@@ -847,10 +875,16 @@ class FileSessionStore(SessionStore):
         is_complete: bool = False,
         is_paused: bool = False,
         error: Optional[str] = None,
+        total_pages: Optional[int] = None,
+        completed_chapters_count: Optional[int] = None,
+        writing_time_minutes: Optional[float] = None,
     ) -> SessionData:
         """Aggiorna lo stato di avanzamento della scrittura e salva su file."""
         session = super().update_writing_progress(
-            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error
+            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error,
+            total_pages=total_pages,
+            completed_chapters_count=completed_chapters_count,
+            writing_time_minutes=writing_time_minutes,
         )
         self._save_sessions()
         return session
@@ -934,26 +968,12 @@ class FileSessionStore(SessionStore):
 _session_store: Optional[SessionStore] = None
 
 
-def get_session_store() -> SessionStore:
-    """
-    Restituisce l'istanza globale del session store.
-    Se MONGODB_URI è configurata, usa MongoSessionStore, altrimenti FileSessionStore.
-    """
+def get_session_store() -> FileSessionStore:
+    """Restituisce l'istanza globale del session store (sempre FileSessionStore, uso locale)."""
     global _session_store
     if _session_store is None:
-        mongo_uri = os.getenv("MONGODB_URI")
-        if mongo_uri:
-            try:
-                from app.agent.mongo_session_store import MongoSessionStore
-                _session_store = MongoSessionStore(mongo_uri)
-                print(f"[SessionStore] Usando MongoSessionStore (URI: {mongo_uri[:50]}...)", file=sys.stderr)
-            except ImportError as e:
-                print(f"[SessionStore] ERRORE: Impossibile importare MongoSessionStore: {e}", file=sys.stderr)
-                print(f"[SessionStore] Fallback a FileSessionStore", file=sys.stderr)
-                _session_store = FileSessionStore()
-        else:
-            _session_store = FileSessionStore()
-            print(f"[SessionStore] Usando FileSessionStore", file=sys.stderr)
+        _session_store = FileSessionStore()
+        print("[SessionStore] Usando FileSessionStore", file=sys.stderr)
     return _session_store
 
 
