@@ -64,9 +64,6 @@ async def test_run_post_book_completion_pipeline_uses_shared_step_order(
 ) -> None:
     calls: list[tuple[str, dict]] = []
 
-    async def fake_notify(_store, _session_id, **kwargs):
-        calls.append(("notify", kwargs))
-
     async def fake_persist(_store, _session_id, **kwargs):
         calls.append(("persist", kwargs))
 
@@ -82,7 +79,6 @@ async def test_run_post_book_completion_pipeline_uses_shared_step_order(
     async def fake_cost(_store, _session_id):
         calls.append(("cost", {}))
 
-    monkeypatch.setattr("app.services.book_generation_service._send_book_completed_notification", fake_notify)
     monkeypatch.setattr("app.services.book_generation_service._persist_writing_completion", fake_persist)
     monkeypatch.setattr("app.services.book_generation_service.mark_process_completed_async", fake_mark_completed)
     monkeypatch.setattr("app.services.book_generation_service._generate_cover_artifact", fake_cover)
@@ -100,16 +96,15 @@ async def test_run_post_book_completion_pipeline_uses_shared_step_order(
     )
 
     assert [name for name, _payload in calls] == [
-        "notify",
         "persist",
         "mark_completed",
         "cover",
         "critique",
         "cost",
     ]
-    assert calls[1][1]["writing_time_minutes"] == pytest.approx(9.75)
-    assert calls[3][1]["api_key"] == "google-key"
-    assert "generate_pdf_callback" in calls[4][1]
+    assert calls[0][1]["writing_time_minutes"] == pytest.approx(9.75)
+    assert calls[2][1]["api_key"] == "google-key"
+    assert "generate_pdf_callback" in calls[3][1]
 
 
 @pytest.mark.asyncio
