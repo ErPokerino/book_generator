@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 from io import BytesIO
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import Response
 from PIL import Image as PILImage
 import markdown
@@ -30,7 +30,6 @@ from app.agent.session_store_helpers import (
     update_critique_status_async,
     update_token_usage_async,
 )
-from app.middleware.auth import get_current_user_optional
 from app.services.pdf_service import generate_complete_book_pdf, calculate_page_count
 from app.services.export_service import generate_epub, generate_docx
 from app.services.storage_service import get_storage_service
@@ -40,7 +39,6 @@ from app.services.book_generation_service import (
 )
 from app.core.config import get_app_config
 from app.services.process_job_service import begin_process_job_async
-from app.services.stats_service import llm_model_to_mode
 
 # Helper functions (temporarily defined here, will be moved to utils later)
 def get_model_abbreviation(model_name: str) -> str:
@@ -183,34 +181,17 @@ async def calculate_estimated_time(session_id: str, current_step: int, total_ste
 router = APIRouter(prefix="/api/book", tags=["book"])
 
 
-async def generate_book_pdf(session_id: str, current_user=None) -> Response:
+async def generate_book_pdf(session_id: str) -> Response:
     """
     Helper function per generare PDF del libro.
     Può essere chiamata sia dall'endpoint che dal service.
     """
-    from app.agent.book_share_store import get_book_share_store
-    
     session_store = get_session_store()
-    session = await get_session_async(session_store, session_id, user_id=None)
-    
+    session = await get_session_async(session_store, session_id)
+
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
-    
-    # Verifica accesso se current_user è fornito
-    if current_user and session.user_id and session.user_id != current_user.id:
-        book_share_store = get_book_share_store()
-        await book_share_store.connect()
-        has_access = await book_share_store.check_user_has_access(
-            book_session_id=session_id,
-            user_id=current_user.id,
-            owner_id=session.user_id,
-        )
-        if not has_access:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-            )
-    
+
     if not session.writing_progress or not session.writing_progress.get('is_complete'):
         raise HTTPException(
             status_code=400,
@@ -384,7 +365,7 @@ async def generate_book_pdf(session_id: str, current_user=None) -> Response:
     # Salva PDF su GCS o locale tramite StorageService
     try:
         storage_service = get_storage_service()
-        user_id = session.user_id if hasattr(session, 'user_id') else None
+        user_id = None
         gcs_path = storage_service.upload_file(
             data=pdf_content,
             destination_path=f"books/{filename}",
@@ -410,29 +391,21 @@ async def generate_book_pdf(session_id: str, current_user=None) -> Response:
 async def generate_book_endpoint(
     request: BookGenerationRequest,
     background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user_optional),
 ):
     """Avvia la generazione del libro completo in background."""
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
-        
+
         # Recupera la sessione
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
-        
+        session = await get_session_async(session_store, request.session_id)
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
             )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
-            )
-        
+
         if not session.current_draft or not session.validated:
             raise HTTPException(
                 status_code=400,
@@ -444,42 +417,6 @@ async def generate_book_endpoint(
                 status_code=400,
                 detail="La struttura del libro deve essere generata prima di iniziare la scrittura."
             )
-        
-        # Verifica e consuma punti (solo per utenti autenticati)
-        if current_user:
-            from app.agent.user_store import get_user_store
-            from app.models import MODE_COSTS
-            
-            # Estrai la modalità dal form_data della sessione
-            llm_model = session.form_data.llm_model if session.form_data and session.form_data.llm_model else "gemini-3-flash"
-            mode = llm_model_to_mode(llm_model).lower()  # flash, pro, ultra
-            cost = MODE_COSTS.get(mode, 1)
-            
-            print(f"[BOOK GENERATION] Tentativo consumo {cost} punti per modalità {mode}, utente {current_user.id}")
-            
-            # Verifica punti disponibili e consuma (admin ha punti illimitati)
-            user_store = get_user_store()
-            is_admin = current_user.role == "admin"
-            success, message, remaining_points, consumed_cost = await user_store.consume_points(current_user.id, mode, is_admin=is_admin)
-            
-            print(f"[BOOK GENERATION] Risultato consumo crediti: success={success}, message={message}, remaining={remaining_points}")
-            
-            if not success:
-                # Crediti insufficienti - ritorna errore HTTP
-                _, _, next_reset = await user_store.get_user_points(current_user.id)
-                raise HTTPException(
-                    status_code=402,  # Payment Required
-                    detail={
-                        "error_type": "points_exhausted",
-                        "message": message,
-                        "mode": mode.capitalize(),
-                        "cost": cost,
-                        "current_points": remaining_points,
-                        "next_reset_at": next_reset.isoformat(),
-                    }
-                )
-        else:
-            print(f"[BOOK GENERATION] ATTENZIONE: Utente non autenticato, crediti NON consumati")
         
         # Parsa l'outline e inizializza il progresso IMMEDIATAMENTE
         try:
@@ -544,7 +481,7 @@ async def generate_book_endpoint(
             draft_title=session.current_title,
             outline_text=session.current_outline,
             api_key=api_key,
-            generate_pdf_callback=lambda sid: generate_book_pdf(sid, current_user=None),
+            generate_pdf_callback=lambda sid: generate_book_pdf(sid),
         )
         
         print(f"[BOOK GENERATION] Task di generazione avviato per sessione {request.session_id}")
@@ -574,29 +511,21 @@ async def generate_book_endpoint(
 async def resume_book_generation_endpoint(
     session_id: str,
     background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user_optional),
 ):
     """Riprende la generazione del libro dal capitolo fallito."""
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
-        
+
         # Recupera la sessione
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
-        
+        session = await get_session_async(session_store, session_id)
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
             )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
-            )
-        
+
         if not session.writing_progress:
             raise HTTPException(
                 status_code=400,
@@ -642,7 +571,7 @@ async def resume_book_generation_endpoint(
             background_resume_book_generation,
             session_id=session_id,
             api_key=api_key,
-            generate_pdf_callback=lambda sid: generate_book_pdf(sid, current_user=None),
+            generate_pdf_callback=lambda sid: generate_book_pdf(sid),
         )
         
         print(f"[BOOK GENERATION] Task di ripresa generazione avviato per sessione {session_id}")
@@ -671,13 +600,11 @@ async def resume_book_generation_endpoint(
 @router.get("/progress/{session_id}", response_model=BookProgress)
 async def get_book_progress_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """Recupera lo stato di avanzamento della scrittura del libro."""
     try:
         session_store = get_session_store()
-        # Recupera sessione senza filtro user_id per permettere accesso a libri condivisi
-        session = await get_session_async(session_store, session_id, user_id=None)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             raise HTTPException(
@@ -685,21 +612,6 @@ async def get_book_progress_endpoint(
                 detail=f"Sessione {session_id} non trovata"
             )
         
-        # Verifica accesso: ownership o condivisione accettata
-        if current_user and session.user_id and session.user_id != current_user.id:
-            from app.agent.book_share_store import get_book_share_store
-            book_share_store = get_book_share_store()
-            await book_share_store.connect()
-            has_access = await book_share_store.check_user_has_access(
-                book_session_id=session_id,
-                user_id=current_user.id,
-                owner_id=session.user_id,
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-                )
         
         # Costruisci la risposta dal progresso salvato
         progress = session.writing_progress or {}
@@ -877,13 +789,12 @@ async def get_book_progress_endpoint(
 @router.get("/{session_id}", response_model=BookResponse)
 async def get_complete_book_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional)
 ):
     """Restituisce il libro completo con tutti i capitoli."""
     try:
         print(f"[GET BOOK] Richiesta libro completo per sessione: {session_id}")
         session_store = get_session_store()
-        session = await get_session_async(session_store, session_id, user_id=None)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             print(f"[GET BOOK] Sessione {session_id} non trovata")
@@ -892,21 +803,6 @@ async def get_complete_book_endpoint(
                 detail=f"Sessione {session_id} non trovata"
             )
         
-        # Verifica accesso: ownership o condivisione accettata
-        if current_user and session.user_id and session.user_id != current_user.id:
-            from app.agent.book_share_store import get_book_share_store
-            book_share_store = get_book_share_store()
-            await book_share_store.connect()
-            has_access = await book_share_store.check_user_has_access(
-                book_session_id=session_id,
-                user_id=current_user.id,
-                owner_id=session.user_id,
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-                )
         
         print(f"[GET BOOK] Sessione trovata. Progresso: {session.writing_progress}, Capitoli: {len(session.book_chapters) if session.book_chapters else 0}")
         
@@ -1010,10 +906,9 @@ async def get_complete_book_endpoint(
 @router.get("/pdf/{session_id}")
 async def download_book_pdf_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """Genera e scarica un PDF del libro completo con titolo, indice e capitoli usando WeasyPrint."""
-    return await generate_book_pdf(session_id, current_user)
+    return await generate_book_pdf(session_id)
 
 
 @router.get("/audio/{session_id}/{chapter_index}")
@@ -1021,7 +916,6 @@ async def get_chapter_audio_endpoint(
     session_id: str,
     chapter_index: int,
     voice_name: Optional[str] = None,
-    current_user = Depends(get_current_user_optional),
 ):
     """
     Restituisce l'audio (Text-to-Speech) di un capitolo specifico.
@@ -1029,24 +923,11 @@ async def get_chapter_audio_endpoint(
     from app.services.tts_service import generate_chapter_audio
     
     session_store = get_session_store()
-    session = await get_session_async(session_store, session_id, user_id=None)
+    session = await get_session_async(session_store, session_id)
     
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
         
-    # Verifica accesso
-    if current_user and session.user_id and session.user_id != current_user.id:
-        from app.agent.book_share_store import get_book_share_store
-        book_share_store = get_book_share_store()
-        await book_share_store.connect()
-        has_access = await book_share_store.check_user_has_access(
-            book_session_id=session_id,
-            user_id=current_user.id,
-            owner_id=session.user_id,
-        )
-        if not has_access:
-            raise HTTPException(status_code=403, detail="Accesso negato")
-
     try:
         audio_content = await generate_chapter_audio(session_id, chapter_index, voice_name)
         return Response(
@@ -1069,7 +950,6 @@ async def get_chapter_audio_endpoint(
 async def export_book_endpoint(
     session_id: str,
     format: str = "pdf",
-    current_user = Depends(get_current_user_optional),
 ):
     """
     Genera e scarica il libro in diversi formati: PDF, EPUB o DOCX.
@@ -1084,7 +964,7 @@ async def export_book_endpoint(
     try:
         print(f"[BOOK EXPORT] Richiesta export {format} per sessione: {session_id}")
         session_store = get_session_store()
-        session = await get_session_async(session_store, session_id, user_id=None)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             raise HTTPException(
@@ -1092,21 +972,6 @@ async def export_book_endpoint(
                 detail=f"Sessione {session_id} non trovata"
             )
         
-        # Verifica accesso: ownership o condivisione accettata
-        if current_user and session.user_id and session.user_id != current_user.id:
-            from app.agent.book_share_store import get_book_share_store
-            book_share_store = get_book_share_store()
-            await book_share_store.connect()
-            has_access = await book_share_store.check_user_has_access(
-                book_session_id=session_id,
-                user_id=current_user.id,
-                owner_id=session.user_id,
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-                )
         
         if not session.writing_progress or not session.writing_progress.get('is_complete'):
             raise HTTPException(
@@ -1163,32 +1028,15 @@ async def export_book_endpoint(
 @router.post("/critique/{session_id}")
 async def regenerate_book_critique_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """
     Rigenera la valutazione critica usando come input il PDF finale del libro.
     Utile per test e per rigenerare in caso di errore.
     """
     session_store = get_session_store()
-    session = await get_session_async(session_store, session_id, user_id=None)
+    session = await get_session_async(session_store, session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
-    
-    # Verifica accesso: ownership o condivisione accettata
-    if current_user and session.user_id and session.user_id != current_user.id:
-        from app.agent.book_share_store import get_book_share_store
-        book_share_store = get_book_share_store()
-        await book_share_store.connect()
-        has_access = await book_share_store.check_user_has_access(
-            book_session_id=session_id,
-            user_id=current_user.id,
-            owner_id=session.user_id,
-        )
-        if not has_access:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-            )
 
     if not session.writing_progress or not session.writing_progress.get("is_complete"):
         raise HTTPException(status_code=400, detail="Il libro non è ancora completo.")
@@ -1196,7 +1044,7 @@ async def regenerate_book_critique_endpoint(
     # Genera/recupera PDF
     try:
         await update_critique_status_async(session_store, session_id, "running", error=None)
-        pdf_response = await generate_book_pdf(session_id, current_user=None)
+        pdf_response = await generate_book_pdf(session_id)
         pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
         if not isinstance(pdf_bytes, (bytes, bytearray)) or len(pdf_bytes) == 0:
             raise ValueError("PDF bytes non disponibili.")

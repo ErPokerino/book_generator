@@ -4,7 +4,7 @@ import sys
 import math
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import Response, FileResponse, RedirectResponse
 
 from app.models import (
@@ -22,7 +22,6 @@ from app.agent.session_store_helpers import (
     update_cover_image_path_async,
 )
 from app.agent.cover_generator import generate_book_cover
-from app.middleware.auth import get_current_user_optional, require_admin
 from app.services.storage_service import get_storage_service
 from app.services.stats_service import (
     get_cached_stats,
@@ -143,14 +142,12 @@ async def get_library_endpoint(
     sort_order: Optional[str] = "desc",
     skip: int = 0,
     limit: int = 20,
-    current_user = Depends(get_current_user_optional),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Restituisce la lista dei contenuti nella libreria con filtri opzionali e paginazione."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        
+
         # Determina il filtro per modello
         filter_llm_model = None
         if mode:
@@ -167,10 +164,9 @@ async def get_library_endpoint(
             else:
                 filter_llm_model = llm_model
         
-        # Filtri vengono applicati nella query MongoDB
+        # Filtri applicati in memoria sullo store su file
         all_sessions = await get_all_sessions_async(
-            session_store, 
-            user_id=user_id, 
+            session_store,
             fields=LIBRARY_ENTRY_FIELDS,
             status=status,
             llm_model=filter_llm_model,
@@ -207,7 +203,7 @@ async def get_library_endpoint(
                 # Backfill solo per total_pages mancanti (il costo reale viene dalla sessione)
                 if entry.content_type == "book" and entry.status == "complete" and entry.total_pages is None:
                     try:
-                        full_session = await get_session_async(session_store, session.session_id, user_id=user_id)
+                        full_session = await get_session_async(session_store, session.session_id)
                         if full_session and full_session.book_chapters:
                             chapters_pages = sum(calculate_page_count(ch.get('content', '')) for ch in full_session.book_chapters)
                             cover_pages = 1
@@ -232,11 +228,10 @@ async def get_library_endpoint(
             async def backfill_library_data():
                 """Salva total_pages calcolati in background."""
                 store = get_session_store()
-                uid = user_id
-                
+
                 for session_id, total_pages, completed_chapters_count in sessions_to_backfill:
                     try:
-                        full_session = await get_session_async(store, session_id, user_id=uid)
+                        full_session = await get_session_async(store, session_id)
                         if full_session and full_session.writing_progress:
                             current_step = full_session.writing_progress.get('current_step', 0)
                             total_steps = full_session.writing_progress.get('total_steps', 0)
@@ -267,104 +262,7 @@ async def get_library_endpoint(
             
             background_tasks.add_task(backfill_library_data)
         
-        # Recupera anche libri condivisi con l'utente (se autenticato)
-        shared_entries = []
-        if current_user and user_id:
-            from app.agent.book_share_store import get_book_share_store
-            from app.agent.user_store import get_user_store
-            book_share_store = get_book_share_store()
-            user_store_shared = get_user_store()
-            
-            try:
-                await book_share_store.connect()
-                shared_books = await book_share_store.get_user_shared_books(
-                    user_id=user_id,
-                    status="accepted",
-                    limit=100,
-                    skip=0,
-                )
-                
-                await user_store_shared.connect()
-                for share in shared_books:
-                    try:
-                        shared_session = await get_session_async(session_store, share.book_session_id, user_id=None)
-                        
-                        if not shared_session:
-                            continue
-                        
-                        if shared_session.get_status() != "complete":
-                            continue
-                        
-                        # Applica filtri anche ai libri condivisi
-                        if status and status != "all":
-                            session_status = shared_session.get_status()
-                            if session_status != status:
-                                continue
-                        
-                        if genre and shared_session.form_data:
-                            if shared_session.form_data.genre != genre:
-                                continue
-                        
-                        if mode:
-                            models_for_mode = mode_to_llm_models(mode)
-                            if models_for_mode and shared_session.form_data:
-                                if shared_session.form_data.llm_model not in models_for_mode:
-                                    continue
-                            elif not models_for_mode:
-                                continue
-                        elif llm_model and not filter_llm_model:
-                            detected_mode = llm_model_to_mode(llm_model)
-                            models_for_mode = mode_to_llm_models(detected_mode)
-                            if models_for_mode and shared_session.form_data:
-                                if shared_session.form_data.llm_model not in models_for_mode:
-                                    continue
-                        
-                        shared_entry = session_to_library_entry(shared_session, skip_cost_calculation=True)
-                        
-                        owner = await user_store_shared.get_user_by_id(share.owner_id)
-                        
-                        from app.models import LibraryEntry
-                        shared_entry = LibraryEntry(
-                            session_id=shared_entry.session_id,
-                            content_type=shared_entry.content_type,
-                            title=shared_entry.title,
-                            author=shared_entry.author,
-                            llm_model=shared_entry.llm_model,
-                            genre=shared_entry.genre,
-                            manga_type=shared_entry.manga_type,
-                            created_at=shared_entry.created_at,
-                            updated_at=shared_entry.updated_at,
-                            status=shared_entry.status,
-                            total_chapters=shared_entry.total_chapters,
-                            completed_chapters=shared_entry.completed_chapters,
-                            completed_pages=shared_entry.completed_pages,
-                            total_pages=shared_entry.total_pages,
-                            critique_score=shared_entry.critique_score,
-                            critique_status=shared_entry.critique_status,
-                            pdf_path=shared_entry.pdf_path,
-                            pdf_filename=shared_entry.pdf_filename,
-                            pdf_url=shared_entry.pdf_url,
-                            cover_image_path=shared_entry.cover_image_path,
-                            cover_url=shared_entry.cover_url,
-                            writing_time_minutes=shared_entry.writing_time_minutes,
-                            estimated_cost=shared_entry.estimated_cost,
-                            is_shared=True,
-                            shared_by_id=share.owner_id,
-                            shared_by_name=owner.name if owner else None,
-                        )
-                        
-                        shared_entries.append(shared_entry)
-                    except Exception as e:
-                        print(f"[LIBRARY] Errore nel processare libro condiviso {share.book_session_id}: {e}")
-                        continue
-            except Exception as e:
-                print(f"[LIBRARY] Errore nel recupero libri condivisi: {e}")
-        
-        # Combina libri propri e condivisi
-        all_entries = entries + shared_entries
-        
-        # Filtri già applicati nella query MongoDB, manteniamo solo search
-        filtered_entries = all_entries
+        filtered_entries = entries
         
         if search:
             search_lower = search.lower()
@@ -402,7 +300,7 @@ async def get_library_endpoint(
         else:  # created_at default
             filtered_entries.sort(key=lambda e: e.created_at, reverse=reverse_order)
         
-        # Calcola statistiche solo sui libri propri
+        # Calcola statistiche
         stats = calculate_library_stats(entries)
         
         # Applica paginazione DOPO l'ordinamento
@@ -431,10 +329,9 @@ async def get_library_endpoint(
 
 @router.get("/stats", response_model=LibraryStats)
 async def get_library_stats_endpoint(
-    current_user = Depends(require_admin),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
-    """Restituisce statistiche aggregate della libreria (solo admin, dati globali)."""
+    """Restituisce statistiche aggregate della libreria locale."""
     try:
         cache_key = "library_stats"
         cached = get_cached_stats(cache_key)
@@ -470,10 +367,9 @@ async def get_library_stats_endpoint(
 
 @router.get("/stats/advanced", response_model=AdvancedStats)
 async def get_advanced_stats_endpoint(
-    current_user = Depends(require_admin),
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
-    """Restituisce statistiche avanzate con analisi temporali e confronto modelli (solo admin, dati globali)."""
+    """Restituisce statistiche avanzate con analisi temporali e confronto modelli."""
     try:
         cache_key = "library_stats_advanced"
         cached = get_cached_stats(cache_key)
@@ -510,41 +406,18 @@ async def get_advanced_stats_endpoint(
 @router.delete("/{session_id}")
 async def delete_library_entry_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """Elimina un progetto dalla libreria."""
     try:
         session_store = get_session_store()
-        
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+
+        session = await get_session_async(session_store, session_id)
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Progetto {session_id} non trovato"
             )
-        
-        # Verifica ownership
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: puoi eliminare solo i tuoi libri"
-            )
-        
-        # Elimina anche tutte le condivisioni correlate
-        from app.agent.book_share_store import get_book_share_store
-        book_share_store = get_book_share_store()
-        try:
-            await book_share_store.connect()
-            deleted_shares_count = await book_share_store.delete_all_shares_for_book(
-                book_session_id=session_id,
-                owner_id=current_user.id if current_user else session.user_id,
-            )
-            if deleted_shares_count > 0:
-                print(f"[LIBRARY DELETE] Eliminate {deleted_shares_count} condivisioni per libro {session_id}", file=sys.stderr)
-        except Exception as e:
-            print(f"[LIBRARY DELETE] Avviso: errore nell'eliminazione condivisioni: {e}", file=sys.stderr)
-        
+
         # Elimina file associati (PDF e copertina)
         deleted_files = []
         try:
@@ -622,35 +495,18 @@ async def get_available_pdfs_endpoint():
 @router.get("/cover/{session_id}")
 async def get_cover_image_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """Restituisce l'immagine della copertina per una sessione."""
     try:
         session_store = get_session_store()
-        session = await get_session_async(session_store, session_id, user_id=None)
-        
+        session = await get_session_async(session_store, session_id)
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
             )
-        
-        # Verifica accesso: ownership o condivisione accettata
-        if current_user and session.user_id and session.user_id != current_user.id:
-            from app.agent.book_share_store import get_book_share_store
-            book_share_store = get_book_share_store()
-            await book_share_store.connect()
-            has_access = await book_share_store.check_user_has_access(
-                book_session_id=session_id,
-                user_id=current_user.id,
-                owner_id=session.user_id,
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-                )
-        
+
         if not session.cover_image_path:
             raise HTTPException(
                 status_code=404,
@@ -718,24 +574,16 @@ async def get_cover_image_endpoint(
 @router.post("/cover/regenerate/{session_id}")
 async def regenerate_cover_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional),
 ):
     """Rigenera la copertina per un libro completato."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
-        
+        session = await get_session_async(session_store, session_id)
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
-            )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
 
         if getattr(session, "content_type", "book") != "book":
@@ -771,7 +619,7 @@ async def regenerate_cover_endpoint(
         # Carica copertina su GCS
         try:
             storage_service = get_storage_service()
-            user_id = session.user_id if hasattr(session, 'user_id') else None
+            user_id = None
             cover_filename = f"{session_id}_cover.png"
             with open(cover_path, 'rb') as f:
                 cover_data = f.read()

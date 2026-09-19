@@ -7,14 +7,12 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import create_session_async, get_session_async, save_session_async
-from app.middleware.auth import get_current_user_optional
 from app.models import (
-    MODE_COSTS,
     MangaCreateRequest,
     MangaGenerationResponse,
     MangaProgress,
@@ -71,75 +69,29 @@ async def _cache_generated_manga_pdf(session_id: str, pdf_bytes: bytes, filename
         await save_session_async(session_store, session)
 
 
-async def _get_manga_session_or_404(session_id: str, current_user=None):
+async def _get_manga_session_or_404(session_id: str):
     session_store = get_session_store()
-    user_id = current_user.id if current_user else None
-    session = await get_session_async(session_store, session_id, user_id=user_id)
+    session = await get_session_async(session_store, session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Sessione manga {session_id} non trovata")
     if getattr(session, "content_type", "book") != "manga":
         raise HTTPException(status_code=400, detail="La sessione richiesta non appartiene alla sezione manga")
-    if current_user and session.user_id and session.user_id != current_user.id:
-        from app.agent.book_share_store import get_book_share_store
-
-        book_share_store = get_book_share_store()
-        await book_share_store.connect()
-        has_access = await book_share_store.check_user_has_access(
-            book_session_id=session_id,
-            user_id=current_user.id,
-            owner_id=session.user_id,
-        )
-        if not has_access:
-            raise HTTPException(status_code=403, detail="Accesso negato: questa sessione manga appartiene a un altro utente")
     return session
-
-
-async def _consume_manga_generation_credit(current_user) -> None:
-    if not current_user:
-        return
-
-    from app.agent.user_store import get_user_store
-
-    user_store = get_user_store()
-    is_admin = current_user.role == "admin"
-    mode = "flash"
-    cost = MODE_COSTS.get(mode, 1)
-    success, message, remaining_points, _consumed_cost = await user_store.consume_points(
-        current_user.id,
-        mode,
-        is_admin=is_admin,
-    )
-    if not success:
-        _, _, next_reset = await user_store.get_user_points(current_user.id)
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "error_type": "points_exhausted",
-                "message": message,
-                "mode": mode.capitalize(),
-                "cost": cost,
-                "current_points": remaining_points,
-                "next_reset_at": next_reset.isoformat(),
-            },
-        )
 
 
 @router.post("/generate", response_model=MangaGenerationResponse)
 async def generate_manga_endpoint(
     request: MangaCreateRequest,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_optional),
 ):
     """Crea una sessione manga beta e avvia la generazione in background."""
     session_store = get_session_store()
-    await _consume_manga_generation_credit(current_user)
     requested_min_pages, requested_max_pages = get_requested_manga_page_range(request=request)
 
     session_id = str(uuid4())
     placeholder_form = _build_placeholder_submission(request)
-    user_id = current_user.id if current_user else None
 
-    session = await create_session_async(session_store, session_id, placeholder_form, [], user_id=user_id)
+    session = await create_session_async(session_store, session_id, placeholder_form, [])
     session.content_type = "manga"
     session.current_title = request.title
     session.manga_form_data = request.model_dump()
@@ -213,11 +165,10 @@ async def generate_manga_endpoint(
 async def resume_manga_endpoint(
     session_id: str,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_optional),
 ):
     """Riprende una sessione manga beta messa in pausa."""
     session_store = get_session_store()
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     progress = session.manga_progress or {}
     requested_min_pages, requested_max_pages = get_requested_manga_page_range(session=session)
 
@@ -287,10 +238,9 @@ async def resume_manga_endpoint(
 @router.get("/progress/{session_id}", response_model=MangaProgress)
 async def get_manga_progress_endpoint(
     session_id: str,
-    current_user=Depends(get_current_user_optional),
 ):
     """Restituisce il progresso della generazione manga."""
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     return build_manga_progress_response(session)
 
 
@@ -298,16 +248,15 @@ async def get_manga_progress_endpoint(
 async def get_manga_reader_endpoint(
     session_id: str,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_optional),
 ):
     """Restituisce il payload del reader beta, anche durante la generazione."""
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     if getattr(session, "manga_plan", None):
         await localize_manga_metadata_in_italian_if_needed(
             session_id=session_id,
             api_key=os.getenv("GOOGLE_API_KEY") or None,
         )
-        session = await _get_manga_session_or_404(session_id, current_user=current_user)
+        session = await _get_manga_session_or_404(session_id)
     progress = getattr(session, "manga_progress", None) or {}
     should_regenerate_back_cover = is_manga_back_cover_outdated(session)
     should_backfill_cover = (
@@ -333,10 +282,9 @@ async def get_manga_reader_endpoint(
 async def get_manga_page_image_endpoint(
     session_id: str,
     page_number: int,
-    current_user=Depends(get_current_user_optional),
 ):
     """Restituisce o redirige all'immagine di una pagina manga gia generata."""
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     page = next(
         (candidate for candidate in session.manga_pages if int(candidate.get("page_number", -1)) == int(page_number)),
         None,
@@ -363,10 +311,9 @@ async def get_manga_page_image_endpoint(
 @router.get("/{session_id}/back-cover/image")
 async def get_manga_back_cover_image_endpoint(
     session_id: str,
-    current_user=Depends(get_current_user_optional),
 ):
     """Restituisce o redirige all'immagine della retro-copertina manga."""
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     image_path = getattr(session, "back_cover_image_path", None)
     if not image_path:
         raise HTTPException(status_code=404, detail="Retro copertina non disponibile")
@@ -390,10 +337,9 @@ async def get_manga_back_cover_image_endpoint(
 async def download_manga_pdf_endpoint(
     session_id: str,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user_optional),
 ):
     """Genera e scarica il PDF completo del manga."""
-    session = await _get_manga_session_or_404(session_id, current_user=current_user)
+    session = await _get_manga_session_or_404(session_id)
     progress = session.manga_progress or {}
 
     if not progress.get("is_complete", False):
@@ -407,7 +353,7 @@ async def download_manga_pdf_endpoint(
             session_id=session_id,
             api_key=os.getenv("GOOGLE_API_KEY") or None,
         )
-        session = await _get_manga_session_or_404(session_id, current_user=current_user)
+        session = await _get_manga_session_or_404(session_id)
 
     should_regenerate_back_cover = is_manga_back_cover_outdated(session)
     if (
@@ -419,7 +365,7 @@ async def download_manga_pdf_endpoint(
             force_regenerate=should_regenerate_back_cover,
             api_key=os.getenv("GOOGLE_API_KEY") or None,
         )
-        session = await _get_manga_session_or_404(session_id, current_user=current_user)
+        session = await _get_manga_session_or_404(session_id)
 
     cached_pdf_path = getattr(session, "pdf_path", None)
     cached_pdf_filename = getattr(session, "pdf_filename", None)

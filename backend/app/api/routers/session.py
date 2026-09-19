@@ -2,12 +2,11 @@
 import math
 import os
 from typing import Literal
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 
 from app.models import SessionRestoreResponse, DraftResponse, BookProgress, Chapter, Question, LiteraryCritique, MangaCreateRequest
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
-from app.middleware.auth import get_current_user_optional
 from app.services.stats_service import (
     calculate_page_count,
     calculate_generation_cost,
@@ -25,26 +24,18 @@ router = APIRouter(prefix="/api/session", tags=["session"])
 @router.get("/{session_id}/restore", response_model=SessionRestoreResponse)
 async def restore_session_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional)
 ):
     """Ripristina lo stato completo di una sessione per permettere il recupero del processo interrotto."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
-        
+        session = await get_session_async(session_store, session_id)
+
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
             )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
-            )
-        
+
         # Determina lo step corrente
         current_step: Literal["questions", "draft", "summary", "writing", "manga"]
 
@@ -183,7 +174,7 @@ async def restore_session_endpoint(
                     session_id=session_id,
                     api_key=os.getenv("GOOGLE_API_KEY") or None,
                 )
-                session = await get_session_async(session_store, session_id, user_id=user_id)
+                session = await get_session_async(session_store, session_id)
             if session.manga_form_data:
                 manga_form_data = MangaCreateRequest(**session.manga_form_data)
             if session.manga_progress or session.manga_pages:

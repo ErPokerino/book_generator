@@ -1,14 +1,12 @@
 """Router per gli endpoint delle critiche letterarie."""
 import sys
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 
 from app.models import LiteraryCritique
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
-from app.agent.book_share_store import get_book_share_store
-from app.middleware.auth import get_current_user_optional
 from app.services.critique_service import (
     analyze_pdf_from_bytes,
 )
@@ -21,7 +19,6 @@ router = APIRouter(prefix="/api/critique", tags=["critique"])
 async def generate_critique_audio_endpoint(
     session_id: str,
     voice_name: Optional[str] = None,
-    current_user = Depends(get_current_user_optional),
 ):
     """
     Genera audio MP3 della critica letteraria usando Google Cloud Text-to-Speech.
@@ -29,26 +26,11 @@ async def generate_critique_audio_endpoint(
     """
     try:
         session_store = get_session_store()
-        session = await get_session_async(session_store, session_id, user_id=None)
-        
+        session = await get_session_async(session_store, session_id)
+
         if not session:
             raise HTTPException(status_code=404, detail=f"Sessione {session_id} non trovata")
-        
-        # Verifica accesso: ownership o condivisione accettata
-        if current_user and session.user_id and session.user_id != current_user.id:
-            book_share_store = get_book_share_store()
-            await book_share_store.connect()
-            has_access = await book_share_store.check_user_has_access(
-                book_session_id=session_id,
-                user_id=current_user.id,
-                owner_id=session.user_id,
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Accesso negato: questa sessione appartiene a un altro utente o non hai accesso"
-                )
-        
+
         audio_content = await generate_critique_audio(session_id, voice_name)
         
         return Response(

@@ -1,6 +1,6 @@
 """Router per gli endpoint delle bozze."""
 import os
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import (
     DraftGenerationRequest,
     DraftResponse,
@@ -21,7 +21,6 @@ from app.agent.session_store_helpers import (
     update_token_usage_async,
 )
 from app.core.logging import get_logger
-from app.middleware.auth import get_current_user_optional
 from app.services.generation_service import background_generate_draft
 from app.services.process_job_service import (
     begin_process_job_async,
@@ -37,15 +36,13 @@ logger = get_logger("draft-router")
 @router.post("/generate", response_model=DraftResponse)
 async def generate_draft_endpoint(
     request: DraftGenerationRequest,
-    current_user = Depends(get_current_user_optional)
 ):
     """Genera una bozza estesa della trama."""
     session_store = get_session_store()
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
         
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             session = await create_session_async(
@@ -53,12 +50,6 @@ async def generate_draft_endpoint(
                 session_id=request.session_id,
                 form_data=request.form_data,
                 question_answers=request.question_answers,
-                user_id=user_id,
-            )
-        elif current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         await mark_process_running_async(
@@ -135,15 +126,13 @@ async def generate_draft_endpoint(
 async def start_draft_generation_endpoint(
     request: DraftGenerationRequest,
     background_tasks: BackgroundTasks,
-    current_user = Depends(get_current_user_optional),
 ):
     """Avvia la generazione della bozza in background in modo idempotente."""
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
 
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        session = await get_session_async(session_store, request.session_id)
 
         if not session:
             session = await create_session_async(
@@ -151,12 +140,6 @@ async def start_draft_generation_endpoint(
                 session_id=request.session_id,
                 form_data=request.form_data,
                 question_answers=request.question_answers,
-                user_id=user_id,
-            )
-        elif current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
 
         started, job = await begin_process_job_async(
@@ -204,26 +187,18 @@ async def start_draft_generation_endpoint(
 @router.post("/modify", response_model=DraftResponse)
 async def modify_draft_endpoint(
     request: DraftModificationRequest,
-    current_user = Depends(get_current_user_optional)
 ):
     """Rigenera la bozza con le modifiche richieste dall'utente."""
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
         
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
-            )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft:
@@ -274,24 +249,16 @@ async def modify_draft_endpoint(
 @router.post("/update", response_model=DraftResponse)
 async def update_draft_manually_endpoint(
     request: DraftManualUpdateRequest,
-    current_user = Depends(get_current_user_optional)
 ):
     """Salva le modifiche manuali alla bozza senza passare dall'LLM."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
-            )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft:
@@ -341,24 +308,16 @@ async def update_draft_manually_endpoint(
 @router.post("/validate", response_model=DraftValidationResponse)
 async def validate_draft_endpoint(
     request: DraftValidationRequest,
-    current_user = Depends(get_current_user_optional)
 ):
     """Valida la bozza finale."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, request.session_id, user_id=user_id)
+        session = await get_session_async(session_store, request.session_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {request.session_id} non trovata"
-            )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft:
@@ -401,24 +360,16 @@ async def validate_draft_endpoint(
 @router.get("/{session_id}", response_model=DraftResponse)
 async def get_draft_endpoint(
     session_id: str,
-    current_user = Depends(get_current_user_optional)
 ):
     """Recupera la bozza corrente di una sessione."""
     try:
         session_store = get_session_store()
-        user_id = current_user.id if current_user else None
-        session = await get_session_async(session_store, session_id, user_id=user_id)
+        session = await get_session_async(session_store, session_id)
         
         if not session:
             raise HTTPException(
                 status_code=404,
                 detail=f"Sessione {session_id} non trovata"
-            )
-        
-        if current_user and session.user_id and session.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Accesso negato: questa sessione appartiene a un altro utente"
             )
         
         if not session.current_draft:

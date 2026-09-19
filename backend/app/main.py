@@ -30,15 +30,11 @@ from app.core.config import (
     get_cost_currency, get_exchange_rate_usd_to_eur, get_token_estimates
 )
 from app.core.environment import (
-    DEFAULT_MONGODB_URI,
-    DEFAULT_SESSION_SECRET,
     allow_detailed_diagnostics,
     get_environment,
-    is_production,
 )
 from app.core.logging import configure_logging, get_logger
-from app.api.routers import config as config_router, submission, questions, draft, outline, auth, notifications, connections, book_shares, referrals, book, library, critique, session, admin, health, files, gdpr, credits, manga
-from app.middleware.auth import get_current_user, get_current_user_optional, require_admin
+from app.api.routers import config as config_router, submission, questions, draft, outline, book, library, critique, session, health, files, manga
 from app.models import (
     ConfigResponse,
     SubmissionRequest,
@@ -79,7 +75,7 @@ from app.models import (
 from app.agent.writer_generator import generate_full_book, parse_outline_sections, resume_book_generation, regenerate_outline_markdown
 from app.agent.cover_generator import generate_book_cover
 from app.agent.literary_critic import generate_literary_critique_from_pdf
-from app.agent.session_store import get_session_store, FileSessionStore
+from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async, update_writing_progress_async, update_critique_async, 
     update_critique_status_async, update_writing_times_async, update_cover_image_path_async,
@@ -144,143 +140,30 @@ app.include_router(submission.router)
 app.include_router(questions.router)
 app.include_router(draft.router)
 app.include_router(outline.router)
-app.include_router(auth.router)
-app.include_router(notifications.router)
-app.include_router(connections.router)
-app.include_router(book_shares.router)
-app.include_router(referrals.router)
 app.include_router(book.router)
 app.include_router(library.router)
 app.include_router(critique.router)
 app.include_router(session.router)
-app.include_router(admin.router)
 app.include_router(health.router)
 app.include_router(files.router)
-app.include_router(gdpr.router)
-app.include_router(credits.router)
 app.include_router(manga.router)
 
 
-# Lifecycle hooks per MongoDB
 @app.on_event("startup")
-async def startup_db():
-    """Connette al database MongoDB all'avvio se configurato."""
-    try:
-        if os.getenv("SESSION_SECRET", DEFAULT_SESSION_SECRET) == DEFAULT_SESSION_SECRET:
-            logger.warning(
-                "SESSION_SECRET di default in uso",
-                context={"environment": app.state.environment},
-            )
-        if os.getenv("MONGODB_URI", DEFAULT_MONGODB_URI) == DEFAULT_MONGODB_URI:
-            logger.warning(
-                "MONGODB_URI di default in uso",
-                context={"environment": app.state.environment},
-            )
-
-        session_store = get_session_store()
-        if hasattr(session_store, 'connect'):
-            await session_store.connect()
-            print("[STARTUP] MongoDB (sessions) connesso con successo")
-        
-        # Inizializza anche UserStore
-        from app.agent.user_store import get_user_store
-        user_store = get_user_store()
-        await user_store.connect()
-        print("[STARTUP] MongoDB (users) connesso con successo")
-
-        # Inizializza anche NotificationStore
-        from app.agent.notification_store import get_notification_store
-        notification_store = get_notification_store()
-        await notification_store.connect()
-        print("[STARTUP] MongoDB (notifications) connesso con successo")
-
-        # Inizializza anche ConnectionStore
-        from app.agent.connection_store import get_connection_store
-        connection_store = get_connection_store()
-        await connection_store.connect()
-        print("[STARTUP] MongoDB (connections) connesso con successo")
-        
-        # Inizializza anche BookShareStore
-        from app.agent.book_share_store import get_book_share_store
-        book_share_store = get_book_share_store()
-        await book_share_store.connect()
-        print("[STARTUP] MongoDB (book_shares) connesso con successo")
-        
-        # Inizializza anche ReferralStore
-        from app.agent.referral_store import get_referral_store
-        referral_store = get_referral_store()
-        await referral_store.connect()
-        print("[STARTUP] MongoDB (referrals) connesso con successo")
-        
-        # Inizializza anche CreditStore e carica pacchetti
-        from app.agent.credit_store import get_credit_store
-        from pathlib import Path
-        credit_store = get_credit_store()
-        await credit_store.connect()
-        # Carica pacchetti crediti da YAML
-        config_path = Path(__file__).parent.parent.parent / "config" / "credit_packages.yaml"
-        if config_path.exists():
-            await credit_store.load_packages_from_yaml(str(config_path))
-        print("[STARTUP] MongoDB (credits) connesso con successo")
-
-        recovered_jobs = await recover_interrupted_processes_async(session_store)
-        if recovered_jobs:
-            logger.warning(
-                "Job interrotti recuperati allo startup",
-                context={"count": recovered_jobs},
-            )
-    except Exception as e:
-        print(f"[STARTUP] Avviso: MongoDB non disponibile: {e}")
-        if is_production():
-            raise
-
-
-@app.on_event("shutdown")
-async def shutdown_db():
-    """Chiude la connessione MongoDB allo shutdown."""
-    try:
-        session_store = get_session_store()
-        if hasattr(session_store, 'disconnect'):
-            await session_store.disconnect()
-            print("[SHUTDOWN] MongoDB (sessions) disconnesso")
-        
-        # Chiudi anche UserStore
-        from app.agent.user_store import get_user_store
-        user_store = get_user_store()
-        await user_store.disconnect()
-        print("[SHUTDOWN] MongoDB (users) disconnesso")
-        
-        # Chiudi anche NotificationStore
-        from app.agent.notification_store import get_notification_store
-        notification_store = get_notification_store()
-        await notification_store.disconnect()
-        print("[SHUTDOWN] MongoDB (notifications) disconnesso")
-        
-        # Chiudi anche ConnectionStore
-        from app.agent.connection_store import get_connection_store
-        connection_store = get_connection_store()
-        await connection_store.disconnect()
-        print("[SHUTDOWN] MongoDB (connections) disconnesso")
-        
-        # Chiudi anche BookShareStore
-        from app.agent.book_share_store import get_book_share_store
-        book_share_store = get_book_share_store()
-        await book_share_store.disconnect()
-        print("[SHUTDOWN] MongoDB (book_shares) disconnesso")
-        
-        # Chiudi anche ReferralStore
-        from app.agent.referral_store import get_referral_store
-        referral_store = get_referral_store()
-        await referral_store.disconnect()
-        print("[SHUTDOWN] MongoDB (referrals) disconnesso")
-        
-        # Chiudi anche CreditStore
-        from app.agent.credit_store import get_credit_store
-        credit_store = get_credit_store()
-        await credit_store.disconnect()
-        print("[SHUTDOWN] MongoDB (credits) disconnesso")
-    except Exception as e:
-        print(f"[SHUTDOWN] Errore nella disconnessione MongoDB: {e}")
+async def startup_local():
+    """Avvio locale: verifica API key e recupera i job interrotti."""
+    if not os.getenv("GOOGLE_API_KEY"):
+        logger.warning(
+            "GOOGLE_API_KEY non configurata: le generazioni falliranno. "
+            "Aggiungi GOOGLE_API_KEY=... al file .env nella root del progetto.",
+        )
+    session_store = get_session_store()
+    recovered_jobs = await recover_interrupted_processes_async(session_store)
+    if recovered_jobs:
+        logger.warning(
+            "Job interrotti recuperati allo startup",
+            context={"count": recovered_jobs},
+        )
 
 
 # NOTE: Gli endpoint sono stati migrati nei rispettivi router:

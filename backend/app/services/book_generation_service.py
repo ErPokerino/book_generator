@@ -47,42 +47,6 @@ def _resolve_book_artifact_context(
     return title, author, plot, cover_style
 
 
-async def _send_book_completed_notification(
-    session_store,
-    session_id: str,
-    *,
-    title_fallback: Optional[str] = None,
-) -> None:
-    """Invia la notifica di completamento libro senza bloccare la pipeline principale."""
-    try:
-        session = await get_session_async(session_store, session_id)
-        if session and session.user_id:
-            from app.agent.notification_store import get_notification_store
-
-            notification_store = get_notification_store()
-            await notification_store.connect()
-            book_title = getattr(session, "current_title", None) or title_fallback or "Il tuo libro"
-            await notification_store.create_notification(
-                user_id=session.user_id,
-                type="book_completed",
-                title="📚 Libro completato!",
-                message=f'"{book_title}" è pronto per la lettura!',
-                data={
-                    "session_id": session_id,
-                    "book_title": book_title,
-                },
-            )
-            logger.info(
-                "Notifica completamento inviata",
-                context={"session_id": session_id, "user_id": session.user_id},
-            )
-    except Exception as notif_err:
-        logger.warning(
-            "Errore non bloccante nell'invio notifica completamento",
-            context={"session_id": session_id, "error": str(notif_err)},
-        )
-
-
 async def _persist_writing_completion(
     session_store,
     session_id: str,
@@ -120,7 +84,7 @@ async def _store_cover_path(
     """Carica la copertina su storage e salva il path finale, con fallback locale."""
     try:
         storage_service = get_storage_service()
-        user_id = session.user_id if hasattr(session, "user_id") else None
+        user_id = None
         cover_filename = f"{session_id}_cover.png"
         with open(cover_path, "rb") as handle:
             cover_data = handle.read()
@@ -193,7 +157,7 @@ async def _resolve_pdf_bytes(session_id: str, generate_pdf_callback=None) -> byt
         else:
             from app.api.routers.book import generate_book_pdf
 
-            pdf_response = await generate_book_pdf(session_id, current_user=None)
+            pdf_response = await generate_book_pdf(session_id)
 
         pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
         if pdf_bytes is None:
@@ -293,11 +257,6 @@ async def _run_post_book_completion_pipeline(
     generate_pdf_callback=None,
 ) -> None:
     """Pipeline condivisa eseguita una sola volta quando i capitoli sono completi."""
-    await _send_book_completed_notification(
-        session_store,
-        session_id,
-        title_fallback=title_fallback,
-    )
     await _persist_writing_completion(
         session_store,
         session_id,
