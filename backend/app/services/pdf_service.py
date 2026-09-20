@@ -45,6 +45,8 @@ def get_model_abbreviation(model_name: str) -> str:
         return "g25p"
     elif "gemini-3-flash" in model_lower:
         return "g3f"
+    elif "gemini-3.1-pro" in model_lower:
+        return "g31p"
     elif "gemini-3-pro" in model_lower:
         return "g3p"
     else:
@@ -389,13 +391,14 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
     pdf_content = buffer.getvalue()
     
     # Nome file con data, modello e titolo (formato: YYYY-MM-DD_g3p_TitoloLibro.pdf)
-    date_prefix = datetime.now().strftime("%Y-%m-%d")
+    date_prefix = session.created_at.strftime("%Y-%m-%d")
     model_abbrev = get_model_abbreviation(session.form_data.llm_model)
     title_sanitized = "".join(c for c in book_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
     title_sanitized = title_sanitized.replace(" ", "_")
     if not title_sanitized:
         title_sanitized = f"Libro_{session.session_id[:8]}"
-    filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
+    session_suffix = "".join(c for c in session.session_id if c.isalnum() or c == "-")
+    filename = f"{date_prefix}_{model_abbrev}_{title_sanitized[:80]}_{session_suffix}.pdf"
     
     try:
         storage_service = get_storage_service()
@@ -406,7 +409,8 @@ def generate_complete_book_pdf(session: SessionData) -> tuple[bytes, str]:
             content_type="application/pdf",
             user_id=user_id,
         )
-        print(f"[BOOK PDF] PDF salvato: {stored_path}")
+        session.pdf_path = stored_path
+        session.pdf_filename = filename
     except Exception as e:
         print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
         # Non blocchiamo il download HTTP se il salvataggio fallisce

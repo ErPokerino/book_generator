@@ -1,4 +1,5 @@
 """Service per la generazione di libri in background."""
+import asyncio
 from datetime import datetime
 from typing import Optional
 from app.models import SubmissionRequest, QuestionAnswer
@@ -8,6 +9,7 @@ from app.agent.literary_critic import generate_literary_critique_from_pdf
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async,
+    save_session_async,
     update_writing_progress_async,
     update_writing_times_async,
     update_cover_image_path_async,
@@ -22,7 +24,6 @@ from app.services.storage_service import get_storage_service
 from app.services.cost_service import calculate_real_generation_cost
 from app.services.process_job_service import (
     mark_process_completed_async,
-    mark_process_failed_async,
     mark_process_paused_async,
     mark_process_running_async,
     refresh_process_metrics_async,
@@ -158,9 +159,15 @@ async def _resolve_pdf_bytes(session_id: str, generate_pdf_callback=None) -> byt
         if generate_pdf_callback:
             pdf_response = await generate_pdf_callback(session_id)
         else:
-            from app.api.routers.book import generate_book_pdf
+            from app.services.pdf_service import generate_complete_book_pdf
 
-            pdf_response = await generate_book_pdf(session_id)
+            store = get_session_store()
+            session = await get_session_async(store, session_id)
+            if not session:
+                raise ValueError(f"Sessione {session_id} non trovata")
+            pdf_bytes, _ = await asyncio.to_thread(generate_complete_book_pdf, session)
+            await save_session_async(store, session)
+            return pdf_bytes
 
         pdf_bytes = getattr(pdf_response, "body", None) or getattr(pdf_response, "content", None)
         if pdf_bytes is None:
@@ -261,6 +268,7 @@ async def _run_post_book_completion_pipeline(
     generate_pdf_callback=None,
 ) -> None:
     """Pipeline condivisa eseguita una sola volta quando i capitoli sono completi."""
+    await update_critique_status_async(session_store, session_id, "pending")
     await _persist_writing_completion(
         session_store,
         session_id,
@@ -400,47 +408,8 @@ async def background_book_generation(
             plot_fallback=validated_draft,
             generate_pdf_callback=generate_pdf_callback,
         )
-    except ValueError as e:
-        # Errore di validazione (es. outline non valido)
-        error_msg = f"Errore di validazione: {str(e)}"
-        logger.exception("Errore di validazione nella generazione libro", context={"session_id": session_id})
-        # Salva l'errore nel progresso mantenendo il total_steps se già impostato
-        session = await get_session_async(session_store, session_id)
-        existing_total = 0
-        if session and session.writing_progress:
-            existing_total = session.writing_progress.get('total_steps', 0)
-        
-        await update_writing_progress_async(
-            session_store,
-            session_id=session_id,
-            current_step=0,
-            total_steps=existing_total if existing_total > 0 else 1,
-            current_section_name=None,
-            is_complete=False,
-            is_paused=False,
-            error=error_msg,
-        )
-        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
-    except Exception as e:
-        error_msg = f"Errore nella generazione: {str(e)}"
-        logger.exception("Errore inatteso nella generazione libro", context={"session_id": session_id})
-        # Salva l'errore nel progresso mantenendo il total_steps se già impostato
-        session = await get_session_async(session_store, session_id)
-        existing_total = 0
-        if session and session.writing_progress:
-            existing_total = session.writing_progress.get('total_steps', 0)
-        
-        await update_writing_progress_async(
-            session_store,
-            session_id=session_id,
-            current_step=0,
-            total_steps=existing_total if existing_total > 0 else 1,
-            current_section_name=None,
-            is_complete=False,
-            is_paused=False,
-            error=error_msg,
-        )
-        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
+    except Exception as exc:
+        await _pause_failed_generation(session_store, session_id, exc)
 
 
 async def background_resume_book_generation(
@@ -469,7 +438,7 @@ async def background_resume_book_generation(
             raise ValueError(f"Sessione {session_id} non ha uno stato di scrittura")
         
         progress = session.writing_progress
-        if not progress.get("is_paused", False):
+        if not progress.get("is_paused", False) and progress.get("status") != "pending":
             raise ValueError(f"Sessione {session_id} non è in stato di pausa")
 
         await mark_process_running_async(
@@ -527,41 +496,23 @@ async def background_resume_book_generation(
             plot_fallback="",
             generate_pdf_callback=generate_pdf_callback,
         )
-    except ValueError as e:
-        error_msg = f"Errore di validazione: {str(e)}"
-        logger.exception("Errore di validazione nella ripresa generazione libro", context={"session_id": session_id})
-        session = await get_session_async(session_store, session_id)
-        existing_total = 0
-        if session and session.writing_progress:
-            existing_total = session.writing_progress.get('total_steps', 0)
-        
-        await update_writing_progress_async(
-            session_store,
-            session_id=session_id,
-            current_step=0,
-            total_steps=existing_total if existing_total > 0 else 1,
-            current_section_name=None,
-            is_complete=False,
-            is_paused=False,
-            error=error_msg,
-        )
-        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
-    except Exception as e:
-        error_msg = f"Errore nella ripresa generazione: {str(e)}"
-        logger.exception("Errore inatteso nella ripresa generazione libro", context={"session_id": session_id})
-        session = await get_session_async(session_store, session_id)
-        existing_total = 0
-        if session and session.writing_progress:
-            existing_total = session.writing_progress.get('total_steps', 0)
-        
-        await update_writing_progress_async(
-            session_store,
-            session_id=session_id,
-            current_step=0,
-            total_steps=existing_total if existing_total > 0 else 1,
-            current_section_name=None,
-            is_complete=False,
-            is_paused=False,
-            error=error_msg,
-        )
-        await mark_process_failed_async(session_store, session_id, "book", error_msg, recoverable=True)
+    except Exception as exc:
+        await _pause_failed_generation(session_store, session_id, exc)
+
+
+async def _pause_failed_generation(session_store, session_id: str, error: Exception) -> None:
+    """Preserva il checkpoint e permette di riprendere anche gli errori inattesi."""
+    logger.exception("Generazione interrotta", context={"session_id": session_id})
+    session = await get_session_async(session_store, session_id)
+    if not session:
+        return
+    progress = session.writing_progress or {}
+    message = f"Generazione interrotta: {error}"
+    await update_writing_progress_async(
+        session_store, session_id=session_id,
+        current_step=progress.get("current_step", 0),
+        total_steps=progress.get("total_steps", 1),
+        current_section_name=progress.get("current_section_name"),
+        is_complete=False, is_paused=True, error=message,
+    )
+    await mark_process_paused_async(session_store, session_id, "book", message)

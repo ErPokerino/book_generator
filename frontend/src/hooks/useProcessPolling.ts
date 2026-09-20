@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ProcessProgress } from '../api/client';
-import { getAppConfig, AppConfig } from '../api/client';
+import { getAppConfig, type ProcessProgress } from '../api/client';
 import { useToast } from './useToast';
 
 interface UseProcessPollingOptions {
@@ -15,7 +14,7 @@ interface UseProcessPollingOptions {
 export function useProcessPolling({
   sessionId,
   progressEndpoint,
-  pollingInterval = 2000,
+  pollingInterval,
   onComplete,
   onError,
   enabled = true,
@@ -24,126 +23,88 @@ export function useProcessPolling({
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   const [isPolling, setIsPolling] = useState(true);
-  const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
+  const configuredInterval = useRef(2000);
   const toast = useToast();
-  const latestProgressRef = useRef<ProcessProgress | null>(null);
-  const consecutiveFailuresRef = useRef(0);
-  const stoppedRef = useRef(false); // Ref per tracciare stop del polling in modo sincrono
-  const completedCalledRef = useRef(false); // Evita chiamate multiple di onComplete
+  const callbacks = useRef({ progressEndpoint, onComplete, onError, toast, pollingInterval });
+  callbacks.current = { progressEndpoint, onComplete, onError, toast, pollingInterval };
 
-  // Carica la config app all'avvio
   useEffect(() => {
-    getAppConfig().then(setAppConfig).catch(err => {
-      console.warn('[useProcessPolling] Errore nel caricamento config app:', err);
-    });
+    let cancelled = false;
+    getAppConfig().then(config => {
+      if (!cancelled) configuredInterval.current = config.frontend?.polling_interval ?? 2000;
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
-  // Reset dei ref quando cambia sessionId (nuovo processo)
+  // Riabilitare lo stesso processo (es. Riprova) avvia un nuovo ciclo.
   useEffect(() => {
-    if (sessionId) {
-      stoppedRef.current = false;
-      completedCalledRef.current = false;
-      setIsPolling(true);
-    }
-  }, [sessionId]);
+    setProgress(null);
+    setFatalError(null);
+    setConsecutiveFailures(0);
+    setIsPolling(true);
+  }, [sessionId, enabled]);
 
   useEffect(() => {
-    if (!sessionId || !isPolling || !enabled) return;
-
-    const pollProgress = async () => {
-      try {
-        const currentProgress = await progressEndpoint(sessionId);
-        setProgress(currentProgress);
-        latestProgressRef.current = currentProgress;
-        consecutiveFailuresRef.current = 0;
-        setConsecutiveFailures(0);
-
-        // Ferma il polling se completato o in stato terminale
-        if (currentProgress.status === 'completed') {
-          stoppedRef.current = true;
-          setIsPolling(false);
-          // Chiama onComplete solo una volta
-          if (onComplete && !completedCalledRef.current) {
-            completedCalledRef.current = true;
-            onComplete(currentProgress);
-          }
-        } else if (currentProgress.status === 'failed' || currentProgress.status === 'paused' || currentProgress.status === 'cancelled') {
-          stoppedRef.current = true;
-          setIsPolling(false);
-          if (onError) {
-            onError(currentProgress.error || 'Processo interrotto');
-          }
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Errore nel recupero del progresso';
-        const next = consecutiveFailuresRef.current + 1;
-        consecutiveFailuresRef.current = next;
-        setConsecutiveFailures(next);
-        
-        // Mostra toast solo ogni 3 tentativi per evitare spam
-        if (next % 3 === 1) {
-          toast.error(`Connessione instabile (tentativo ${next}/10). Riprovo...`);
-        }
-        
-        // Dopo molti tentativi falliti consecutivi, consideralo fatale
-        if (next >= 10) {
-          setFatalError(msg);
-          setIsPolling(false);
-          if (onError) {
-            onError(msg);
-          }
-        }
-      }
-    };
-
-    // Polling adattivo + backoff su errori di rete
+    if (!sessionId || !enabled || !isPolling) return;
     let cancelled = false;
-    let timeoutId: number | null = null;
-
-    const getBasePollingInterval = (): number => {
-      if (appConfig?.frontend?.polling_interval) {
-        return appConfig.frontend.polling_interval;
-      }
-      return pollingInterval;
-    };
-
-    const scheduleNext = (delayMs: number) => {
-      if (cancelled) return;
-      timeoutId = window.setTimeout(async () => {
-        await runOnce();
-      }, delayMs);
-    };
+    let failures = 0;
+    let timeoutId: number | undefined;
+    setFatalError(null);
+    setConsecutiveFailures(0);
 
     const runOnce = async () => {
-      if (cancelled || stoppedRef.current) return;
-      await pollProgress();
+      let current: ProcessProgress;
+      try {
+        current = await callbacks.current.progressEndpoint(sessionId);
+      } catch (error) {
+        if (cancelled) return;
+        failures += 1;
+        setConsecutiveFailures(failures);
+        if (failures >= 10) {
+          const message = error instanceof Error ? error.message : 'Errore nel recupero del progresso';
+          setFatalError(message);
+          setIsPolling(false);
+          callbacks.current.onError?.(message);
+          return;
+        }
+        if (failures % 3 === 1) {
+          callbacks.current.toast.error(`Connessione instabile (tentativo ${failures}/10). Riprovo...`);
+        }
+        scheduleNext();
+        return;
+      }
 
-      // Se il polling è stato fermato dentro pollProgress, non schedulare
-      if (cancelled || stoppedRef.current) return;
-      
-      // Usa intervallo base o config
-      const base = getBasePollingInterval();
-      // Backoff esponenziale su errori consecutivi (max 15s)
-      const failures = consecutiveFailuresRef.current;
-      const backoff = failures > 0 
-        ? Math.min(15000, base * Math.pow(2, Math.min(failures, 3))) 
-        : base;
-      scheduleNext(backoff);
+      // Una risposta del ciclo precedente non può aggiornare la nuova sessione.
+      if (cancelled) return;
+      setProgress(current);
+      failures = 0;
+      setConsecutiveFailures(0);
+      if (current.status === 'completed') {
+        setIsPolling(false);
+        callbacks.current.onComplete?.(current);
+        return;
+      }
+      if (['failed', 'paused', 'cancelled'].includes(current.status)) {
+        setIsPolling(false);
+        callbacks.current.onError?.(current.error || 'Processo interrotto');
+        return;
+      }
+      scheduleNext();
     };
 
-    runOnce();
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const base = Math.max(1, callbacks.current.pollingInterval ?? configuredInterval.current);
+      const delay = failures ? Math.min(15000, base * 2 ** Math.min(failures, 3)) : base;
+      timeoutId = window.setTimeout(() => { void runOnce(); }, delay);
+    };
 
+    void runOnce();
     return () => {
       cancelled = true;
-      if (timeoutId != null) window.clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
     };
-  }, [sessionId, isPolling, enabled, progressEndpoint, onComplete, onError, appConfig, pollingInterval, toast]);
+  }, [sessionId, enabled, isPolling]);
 
-  return {
-    progress,
-    fatalError,
-    consecutiveFailures,
-    isPolling,
-    setIsPolling,
-  };
+  return { progress, fatalError, consecutiveFailures, isPolling: !!sessionId && enabled && isPolling, setIsPolling };
 }

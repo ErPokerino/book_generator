@@ -282,19 +282,6 @@ async def get_all_sessions_async(session_store: SessionStore, user_id: Optional[
                                  fields: Optional[list] = None, status: Optional[str] = None,
                                  llm_model: Optional[str] = None, genre: Optional[str] = None) -> Dict[str, SessionData]:
     """Restituisce tutte le sessioni, con filtri opzionali."""
-    if hasattr(session_store, 'get_all_sessions'):
-        return session_store.get_all_sessions(user_id=user_id, fields=fields,
-                                              status=status, llm_model=llm_model, genre=genre)
-    # Fallback per store in-memory nei test: filtra il dict interno
-    result = dict(session_store._sessions)
-    if user_id:
-        result = {sid: sess for sid, sess in result.items() if sess.user_id == user_id}
-    if llm_model:
-        result = {sid: sess for sid, sess in result.items()
-                  if sess.form_data and sess.form_data.llm_model == llm_model}
-    if genre:
-        result = {sid: sess for sid, sess in result.items()
-                  if sess.form_data and sess.form_data.genre == genre}
-    if status and status != "all":
-        result = {sid: sess for sid, sess in result.items() if sess.get_status() == status}
-    return result
+    return session_store.get_all_sessions(
+        user_id=user_id, fields=fields, status=status, llm_model=llm_model, genre=genre,
+    )

@@ -33,7 +33,7 @@ def _get_retry_count(app_config: Optional[dict[str, Any]] = None) -> int:
     if app_config is None:
         app_config = get_app_config()
     retry_config = app_config.get("retry", {}).get("chapter_generation", {})
-    return int(retry_config.get("max_retries", 2))
+    return max(1, int(retry_config.get("max_retries", 2)))
 
 
 def _calculate_total_pages(completed_chapters: list[dict[str, Any]]) -> int:
@@ -328,10 +328,8 @@ async def resume_book_generation(
         raise ValueError(f"Sessione {session_id} non ha uno stato di scrittura")
 
     progress = session.writing_progress
-    if not progress.get("is_paused", False):
+    if not progress.get("is_paused", False) and progress.get("status") not in {"pending", "running"}:
         raise ValueError(f"Sessione {session_id} non è in stato di pausa")
-
-    await resume_writing_async(session_store, session_id)
 
     form_data = session.form_data
     question_answers = session.question_answers
@@ -342,9 +340,18 @@ async def resume_book_generation(
         raise ValueError(f"Sessione {session_id} non ha bozza validata o outline")
 
     sections = parse_outline_sections(outline_text)
-    completed_chapters = session.book_chapters.copy()
+    # Il checkpoint può precedere il salvataggio dell'ultimo capitolo in caso di crash.
+    # Riparti dal primo capitolo assente, senza reinviare al modello quelli già salvati.
+    chapters_by_index = {chapter["section_index"]: chapter for chapter in session.book_chapters}
+    completed_chapters = []
+    for index in range(len(sections)):
+        chapter = chapters_by_index.get(index)
+        if not chapter or not chapter.get("content", "").strip():
+            break
+        completed_chapters.append(chapter)
+    failed_step = len(completed_chapters)
+    await resume_writing_async(session_store, session_id)
     story_bible = await refresh_story_bible_for_session(session_store, session, sections)
-    failed_step = int(progress.get("current_step", 0) or 0)
 
     completed_chapters, completed = await _run_book_generation_loop(
         session_id=session_id,

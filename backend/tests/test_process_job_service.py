@@ -12,6 +12,18 @@ from app.services.process_job_service import (
 
 
 @pytest.mark.asyncio
+async def test_restart_recovers_critique_without_changing_completed_book(session_store):
+    session = session_store.get_session("session-1")
+    session.writing_progress = {"is_complete": True, "status": "completed"}
+    session.critique_status = "pending"
+    recovered = await recover_interrupted_processes_async(session_store)
+    assert recovered == 1
+    assert session.writing_progress["is_complete"]
+    assert session.critique_status == "failed"
+    assert "riavvio" in session.critique_error
+
+
+@pytest.mark.asyncio
 async def test_begin_process_job_async_is_idempotent(session_store: SessionStore) -> None:
     created, progress = await begin_process_job_async(
         session_store,

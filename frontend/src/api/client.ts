@@ -1,3 +1,4 @@
+import { downloadFilename } from '../utils/downloadFilename';
 export interface FieldOption {
   value: string;
   label?: string;
@@ -882,12 +883,7 @@ export async function downloadMangaPdf(sessionId: string): Promise<{ blob: Blob;
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `Manga_${sessionId.substring(0, 8)}.pdf`;
 
-  if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-    if (filenameMatch && filenameMatch[1]) {
-      filename = filenameMatch[1].replace(/['"]/g, '');
-    }
-  }
+  filename = downloadFilename(contentDisposition, filename);
 
   const blob = await response.blob();
   return { blob, filename };
@@ -964,12 +960,7 @@ export async function downloadBookPdf(sessionId: string): Promise<{ blob: Blob; 
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `Libro_${sessionId.substring(0, 8)}.pdf`;
   
-  if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-    if (filenameMatch && filenameMatch[1]) {
-      filename = filenameMatch[1].replace(/['"]/g, '');
-    }
-  }
+  filename = downloadFilename(contentDisposition, filename);
   
   const blob = await response.blob();
   return { blob, filename };
@@ -993,12 +984,7 @@ export async function exportBook(sessionId: string, format: 'pdf' | 'epub' | 'do
   const contentDisposition = response.headers.get('Content-Disposition');
   let filename = `Libro_${sessionId.substring(0, 8)}.${format}`;
   
-  if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-    if (filenameMatch && filenameMatch[1]) {
-      filename = filenameMatch[1].replace(/['"]/g, '');
-    }
-  }
+  filename = downloadFilename(contentDisposition, filename);
   
   const blob = await response.blob();
   return { blob, filename };
@@ -1236,7 +1222,7 @@ export interface PdfEntry {
   size_bytes?: number;
 }
 
-export async function getLibrary(filters?: LibraryFilters): Promise<LibraryResponse> {
+export async function getLibrary(filters?: LibraryFilters, signal?: AbortSignal): Promise<LibraryResponse> {
   const params = new URLSearchParams();
   
   if (filters) {
@@ -1256,7 +1242,7 @@ export async function getLibrary(filters?: LibraryFilters): Promise<LibraryRespo
   }
   
   const url = `${API_BASE}/library${params.toString() ? '?' + params.toString() : ''}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
   
   if (!response.ok) {
     const error = await response.json();

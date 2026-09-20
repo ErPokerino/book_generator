@@ -8,6 +8,8 @@ from typing import Optional
 from app.models import LibraryEntry, LibraryStats, AdvancedStats, ModelComparisonEntry
 from app.agent.session_store import get_session_store
 from app.services.storage_service import get_storage_service
+from app.services.library_service import scan_pdf_directory
+from app.services.pdf_service import calculate_page_count, get_model_abbreviation
 from app.core.config import get_app_config
 
 # Campi da recuperare per le entry della libreria (ottimizzazione performance)
@@ -67,42 +69,6 @@ def invalidate_cache(cache_key: Optional[str] = None):
             del _stats_cache[cache_key]
     else:
         _stats_cache.clear()
-
-
-def calculate_page_count(content: str) -> int:
-    """Calcola il numero di pagine basato sul contenuto (parole/250 arrotondato per eccesso)."""
-    if not content:
-        return 0
-    try:
-        app_config = get_app_config()
-        words_per_page = app_config.get("validation", {}).get("words_per_page", 250)
-        
-        # Conta le parole dividendo per spazi
-        words = content.split()
-        word_count = len(words)
-        # Calcola pagine: parole/words_per_page arrotondato per eccesso
-        pages = math.ceil(word_count / words_per_page)
-        return pages
-    except Exception as e:
-        print(f"[CALCULATE_PAGE_COUNT] Errore: {e}")
-        return 0
-
-
-def get_model_abbreviation(model_name: str) -> str:
-    """Converte il nome completo del modello in una versione abbreviata per il nome del PDF."""
-    model_lower = model_name.lower()
-    if "gemini-2.5-flash" in model_lower:
-        return "g25f"
-    elif "gemini-2.5-pro" in model_lower:
-        return "g25p"
-    elif "gemini-3-flash" in model_lower:
-        return "g3f"
-    elif "gemini-3.1-pro" in model_lower:
-        return "g31p"
-    elif "gemini-3-pro" in model_lower:
-        return "g3p"
-    else:
-        return model_name.replace("gemini-", "g").replace("-", "").replace("_", "")[:6]
 
 
 def llm_model_to_mode(model_name: Optional[str], generation_mode: Optional[str] = None) -> str:
@@ -190,6 +156,9 @@ def _build_book_pdf_info(session, status: str) -> tuple[Optional[str], Optional[
 
     if status != "complete":
         return pdf_path, pdf_filename, pdf_url
+
+    if session.pdf_path and storage_service.exists(session.pdf_path):
+        return session.pdf_path, session.pdf_filename or Path(session.pdf_path).name, storage_service.get_url(session.pdf_path)
 
     date_prefix = session.created_at.strftime("%Y-%m-%d")
     model_abbrev = get_model_abbreviation(session.form_data.llm_model)
@@ -643,68 +612,3 @@ def calculate_advanced_stats(entries: list[LibraryEntry]) -> AdvancedStats:
         score_trend_over_time=score_trend_over_time,
         model_comparison=model_comparison,
     )
-
-
-def scan_pdf_directory() -> list:
-    """Scansiona la directory books/ e restituisce lista di PDF disponibili."""
-    from app.models import PdfEntry
-    
-    books_dir = Path(__file__).parent.parent.parent / "books"
-    pdf_entries = []
-    
-    if not books_dir.exists():
-        return pdf_entries
-    
-    session_store = get_session_store()
-    
-    for pdf_file in sorted(books_dir.glob("*.pdf"), key=lambda x: x.stat().st_mtime, reverse=True):
-        try:
-            filename = pdf_file.name
-            stem = pdf_file.stem
-            
-            parts = stem.split('_', 2)
-            created_date = None
-            if len(parts) >= 1:
-                try:
-                    created_date = datetime.strptime(parts[0], "%Y-%m-%d")
-                except:
-                    pass
-            
-            session_id = None
-            title = None
-            author = None
-            
-            # Prova a cercare nelle sessioni per matchare il PDF
-            if hasattr(session_store, '_sessions'):
-                for sid, session in session_store._sessions.items():
-                    if session.current_title:
-                        date_prefix = session.created_at.strftime("%Y-%m-%d")
-                        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-                        title_sanitized = "".join(c for c in session.current_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                        title_sanitized = title_sanitized.replace(" ", "_")
-                        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-                        
-                        if filename == expected_filename:
-                            session_id = sid
-                            title = session.current_title
-                            author = session.form_data.user_name
-                            break
-            
-            if not title and len(parts) >= 3:
-                title = parts[2].replace('_', ' ')
-            
-            size_bytes = pdf_file.stat().st_size
-            
-            pdf_entries.append(PdfEntry(
-                filename=filename,
-                session_id=session_id,
-                title=title,
-                author=author,
-                created_date=created_date,
-                size_bytes=size_bytes,
-            ))
-        except Exception as e:
-            print(f"[SCAN PDF] Errore nel processare {pdf_file.name}: {e}")
-            continue
-    
-    return pdf_entries

@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -225,6 +227,7 @@ class SessionStore:
         """Crea una nuova sessione."""
         session = SessionData(session_id, form_data, question_answers, user_id=user_id)
         self._sessions[session_id] = session
+        self._save_sessions()
         return session
     
     def get_session(self, session_id: str) -> Optional[SessionData]:
@@ -235,6 +238,7 @@ class SessionStore:
         """Salva una sessione nello store corrente."""
         session.update_timestamp()
         self._sessions[session.session_id] = session
+        self._save_sessions()
         return session
     
     def update_draft(
@@ -268,6 +272,7 @@ class SessionStore:
             "timestamp": None,  # Potrebbe essere aggiunto datetime se necessario
         })
         session.update_timestamp()
+        self._save_sessions()
         
         return session
     
@@ -279,6 +284,7 @@ class SessionStore:
         
         session.validated = True
         session.update_timestamp()
+        self._save_sessions()
         return session
     
     def save_generated_questions(
@@ -293,6 +299,7 @@ class SessionStore:
         
         session.generated_questions = questions
         session.update_timestamp()
+        self._save_sessions()
         return session
     
     def update_outline(
@@ -300,6 +307,7 @@ class SessionStore:
         session_id: str,
         outline_text: str,
         allow_if_writing: bool = False,
+        version: Optional[int] = None,
     ) -> SessionData:
         """
         Aggiorna l'outline corrente di una sessione.
@@ -326,8 +334,9 @@ class SessionStore:
                 )
         
         session.current_outline = outline_text
-        session.outline_version += 1
+        session.outline_version = version if version is not None else session.outline_version + 1
         session.update_timestamp()
+        self._save_sessions()
         
         return session
     
@@ -335,6 +344,7 @@ class SessionStore:
         """Elimina una sessione."""
         if session_id in self._sessions:
             del self._sessions[session_id]
+            self._save_sessions()
             return True
         return False
     
@@ -380,7 +390,7 @@ class SessionStore:
         elif error:
             new_progress["status"] = "failed"
         else:
-            new_progress["status"] = existing_progress.get("status", "running")
+            new_progress["status"] = "pending" if existing_progress.get("status") == "pending" else "running"
         
         # Aggiorna campi opzionali solo se passati esplicitamente
         if total_pages is not None:
@@ -395,6 +405,7 @@ class SessionStore:
         
         session.writing_progress = new_progress
         session.update_timestamp()
+        self._save_sessions()
         
         return session
     
@@ -505,6 +516,7 @@ class SessionStore:
         session.token_usage["total"]["output_tokens"] += output_tokens
         
         session.update_timestamp()
+        self._save_sessions()
         return True
     
     def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
@@ -524,6 +536,7 @@ class SessionStore:
         
         session.real_cost_eur = real_cost_eur
         session.update_timestamp()
+        self._save_sessions()
         return True
     
     def pause_writing(
@@ -597,6 +610,7 @@ class SessionStore:
         # Ordina per section_index
         session.book_chapters.sort(key=lambda x: x.get("section_index", 0))
         session.update_timestamp()
+        self._save_sessions()
         
         return session
     
@@ -612,6 +626,7 @@ class SessionStore:
         
         session.cover_image_path = cover_image_path
         session.update_timestamp()
+        self._save_sessions()
         return session
     
     def update_critique(
@@ -628,6 +643,7 @@ class SessionStore:
         session.critique_status = "completed"
         session.critique_error = None
         session.update_timestamp()
+        self._save_sessions()
         return session
 
     def update_critique_status(
@@ -691,6 +707,28 @@ class SessionStore:
         
         return session
 
+    def get_all_sessions(
+        self,
+        user_id: Optional[str] = None,
+        fields: Optional[list] = None,
+        status: Optional[str] = None,
+        llm_model: Optional[str] = None,
+        genre: Optional[str] = None,
+    ) -> Dict[str, SessionData]:
+        """Restituisce tutte le sessioni, con filtri opzionali (fields ignorato su file)."""
+        result = dict(self._sessions)
+        if user_id:
+            result = {sid: sess for sid, sess in result.items() if sess.user_id == user_id}
+        if llm_model:
+            result = {sid: sess for sid, sess in result.items()
+                      if sess.form_data and sess.form_data.llm_model == llm_model}
+        if genre:
+            result = {sid: sess for sid, sess in result.items()
+                      if sess.form_data and sess.form_data.genre == genre}
+        if status and status != "all":
+            result = {sid: sess for sid, sess in result.items() if sess.get_status() == status}
+        return result
+
     def _save_sessions(self):
         """Metodo vuoto per compatibilità. Sovrascritto in FileSessionStore per salvare su file."""
         pass
@@ -714,254 +752,49 @@ class FileSessionStore(SessionStore):
         self._load_sessions()
     
     def _load_sessions(self):
-        """Carica le sessioni dal file JSON."""
+        """Carica tutto o fallisce: un archivio danneggiato non va sovrascritto."""
         if not self.file_path.exists():
-            print(f"[FileSessionStore] File {self.file_path} non esiste, inizializzo store vuoto")
             return
-        
         try:
-            with open(self.file_path, "r", encoding="utf-8", errors="replace") as f:
-                data = json.load(f)
-            
+            data = json.loads(self.file_path.read_text(encoding="utf-8"))
+            sessions = {}
             for session_id, session_dict in data.items():
-                try:
-                    session = SessionData.from_dict(session_dict)
-                    self._sessions[session_id] = session
-                except Exception as e:
-                    print(f"[FileSessionStore] Errore nel caricamento sessione {session_id}: {e}")
-                    continue
-            
-            print(f"[FileSessionStore] Caricate {len(self._sessions)} sessioni da {self.file_path}")
-        except json.JSONDecodeError as e:
-            print(f"[FileSessionStore] Errore nel parsing JSON: {e}")
-        except Exception as e:
-            print(f"[FileSessionStore] Errore nel caricamento file: {e}")
-    
+                session = SessionData.from_dict(session_dict)
+                if session.session_id != session_id:
+                    raise ValueError(f"ID sessione incoerente: {session_id}")
+                sessions[session_id] = session
+        except Exception as exc:
+            raise RuntimeError(
+                f"Impossibile caricare l'archivio {self.file_path}. "
+                "Il file è stato preservato; ripristina una copia valida prima di riavviare."
+            ) from exc
+        self._sessions = sessions
+
     def _save_sessions(self):
-        """Salva tutte le sessioni su file JSON (atomic write)."""
+        """Sostituisce atomicamente l'archivio solo dopo una scrittura completa."""
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = None
         try:
-            print(f"[FileSessionStore] Salvataggio di {len(self._sessions)} sessioni su {self.file_path}...", file=sys.stderr)
-            # Prepara i dati per la serializzazione
-            data = {}
-            for session_id, session in self._sessions.items():
-                data[session_id] = session.to_dict()
-            
-            # Atomic write: scrivi su file temporaneo, poi rinomina
-            temp_path = self.file_path.with_suffix(".json.tmp")
-            # Usa encoding UTF-8 esplicitamente e gestisci errori di encoding
-            with open(temp_path, "w", encoding="utf-8", errors="replace") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            # Rinomina atomico (su Windows potrebbe fallire se il file è aperto, ma è raro)
-            if temp_path.exists():
-                if self.file_path.exists():
-                    self.file_path.unlink() # Rimuovi vecchio file per sicurezza su Windows
-                temp_path.rename(self.file_path)
-            
-            print(f"[FileSessionStore] Salvataggio completato con successo.", file=sys.stderr)
-        except UnicodeEncodeError as e:
-            print(f"[FileSessionStore] ERRORE di encoding nel salvataggio: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
-            # Non solleviamo l'eccezione per non interrompere il flusso
-            pass
-        except Exception as e:
-            print(f"[FileSessionStore] ERRORE CRITICO nel salvataggio: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
-            # Non solleviamo l'eccezione per non interrompere il flusso
-            pass
-    
-    def create_session(
-        self,
-        session_id: str,
-        form_data: SubmissionRequest,
-        question_answers: list[QuestionAnswer],
-        user_id: Optional[str] = None,
-    ) -> SessionData:
-        """Crea una nuova sessione e salva su file."""
-        session = super().create_session(session_id, form_data, question_answers, user_id=user_id)
-        self._save_sessions()
-        return session
-
-    def get_all_sessions(
-        self,
-        user_id: Optional[str] = None,
-        fields: Optional[list] = None,
-        status: Optional[str] = None,
-        llm_model: Optional[str] = None,
-        genre: Optional[str] = None,
-    ) -> Dict[str, SessionData]:
-        """Restituisce tutte le sessioni, con filtri opzionali (fields ignorato su file)."""
-        result = dict(self._sessions)
-        if user_id:
-            result = {sid: sess for sid, sess in result.items() if sess.user_id == user_id}
-        if llm_model:
-            result = {sid: sess for sid, sess in result.items()
-                      if sess.form_data and sess.form_data.llm_model == llm_model}
-        if genre:
-            result = {sid: sess for sid, sess in result.items()
-                      if sess.form_data and sess.form_data.genre == genre}
-        if status and status != "all":
-            result = {sid: sess for sid, sess in result.items() if sess.get_status() == status}
-        return result
-
-    def save_session(self, session: SessionData) -> SessionData:
-        """Salva una sessione su file."""
-        super().save_session(session)
-        self._save_sessions()
-        return session
-    
-    def update_draft(
-        self,
-        session_id: str,
-        draft_text: str,
-        version: Optional[int] = None,
-        title: Optional[str] = None,
-        character_profiles: Optional[str] = None,
-    ) -> SessionData:
-        """Aggiorna la bozza e salva su file."""
-        session = super().update_draft(session_id, draft_text, version, title, character_profiles)
-        self._save_sessions()
-        return session
-    
-    def validate_session(self, session_id: str) -> SessionData:
-        """Marca una sessione come validata e salva su file."""
-        session = super().validate_session(session_id)
-        self._save_sessions()
-        return session
-    
-    def save_generated_questions(
-        self,
-        session_id: str,
-        questions: list[Dict[str, Any]],
-    ) -> SessionData:
-        """Salva le domande generate per una sessione e salva su file."""
-        session = super().save_generated_questions(session_id, questions)
-        self._save_sessions()
-        return session
-    
-    def update_outline(
-        self,
-        session_id: str,
-        outline_text: str,
-        allow_if_writing: bool = False,
-        version: Optional[int] = None,
-    ) -> SessionData:
-        """Aggiorna l'outline e salva su file."""
-        # Chiama il metodo della classe base che include la validazione
-        session = super().update_outline(session_id, outline_text, allow_if_writing)
-        
-        # Se è specificata una versione, usa quella invece di incrementare
-        if version is not None:
-            session.outline_version = version
-        
-        self._save_sessions()
-        return session
-    
-    def delete_session(self, session_id: str) -> bool:
-        """Elimina una sessione e salva su file."""
-        result = super().delete_session(session_id)
-        if result:
-            self._save_sessions()
-        return result
-    
-    def update_writing_progress(
-        self,
-        session_id: str,
-        current_step: int,
-        total_steps: int,
-        current_section_name: Optional[str] = None,
-        is_complete: bool = False,
-        is_paused: bool = False,
-        error: Optional[str] = None,
-        total_pages: Optional[int] = None,
-        completed_chapters_count: Optional[int] = None,
-        writing_time_minutes: Optional[float] = None,
-    ) -> SessionData:
-        """Aggiorna lo stato di avanzamento della scrittura e salva su file."""
-        session = super().update_writing_progress(
-            session_id, current_step, total_steps, current_section_name, is_complete, is_paused, error,
-            total_pages=total_pages,
-            completed_chapters_count=completed_chapters_count,
-            writing_time_minutes=writing_time_minutes,
-        )
-        self._save_sessions()
-        return session
-    
-    def pause_writing(
-        self,
-        session_id: str,
-        current_step: int,
-        total_steps: int,
-        current_section_name: Optional[str],
-        error_msg: str,
-    ) -> SessionData:
-        """Mette in pausa la generazione del libro dopo un errore e salva su file."""
-        session = super().pause_writing(session_id, current_step, total_steps, current_section_name, error_msg)
-        self._save_sessions()
-        return session
-    
-    def resume_writing(self, session_id: str) -> SessionData:
-        """Riprende la generazione del libro rimuovendo lo stato di pausa e salva su file."""
-        session = super().resume_writing(session_id)
-        self._save_sessions()
-        return session
-    
-    def update_book_chapter(
-        self,
-        session_id: str,
-        chapter_title: str,
-        chapter_content: str,
-        section_index: int,
-    ) -> SessionData:
-        """Aggiunge o aggiorna un capitolo completato e salva su file."""
-        session = super().update_book_chapter(
-            session_id, chapter_title, chapter_content, section_index
-        )
-        self._save_sessions()
-        return session
-    
-    def update_cover_image_path(
-        self,
-        session_id: str,
-        cover_image_path: str,
-    ) -> SessionData:
-        """Aggiorna il path dell'immagine copertina e salva su file."""
-        session = super().update_cover_image_path(session_id, cover_image_path)
-        self._save_sessions()
-        return session
-    
-    def update_critique(
-        self,
-        session_id: str,
-        critique: Dict[str, Any],
-    ) -> SessionData:
-        """Aggiorna la valutazione critica del libro e salva su file."""
-        session = super().update_critique(session_id, critique)
-        self._save_sessions()
-        return session
-    
-    def update_token_usage(
-        self,
-        session_id: str,
-        phase: str,
-        input_tokens: int,
-        output_tokens: int,
-        model: str,
-    ) -> bool:
-        """Aggiorna il conteggio token e salva su file."""
-        result = super().update_token_usage(session_id, phase, input_tokens, output_tokens, model)
-        if result:
-            self._save_sessions()
-        return result
-    
-    def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
-        """Imposta il costo reale e salva su file."""
-        result = super().set_real_cost(session_id, real_cost_eur)
-        if result:
-            self._save_sessions()
-        return result
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=self.file_path.parent,
+                prefix=self.file_path.name + ".", suffix=".tmp", delete=False,
+            ) as handle:
+                temp_path = Path(handle.name)
+                json.dump(
+                    {sid: session.to_dict() for sid, session in self._sessions.items()},
+                    handle, ensure_ascii=False, indent=2,
+                )
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, self.file_path)
+        except Exception:
+            # Allinea anche lo store in memoria all'ultimo commit riuscito.
+            self._sessions = {}
+            self._load_sessions()
+            raise
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
 
 
 # Istanza globale del session store

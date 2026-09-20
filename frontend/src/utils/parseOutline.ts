@@ -34,6 +34,8 @@ export function parseOutlineSections(outlineText: string): OutlineSection[] {
         currentSection.description = currentDescription.join('\n').trim();
         sections.push(currentSection);
       }
+      currentSection = null;
+      currentDescription.length = 0;
       
       // Determina il livello
       let level = 0;
@@ -129,10 +131,16 @@ export function parseOutlineSections(outlineText: string): OutlineSection[] {
     filteredSections = sections.filter(s => s.level > 1);
   }
   
+  const selected = new Set(filteredSections);
+  sections.forEach((section, index) => {
+    const hasChildren = index + 1 < sections.length && sections[index + 1].level > section.level;
+    if (!hasChildren && /^(prologo|prologue|epilogo|epilogue)\b/i.test(section.title)) selected.add(section);
+  });
+  filteredSections = sections.filter(section => selected.has(section));
+
   // Aggiungi section_index sequenziale
   return filteredSections.map((section, index) => ({
     ...section,
     section_index: index,
   }));
 }
-

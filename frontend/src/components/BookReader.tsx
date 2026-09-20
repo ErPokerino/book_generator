@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import { getCompleteBook, BookResponse, getCoverImageUrl } from '../api/client';
 import { SkeletonBox, SkeletonChapter } from './Skeleton';
 import { useToast } from '../hooks/useToast';
@@ -11,10 +12,6 @@ export default function BookReader() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   
-  if (!sessionId) {
-    navigate('/library');
-    return null;
-  }
   
   const handleClose = () => {
     navigate('/library');
@@ -30,25 +27,31 @@ export default function BookReader() {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    setCurrentChapterIndex(-1);
     const loadBook = async () => {
       try {
         setLoading(true);
         setError(null);
         const bookData = await getCompleteBook(sessionId);
+        if (cancelled) return;
         setBook(bookData);
         // Usa URL diretto invece di scaricare come blob
         setCoverImageUrl(getCoverImageUrl(sessionId));
       } catch (err) {
+        if (cancelled) return;
         const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento del libro';
         setError(errorMessage);
         toast.error(errorMessage);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadBook();
-  }, [sessionId]);
+    return () => { cancelled = true; };
+  }, [sessionId, toast]);
 
   useEffect(() => {
     if (book && !coverImageUrl && currentChapterIndex === -1) {
@@ -120,15 +123,6 @@ export default function BookReader() {
     return title;
   };
 
-  const formatContent = (content: string): string => {
-    // Converte i newline in paragrafi HTML
-    return content
-      .split('\n\n')
-      .filter(p => p.trim())
-      .map(p => `<p>${p.trim().replace(/\n/g, '<br/>')}</p>`)
-      .join('');
-  };
-
   // Navigation functions with useCallback
   const goToPreviousChapter = useCallback(() => {
     if (currentChapterIndex === -1) return; // Alla copertina, non si può andare indietro
@@ -186,6 +180,8 @@ export default function BookReader() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [book, currentChapterIndex, isFullscreen, handleClose, goToPreviousChapter, goToNextChapter]);
+
+  if (!sessionId) return <Navigate to="/library" replace />;
 
   if (loading) {
     return (
@@ -351,8 +347,9 @@ export default function BookReader() {
             
             <div 
               className="chapter-text"
-              dangerouslySetInnerHTML={{ __html: formatContent(currentChapter.content) }}
-            />
+            >
+              <ReactMarkdown skipHtml>{currentChapter.content}</ReactMarkdown>
+            </div>
           </article>
         ) : null}
       </main>

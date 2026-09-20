@@ -1,7 +1,7 @@
 """Servizio per orchestrare e recuperare i job AI persistiti nella sessione."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from app.agent.session_store import SessionData, SessionStore
@@ -9,6 +9,7 @@ from app.agent.session_store_helpers import (
     get_all_sessions_async,
     get_session_async,
     save_session_async,
+    update_critique_status_async,
     update_writing_progress_async,
 )
 from app.core.logging import get_logger
@@ -45,7 +46,8 @@ def _parse_iso(value: Any) -> datetime | None:
     if not value or not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
     except ValueError:
         return None
 
@@ -69,7 +71,7 @@ def _build_job_metrics(
     }
 
     if started_at:
-        end_at = completed_at or updated_at or datetime.utcnow()
+        end_at = completed_at or updated_at or datetime.now(timezone.utc)
         duration_seconds = max((end_at - started_at).total_seconds(), 0.0)
         metrics["duration_seconds"] = round(duration_seconds, 2)
 
@@ -246,6 +248,7 @@ async def begin_process_job_async(
     }
 
     if job_type in {"book", "manga"}:
+        updates["is_complete"] = False
         updates["current_step"] = current_step
         updates["total_steps"] = total_steps
         updates["current_section_name"] = current_section_name
@@ -376,6 +379,13 @@ async def recover_interrupted_processes_async(session_store: SessionStore) -> in
                 session_id,
                 "book",
                 message,
+            )
+            recovered += 1
+
+        if session.critique_status in _ACTIVE_STATUSES:
+            await update_critique_status_async(
+                session_store, session_id, "failed",
+                "Valutazione interrotta da un riavvio del server. Puoi riprovare.",
             )
             recovered += 1
 

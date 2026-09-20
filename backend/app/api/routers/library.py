@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 
 from app.models import (
     LibraryResponse,
@@ -415,44 +415,21 @@ async def delete_library_entry_endpoint(
                 detail=f"Progetto {session_id} non trovato"
             )
 
-        # Elimina file associati (PDF e copertina)
-        deleted_files = []
-        try:
-            books_dir = Path(__file__).parent.parent.parent / "books"
-            status = session.get_status()
-            if status == "complete" and books_dir.exists():
-                date_prefix = session.created_at.strftime("%Y-%m-%d")
-                model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-                title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                title_sanitized = title_sanitized.replace(" ", "_")
-                if not title_sanitized:
-                    title_sanitized = f"Libro_{session.session_id[:8]}"
-                expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-                expected_path = books_dir / expected_filename
-                
-                if expected_path.exists():
-                    expected_path.unlink()
-                    deleted_files.append(f"PDF: {expected_filename}")
-                else:
-                    for pdf_file in books_dir.glob("*.pdf"):
-                        if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
-                            deleted_files.append(f"PDF: {pdf_file.name}")
-                            pdf_file.unlink()
-                            break
-            
-            if session.cover_image_path:
-                cover_path = Path(session.cover_image_path)
-                if cover_path.exists():
-                    cover_path.unlink()
-                    deleted_files.append(f"Copertina: {cover_path.name}")
-        except Exception as file_error:
-            print(f"[LIBRARY DELETE] Errore nell'eliminazione file per {session_id}: {file_error}")
-        
+        active_progress = [session.questions_progress, session.draft_progress, session.outline_progress,
+                           session.writing_progress, session.manga_progress]
+        if any(progress and progress.get("status") in {"pending", "running"} for progress in active_progress) or session.critique_status in {"pending", "running"}:
+            raise HTTPException(status_code=409, detail="Attendi la fine della generazione prima di eliminare il progetto.")
+
+        from app.services.library_service import delete_session_artifacts
+        all_sessions = await get_all_sessions_async(session_store)
         deleted = await delete_session_async(session_store, session_id)
         if deleted:
+            invalidate_cache()
             response = {"success": True, "message": f"Progetto {session_id} eliminato con successo"}
-            if deleted_files:
-                response["deleted_files"] = deleted_files
+            try:
+                response["deleted_files"] = delete_session_artifacts(session, all_sessions.values())
+            except OSError:
+                response["warning"] = "Progetto eliminato; alcuni file non sono stati rimossi perché non accessibili."
             return response
         else:
             raise HTTPException(
@@ -658,162 +635,11 @@ async def get_missing_covers_endpoint():
         )
 
 
-@router.get("/cleanup/preview")
-async def preview_obsolete_books_endpoint():
-    """Restituisce la lista dei libri obsoleti che verrebbero eliminati dalla pulizia."""
-    try:
-        session_store = get_session_store()
-        all_sessions = await get_all_sessions_async(session_store)
-        
-        obsolete_books = []
-        
-        for session_id, session in all_sessions.items():
-            try:
-                entry = session_to_library_entry(session)
-                if entry.content_type != "book":
-                    continue
-                is_obsolete = (
-                    entry.critique_score is None
-                    or 
-                    (entry.status == "complete" and not session.cover_image_path)
-                )
-                if is_obsolete:
-                    obsolete_books.append({
-                        "session_id": session_id,
-                        "title": entry.title,
-                        "author": entry.author,
-                        "status": entry.status,
-                        "created_at": entry.created_at.isoformat(),
-                        "updated_at": entry.updated_at.isoformat(),
-                        "has_pdf": entry.pdf_filename is not None,
-                        "has_cover": session.cover_image_path is not None,
-                        "has_score": entry.critique_score is not None,
-                    })
-            except Exception as e:
-                print(f"[CLEANUP PREVIEW] Errore nel processare sessione {session_id}: {e}")
-                continue
-        
-        return {
-            "obsolete_books": obsolete_books,
-            "count": len(obsolete_books)
-        }
-    
-    except Exception as e:
-        print(f"[CLEANUP PREVIEW] Errore: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Errore nella preview dei libri obsoleti: {str(e)}"
-        )
-
-
-@router.post("/cleanup")
-async def cleanup_obsolete_books_endpoint():
-    """Elimina automaticamente tutti i libri obsoleti dalla libreria."""
-    try:
-        session_store = get_session_store()
-        all_sessions = await get_all_sessions_async(session_store)
-        
-        obsolete_session_ids = []
-        books_dir = Path(__file__).parent.parent.parent / "books"
-        
-        for session_id, session in all_sessions.items():
-            try:
-                entry = session_to_library_entry(session)
-                if entry.content_type != "book":
-                    continue
-                is_obsolete = (
-                    entry.critique_score is None
-                    or 
-                    (entry.status == "complete" and not session.cover_image_path)
-                )
-                if is_obsolete:
-                    obsolete_session_ids.append({
-                        "session_id": session_id,
-                        "title": entry.title,
-                        "status": entry.status,
-                        "has_pdf": entry.pdf_filename is not None,
-                        "has_cover": session.cover_image_path is not None,
-                    })
-            except Exception as e:
-                print(f"[CLEANUP] Errore nel processare sessione {session_id}: {e}")
-                continue
-        
-        # Elimina i libri obsoleti
-        deleted_count = 0
-        deleted_files_count = 0
-        errors = []
-        
-        for book_info in obsolete_session_ids:
-            session_id = book_info["session_id"]
-            try:
-                session = await get_session_async(session_store, session_id)
-                if not session:
-                    continue
-                
-                files_deleted = 0
-                session_status = session.get_status()
-                try:
-                    if session_status == "complete" and books_dir.exists():
-                        date_prefix = session.created_at.strftime("%Y-%m-%d")
-                        model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-                        title_sanitized = "".join(c for c in (session.current_title or "Romanzo") if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                        title_sanitized = title_sanitized.replace(" ", "_")
-                        if not title_sanitized:
-                            title_sanitized = f"Libro_{session.session_id[:8]}"
-                        expected_filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-                        expected_path = books_dir / expected_filename
-                        
-                        if expected_path.exists():
-                            expected_path.unlink()
-                            files_deleted += 1
-                        else:
-                            for pdf_file in books_dir.glob("*.pdf"):
-                                if session.session_id[:8] in pdf_file.stem or (title_sanitized and title_sanitized.lower() in pdf_file.stem.lower()):
-                                    pdf_file.unlink()
-                                    files_deleted += 1
-                                    break
-                    
-                    if session.cover_image_path:
-                        cover_path = Path(session.cover_image_path)
-                        if cover_path.exists():
-                            cover_path.unlink()
-                            files_deleted += 1
-                except Exception as file_error:
-                    errors.append(f"Errore eliminazione file per {book_info['title']}: {file_error}")
-                
-                if await delete_session_async(session_store, session_id):
-                    deleted_count += 1
-                    deleted_files_count += files_deleted
-                else:
-                    errors.append(f"Errore eliminazione sessione {session_id}")
-                    
-            except Exception as e:
-                errors.append(f"Errore durante eliminazione {book_info['title']}: {e}")
-                print(f"[CLEANUP] Errore eliminando {session_id}: {e}")
-        
-        return {
-            "deleted_count": deleted_count,
-            "deleted_files_count": deleted_files_count,
-            "errors": errors if errors else None,
-        }
-    
-    except Exception as e:
-        print(f"[CLEANUP] Errore: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Errore nella pulizia dei libri obsoleti: {str(e)}"
-        )
-
-
 @router.get("/pdf/{filename:path}")
 async def download_pdf_by_filename_endpoint(filename: str):
     """Scarica un PDF specifico per nome file."""
     try:
-        books_dir = Path(__file__).parent.parent.parent / "books"
+        books_dir = get_storage_service().local_base_path / "books"
         pdf_path = books_dir / filename
         
         # Validazione sicurezza
@@ -831,17 +657,10 @@ async def download_pdf_by_filename_endpoint(filename: str):
                 detail=f"PDF {filename} non trovato"
             )
         
-        with open(pdf_path, 'rb') as f:
-            pdf_content = f.read()
-        
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
-        )
-    
+        if pdf_path.suffix.lower() != ".pdf":
+            raise HTTPException(status_code=400, detail="Il file richiesto non è un PDF")
+        return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_path.name)
+
     except HTTPException:
         raise
     except Exception as e:

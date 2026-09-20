@@ -16,10 +16,21 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
   const [error, setError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
+    setIsPlaying(false);
+    setIsLoading(false);
+    setIsReady(false);
+    setError(null);
     return () => {
+      requestVersion.current += 1;
       if (audioRef.current) {
+        audioRef.current.onended = null;
+        audioRef.current.onerror = null;
+        audioRef.current.onplay = null;
+        audioRef.current.onpause = null;
+        audioRef.current.oncanplaythrough = null;
         audioRef.current.pause();
         audioRef.current.src = '';
         audioRef.current = null;
@@ -29,7 +40,7 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
         audioUrlRef.current = null;
       }
     };
-  }, []);
+  }, [sessionId, type, chapterIndex]);
 
   const safePlay = useCallback(async (audio: HTMLAudioElement) => {
     try {
@@ -65,6 +76,7 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
 
     setIsLoading(true);
     setError(null);
+    const version = requestVersion.current;
     
     try {
       let blob: Blob;
@@ -75,6 +87,8 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
         blob = await getChapterAudio(sessionId, chapterIndex);
       }
       
+      if (version !== requestVersion.current) return;
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
       
@@ -112,6 +126,7 @@ export default function AudioPlayer({ sessionId, type, chapterIndex }: AudioPlay
       audio.load();
       
     } catch (err) {
+      if (version !== requestVersion.current) return;
       let errorMessage = 'Errore nella generazione audio';
       
       if (err instanceof Error) {

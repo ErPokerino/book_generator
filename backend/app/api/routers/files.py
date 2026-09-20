@@ -1,5 +1,6 @@
 """Router per l'accesso ai file (PDF libri e cover images)."""
 from pathlib import Path
+from mimetypes import guess_type
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
@@ -18,6 +19,9 @@ async def get_file_endpoint(tipo: str, filename: str):
                 detail=f"Tipo non valido: {tipo}. Tipi supportati: books, covers"
             )
 
+        if not filename or filename in {".", ".."} or any(char in filename for char in "/\\:"):
+            raise HTTPException(status_code=403, detail="Nome file non consentito")
+
         storage_service = get_storage_service()
         destination = f"{tipo}/{filename}"
         if not storage_service.exists(destination):
@@ -27,8 +31,13 @@ async def get_file_endpoint(tipo: str, filename: str):
             )
 
         folder = "books" if tipo == "books" else "sessions"
-        local_path = storage_service.local_base_path / folder / filename
-        media_type = "application/pdf" if filename.endswith(".pdf") else "image/png"
+        root = (storage_service.local_base_path / folder).resolve()
+        local_path = (root / filename).resolve()
+        if not local_path.is_relative_to(root):
+            raise HTTPException(status_code=403, detail="Accesso non consentito a questo file")
+        if not local_path.is_file():
+            raise HTTPException(status_code=404, detail="File non trovato")
+        media_type = guess_type(filename)[0] or "application/octet-stream"
         return FileResponse(
             path=str(local_path),
             filename=Path(filename).name,

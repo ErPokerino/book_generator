@@ -29,6 +29,8 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
     variant: 'error',
   });
   const latestProgressRef = useRef<BookProgress | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
   const consecutiveFailuresRef = useRef(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -47,19 +49,22 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
   }, [progress?.is_complete, progress?.is_paused, progress]);
 
   useEffect(() => {
+    setProgress(null);
+    setFatalError(null);
+    latestProgressRef.current = null;
+    consecutiveFailuresRef.current = 0;
+    setIsPolling(true);
+  }, [sessionId]);
+
+  useEffect(() => {
     if (!sessionId || !isPolling) return;
+    setFatalError(null);
+    consecutiveFailuresRef.current = 0;
 
     const pollProgress = async () => {
       try {
         const currentProgress = await getBookProgress(sessionId);
-        // DEBUG: Log per verificare i valori ricevuti
-        console.log('[WritingStep] Progress ricevuto:', {
-          current_step: currentProgress.current_step,
-          total_steps: currentProgress.total_steps,
-          estimated_time_minutes: currentProgress.estimated_time_minutes,
-          estimated_time_confidence: currentProgress.estimated_time_confidence,
-          is_complete: currentProgress.is_complete
-        });
+        if (cancelled) return;
         setProgress(currentProgress);
         latestProgressRef.current = currentProgress;
         consecutiveFailuresRef.current = 0;
@@ -75,17 +80,21 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
         const isPaused = currentProgress.is_paused === true;
         if (isPaused) {
           // Se è in pausa, ferma il polling ma non mostrare come errore fatale
+          cancelled = true;
           setIsPolling(false);
         } else if (currentProgress.error && !isPaused) {
           // Errore non gestito (non paused)
+          cancelled = true;
           setIsPolling(false);
         } else if (isCritiqueFailed || isCritiqueDone) {
+          cancelled = true;
           setIsPolling(false);
-          if (onComplete && isCritiqueDone) {
-            onComplete(currentProgress);
+          if (isCritiqueDone) {
+            onCompleteRef.current?.(currentProgress);
           }
         }
       } catch (err) {
+        if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Errore nel recupero del progresso';
         // Non bloccare tutto al primo glitch: spesso è un micro-restart del backend o un timeout di rete.
         const next = consecutiveFailuresRef.current + 1;
@@ -99,6 +108,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
         // Dopo molti tentativi falliti consecutivi, consideralo fatale.
         if (next >= 10) {
           setFatalError(msg);
+          cancelled = true;
           setIsPolling(false);
         }
       }
@@ -143,7 +153,7 @@ export default function WritingStep({ sessionId, onComplete, onNewBook }: Writin
       cancelled = true;
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [sessionId, isPolling, onComplete, appConfig]);
+  }, [sessionId, isPolling, appConfig, toast]);
 
   const elapsedMinutes = useMemo(() => {
     if (!progress) return null;

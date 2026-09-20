@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,7 +33,26 @@ load_dotenv()
 configure_logging()
 logger = get_logger("app.main")
 
-app = FastAPI(title="NarrAI API", version="0.2.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Avvio locale: verifica API key e recupera i job interrotti."""
+    if not os.getenv("GOOGLE_API_KEY"):
+        logger.warning(
+            "GOOGLE_API_KEY non configurata: le generazioni falliranno. "
+            "Aggiungi GOOGLE_API_KEY=... al file .env nella root del progetto.",
+        )
+    session_store = get_session_store()
+    recovered_jobs = await recover_interrupted_processes_async(session_store)
+    if recovered_jobs:
+        logger.warning(
+            "Job interrotti recuperati allo startup",
+            context={"count": recovered_jobs},
+        )
+
+    yield
+
+
+app = FastAPI(title="NarrAI API", version="0.2.0", lifespan=lifespan)
 app.state.environment = get_environment()
 app.state.allow_detailed_diagnostics = allow_detailed_diagnostics()
 
@@ -54,6 +74,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(config_router.router)
@@ -70,21 +91,6 @@ app.include_router(files.router)
 app.include_router(manga.router)
 
 
-@app.on_event("startup")
-async def startup_local():
-    """Avvio locale: verifica API key e recupera i job interrotti."""
-    if not os.getenv("GOOGLE_API_KEY"):
-        logger.warning(
-            "GOOGLE_API_KEY non configurata: le generazioni falliranno. "
-            "Aggiungi GOOGLE_API_KEY=... al file .env nella root del progetto.",
-        )
-    session_store = get_session_store()
-    recovered_jobs = await recover_interrupted_processes_async(session_store)
-    if recovered_jobs:
-        logger.warning(
-            "Job interrotti recuperati allo startup",
-            context={"count": recovered_jobs},
-        )
 
 
 static_path = os.path.join(os.path.dirname(__file__), "..", "static")

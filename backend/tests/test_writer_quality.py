@@ -21,6 +21,17 @@ def _load_eval_cases() -> list[dict]:
         return json.load(handle)
 
 
+@pytest.mark.parametrize("chapter_heading", ["## Capitolo 1", "## Parte I\n### Capitolo 1"])
+def test_outline_keeps_narrative_prologue_and_epilogue(chapter_heading):
+    outline = f"## Prologo\nLa promessa.\n{chapter_heading}\nIl viaggio.\n## Epilogo\nLa conseguenza."
+    assert [section["title"] for section in parse_outline_sections(outline)] == ["Prologo", "Capitolo 1", "Epilogo"]
+
+
+def test_empty_heading_does_not_duplicate_previous_chapter():
+    outline = "## Capitolo 1\nLa promessa.\n##\n## Capitolo 2\nIl viaggio."
+    assert [section["title"] for section in parse_outline_sections(outline)] == ["Capitolo 1", "Capitolo 2"]
+
+
 @pytest.fixture
 def rich_submission_request(submission_request: SubmissionRequest) -> SubmissionRequest:
     return submission_request.model_copy(

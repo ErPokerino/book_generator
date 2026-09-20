@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.core.logging import get_logger
@@ -36,6 +37,8 @@ def parse_outline_sections(outline_text: str) -> list[dict[str, Any]]:
             if current_section:
                 current_section["description"] = "\n".join(current_description).strip()
                 sections.append(current_section)
+            current_section = None
+            current_description = []
 
             level = 0
             while level < len(line) and line[level] == "#":
@@ -124,6 +127,15 @@ def parse_outline_sections(outline_text: str) -> list[dict[str, Any]]:
             "Nessuna sezione scrivibile trovata nella struttura. "
             "Verifica che l'outline contenga capitoli con intestazioni Markdown (`##` o `###`)."
         )
+
+    # Prologo ed epilogo senza sottocapitoli sono narrativa da scrivere.
+    # La selezione per livello non deve eliminarli da un indice misto.
+    selected_ids = {id(section) for section in filtered_sections}
+    for index, section in enumerate(sections):
+        has_children = index + 1 < len(sections) and sections[index + 1]["level"] > section["level"]
+        if not has_children and re.match(r"^(prologo|prologue|epilogo|epilogue)\b", section["title"], re.I):
+            selected_ids.add(id(section))
+    filtered_sections = [section for section in sections if id(section) in selected_ids]
 
     for index, section in enumerate(filtered_sections):
         section["section_index"] = index

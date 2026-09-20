@@ -1,13 +1,14 @@
 # NarrAI — generazione locale di romanzi
 
 App single-user per creare romanzi (e manga in beta) con **Gemini Developer API**.
-Tutto gira in locale: FastAPI + React, persistenza su file JSON, nessuna autenticazione e nessun cloud.
+Interfaccia, backend e archivio girano in locale: FastAPI + React, persistenza su file JSON e nessuna autenticazione. La generazione invia il contesto narrativo alle API di Google; richiede una connessione Internet.
 
 ## Documentazione
 
 - [Modelli e costi](docs/MODELLI_E_COSTI.md): mappa Gemini per attività e stime per un libro da 100 pagine.
 - [Documentazione tecnica](docs/TECNICA.md): architettura e stack (versione locale).
 - [Documentazione funzionale](docs/FUNZIONALE.md): flusso di generazione.
+- [Revisione e priorità](docs/REVISIONE_2026-09-20.md): difetti corretti, verifiche e cinque aree di miglioramento.
 
 ## Prerequisiti
 
@@ -62,7 +63,7 @@ Rimosso rispetto alla versione cloud: login, crediti, social, GDPR, MongoDB, GCS
 
 ## Persistenza
 
-Sessioni e libri stanno in file JSON sotto `backend/` (`sessions/`, `books/`, `manga/`). Niente database da avviare.
+Le sessioni sono in `backend/.sessions.json`; PDF e audio in `backend/books/`, copertine in `backend/sessions/`, tavole manga in `backend/manga/`. Niente database da avviare. Usa un solo processo backend: il file store non coordina più worker.
 
 ## Test
 

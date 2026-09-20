@@ -30,8 +30,10 @@ export default function LibraryView() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
   const [totalBooks, setTotalBooks] = useState(0);  // Totale libri disponibili dal server
+  const [loadError, setLoadError] = useState<string | null>(null);
   const filtersRef = useRef<LibraryFilters>({});
-  const isFirstLoad = useRef(true);
+  const requestVersion = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const isLoadingRef = useRef(false);  // Previene chiamate duplicate
   const pageSize = 10;  // Ridotto a 10 per caricamenti più veloci
@@ -47,14 +49,20 @@ export default function LibraryView() {
       });
   }, []);
 
-  const loadLibrary = async (currentFilters?: LibraryFilters, isRefresh = false, append = false, currentBooksCount = 0) => {
+  const loadLibrary = useCallback(async (currentFilters?: LibraryFilters, isRefresh = false, append = false, currentBooksCount = 0) => {
     // Previeni chiamate duplicate
     if (isLoadingRef.current && append) {
       return;
     }
     
+    const version = ++requestVersion.current;
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
     try {
       isLoadingRef.current = true;
+      setLoadError(null);
       
       if (isRefresh) {
         setRefreshing(true);
@@ -75,18 +83,9 @@ export default function LibraryView() {
         filtersToUse.limit = pageSize;
       }
       
-      // Timeout di 30 secondi per le chiamate API
-      const apiPromise = getLibrary(filtersToUse);
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout: le richieste API stanno impiegando troppo tempo')), 30000)
-      );
-      
-      const libraryResponse = await Promise.race([
-        apiPromise,
-        timeoutPromise,
-      ]);
-      
+      const libraryResponse = await getLibrary(filtersToUse, controller.signal);
+      if (version !== requestVersion.current) return;
+
       // Salva il totale dal server
       setTotalBooks(libraryResponse.total);
       
@@ -105,48 +104,36 @@ export default function LibraryView() {
       // Aggiorna stato hasMore
       setHasMore(libraryResponse.has_more ?? false);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
+      if (version !== requestVersion.current) return;
+      const errorMessage = controller.signal.aborted ? 'La libreria non risponde. Riprova.' : err instanceof Error ? err.message : 'Errore nel caricamento della libreria';
       toast.error(errorMessage);
+      setLoadError(errorMessage);
+      setHasMore(false);
       console.error('Errore nel caricamento libreria:', err);
-      // Assicuriamoci di avere valori default anche in caso di errore
-      if (!append) {
-        setBooks([]);
-        setHasMore(false);
-        setTotalBooks(0);
-      }
     } finally {
-      isLoadingRef.current = false;
-      // Sempre disabilita il loading, anche in caso di errore
-      if (isRefresh) {
+      window.clearTimeout(timeoutId);
+      if (version === requestVersion.current) {
+        isLoadingRef.current = false;
         setRefreshing(false);
-      } else if (!append) {
         setLoading(false);
-      } else {
         setLoadingMore(false);
       }
     }
-  };
+  }, [toast]);
 
   const loadMoreBooks = useCallback(() => {
-    if (!loadingMore && hasMore && !isLoadingRef.current) {
-      // Usa una funzione setter per ottenere il valore aggiornato di books
-      setBooks(prevBooks => {
-        // Solo se ci sono libri da caricare
-        if (prevBooks.length < totalBooks || hasMore) {
-          loadLibrary(filtersRef.current, false, true, prevBooks.length);
-        }
-        return prevBooks;  // Non modifica lo stato, solo legge
-      });
+    if (hasMore && !isLoadingRef.current) {
+      void loadLibrary(filtersRef.current, false, true, books.length);
     }
-  }, [loadingMore, hasMore, totalBooks]);
+  }, [hasMore, loadLibrary, books.length]);
 
-  // Carica la libreria solo al primo render
   useEffect(() => {
-    if (isFirstLoad.current) {
-      isFirstLoad.current = false;
-      loadLibrary();
-    }
-  }, []);
+    void loadLibrary();
+    return () => {
+      requestVersion.current += 1;
+      activeRequest.current?.abort();
+    };
+  }, [loadLibrary]);
 
   const handleFiltersChange = (newFilters: LibraryFilters) => {
     filtersRef.current = newFilters;
@@ -194,10 +181,11 @@ export default function LibraryView() {
       window.removeEventListener('library-refresh', handleLibraryRefresh);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Dependency array vuoto perché usiamo refs che non cambiano
+  }, [loadLibrary]);
 
   const handleDelete = (sessionId: string) => {
     setBooks(prev => prev.filter(book => book.session_id !== sessionId));
+    setTotalBooks(total => Math.max(0, total - 1));
   };
 
   const openMangaSession = (sessionId: string) => {
@@ -264,6 +252,10 @@ export default function LibraryView() {
   const availableGenres = config?.fields
     .find(f => f.id === 'genre')
     ?.options?.map(opt => opt.value) || [];
+  const hasActiveFilters = ['search', 'status', 'mode', 'genre'].some(key => {
+    const value = filtersRef.current[key as keyof LibraryFilters];
+    return value && value !== 'all';
+  });
 
   if (loading) {
     return (
@@ -296,17 +288,23 @@ export default function LibraryView() {
       />
 
       {refreshing ? <p className="refreshing-indicator">Aggiornamento</p> : null}
+      {loadError && books.length > 0 ? (
+        <div role="alert">{loadError} <Button type="button" onClick={() => void loadLibrary(undefined, true)}>Riprova</Button></div>
+      ) : null}
 
-      {books.length === 0 ? (
+      {loadError && books.length === 0 ? (
+        <EmptyState title="Libreria non disponibile" description={loadError}
+          action={<Button type="button" onClick={() => void loadLibrary()}>Riprova</Button>} />
+      ) : books.length === 0 ? (
         <EmptyState
-          title={totalBooks === 0 ? 'Nessuna opera ancora' : 'Nessun risultato'}
+          title={hasActiveFilters ? 'Nessun risultato' : 'Nessuna opera ancora'}
           description={
-            totalBooks === 0
-              ? 'Crea un libro o un manga. Resta in questo studio, in locale.'
-              : 'Prova a cambiare i filtri di ricerca.'
+            hasActiveFilters
+              ? 'Prova a cambiare i filtri di ricerca.'
+              : 'Crea un libro o un manga. Le opere sono salvate su questo dispositivo; la generazione usa servizi AI online.'
           }
           action={
-            totalBooks === 0 ? (
+            !hasActiveFilters ? (
               <Button type="button" onClick={() => navigate('/new')}>
                 Crea un’opera
               </Button>

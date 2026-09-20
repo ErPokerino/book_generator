@@ -1,17 +1,13 @@
 """Router per gli endpoint dei libri."""
 import os
+import asyncio
 import sys
 from pathlib import Path
 from typing import Optional
-from io import BytesIO
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import Response
-from PIL import Image as PILImage
-import markdown
-import base64
 import math
-from xhtml2pdf import pisa
 
 from app.models import (
     BookGenerationRequest,
@@ -25,6 +21,7 @@ from app.agent.writer_generator import parse_outline_sections
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
     get_session_async,
+    save_session_async,
     update_writing_progress_async,
     update_critique_async,
     update_critique_status_async,
@@ -41,43 +38,7 @@ from app.core.config import get_app_config
 from app.services.process_job_service import begin_process_job_async
 from app.services.cost_service import calculate_real_generation_cost
 from app.services.stats_service import calculate_estimated_time
-
-# Helper functions (temporarily defined here, will be moved to utils later)
-def get_model_abbreviation(model_name: str) -> str:
-    """Converte il nome completo del modello in una versione abbreviata per il nome del PDF."""
-    model_lower = model_name.lower()
-    if "gemini-2.5-flash" in model_lower:
-        return "g25f"
-    elif "gemini-2.5-pro" in model_lower:
-        return "g25p"
-    elif "gemini-3-flash" in model_lower:
-        return "g3f"
-    elif "gemini-3.1-pro" in model_lower:
-        return "g31p"
-    elif "gemini-3-pro" in model_lower:
-        return "g3p"
-    else:
-        return model_name.replace("gemini-", "g").replace("-", "").replace("_", "")[:6]
-
-
-def escape_html(text: str) -> str:
-    """Escapa caratteri speciali per HTML."""
-    if not text:
-        return ""
-    return (text.replace("&", "&amp;")
-              .replace("<", "&lt;")
-              .replace(">", "&gt;")
-              .replace('"', "&quot;")
-              .replace("'", "&#39;"))
-
-
-def markdown_to_html(text: str) -> str:
-    """Converte markdown base a HTML."""
-    if not text:
-        return ""
-    html = markdown.markdown(text, extensions=['nl2br', 'fenced_code'])
-    return html
-
+from app.utils.downloads import attachment_header
 
 router = APIRouter(prefix="/api/book", tags=["book"])
 
@@ -102,188 +63,12 @@ async def generate_book_pdf(session_id: str) -> Response:
     if not session.book_chapters or len(session.book_chapters) == 0:
         raise HTTPException(status_code=400, detail="Nessun capitolo trovato nel libro.")
     
-    book_title = session.current_title or "Romanzo"
-    book_author = session.form_data.user_name or "Autore"
-    
-    print(f"[BOOK PDF] Generazione PDF con WeasyPrint per: {book_title}")
-    
-    # Leggi il file CSS
-    css_path = Path(__file__).parent.parent.parent / "static" / "book_styles.css"
-    if not css_path.exists():
-        raise Exception(f"File CSS non trovato: {css_path}")
-    
-    with open(css_path, 'r', encoding='utf-8') as f:
-        css_content = f.read()
-    
-    print(f"[BOOK PDF] CSS caricato da: {css_path}")
-    
-    # Prepara immagine copertina
-    cover_image_data = None
-    cover_image_mime = None
-    cover_image_style = None
-    
-    print(f"[BOOK PDF] Verifica copertina - cover_image_path nella sessione: {session.cover_image_path}")
-    
-    if session.cover_image_path:
-        try:
-            storage_service = get_storage_service()
-            print(f"[BOOK PDF] Caricamento copertina da: {session.cover_image_path}")
-            image_bytes = storage_service.download_file(session.cover_image_path)
-            print(f"[BOOK PDF] Immagine copertina caricata: {len(image_bytes)} bytes")
-            
-            with PILImage.open(BytesIO(image_bytes)) as img:
-                cover_image_width, cover_image_height = img.size
-                print(f"[BOOK PDF] Dimensioni originali immagine: {cover_image_width} x {cover_image_height}")
-            
-            cover_path_str = session.cover_image_path.lower()
-            if '.png' in cover_path_str:
-                cover_image_mime = 'image/png'
-            elif '.jpg' in cover_path_str or '.jpeg' in cover_path_str:
-                cover_image_mime = 'image/jpeg'
-            else:
-                cover_image_mime = 'image/png'
-            
-            a4_width_pt = 595.276
-            a4_height_pt = 841.890
-            a4_ratio = a4_height_pt / a4_width_pt
-            image_ratio = cover_image_height / cover_image_width
-            
-            if image_ratio > a4_ratio:
-                cover_image_style = "width: auto; height: 100%;"
-            else:
-                cover_image_style = "width: 100%; height: auto;"
-            
-            cover_image_data = base64.b64encode(image_bytes).decode('utf-8')
-            print(f"[BOOK PDF] Immagine copertina caricata, MIME: {cover_image_mime}")
-        except Exception as e:
-            print(f"[BOOK PDF] Errore nel caricamento copertina: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # Ordina i capitoli per section_index
-    sorted_chapters = sorted(session.book_chapters, key=lambda x: x.get('section_index', 0))
-    
-    # Prepara HTML per indice
-    toc_items = []
-    for idx, chapter in enumerate(sorted_chapters, 1):
-        chapter_title = chapter.get('title', f'Capitolo {idx}')
-        toc_items.append(f'<div class="toc-item">{idx}. {escape_html(chapter_title)}</div>')
-    
-    toc_html = '\n            '.join(toc_items)
-    
-    # Prepara HTML per capitoli
-    chapters_html = []
-    for idx, chapter in enumerate(sorted_chapters, 1):
-        chapter_title = chapter.get('title', f'Capitolo {idx}')
-        chapter_content = chapter.get('content', '')
-        content_html = markdown_to_html(chapter_content)
-        
-        chapters_html.append(f'''    <div class="chapter">
-        <h1 class="chapter-title">{escape_html(chapter_title)}</h1>
-        <div class="chapter-content">
-            {content_html}
-        </div>
-    </div>''')
-    
-    chapters_html_str = '\n\n'.join(chapters_html)
-    
-    # Genera HTML completo
-    cover_section = ''
-    image_style = cover_image_style or "width: 100%; height: auto;"
-    container_style = "width: 595.276pt; height: 841.890pt; margin: 0; padding: 0; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;"
-    
-    if cover_image_data and cover_image_mime:
-        cover_section = f'''    <!-- Copertina -->
-    <div class="cover-page" style="{container_style}">
-        <img src="data:{cover_image_mime};base64,{cover_image_data}" class="cover-image" alt="Copertina" style="{image_style} margin: 0; padding: 0; display: block;">
-    </div>
-    <div style="page-break-after: always;"></div>'''
-        print(f"[BOOK PDF] Copertina aggiunta con base64, stile: {image_style}")
-    
-    html_content = f'''<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{escape_html(book_title)}</title>
-    <style>
-        {css_content}
-    </style>
-</head>
-<body>
-    <div class="content-wrapper">
-{cover_section}
-        
-        <!-- Indice -->
-        <div class="table-of-contents">
-            <h1>Indice</h1>
-            <div class="toc-list">
-                {toc_html}
-            </div>
-        </div>
-        
-        <!-- Capitoli -->
-{chapters_html_str}
-    </div>
-</body>
-</html>'''
-    
-    print(f"[BOOK PDF] HTML generato, lunghezza: {len(html_content)} caratteri")
-    
-    # Genera PDF con xhtml2pdf
-    print(f"[BOOK PDF] Generazione PDF con xhtml2pdf...")
-    buffer = BytesIO()
-    
-    try:
-        result = pisa.CreatePDF(
-            src=html_content,
-            dest=buffer,
-            encoding='utf-8'
-        )
-        
-        if result.err:
-            raise Exception(f"Errore nella generazione PDF: {result.err}")
-        
-        print(f"[BOOK PDF] PDF generato con successo")
-    except Exception as e:
-        print(f"[BOOK PDF] Errore nella generazione PDF con xhtml2pdf: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
-    
-    buffer.seek(0)
-    pdf_content = buffer.getvalue()
-    
-    # Nome file con data, modello e titolo
-    date_prefix = datetime.now().strftime("%Y-%m-%d")
-    model_abbrev = get_model_abbreviation(session.form_data.llm_model)
-    title_sanitized = "".join(c for c in book_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
-    title_sanitized = title_sanitized.replace(" ", "_")
-    if not title_sanitized:
-        title_sanitized = f"Libro_{session_id[:8]}"
-    filename = f"{date_prefix}_{model_abbrev}_{title_sanitized}.pdf"
-    
-    try:
-        storage_service = get_storage_service()
-        user_id = None
-        stored_path = storage_service.upload_file(
-            data=pdf_content,
-            destination_path=f"books/{filename}",
-            content_type="application/pdf",
-            user_id=user_id,
-        )
-        print(f"[BOOK PDF] PDF salvato: {stored_path}")
-    except Exception as e:
-        print(f"[BOOK PDF] Errore nel salvataggio PDF: {e}")
-        import traceback
-        traceback.print_exc()
-    
+    pdf_content, filename = await asyncio.to_thread(generate_complete_book_pdf, session)
+    await save_session_async(session_store, session)
     return Response(
         content=pdf_content,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": attachment_header(filename)},
     )
 
 
@@ -317,6 +102,9 @@ async def generate_book_endpoint(
                 status_code=400,
                 detail="La struttura del libro deve essere generata prima di iniziare la scrittura."
             )
+
+        if session.book_chapters and (session.writing_progress or {}).get("status") not in {"pending", "running"}:
+            raise HTTPException(status_code=409, detail="Il libro contiene già capitoli salvati. Usa la ripresa per continuare la scrittura.")
         
         # Parsa l'outline e inizializza il progresso IMMEDIATAMENTE
         try:
@@ -359,6 +147,8 @@ async def generate_book_endpoint(
             )
             print(f"[BOOK GENERATION] Progresso inizializzato: {total_sections} sezioni da scrivere")
             
+        except HTTPException:
+            raise
         except ValueError as e:
             print(f"[BOOK GENERATION] Errore nel parsing outline: {e}")
             raise HTTPException(status_code=400, detail=str(e))
@@ -431,6 +221,9 @@ async def resume_book_generation_endpoint(
                 status_code=400,
                 detail="La sessione non ha uno stato di scrittura. Avvia prima la generazione."
             )
+
+        if not session.current_draft or not session.current_outline:
+            raise HTTPException(status_code=400, detail="Bozza o struttura mancanti: impossibile riprendere la scrittura.")
         
         if not session.writing_progress.get('is_paused', False):
             current_status = session.writing_progress.get("status")
@@ -894,13 +687,14 @@ async def export_book_endpoint(
         
         # Genera il file nel formato richiesto
         if format_lower == "pdf":
-            file_content, filename = generate_complete_book_pdf(session)
+            file_content, filename = await asyncio.to_thread(generate_complete_book_pdf, session)
+            await save_session_async(session_store, session)
             media_type = "application/pdf"
         elif format_lower == "epub":
-            file_content, filename = generate_epub(session)
+            file_content, filename = await asyncio.to_thread(generate_epub, session)
             media_type = "application/epub+zip"
         elif format_lower == "docx":
-            file_content, filename = generate_docx(session)
+            file_content, filename = await asyncio.to_thread(generate_docx, session)
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         else:
             raise HTTPException(
@@ -914,7 +708,7 @@ async def export_book_endpoint(
             content=file_content,
             media_type=media_type,
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
+                "Content-Disposition": attachment_header(filename)
             }
         )
     

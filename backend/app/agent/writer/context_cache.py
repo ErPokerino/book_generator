@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from time import monotonic
 from typing import Any, Optional
 
 from google.genai import types
@@ -21,7 +22,7 @@ from app.llm import (
 
 logger = get_logger("writer-context-cache")
 
-_CACHE_NAMES: dict[str, str] = {}
+_CACHE_NAMES: dict[str, tuple[str, float]] = {}
 CACHE_TTL_SECONDS = 3600
 
 
@@ -74,8 +75,12 @@ def resolve_writer_cache_name(
 ) -> Optional[str]:
     fingerprint = writer_cache_fingerprint(model_name, system_prompt, prefix)
     cached = _CACHE_NAMES.get(fingerprint)
-    if cached:
-        return cached
+    now = monotonic()
+    for key, (_, expiry) in list(_CACHE_NAMES.items()):
+        if expiry <= now:
+            _CACHE_NAMES.pop(key, None)
+    if cached and cached[1] > now:
+        return cached[0]
     created = _create_explicit_cache(
         model_name=model_name,
         system_prompt=system_prompt,
@@ -83,7 +88,7 @@ def resolve_writer_cache_name(
         api_key=api_key,
     )
     if created:
-        _CACHE_NAMES[fingerprint] = created
+        _CACHE_NAMES[fingerprint] = (created, now + CACHE_TTL_SECONDS - 60)
     return created
 
 
@@ -100,7 +105,8 @@ async def generate_chapter_with_prefix_cache(
     response_validator,
 ) -> tuple[str, dict[str, int]]:
     """Prova cached_content; se fallisce, invia prefix+turno (cache implicita)."""
-    cache_name = resolve_writer_cache_name(
+    cache_name = await asyncio.to_thread(
+        resolve_writer_cache_name,
         model_name=gemini_model,
         system_prompt=agent_context,
         prefix=prefix,
