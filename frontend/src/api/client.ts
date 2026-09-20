@@ -1089,8 +1089,6 @@ export interface AppConfig {
     image_generation_cost?: number;
     manga_image_generation_cost?: number;
     preview?: {
-      book_chapters?: number;
-      book_pages?: number;
       manga_pages?: number;
       questions_seconds?: number;
       draft_seconds?: number;

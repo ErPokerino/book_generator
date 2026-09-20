@@ -1,4 +1,5 @@
 import type { AppConfig } from '../api/client';
+import type { BookSizeEstimate } from '../api/bookEstimates';
 
 export type GenerationMode = 'standard' | 'ultra';
 
@@ -14,11 +15,14 @@ export interface GenerationEstimateInput {
   stages: EstimateStage[];
   mangaPageCount?: number;
   config?: AppConfig | null;
+  bookSize?: BookSizeEstimate | null;
 }
 
 export interface GenerationEstimate {
-  minutes: number;
-  costEur: number;
+  minutes: number | null;
+  costEur: number | null;
+  costLowEur?: number;
+  costHighEur?: number;
   assumptions: string;
 }
 
@@ -32,8 +36,6 @@ const FALLBACK_CHAPTER_SECONDS: Record<string, number> = {
   'gemini-3.5-flash-lite': 28,
 };
 
-const DEFAULT_BOOK_CHAPTERS = 10;
-const DEFAULT_BOOK_PAGES = 100;
 const DEFAULT_MANGA_PAGES = 10;
 const DEFAULT_EXCHANGE = 0.92;
 const DEFAULT_IMAGE_USD = 0.1008;
@@ -89,11 +91,10 @@ export function estimateGeneration({
   stages,
   mangaPageCount,
   config,
+  bookSize,
 }: GenerationEstimateInput): GenerationEstimate {
   const exchange = config?.cost_estimation?.exchange_rate_usd_to_eur ?? DEFAULT_EXCHANGE;
   const preview = config?.cost_estimation?.preview;
-  const bookChapters = preview?.book_chapters ?? DEFAULT_BOOK_CHAPTERS;
-  const bookPages = preview?.book_pages ?? DEFAULT_BOOK_PAGES;
   const tokensPerPage = config?.cost_estimation?.tokens_per_page ?? TOKENS_PER_PAGE;
 
   if (kind === 'manga') {
@@ -124,6 +125,12 @@ export function estimateGeneration({
     };
   }
 
+  if (!bookSize?.available || !bookSize.chapters || !bookSize.pages) {
+    return { minutes: null, costEur: null, assumptions: 'Servono libri completati in questa modalità per stimare pagine e costo.' };
+  }
+  const bookChapters = bookSize.chapters;
+  const bookPages = bookSize.pages;
+
   const questionsModel = stageModel(stageModels, stages, 'questions');
   const draftModel = stageModel(stageModels, stages, 'draft');
   const outlineModel = stageModel(stageModels, stages, 'outline');
@@ -133,22 +140,23 @@ export function estimateGeneration({
   const splitCalls = generationMode === 'ultra' ? 2 : 1;
   const writerPrompt = 2800;
   const storyBible = 3400;
-  const avgPagesPerChapter = bookPages / bookChapters;
-  const avgChapterTokens = avgPagesPerChapter * tokensPerPage;
-  let chaptersInput = 0;
-  for (let index = 0; index < bookChapters; index += 1) {
-    const fullPrev = Math.min(index, 1);
-    chaptersInput += (writerPrompt + storyBible + fullPrev * avgChapterTokens) * splitCalls;
-  }
-  const chaptersOutput = bookPages * tokensPerPage;
-
-  const usd = tokenCostUsd(questionsModel, 1200, 800, config)
-    + tokenCostUsd(draftModel, 800, Math.max(1200, bookPages * 12), config)
+  const costForPages = (pages: number) => {
+    const avgChapterTokens = pages / bookChapters * tokensPerPage;
+    let chaptersInput = 0;
+    for (let index = 0; index < bookChapters; index += 1) {
+      chaptersInput += (writerPrompt + storyBible + Math.min(index, 1) * avgChapterTokens) * splitCalls;
+      // The second Ultra call also receives the first half of the current chapter.
+      if (splitCalls === 2) chaptersInput += avgChapterTokens / 2;
+    }
+    return tokenCostUsd(questionsModel, 1200, 800, config)
+    + tokenCostUsd(draftModel, 800, Math.max(1200, pages * 12), config)
     + tokenCostUsd(outlineModel, 3000, 2000, config)
-    + tokenCostUsd(chaptersModel, chaptersInput, chaptersOutput, config)
-    + tokenCostUsd(critiqueModel, bookPages * tokensPerPage * 1.2, 1200, config)
+    + tokenCostUsd(chaptersModel, chaptersInput, pages * tokensPerPage, config)
+    + tokenCostUsd(critiqueModel, pages * tokensPerPage * 1.2, 1200, config)
     + imageCostUsd(stageModel(stageModels, stages, 'cover'), 1, config)
     + tokenCostUsd(chaptersModel, bookChapters * (avgChapterTokens + 5000), bookChapters * 2000, config);
+  };
+  const usd = costForPages(bookPages);
 
   const questionsSeconds = preview?.questions_seconds ?? 8;
   const draftSeconds = preview?.draft_seconds ?? 20;
@@ -157,12 +165,15 @@ export function estimateGeneration({
   const coverSeconds = preview?.cover_seconds ?? 25;
   const chapterSeconds = linearChapterSeconds(generationMode, bookChapters, config)
     * chapterTimeScale(chaptersModel, config);
-  const seconds = questionsSeconds + draftSeconds + outlineSeconds + chapterSeconds + critiqueSeconds + coverSeconds;
+  const memorySeconds = bookChapters * 12;
+  const seconds = questionsSeconds + draftSeconds + outlineSeconds + chapterSeconds + critiqueSeconds + coverSeconds + memorySeconds;
 
   return {
     minutes: Math.max(1, Math.round(seconds / 60)),
     costEur: usd * exchange,
-    assumptions: `Stima per ~${bookChapters} capitoli / ${bookPages} pagine, inclusa memoria narrativa; esclusi audio, retry e ragionamento variabile.`,
+    costLowEur: costForPages(bookSize.pages_low ?? bookPages) * exchange,
+    costHighEur: costForPages(bookSize.pages_high ?? bookPages) * exchange,
+    assumptions: `Circa ${bookChapters} capitoli / ${bookPages} pagine di testo, inclusi memoria e copertina; esclusi audio, retry e ragionamento variabile. EUR al cambio configurato.`,
   };
 }
 

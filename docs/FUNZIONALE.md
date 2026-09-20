@@ -6,13 +6,15 @@ NarrAI è uno studio locale per creare libri e manga. Le opere vengono salvate s
 
 Il percorso visibile è **Idea → Domande → Bozza → Struttura → Scrittura**.
 
-- **Idea:** trama, pubblico, lunghezza, genere e stile. Le opzioni avanzate raccolgono scelte narrative ulteriori; il pannello modelli consente di configurare i modelli per fase e consultare stime.
+- **Idea:** trama obbligatoria, genere, stile, pubblico e ampiezza facoltativi. La pagina mostra sempre modalità di scrittura e previsione. Personaggi e conflitto, voce e struttura, firma e copertina sono pannelli espandibili coerenti con Modelli AI. I modelli si scelgono con menu compatti e la personalizzazione per fase è facoltativa. **Continua con le domande** rende esplicito il passaggio successivo.
 - **Domande:** chiarimenti generati a partire dal brief, con possibilità di proseguire secondo i comandi disponibili nel wizard.
 - **Bozza:** lettura e modifica del piano narrativo, anche con feedback in chat. La validazione approva il piano prima della scrittura.
 - **Struttura:** controllo e modifica dell'outline. I capitoli sono ricavati dai titoli Markdown; prologo ed epilogo autonomi vengono conservati. Le modifiche dell'indice sono soggette ai vincoli dello stato di scrittura.
 - **Scrittura:** apre lo studio con indice, manoscritto e taccuino. Il testo è leggibile appena salvato; il taccuino raccoglie fatti con prove, revisioni e consumi. Dopo i capitoli seguono copertina e valutazione critica.
 
 Le modalità Standard e Ultra controllano il modo di generare i capitoli; Ultra usa due parti sequenziali. Questo non costituisce di per sé una revisione editoriale o una garanzia di qualità superiore. I valori precisi e i modelli per fase sono descritti dalla configurazione e da [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md).
+
+La previsione di pagine e costo parte dai libri completati della modalità scelta, con numero di campioni e fascia di variabilità. Non usa più 100 pagine per entrambe le modalità. Senza storico compare uno stato esplicito; il primo libro può essere creato normalmente. L'ampiezza scelta aggiorna la previsione; l'importo resta distinto dai consumi effettivi riportati nello studio.
 
 ## Interruzioni e ripresa
 

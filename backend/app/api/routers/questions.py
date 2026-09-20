@@ -33,36 +33,21 @@ async def generate_questions_endpoint(
     try:
         api_key = os.getenv("GOOGLE_API_KEY") or None
 
-        # Genera le domande usando la Gemini Developer API (GOOGLE_API_KEY)
-        response, token_usage = await generate_questions(request.form_data, api_key=api_key)
-
-        # IMPORTANTE: Crea la sessione nel session store subito dopo aver generato le domande
+        # The ledger needs a persisted session before the first provider call,
+        # including failed calls and repair attempts.
         session_store = get_session_store()
-        try:
-            questions_dict = [q.model_dump() for q in response.questions]
-            await create_session_async(
-                session_store=session_store,
-                session_id=response.session_id,
-                form_data=request.form_data,
-                question_answers=[],
-            )
-            await save_generated_questions_async(
-                session_store=session_store,
-                session_id=response.session_id,
-                questions=questions_dict,
-            )
-            # Salva token usage per la fase questions
-            await update_token_usage_async(
-                session_store=session_store,
-                session_id=response.session_id,
-                phase="questions",
-                input_tokens=token_usage.get("input_tokens", 0),
-                output_tokens=token_usage.get("output_tokens", 0),
-                model=token_usage.get("model", "gemini-3.1-pro-preview"),
-            )
-            print(f"[DEBUG] Sessione {response.session_id} creata nel session store dopo generazione domande")
-        except Exception as session_error:
-            print(f"[WARNING] Errore nella creazione sessione: {session_error}")
+        session_id = str(uuid.uuid4())
+        await create_session_async(session_store, session_id=session_id,
+                                   form_data=request.form_data, question_answers=[])
+        response, token_usage = await generate_questions(
+            request.form_data, api_key=api_key, session_id=session_id)
+        await save_generated_questions_async(session_store=session_store,
+            session_id=session_id, questions=[q.model_dump() for q in response.questions])
+        await update_token_usage_async(session_store=session_store,
+            session_id=session_id, phase="questions",
+            input_tokens=token_usage.get("input_tokens", 0),
+            output_tokens=token_usage.get("output_tokens", 0),
+            model=token_usage.get("model"))
 
         return response
 

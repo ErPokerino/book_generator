@@ -207,8 +207,6 @@ cost_estimation:
   image_generation_cost: 0.1008
   manga_image_generation_cost: 0.0336
   preview:
-    book_chapters: 10
-    book_pages: 100
     manga_pages: 10
     questions_seconds: 8
     draft_seconds: 20

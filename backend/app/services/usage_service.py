@@ -139,6 +139,13 @@ def usage_summary(session, events):
     usd = sum(Decimal(str(e["cost_usd"])) for e in known)
     eur = sum(Decimal(str(e["cost_usd"]))*Decimal(str(e["usd_to_eur"])) for e in known)
     historical = bool(getattr(session, "legacy_cost_unverifiable", False))
+    # Older synchronous question requests predated their session/ledger. Their
+    # aggregate counters lack the per-call pricing snapshot; don't claim coverage.
+    questions = (getattr(session, "token_usage", {}) or {}).get("questions", {})
+    if (questions.get("input_tokens", 0) or questions.get("output_tokens", 0)) and not any(
+        event.get("phase") == "questions" for event in events
+    ):
+        historical = True
     phases = {}
     for event in events:
         item = phases.setdefault(event["phase"], {"calls": 0, "cost_usd": 0., "unknown_calls": 0})

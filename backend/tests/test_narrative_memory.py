@@ -1,4 +1,7 @@
 import pytest
+import json
+from pydantic import ValidationError
+from langchain_core.output_parsers import PydanticOutputParser
 from app.agent.narrative_memory import ChapterMemory, Fact, Contradiction, grounded_payload, relevant_facts, merge_chapter_memory, content_hash
 
 
@@ -36,6 +39,36 @@ def test_saved_evidence_offsets_and_revisions_are_precise():
     assert chapter['content'][saved['start']:saved['end']] == saved['evidence']
     assert memory['chapters'] == {'0': content_hash(chapter['content'])}
     assert len(memory['facts']) == 1
+
+
+def test_memory_wire_schema_is_simple_but_response_bounds_are_enforced():
+    schema = json.dumps(ChapterMemory.model_json_schema())
+    for unsupported in ('maxItems', 'minLength', 'maxLength', 'default'):
+        assert unsupported not in schema
+    assert 'knowledge' in schema and 'evidence' in schema
+    parser = PydanticOutputParser(pydantic_object=ChapterMemory)
+    valid = dict(subject='Anna', predicate='sa', value='il codice', kind='knowledge', evidence='Anna sa il codice.')
+    assert len(parser.parse(json.dumps({'facts': [valid]})).facts) == 1
+    with pytest.raises(Exception, match='at most 40'):
+        parser.parse(json.dumps({'facts': [valid] * 41}))
+    with pytest.raises(ValidationError):
+        ChapterMemory(facts=[valid | {'subject': 'x' * 121}])
+
+
+def test_formatted_evidence_is_anchored_to_original_source():
+    text = '«Anna  conosce il *codice*». Poi parte.'
+    payload = ChapterMemory(facts=[Fact(subject='Anna', predicate='sa', value='codice', kind='knowledge', evidence='Anna conosce il codice.')])
+    grounded = grounded_payload(payload, text, [])
+    assert grounded.facts[0].evidence == 'Anna  conosce il *codice*».'
+    saved = merge_chapter_memory({}, grounded, {'section_index': 0, 'title': 'Uno', 'content': text})['facts'][0]
+    assert text[saved['start']:saved['end']] == saved['evidence']
+
+
+@pytest.mark.parametrize('evidence', ['Anna conosce il codice.', 'Anna non conosce il codice 22.'])
+def test_evidence_never_fuzzy_matches_changed_words_or_numbers(evidence):
+    payload = ChapterMemory(facts=[Fact(subject='Anna', predicate='sa', value='codice', kind='knowledge', evidence=evidence)])
+    with pytest.raises(ValueError, match='testualmente'):
+        grounded_payload(payload, 'Anna non conosce il codice 12.', [])
 
 
 @pytest.mark.asyncio

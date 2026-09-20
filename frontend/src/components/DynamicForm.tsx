@@ -18,6 +18,7 @@ import ModelSettingsPanel, {
   buildModelOverrides,
 } from './ModelSettingsPanel';
 import './DynamicForm.css';
+import './BookCreation.css';
 
 // Lazy load OutlineEditor per isolare potenziali problemi con @dnd-kit
 const OutlineEditor = lazy(() => import('./OutlineEditor'));
@@ -105,20 +106,13 @@ export default function DynamicForm() {
   const [outline, setOutline] = useState<string | null>(null);
   const [isStartingWriting, setIsStartingWriting] = useState(false);
   const [isEditingOutline, setIsEditingOutline] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [, setRestoreStatus] = useState<'restored' | 'failed' | 'idle'>('idle');
   const [modelSettings, setModelSettings] = useState<ModelSettingsValue>(defaultBookModelSettings);
 
   useEffect(() => {
     loadConfig();
     
-    // Ripristina preferenza showAdvanced da localStorage
     try {
-      const saved = localStorage.getItem('dynamicForm.showAdvanced');
-      if (saved === 'true') {
-        setShowAdvanced(true);
-      }
-      
       // Ripristina formData da localStorage (solo se non c'è una sessione attiva)
       const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
       if (savedFormData) {
@@ -531,15 +525,12 @@ export default function DynamicForm() {
     setSessionId(null);
     setAnswersSubmitted(false);
     setSubmitted(null);
-  };
-
-  const renderInfoIcon = () => {
-    // Icone di informazione rimosse su richiesta
-    return null;
+    setCurrentStep('form');
+    localStorage.removeItem(SESSION_STORAGE_KEY);
   };
 
   // Lista campi Base (ordine desiderato)
-  const baseFieldIds = ['plot', 'target_audience', 'length', 'genre', 'style'];
+  const baseFieldIds = ['plot', 'genre', 'style', 'target_audience', 'length'];
   const baseFieldIdsSet = new Set(baseFieldIds);
 
   // Raggruppa campi in Base e Avanzate
@@ -559,7 +550,7 @@ export default function DynamicForm() {
       }
     }
     
-    const advancedFields = config.fields.filter(f => !baseFieldIdsSet.has(f.id));
+    const advancedFields = config.fields.filter(f => !baseFieldIdsSet.has(f.id) && f.id !== 'llm_model');
     
     return { baseFields, advancedFields };
   };
@@ -606,7 +597,6 @@ export default function DynamicForm() {
             <label id={labelId}>
               {field.label}
               {field.required && <span className="required"> *</span>}
-              {renderInfoIcon()}
             </label>
 
             <div
@@ -661,7 +651,6 @@ export default function DynamicForm() {
               <label htmlFor={field.id}>
                 {field.label}
                 {field.required && <span className="required"> *</span>}
-                {renderInfoIcon()}
               </label>
               <select
                 id={field.id}
@@ -669,7 +658,7 @@ export default function DynamicForm() {
                 onChange={(e) => handleChange(field.id, e.target.value)}
                 className={fieldError ? 'error' : ''}
               >
-                {field.id !== 'llm_model' && <option value="">-- Seleziona --</option>}
+                {field.id !== 'llm_model' && <option value="">{field.id === 'length' ? 'Lascia decidere alla storia' : 'Lascia scegliere al modello'}</option>}
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label || opt.value}
@@ -696,7 +685,6 @@ export default function DynamicForm() {
                 <>
                   {field.label}
                   {field.required && <span className="required"> *</span>}
-                  {renderInfoIcon()}
                 </>
               }
               placeholder={field.placeholder}
@@ -713,7 +701,6 @@ export default function DynamicForm() {
           <label htmlFor={field.id}>
             {field.label}
             {field.required && <span className="required"> *</span>}
-            {renderInfoIcon()}
           </label>
           <input
             type="text"
@@ -972,7 +959,7 @@ export default function DynamicForm() {
   return (
     <CreateShell medium="book">
       <StepIndicator currentStep={currentStep} />
-      <div className="dynamic-form-container"> 
+      <div className="dynamic-form-container book-creation-container">
           {loading ? (
             <div className="form-loading-skeleton" role="status" aria-label="Caricamento configurazione">
               <div className="skeleton-line" style={{ width: '60%', height: '1.5rem', marginBottom: '1rem' }} />
@@ -988,7 +975,7 @@ export default function DynamicForm() {
             const { baseFields, advancedFields } = getGroupedFields();
             
             return (
-              <form onSubmit={handleSubmit} className="dynamic-form">
+              <form onSubmit={handleSubmit} className="dynamic-form create-brief">
                 {/* Spinner semplice per generazione domande */}
                 {isGeneratingQuestions && (
                   <div className="questions-loading-overlay">
@@ -997,55 +984,39 @@ export default function DynamicForm() {
                   </div>
                 )}
                 
-                {/* Campi Base */}
-                <div className="form-fields-base">
-                  {baseFields.filter((field) => field.id === 'plot').map((field) => renderField(field))}
-                  {baseFields.filter((field) => field.id !== 'plot').map((field) => renderField(field))}
-                </div>
-                <Disclosure title="Modelli e costo" summary="Scegli i modelli e vedi tempo e costo stimati.">
-                  <ModelSettingsPanel
-                    value={modelSettings}
-                    onChange={setModelSettings}
-                    stages={BOOK_STAGES}
-                    showGenerationMode
-                    kind="book"
-                  />
-                </Disclosure>
-                
-                {/* Sezione Avanzate (collassabile) */}
-                {advancedFields.length > 0 && (
-                  <div className="form-fields-advanced-section">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newValue = !showAdvanced;
-                        setShowAdvanced(newValue);
-                        try {
-                          localStorage.setItem('dynamicForm.showAdvanced', String(newValue));
-                        } catch (err) {
-                          // Ignora errori localStorage
-                        }
-                      }}
-                      className="advanced-toggle"
-                      aria-expanded={showAdvanced}
-                    >
-                      <span>{showAdvanced ? '▼' : '▶'}</span>
-                      <span>Opzioni Avanzate</span>
-                    </button>
-                    
-                    {showAdvanced && (
-                      <div className="form-fields-advanced">
-                        {advancedFields.map((field) => renderField(field))}
-                      </div>
-                    )}
+                <div className="create-story-column">
+                  <section className="create-story-card" aria-labelledby="create-story-heading">
+                    <span className="create-eyebrow">IL PUNTO DI PARTENZA</span>
+                    <h2 id="create-story-heading">La tua idea</h2>
+                    <p className="create-intro">Racconta chi c’è al centro della storia e cosa potrebbe cambiare la sua vita. Solo la trama è obbligatoria.</p>
+                    {baseFields.filter(field => field.id === 'plot').map(renderField)}
+                    <div className="create-preferences">{baseFields.filter(field => field.id !== 'plot').map(renderField)}</div>
+                  </section>
+                  <div className="create-editorial-options">
+                    <p className="create-options-label">VUOI DARE PIÙ INDICAZIONI?</p>
+                    {[
+                      { title: 'Personaggi e conflitto', summary: 'Tema, protagonista e percorso del personaggio.', ids: ['subgenre', 'theme', 'protagonist', 'protagonist_archetype', 'character_arc'] },
+                      { title: 'Voce e struttura', summary: 'Punto di vista, ritmo e scelte del racconto.', ids: ['point_of_view', 'narrative_voice', 'temporal_structure', 'pace', 'realism', 'ambiguity', 'intentionality', 'author'] },
+                      { title: 'Firma e copertina', summary: 'Il nome sul libro e il suo aspetto.', ids: ['user_name', 'cover_style'] },
+                    ].map(group => {
+                      const fields = advancedFields.filter(field => group.ids.includes(field.id));
+                      const count = fields.filter(field => formData[field.id]?.trim() && formData[field.id] !== DEFAULT_AUTHOR).length;
+                      return fields.length > 0 && <Disclosure key={group.title} title={group.title} summary={`${group.summary}${count ? ` ${count} preferenze impostate.` : ''}`}>
+                        <div className="create-detail-fields">{fields.map(renderField)}</div>
+                      </Disclosure>;
+                    })}
                   </div>
-                )}
-                
-                <div className="form-actions">
-                  <button type="submit" disabled={isSubmitting} className="submit-button">
-                    {isSubmitting ? 'Avvio in corso...' : 'Inizia'}
-                  </button>
                 </div>
+                <aside className="create-planning-column" aria-label="Sviluppo e previsione">
+                  <ModelSettingsPanel value={modelSettings} onChange={setModelSettings} stages={BOOK_STAGES}
+                    showGenerationMode kind="book" bookLength={formData.length || undefined} />
+                  <div className="create-next-step">
+                    <button type="submit" disabled={isSubmitting} className="submit-button">
+                      {isSubmitting ? 'Avvio in corso…' : 'Continua con le domande'}
+                    </button>
+                    <p>Prima della scrittura potrai rivedere la bozza e l’indice del libro.</p>
+                  </div>
+                </aside>
               </form>
             );
           })() : config && (!config.fields || config.fields.length === 0) ? (

@@ -32,6 +32,12 @@ class FakeResponse:
         }
 
 
+def test_repair_keeps_evidence_at_end_of_long_chapter():
+    from app.llm.runtime import _format_messages_for_repair
+    chapter = 'Premessa. ' * 1500 + 'Prova importante nella scena finale.'
+    assert chapter in _format_messages_for_repair([HumanMessage(content=chapter)])
+
+
 class FakeLlm:
     def __init__(self, responses):
         self._responses = list(responses)

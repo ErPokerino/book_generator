@@ -1,0 +1,41 @@
+/* Creation uses the same quiet editorial hierarchy as the manuscript studio. */
+.create-shell:has(.create-brief) { max-width: 1160px; }
+.create-shell-subtitle { margin: .45rem 0 0; color: var(--text-secondary); font-size: .85rem; }
+.book-creation-container { max-width: none; padding: 0; }
+.create-brief { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 2.5rem; align-items: start; }
+.create-story-column, .create-planning-column { min-width: 0; }
+.create-planning-column { position: sticky; top: 1.5rem; }
+.create-story-card { padding: 1.8rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.create-eyebrow, .create-options-label { font-size: .66rem; letter-spacing: .11em; color: var(--text-secondary); font-weight: 600; }
+.create-story-card h2 { margin: .65rem 0; font: 500 2rem/1.2 'Newsreader', Georgia, serif; }
+.create-intro { color: var(--text-secondary); font-size: .85rem; line-height: 1.7; margin: 0 0 1.5rem; max-width: 55ch; }
+.create-preferences { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-top: 1.5rem; }
+.create-brief .form-field { margin: 0; min-width: 0; }
+.create-brief .form-field label { font-size: .8rem; margin-bottom: .45rem; }
+.create-brief .form-field select, .create-brief .form-field input[type=text] { min-height: 44px; padding: .7rem; font-size: .84rem; border-radius: 5px; }
+.create-editorial-options { margin-top: 1.8rem; }
+.create-options-label { margin: 0 0 .8rem; }
+.create-editorial-options .ui-disclosure + .ui-disclosure { border-top: 0; }
+.create-detail-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; padding-top: .6rem; }
+.create-detail-fields .form-field:has(.cover-style-cards) { grid-column: 1 / -1; }
+.create-detail-fields .cover-style-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.create-next-step { border-top: 1px solid var(--border); padding-top: 1.25rem; margin-top: 1.5rem; }
+.create-next-step .submit-button { width: 100%; min-height: 46px; border-radius: 5px; font-size: .86rem; padding: .85rem .7rem; box-shadow: none; }
+.create-next-step p { margin: .7rem 0 0; font-size: .75rem; line-height: 1.65; text-align: center; color: var(--text-secondary); }
+.create-brief .questions-loading-overlay { grid-column: 1 / -1; }
+@media (max-width: 1000px) {
+  .create-brief { grid-template-columns: minmax(0, 1fr) 310px; gap: 1.4rem; }
+  .create-story-card { padding: 1.3rem; }
+}
+@media (max-width: 800px) {
+  .create-brief { display: flex; gap: 1.7rem; }
+  .create-planning-column { position: static; width: 100%; }
+  .create-story-column { width: 100%; }
+  .book-creation-container { padding: 0; }
+  .create-story-card { padding: 1.25rem; }
+}
+@media (max-width: 480px) {
+  .create-preferences, .create-detail-fields { grid-template-columns: 1fr; }
+  .create-story-card { padding: 1rem; }
+  .create-story-card h2 { font-size: 1.7rem; }
+}

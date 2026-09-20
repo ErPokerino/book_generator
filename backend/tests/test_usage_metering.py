@@ -70,3 +70,44 @@ async def test_semantically_rejected_response_is_still_charged(tmp_path, monkeyp
         await invoke_chat_model(llm=llm, messages=[], model_name='gemini-3.8-flash', stage='chapters',
             request_label='invalid', session_id='book', max_retries=1, response_validator=reject)
     assert store.usage_events('book')[0]['cost_usd'] == pytest.approx(.0045)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failed', [False, True])
+async def test_question_endpoint_persists_session_before_metered_call(tmp_path, monkeypatch, failed):
+    from app.api.routers import questions
+    from app.models import QuestionGenerationRequest, QuestionsResponse
+    from fastapi import HTTPException
+    store = SQLiteSessionStore(tmp_path / 'db.sqlite3')
+    monkeypatch.setattr(session_store, '_session_store', store)
+    async def generate(form, api_key=None, session_id=None):
+        assert store.get_session(session_id) is not None
+        async def provider():
+            if failed:
+                raise TimeoutError('provider timeout')
+            return SimpleNamespace(usage_metadata={'input_tokens': 1000, 'output_tokens': 1000})
+        await metered_call(provider, session_id=session_id, model='gemini-3.8-flash', phase='questions')
+        return QuestionsResponse(success=True, session_id=session_id, questions=[]), {
+            'input_tokens': 1000, 'output_tokens': 1000, 'model': 'gemini-3.8-flash'}
+    monkeypatch.setattr(questions, 'generate_questions', generate)
+    request = QuestionGenerationRequest(form_data=SubmissionRequest(plot='Trama', llm_model='gemini-3.8-flash'))
+    if failed:
+        with pytest.raises(HTTPException):
+            await questions.generate_questions_endpoint(request)
+    else:
+        await questions.generate_questions_endpoint(request)
+    saved, = store.get_all_sessions().values()
+    event, = store.usage_events(saved.session_id)
+    assert event['status'] == ('unknown' if failed else 'measured')
+    report = usage_summary(saved, [event])
+    assert report['coverage_complete'] is not failed
+    assert report['cost_usd'] == (None if failed else pytest.approx(.0045))
+
+
+def test_old_questions_without_ledger_prevent_complete_cost_claim():
+    session = SimpleNamespace(token_usage={'questions': {'input_tokens': 270, 'output_tokens': 1243}})
+    events = [{'phase': 'draft', 'cost_usd': .02, 'usd_to_eur': .92}]
+    report = usage_summary(session, events)
+    assert not report['coverage_complete'] and report['historical_unverifiable']
+    session.token_usage['questions'] = {'input_tokens': 0, 'output_tokens': 0, 'model': 'skipped'}
+    assert usage_summary(session, events)['coverage_complete']

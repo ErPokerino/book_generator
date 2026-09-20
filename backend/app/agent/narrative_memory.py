@@ -32,6 +32,23 @@ class ChapterMemory(BaseModel):
     facts: list[Fact] = Field(default_factory=list, max_length=40)
     contradictions: list[Contradiction] = Field(default_factory=list, max_length=12)
 
+    @classmethod
+    def model_json_schema(cls, *args, **kwargs):
+        # Gemini can reject nested bounded arrays/strings with INVALID_ARGUMENT.
+        # Keep the wire grammar small; Pydantic still enforces every bound when
+        # LangChain parses the response, before grounding checks or persistence.
+        schema = super().model_json_schema(*args, **kwargs)
+
+        def simplify(node):
+            if isinstance(node, dict):
+                return {key: simplify(value) for key, value in node.items()
+                        if key not in {"minLength", "maxLength", "maxItems", "default"}}
+            if isinstance(node, list):
+                return [simplify(value) for value in node]
+            return node
+
+        return simplify(schema)
+
 
 def content_hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -52,20 +69,54 @@ def relevant_facts(memory, query, before_index, limit=36):
     return sorted(active, key=score, reverse=True)[:limit]
 
 
+def source_evidence(quote, text):
+    """Recover literal source offsets when the model drops Markdown/quote styling.
+
+    Never fuzzy-match words: negations, case, numbers and sentence punctuation
+    must still match. The persisted quote is always an actual source substring.
+    """
+    if quote in text:
+        return quote
+
+    def plain(source):
+        characters, offsets = [], []
+        for offset, character in enumerate(source):
+            if character in '*_`«»“”"':
+                continue
+            character = "'" if character in '‘’' else character
+            character = ' ' if character.isspace() else character
+            if character == ' ' and characters and characters[-1] == ' ':
+                continue
+            characters.append(character)
+            offsets.append(offset)
+        return ''.join(characters), offsets
+
+    normalized, offsets = plain(text)
+    needle, _ = plain(quote)
+    if not needle.strip():
+        return None
+    start = normalized.find(needle)
+    return text[offsets[start]:offsets[start+len(needle)-1]+1] if start >= 0 else None
+
+
 def grounded_payload(payload, text, prior_facts):
     """Reject invented quotes or references before persisting model assertions."""
     by_id = {fact["id"]: fact for fact in prior_facts}
     for fact in payload.facts:
-        if fact.evidence not in text:
+        evidence = source_evidence(fact.evidence, text)
+        if evidence is None:
             raise ValueError("La prova di un fatto non compare testualmente nel capitolo")
+        fact.evidence = evidence
         if any(old not in by_id for old in fact.supersedes):
             raise ValueError("Il fatto sostituisce un riferimento inesistente")
     for conflict in payload.contradictions:
-        if conflict.evidence not in text or conflict.fact_id not in by_id:
+        evidence = source_evidence(conflict.evidence, text)
+        if evidence is None or conflict.fact_id not in by_id:
             raise ValueError("Contraddizione priva di riscontro testuale")
+        conflict.evidence = evidence
         if by_id[conflict.fact_id]["certainty"] != "explicit":
             raise ValueError("Una deduzione non può essere usata come contraddizione certa")
-    return payload
+    return ChapterMemory.model_validate(payload.model_dump())
 
 
 def merge_chapter_memory(memory, payload, chapter):
@@ -100,7 +151,9 @@ async def extract_chapter_memory(session, chapter, prior, api_key=None):
             "Usa supersedes solo se il testo mostra un cambiamento rispetto a un fatto precedente; "
             "risoluzioni dei fili: kind thread, resolved true e supersedes con ID del filo. "
             "Segnala contraddizioni solo rispetto a fatti espliciti precedenti, citandone ID e prova nel nuovo testo. "
-            "Spostamenti, nuove informazioni, flashback, menzogne e cambiamenti motivati non sono contraddizioni.")),
+            "Spostamenti, nuove informazioni, flashback, menzogne e cambiamenti motivati non sono contraddizioni. "
+            "Massimo 40 fatti e 12 contraddizioni. Subject e predicate: 1–120 caratteri; value: 1–600; "
+            "evidence: 8–800; explanation: 1–800. Massimo 10 riferimenti in supersedes.")),
             HumanMessage(content=f"FATTI PRECEDENTI:\n{json.dumps(prior, ensure_ascii=False)}\nCAPITOLO:\n{chapter['content']}")],
         parsed_validator=lambda p: grounded_payload(p, chapter["content"], prior),
     )

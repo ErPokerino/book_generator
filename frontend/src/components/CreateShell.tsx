@@ -14,7 +14,7 @@ export default function CreateShell({ medium, children }: CreateShellProps) {
   return (
     <div className="page-shell create-shell">
       <header className="create-shell-header">
-        <h1>Crea</h1>
+        <div><h1>{medium === 'book' ? 'Crea un libro' : 'Crea un manga'}</h1><p className="create-shell-subtitle">Un’idea, un piano, la tua prossima opera.</p></div>
         <SegmentedControl
           name="medium"
           ariaLabel="Tipo di opera"

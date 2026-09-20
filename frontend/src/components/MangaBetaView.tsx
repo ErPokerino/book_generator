@@ -19,7 +19,6 @@ import {
 import Button from './ui/Button';
 import { useToast } from '../hooks/useToast';
 import CreateShell from './CreateShell';
-import Disclosure from './ui/Disclosure';
 import GenerationStage from './GenerationStage';
 import ModelSettingsPanel, {
   MANGA_STAGES,
@@ -744,7 +743,6 @@ export default function MangaBetaView() {
           </label>
         </div>
 
-        <Disclosure title="Modelli e costo" summary="Scegli i modelli e vedi tempo e costo stimati.">
           <ModelSettingsPanel
             value={modelSettings}
             onChange={setModelSettings}
@@ -752,7 +750,6 @@ export default function MangaBetaView() {
             kind="manga"
             mangaPageCount={formState.page_count}
           />
-        </Disclosure>
 
         <div className="manga-characters-card">
           <div className="manga-characters-header">

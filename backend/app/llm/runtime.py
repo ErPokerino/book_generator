@@ -145,7 +145,9 @@ def _format_messages_for_repair(messages: list[Any]) -> str:
         if not content:
             continue
         message_type = type(message).__name__
-        chunks.append(f"## Messaggio {index} ({message_type})\n{content[:6000]}")
+        # Evidence can be anywhere in a chapter. Truncating here made repair
+        # impossible for facts sourced beyond the first 6000 characters.
+        chunks.append(f"## Messaggio {index} ({message_type})\n{content}")
     return "\n\n".join(chunks)
 
 

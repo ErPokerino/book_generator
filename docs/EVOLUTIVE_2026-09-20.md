@@ -44,6 +44,16 @@ Test costi: cache, ragionamento nativo e LangChain, modalità immagine/testo, co
 
 Verifica visiva e funzionale nel browser su progetto temporaneo: tre colonne desktop, pannelli mobile a 390 px, prova nel testo, modifica, salvataggio e storico revisioni. Nessuna generazione a pagamento è stata eseguita per questi test.
 
+## Aggiornamento: creazione, previsioni e prima generazione reale
+
+La sezione Crea separa idea e preferenze editoriali da modalità e previsione, riutilizzando lo stesso componente espandibile per tutte le personalizzazioni. La previsione di pagine deriva dalle parole per capitolo dei libri completati, con coorti separate Standard/Ultra; senza storico della modalità non viene mostrato un importo fittizio. Metodo e limiti sono descritti in [modelli e costi](MODELLI_E_COSTI.md).
+
+La prima generazione reale ha evidenziato due problemi non coperti dalle risposte simulate: Gemini rifiutava lo schema della memoria (`400 INVALID_ARGUMENT`) e una scheda aperta richiedeva un chunk eliminato da una build successiva. Corretti con schema compatto e validazione locale, conservazione limitata dei vecchi asset e precache della sola versione corrente. Inoltre, la verifica delle citazioni ora recupera il testo originale quando il modello omette la formattazione, senza accettare parafrasi.
+
+Verifica aggiornata: **131 test backend e 31 frontend superati**, typecheck e build completati. Controlli visivi a 1440 e 390 px; vecchio e nuovo chunk dello studio entrambi serviti con HTTP 200. La diagnosi reale ha eseguito cinque chiamate Gemini accettate, registrate nel consumo del progetto (circa €0,054 al listino e cambio configurati), recuperando 12 fatti con prove testuali. Il capitolo salvato è rimasto identico; il libro è stato lasciato in pausa per la ripresa esplicita. Le due precedenti richieste rifiutate restano di consumo non quantificato: il totale misurato è indicato come parziale. Nessun libro completo è stato generato per questa verifica.
+
+Corretto anche il percorso sincrono delle domande: ora crea la sessione prima della chiamata, consentendo di registrare consumi, errori e repair. In precedenza i soli contatori aggregati delle domande potevano restare fuori dal registro. I progetti con tali contatori e nessun evento corrispondente vengono segnalati come storicamente incompleti; non viene ricostruito un importo preciso senza metadati e listino della singola chiamata. Test di regressione coprono sia successo sia errore del fornitore.
+
 ## Limiti espliciti
 
 Il worker richiede che il backend sia acceso e usa SQLite locale, senza distribuzione fra dispositivi. Le operazioni richieste direttamente, come TTS o rigenerazione della critica, restano legate alla richiesta HTTP. Un crash fra risposta AI e salvataggio non può garantire assenza di doppio consumo presso il fornitore; il registro conserva le chiamate di esito ignoto.

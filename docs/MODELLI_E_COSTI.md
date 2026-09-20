@@ -36,12 +36,26 @@ Timeout, interruzioni senza risposta e modelli privi di tariffa restano da verif
 ## Consumo misurato, stima e fattura
 
 - **Consumi API:** token effettivamente restituiti, valorizzati al listino Standard a pagamento. Il cambio USD→EUR configurato viene conservato per richiesta; EUR è indicativo.
-- **Stima prima di generare:** scenario dichiarato nel pannello modelli, con ipotesi su capitoli, pagine e chiamate. Include l'analisi della memoria; non predice audio, retry, correzioni e ragionamento variabile. Le ipotesi sulle immagini sono 1K Lite / 2K Flash, non prezzi reali per qualsiasi risoluzione.
+- **Stima prima di generare:** estensione prevista dallo storico della modalità scelta, con ipotesi sulle chiamate. Include l'analisi della memoria; non predice audio, retry, correzioni e ragionamento variabile. Le ipotesi sulle immagini sono 1K Lite / 2K Flash, non prezzi reali per qualsiasi risoluzione.
 - **Fattura:** può differire per quota gratuita, crediti, sconti, imposte e cambio effettivo. L'app non accede alla fatturazione Google e non afferma di averla verificata.
 
 I progetti storici non hanno un registro per richiesta: vengono marcati come non ricostruibili. Anche dopo nuove generazioni il loro totale rimane parziale. Consultare il dettaglio in `/api/studio/{session_id}/costs` o nel taccuino del libro; la fattura Google resta il riferimento per l'addebito.
 
+Anche il percorso sincrono delle domande crea ora la sessione prima di chiamare il modello, registrando il primo consumo e i tentativi falliti. Nelle versioni precedenti quei token potevano comparire solo nei contatori aggregati: se mancano gli eventi delle domande, il progetto viene segnalato come storicamente incompleto e il subtotale non viene presentato come completo.
+
 ## Pipeline e scelta dei modelli
+
+### Previsione dell'estensione
+
+La base fissa di 100 pagine è stata rimossa. `/api/config/book-estimates` considera soltanto libri completati con capitoli presenti, non vuoti e contigui. Standard e Ultra sono stimati separatamente: i campioni di una modalità non sostituiscono quelli dell'altra.
+
+Ogni libro contribuisce con le sue parole medie per capitolo. Si usa la mediana fra libri, evitando che un romanzo molto lungo pesi più degli altri. Con almeno tre campioni del modello scelto si preferisce quel gruppo; altrimenti si usa lo storico della modalità, dichiarando che il modello non è filtrato. Lo stesso criterio restringe ulteriormente il gruppo per ampiezza, quando disponibile.
+
+La scelta breve/media/lunga moltiplica la densità osservata per 6/12/20 capitoli; senza scelta si usa la mediana dei capitoli nello storico. Le pagine sono equivalenti testuali, con il rapporto parole/pagina della configurazione, non la paginazione esatta del PDF. Sono mostrati conteggio dei campioni e variabilità dell'estensione (minimo/massimo sotto cinque libri; percentili 20–80 da cinque in poi). Il costo viene ricalcolato anche agli estremi della fascia, che non rappresenta un limite di spesa.
+
+Con zero libri della modalità non viene inventata una previsione: pagine, costo e tempo del libro restano indisponibili e si può comunque iniziare. Uno o due libri producono una previsione esplicitamente indicativa. Errori di rete hanno un messaggio e un comando Riprova distinti dall'assenza di storico. La modifica di modalità, ampiezza e modello aggiorna la previsione. Il tempo usa ancora il modello indicativo per modalità, applicato al numero di capitoli previsto, e non una nuova regressione sulle durate.
+
+Nel costo Ultra viene incluso anche il contesto della prima parte reinviato per generare la seconda. I consumi successivi alla generazione continuano a usare il registro per richiesta descritto sopra.
 
 Il catalogo UI propone Flash 3.8 e Flash Lite 3.5 per il testo, Flash Image e Lite Image per le immagini. La scelta per fase prevale su quella generale; memoria e correzioni seguono rispettivamente il modello testo e quello capitoli, salvo override.
 

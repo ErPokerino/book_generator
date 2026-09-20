@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { retainAssets } from './scripts/retainAssets'
+
+const retainedAssets = retainAssets()
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    retainedAssets.plugin,
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.png'],
@@ -46,6 +50,7 @@ export default defineConfig({
       workbox: {
         navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        manifestTransforms: [async entries => ({ manifest: entries.filter(entry => retainedAssets.isCurrentAsset(entry.url)), warnings: [] })],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -87,7 +92,7 @@ export default defineConfig({
   },
   build: {
     outDir: '../backend/static',
-    emptyOutDir: true,
+    emptyOutDir: false,
   },
 })
 

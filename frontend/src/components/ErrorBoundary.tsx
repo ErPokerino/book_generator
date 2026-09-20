@@ -43,6 +43,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const assetUnavailable = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk .* failed|error loading dynamically imported module/i.test(this.state.error?.message || '');
       // Se è fornito un fallback personalizzato, usalo
       if (this.props.fallback) {
         return this.props.fallback;
@@ -58,9 +59,11 @@ export default class ErrorBoundary extends Component<Props, State> {
           backgroundColor: '#fee2e2',
           color: '#991b1b',
         }}>
-          <h2 style={{ marginTop: 0, color: '#dc2626' }}>⚠️ Errore nel Rendering</h2>
+          <h2 style={{ marginTop: 0, color: '#dc2626' }}>{assetUnavailable ? 'Ricarica lo studio' : 'Impossibile mostrare questa pagina'}</h2>
           <p style={{ marginBottom: '1rem' }}>
-            Si è verificato un errore durante la visualizzazione del contenuto.
+            {assetUnavailable
+              ? 'Un file dell’interfaccia non è disponibile. Può succedere dopo un aggiornamento o un problema di connessione. Ricarica la pagina per riprovare; i capitoli già salvati restano nel tuo progetto.'
+              : 'Si è verificato un errore durante la visualizzazione del contenuto.'}
           </p>
           {this.state.error && (
             <details style={{ marginTop: '1rem' }}>
@@ -91,11 +94,6 @@ export default class ErrorBoundary extends Component<Props, State> {
           )}
           <button
             onClick={() => {
-              this.setState({
-                hasError: false,
-                error: null,
-                errorInfo: null,
-              });
               window.location.reload();
             }}
             style={{

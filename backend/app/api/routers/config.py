@@ -5,8 +5,17 @@ from app.models import ConfigResponse
 from app.core.config import reload_config, reload_app_config
 from app.llm.model_routing import public_llm_catalog
 import json
+from typing import Literal
 
 router = APIRouter(prefix="/api/config", tags=["config"])
+
+
+@router.get("/book-estimates")
+async def get_book_estimates(model: str = "gemini-3.8-flash", length: Literal["breve", "media", "lunga"] | None = None):
+    from app.agent.session_store import get_session_store
+    from app.services.book_estimate_service import estimate_book_sizes
+    sessions = get_session_store().get_all_sessions().values()
+    return estimate_book_sizes(sessions, model=model, length=length)
 
 
 @router.get("")

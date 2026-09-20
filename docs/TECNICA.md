@@ -65,6 +65,10 @@ La ricerca in libreria annulla la richiesta precedente e controlla l'identità d
 
 Il service worker conserva gli asset dell'interfaccia ma usa `NetworkOnly` per le API. Le navigazioni `/api` non ricevono l'HTML della SPA come fallback offline. Il backend locale e una connessione Internet sono necessari per generare.
 
+La build conserva i chunk delle ultime tre versioni distinte in `backend/static/assets`, con cronologia locale `.asset-history.json`. Il precache include solo gli asset della versione corrente. Non svuotare la directory mentre l'app è in uso: le schede aperte possono ancora richiedere un vecchio modulo lazy. Per versioni più vecchie o errori di rete, il fallback propone un ricaricamento esplicito e non aggiorna automaticamente una pagina con testo in modifica.
+
+Lo schema Gemini della memoria mantiene tipi e valori ammessi ma omette limiti di lunghezza e default che rendevano troppo complessa la grammatica. Questi vincoli sono verificati da Pydantic sulla risposta. Le citazioni che differiscono soltanto per Markdown, virgolette tipografiche o spazi vengono ricondotte alla sottostringa originale e alle sue posizioni; parole, negazioni, numeri e punteggiatura di frase devono coincidere. Il repair riceve il contesto completo, senza troncare il capitolo a 6.000 caratteri.
+
 ## API e configurazione
 
 Le route attuali sono in `backend/app/api/routers/`; `/docs` espone il contratto OpenAPI dell'istanza avviata. I principali prefissi sono `/api/config`, `/api/questions`, `/api/draft`, `/api/outline`, `/api/book`, `/api/library`, `/api/manga`, `/api/critique`, `/api/session`, `/api/studio` e `/api/files`. Lo studio espone testo, revisioni, fatti, pausa e dettaglio dei consumi; il salvataggio verifica l'hash del testo di partenza.
