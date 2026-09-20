@@ -20,6 +20,7 @@ export interface ConfigResponse {
 }
 
 export interface SubmissionRequest {
+  length?: 'breve' | 'media' | 'lunga';
   llm_model: string;
   generation_mode?: 'standard' | 'ultra';
   model_overrides?: Record<string, string>;
@@ -1083,6 +1084,7 @@ export interface AppConfig {
   cost_estimation?: {
     tokens_per_page?: number;
     exchange_rate_usd_to_eur?: number;
+    image_costs?: Record<string, number>;
     model_costs?: Record<string, { input_cost_per_million?: number; output_cost_per_million?: number }>;
     image_generation_cost?: number;
     manga_image_generation_cost?: number;

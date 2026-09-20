@@ -127,6 +127,15 @@ def format_writer_turn(
     """Parte variabile: card vicine, continuità, ultimo capitolo, sezione corrente."""
     lines: list[str] = []
     if story_bible:
+        from app.agent.narrative_memory import relevant_facts
+        import json
+        facts = relevant_facts(story_bible.get("fact_memory", {}),
+                               f"{current_section.get('title', '')} {current_section.get('description', '')}",
+                               int(current_section.get("section_index", len(previous_chapters))))
+        if facts:
+            lines.append("### Fatti documentati nei capitoli precedenti")
+            lines.append("Rispetta i fatti espliciti. Le inferenze sono ipotesi. Non anticipare conoscenze individuali. Un cambiamento di stato deve essere narrato.")
+            lines.append(json.dumps(facts, ensure_ascii=False))
         nearby_cards = get_nearby_chapter_cards(
             story_bible,
             current_section.get("section_index"),

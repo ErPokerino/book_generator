@@ -12,7 +12,7 @@ Questa documentazione descrive la versione locale del repository. Per l'avvio ve
 | Processi applicativi | `backend/app/services/` | Generazione libri/manga, esportazioni, critica, costi e statistiche |
 | Generazione narrativa | `backend/app/agent/` | Domande, piano narrativo, outline, capitoli, copertina e story bible |
 | Runtime dei modelli | `backend/app/llm/` | Selezione modelli, retry, output strutturati e tracing |
-| Persistenza | `backend/app/agent/session_store.py` | Stato delle sessioni e salvataggio JSON |
+| Persistenza | `backend/app/persistence/sqlite_store.py` | Transazioni, capitoli, revisioni, job e consumi |
 | Configurazione | `config/` | Campi form, prompt, modelli, timeout, soglie e stime |
 
 Il frontend usa React e TypeScript, con Vite per la build e Vitest per i test. Il backend usa FastAPI e Pydantic. L'inferenza passa dalle Gemini Developer API; il TTS opzionale ha un servizio dedicato.
@@ -28,7 +28,7 @@ Non sono presenti login, crediti, social, MongoDB, GCS o un servizio email. Il p
 5. I capitoli completati vengono seguiti da copertina, PDF e critica. Lo stato di scrittura e quello della critica sono distinti.
 6. La libreria e il frontend leggono i progressi attraverso le API.
 
-`BackgroundTasks` esegue i processi nello stesso processo FastAPI. Non è una coda durevole e non sopravvive alla chiusura del server. All'avvio, il lifespan marca i job interrotti come falliti o sospesi e recuperabili; la ripresa resta esplicita.
+`durable_worker.py`, avviato dal lifespan, acquisisce i job da SQLite con una prenotazione di 45 secondi rinnovata ogni 10. Un vincolo univoco impedisce due job attivi sullo stesso progetto; un controllo della prenotazione impedisce le scritture di un worker scaduto. L'arresto ordinato riaccoda il job; dopo un crash un nuovo worker recupera la prenotazione scaduta. Pause volontarie ed errori applicativi restano espliciti. `BackgroundTasks` è mantenuto solo per l'adapter in memoria dei test.
 
 La ripresa dei libri percorre i capitoli contigui effettivamente salvati e riparte dal primo assente. Questo evita di rigenerare l'ultimo capitolo se il processo si è fermato fra il suo salvataggio e l'aggiornamento del contatore. Il normale avvio non sovrascrive libri che contengono già capitoli e non sono in esecuzione.
 
@@ -36,7 +36,8 @@ La ripresa dei libri percorre i capitoli contigui effettivamente salvati e ripar
 
 | Percorso | Contenuto |
 | --- | --- |
-| `backend/.sessions.json` | Tutte le sessioni, capitoli, progressi e metadati |
+| `backend/narrai.sqlite3` | Sessioni, capitoli, revisioni, job, registro dei consumi |
+| `backend/.sessions.json` | Archivio precedente, importato una volta e preservato |
 | `backend/books/` | PDF e audio |
 | `backend/sessions/` | Copertine dei libri |
 | `backend/manga/` | Immagini manga |
@@ -44,15 +45,17 @@ La ripresa dei libri percorre i capitoli contigui effettivamente salvati e ripar
 | `backend/static/` | Build del frontend, rigenerabile |
 | `backend/app/static/book_styles.css` | Stili dei PDF: separati dalla build del frontend |
 
-`SessionStore` implementa le mutazioni e invoca un solo hook di persistenza. `FileSessionStore` implementa il caricamento e il commit: file temporaneo nella stessa directory, flush, fsync e `os.replace`, senza rimuovere prima il file precedente. Un errore di scrittura viene propagato e lo stato in memoria viene ricaricato dall'ultimo archivio valido.
+`SessionStore` implementa le mutazioni e invoca un solo hook di persistenza. `SQLiteSessionStore` usa WAL, sincronizzazione FULL, chiavi esterne e transazioni di lettura consistenti. Le scritture iniziano con `BEGIN IMMEDIATE`; letture scollegate e confronto fra originale, modifica e stato corrente uniscono campi indipendenti e rifiutano sovrascritture concorrenti (HTTP 409). Capitolo, revisione e checkpoint sono salvati nella stessa transazione. `FileSessionStore` resta per compatibilità, import/export e test.
 
 Un archivio non leggibile o contenente record non validi interrompe il caricamento: non viene interpretato come archivio vuoto né riscritto eliminando implicitamente i record problematici. Prima di operazioni manuali sull'archivio, farne una copia e fermare il backend.
 
-**Vincolo operativo:** avviare un solo processo backend. Il file store mantiene oggetti condivisi in memoria, riscrive l'intero archivio e non offre transazioni fra worker o processi. Il commit atomico protegge il file, non introduce un database né backup automatici.
+SQLite coordina più processi sullo stesso dispositivo; ogni worker esegue un job per volta. Questa architettura è locale: non è una coda distribuita fra host. Un'interruzione dopo la risposta del fornitore ma prima del salvataggio può richiedere una nuova chiamata; non è garantita l'esecuzione esattamente una volta presso Google. Il registro segnala le chiamate di esito ignoto. [Backup e ripristino](EVOLUTIVE_2026-09-20.md) usano l'API backup SQLite, comprensiva del WAL.
 
 Gli export PDF del libro passano tutti da `pdf_service.generate_complete_book_pdf`; i nomi includono l'ID sessione per distinguere titoli uguali. I percorsi sono registrati nella sessione. La cancellazione usa solo associazioni esplicite, preserva file condivisi con altri progetti e non indovina il proprietario dal titolo. Eventuali vecchi file privi di associazione restano sul disco.
 
-Le conversioni PDF/EPUB/DOCX richieste dalle route libro e la creazione della cache Gemini del writer sono eseguite fuori dall'event loop. Non tutto il backend è stato convertito a I/O asincrono.
+Le conversioni PDF/EPUB/DOCX e le chiamate SDK native vengono eseguite fuori dall'event loop. La cache esplicita a pagamento del writer è stata rimossa; i prefissi stabili possono beneficiare della cache implicita, contabilizzata dai consumi restituiti. Non tutto il backend è stato convertito a I/O asincrono.
+
+`agent/narrative_memory.py` estrae fatti con citazioni esatte, capitolo, hash e posizione della prova. Le deduzioni restano distinte dai fatti espliciti; il recupero cerca per entità e fili aperti nell'intera storia. Il writer riceve fino a 36 fatti pertinenti; il controllo ne considera fino a 80, quindi non è una verifica esaustiva. Una contraddizione documentata attiva una sola revisione mirata; se persiste, la scrittura si ferma. Modificare un capitolo invalida memoria dipendente, PDF e critica, conservando le revisioni.
 
 ## Frontend e rete
 
@@ -64,11 +67,11 @@ Il service worker conserva gli asset dell'interfaccia ma usa `NetworkOnly` per l
 
 ## API e configurazione
 
-Le route attuali sono in `backend/app/api/routers/`; `/docs` espone il contratto OpenAPI dell'istanza avviata. I principali prefissi sono `/api/config`, `/api/questions`, `/api/draft`, `/api/outline`, `/api/book`, `/api/library`, `/api/manga`, `/api/critique`, `/api/session` e `/api/files`. Verificare il path completo nel router/OpenAPI, anziché ricavarlo dai nomi delle funzioni.
+Le route attuali sono in `backend/app/api/routers/`; `/docs` espone il contratto OpenAPI dell'istanza avviata. I principali prefissi sono `/api/config`, `/api/questions`, `/api/draft`, `/api/outline`, `/api/book`, `/api/library`, `/api/manga`, `/api/critique`, `/api/session`, `/api/studio` e `/api/files`. Lo studio espone testo, revisioni, fatti, pausa e dettaglio dei consumi; il salvataggio verifica l'hash del testo di partenza.
 
 La chiave di generazione viene letta da `GOOGLE_API_KEY`. Non è necessario esporre il backend in rete per usare l'app sullo stesso dispositivo. I contenuti inclusi nei prompt vengono trasmessi ai servizi AI di Google; l'archivio locale non implica inferenza offline.
 
-Modelli e tariffe configurate non sono una verifica della disponibilità o del listino del fornitore. Le stime di pagine sono basate sulle parole e non equivalgono alla paginazione fisica del PDF; i costi sono stime, non fatture.
+`usage_service.py` è la fonte unica delle tariffe e conserva per ogni chiamata modello, consumi, listino e cambio applicato. Include tentativi falliti, risposte scartate, ragionamento, cache, immagini e audio. Le differenze rispetto alla fattura e i prezzi verificati sono descritti in [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md). Le stime di pagine sono basate sulle parole e non equivalgono alla paginazione fisica del PDF.
 
 ## Verifiche e limiti
 

@@ -67,6 +67,9 @@ class SessionData:
             "critique": {"input_tokens": 0, "output_tokens": 0, "model": None},
             "total": {"input_tokens": 0, "output_tokens": 0},
         }
+        self.legacy_cost_unverifiable = False
+        self.memory_progress = None
+        self.narrative_memory: dict = {"facts": [], "checks": [], "chapters": {}}
         self.real_cost_eur: Optional[float] = None  # Costo effettivo calcolato dai token reali
     
     def get_status(self) -> str:
@@ -116,6 +119,9 @@ class SessionData:
             "current_outline": self.current_outline,
             "outline_version": self.outline_version,
             "story_bible": self.story_bible,
+            "narrative_memory": self.narrative_memory,
+            "memory_progress": self.memory_progress,
+            "legacy_cost_unverifiable": self.legacy_cost_unverifiable,
             "book_chapters": self.book_chapters,
             "writing_progress": self.writing_progress,
             "manga_form_data": self.manga_form_data,
@@ -163,7 +169,13 @@ class SessionData:
         session.validated = data.get("validated", False)
         session.current_outline = data.get("current_outline")
         session.outline_version = data.get("outline_version", 0)
+        session.legacy_cost_unverifiable = data.get("legacy_cost_unverifiable", bool(
+            data.get("current_draft") or data.get("book_chapters") or data.get("manga_pages")
+            or data.get("cover_image_path") or data.get("generated_questions")
+            or sum((data.get("token_usage", {}).get("total", {}) or {}).values())))
+        session.memory_progress = data.get("memory_progress")
         session.story_bible = data.get("story_bible")
+        session.narrative_memory = data.get("narrative_memory") or {"facts": [], "checks": [], "chapters": {}}
         session.book_chapters = data.get("book_chapters", [])
         session.writing_progress = data.get("writing_progress")
         session.manga_form_data = data.get("manga_form_data")
@@ -217,6 +229,10 @@ class SessionStore:
     def __init__(self):
         self._sessions: Dict[str, SessionData] = {}
     
+    def _persist_session(self, session: SessionData):
+        self._sessions[session.session_id] = session
+        self._save_sessions()
+
     def create_session(
         self,
         session_id: str,
@@ -227,7 +243,7 @@ class SessionStore:
         """Crea una nuova sessione."""
         session = SessionData(session_id, form_data, question_answers, user_id=user_id)
         self._sessions[session_id] = session
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def get_session(self, session_id: str) -> Optional[SessionData]:
@@ -238,7 +254,7 @@ class SessionStore:
         """Salva una sessione nello store corrente."""
         session.update_timestamp()
         self._sessions[session.session_id] = session
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def update_draft(
@@ -272,7 +288,7 @@ class SessionStore:
             "timestamp": None,  # Potrebbe essere aggiunto datetime se necessario
         })
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         
         return session
     
@@ -284,7 +300,7 @@ class SessionStore:
         
         session.validated = True
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def save_generated_questions(
@@ -299,7 +315,7 @@ class SessionStore:
         
         session.generated_questions = questions
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def update_outline(
@@ -336,7 +352,7 @@ class SessionStore:
         session.current_outline = outline_text
         session.outline_version = version if version is not None else session.outline_version + 1
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         
         return session
     
@@ -405,7 +421,7 @@ class SessionStore:
         
         session.writing_progress = new_progress
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         
         return session
     
@@ -417,7 +433,7 @@ class SessionStore:
 
         session.questions_progress = progress_dict
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
 
     def update_draft_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
@@ -428,7 +444,7 @@ class SessionStore:
 
         session.draft_progress = progress_dict
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
 
     def update_outline_progress(self, session_id: str, progress_dict: Dict[str, Any]) -> SessionData:
@@ -439,7 +455,7 @@ class SessionStore:
 
         session.outline_progress = progress_dict
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def set_estimated_cost(self, session_id: str, estimated_cost: float) -> bool:
@@ -462,7 +478,7 @@ class SessionStore:
         
         session.writing_progress["estimated_cost"] = estimated_cost
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
 
         return True
     
@@ -516,7 +532,7 @@ class SessionStore:
         session.token_usage["total"]["output_tokens"] += output_tokens
         
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return True
     
     def set_real_cost(self, session_id: str, real_cost_eur: float) -> bool:
@@ -536,7 +552,7 @@ class SessionStore:
         
         session.real_cost_eur = real_cost_eur
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return True
     
     def pause_writing(
@@ -609,8 +625,16 @@ class SessionStore:
         
         # Ordina per section_index
         session.book_chapters.sort(key=lambda x: x.get("section_index", 0))
+        if session.writing_progress:
+            session.writing_progress["completed_chapters_count"] = len(session.book_chapters)
+            # The chapter and its checkpoint are one commit.
+            saved = {ch["section_index"] for ch in session.book_chapters}
+            checkpoint = 0
+            while checkpoint in saved:
+                checkpoint += 1
+            session.writing_progress["current_step"] = checkpoint
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         
         return session
     
@@ -626,7 +650,7 @@ class SessionStore:
         
         session.cover_image_path = cover_image_path
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
     
     def update_critique(
@@ -643,7 +667,7 @@ class SessionStore:
         session.critique_status = "completed"
         session.critique_error = None
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         return session
 
     def update_critique_status(
@@ -660,7 +684,7 @@ class SessionStore:
         session.critique_status = status
         session.critique_error = error
         session.update_timestamp()
-        self._save_sessions()
+        self._persist_session(session)
         # Se fallita, non cancelliamo automaticamente una critica già presente (utile per storico/debug)
         return session
 
@@ -679,7 +703,7 @@ class SessionStore:
             session.writing_start_time = start_time
         if end_time is not None:
             session.writing_end_time = end_time
-        self._save_sessions()
+        self._persist_session(session)
         return session
 
     def start_chapter_timing(self, session_id: str, start_time: Optional[datetime] = None) -> SessionData:
@@ -689,7 +713,7 @@ class SessionStore:
             raise ValueError(f"Sessione {session_id} non trovata")
         
         session.chapter_start_time = start_time or datetime.now()
-        self._save_sessions()
+        self._persist_session(session)
         return session
 
     def end_chapter_timing(self, session_id: str, end_time: Optional[datetime] = None) -> SessionData:
@@ -703,7 +727,7 @@ class SessionStore:
             duration_seconds = (end - session.chapter_start_time).total_seconds()
             session.chapter_timings.append(duration_seconds)
             session.chapter_start_time = None  # Reset per il prossimo capitolo
-            self._save_sessions()
+            self._persist_session(session)
         
         return session
 
@@ -801,12 +825,12 @@ class FileSessionStore(SessionStore):
 _session_store: Optional[SessionStore] = None
 
 
-def get_session_store() -> FileSessionStore:
-    """Restituisce l'istanza globale del session store (sempre FileSessionStore, uso locale)."""
+def get_session_store() -> SessionStore:
+    """Restituisce l'istanza globale del session store (SQLite transazionale, uso locale)."""
     global _session_store
     if _session_store is None:
-        _session_store = FileSessionStore()
-        print("[SessionStore] Usando FileSessionStore", file=sys.stderr)
+        from app.persistence.sqlite_store import SQLiteSessionStore
+        _session_store = SQLiteSessionStore()
     return _session_store
 
 

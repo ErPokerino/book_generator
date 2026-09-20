@@ -124,6 +124,7 @@ async def refresh_story_bible_for_session(
         outline_version=session.outline_version,
         character_profiles=getattr(session, "character_profiles", None),
     )
+    session.story_bible["fact_memory"] = getattr(session, "narrative_memory", {})
     await save_session_async(session_store, session)
     logger.info(
         "Story bible rigenerata",

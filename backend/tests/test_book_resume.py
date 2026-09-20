@@ -40,7 +40,7 @@ async def test_resume_endpoint_runs_worker_and_skips_persisted_chapters(paused_b
     await tasks()
     assert generate.await_count == 1
     assert generate.call_args.kwargs["current_section"]["title"] == "Capitolo 2"
-    assert len(generate.call_args.kwargs["previous_chapters"]) == 2  # List includes newly appended chapter.
+    assert len(generate.call_args.kwargs["previous_chapters"]) == 1  # Writer receives only the chapters preceding this generation.
     assert paused_book.book_chapters[0]["content"] == "Capitolo già salvato."
     assert [ch["section_index"] for ch in paused_book.book_chapters] == [0, 1]
     assert paused_book.writing_progress["is_complete"]

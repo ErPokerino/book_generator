@@ -270,7 +270,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             )}
             {book.estimated_cost != null && (
               <p className="book-cost">
-                Costo generazione: €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
+                Consumi API: ≈ €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
               </p>
             )}
           </div>
@@ -282,9 +282,9 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               Leggi
             </button>
           ) : null}
-          {(book.status === 'writing' || book.status === 'paused') && onContinue ? (
+          {(book.status === 'writing' || book.status === 'paused' || (!isManga && book.status === 'complete')) && onContinue ? (
             <button type="button" className="action-btn continue-btn" onClick={() => onContinue(book)}>
-              Continua
+              {isManga ? 'Continua' : 'Apri studio'}
             </button>
           ) : null}
           {(book.status === 'draft' || book.status === 'outline') && onResume ? (

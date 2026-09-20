@@ -32,6 +32,7 @@ class SubmissionRequest(BaseModel):
     generation_mode: Literal["standard", "ultra"] = "standard"
     model_overrides: Optional[Dict[str, str]] = None
     plot: str = Field(..., min_length=1, description="Trama del romanzo (obbligatoria)")
+    length: Optional[Literal["breve", "media", "lunga"]] = None
     genre: Optional[str] = None
     subgenre: Optional[str] = None
     target_audience: Optional[str] = None

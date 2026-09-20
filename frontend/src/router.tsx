@@ -8,6 +8,7 @@ import { useOnboarding } from './hooks/useOnboarding';
 const DynamicForm = lazy(() => import('./components/DynamicForm'));
 const MangaBetaView = lazy(() => import('./components/MangaBetaView'));
 const LibraryView = lazy(() => import('./components/LibraryView'));
+const ManuscriptStudio = lazy(() => import('./components/ManuscriptStudio'));
 const BookReader = lazy(() => import('./components/BookReader'));
 const BenchmarkView = lazy(() => import('./components/BenchmarkView'));
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
       </AppLayout>
     ),
   },
+  { path: '/studio/:sessionId', element: <ErrorBoundary><LazyPage><ManuscriptStudio /></LazyPage></ErrorBoundary> },
   {
     path: '/book/:sessionId',
     element: (

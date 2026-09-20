@@ -1,4 +1,5 @@
 """Router per gli endpoint degli outline."""
+from app.services.durable_worker import schedule_generation
 import os
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import OutlineGenerateRequest, OutlineResponse, OutlineUpdateRequest, ProcessProgress, ProcessStartResponse
@@ -295,8 +296,8 @@ async def start_outline_generation_endpoint(
             )
         
         # Avvia il task in background
-        background_tasks.add_task(
-            background_generate_outline,
+        schedule_generation(
+            background_tasks, session_store, background_generate_outline,
             session_id=request.session_id,
             api_key=api_key,
         )

@@ -1,18 +1,14 @@
-from unittest.mock import Mock
-
+from unittest.mock import AsyncMock
+import pytest
 from app.agent.writer import context_cache
 
-
-def test_expired_writer_cache_is_recreated(monkeypatch):
-    monkeypatch.setattr(context_cache, "_CACHE_NAMES", {})
-    now = [0.0]
-    monkeypatch.setattr(context_cache, "monotonic", lambda: now[0])
-    create = Mock(side_effect=["cache/one", "cache/two"])
-    monkeypatch.setattr(context_cache, "_create_explicit_cache", create)
-    args = dict(model_name="test-model", system_prompt="Scrivi", prefix="Trama", api_key=None)
-    assert context_cache.resolve_writer_cache_name(**args) == "cache/one"
-    assert context_cache.resolve_writer_cache_name(**args) == "cache/one"
-    assert create.call_count == 1
-    now[0] = context_cache.CACHE_TTL_SECONDS + 1
-    assert context_cache.resolve_writer_cache_name(**args) == "cache/two"
-    assert create.call_count == 2
+@pytest.mark.asyncio
+async def test_prefix_is_sent_without_creating_billable_storage(monkeypatch):
+    monkeypatch.setattr(context_cache, "build_google_chat_model", lambda **kwargs: object())
+    invoke = AsyncMock(return_value=("Testo", {"input_tokens": 1, "output_tokens": 2}))
+    monkeypatch.setattr(context_cache, "invoke_chat_model", invoke)
+    result = await context_cache.generate_chapter_with_prefix_cache(agent_context="Regole", prefix="Memoria",
+        turn="Scrivi", gemini_model="gemini-3.8-flash", api_key=None, current_section_title="Primo",
+        session_id=None, request_label="test", response_validator=lambda x: x)
+    assert result[0] == "Testo"
+    assert invoke.call_args.kwargs["messages"][1].content == "Memoria\nScrivi"

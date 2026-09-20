@@ -14,9 +14,10 @@ from app.agent.session_store_helpers import (
 )
 from app.core.logging import get_logger
 
-ProcessJobType = Literal["questions", "draft", "outline", "book", "manga"]
+ProcessJobType = Literal["questions", "draft", "outline", "book", "manga", "memory"]
 
 _PROCESS_FIELD_MAP: dict[ProcessJobType, str] = {
+    "memory": "memory_progress",
     "questions": "questions_progress",
     "draft": "draft_progress",
     "outline": "outline_progress",
@@ -24,6 +25,7 @@ _PROCESS_FIELD_MAP: dict[ProcessJobType, str] = {
     "manga": "manga_progress",
 }
 _TOKEN_PHASE_MAP: dict[ProcessJobType, str] = {
+    "memory": "narrative-memory",
     "questions": "questions",
     "draft": "draft",
     "outline": "outline",
@@ -228,7 +230,7 @@ async def begin_process_job_async(
 
     existing = _get_progress(session, job_type)
     existing_status = derive_process_status(existing, job_type)
-    if existing_status in _ACTIVE_STATUSES:
+    if existing_status in _ACTIVE_STATUSES and not hasattr(session_store, "enqueue_job"):
         logger.info(
             "Richiesta start idempotente: job già attivo",
             context={"session_id": session_id, "job_type": job_type, "status": existing_status},
@@ -248,6 +250,7 @@ async def begin_process_job_async(
     }
 
     if job_type in {"book", "manga"}:
+        updates["pause_requested"] = False
         updates["is_complete"] = False
         updates["current_step"] = current_step
         updates["total_steps"] = total_steps
@@ -258,6 +261,8 @@ async def begin_process_job_async(
         updates["total_steps"] = total_steps
         updates["progress_percentage"] = 0.0
 
+    if hasattr(session_store, "enqueue_job"):
+        return session_store.enqueue_job(session_id, job_type, updates)
     progress = await merge_process_progress_async(session_store, session_id, job_type, updates)
     return True, progress
 
@@ -341,6 +346,8 @@ async def recover_interrupted_processes_async(session_store: SessionStore) -> in
 
     for session in sessions.values():
         session_id = session.session_id
+        if hasattr(session_store, "list_jobs") and any(j["status"] in _ACTIVE_STATUSES for j in session_store.list_jobs(session_id)):
+            continue
 
         for job_type in ("questions", "draft", "outline"):
             progress = _get_progress(session, job_type)

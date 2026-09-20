@@ -28,13 +28,20 @@ async def get_app_config_endpoint():
     try:
         # Ricarica la app config per permettere modifiche al YAML senza riavviare (dev-friendly)
         app_config = reload_app_config()
+        from app.services.usage_service import RATES, pricing_snapshot, SOURCE, VERIFIED_AT
+        costs = dict(app_config.get("cost_estimation", {}))
+        costs["model_costs"] = {model: {"input_cost_per_million": pricing_snapshot(model)["rates"]["input"],
+            "output_cost_per_million": pricing_snapshot(model)["rates"]["output"]} for model in RATES}
+        costs["image_costs"] = {"gemini-3.1-flash-lite-image": .0336, "gemini-3.1-flash-image": .1008}
+        costs["pricing_source"] = SOURCE
+        costs["pricing_verified_at"] = VERIFIED_AT
         # Restituisci solo i valori necessari al frontend
         return {
             "api_timeouts": app_config.get("api_timeouts", {}),
             "frontend": app_config.get("frontend", {}),
             "manga_generation": app_config.get("manga_generation", {}),
             "llm_models": public_llm_catalog(),
-            "cost_estimation": app_config.get("cost_estimation", {}),
+            "cost_estimation": costs,
             "time_estimation": app_config.get("time_estimation", {}),
         }
     except Exception as e:

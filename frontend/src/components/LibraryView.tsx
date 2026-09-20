@@ -9,7 +9,6 @@ import {
 } from '../api/client';
 import FilterBar from './FilterBar';
 import BookCard from './BookCard';
-import WritingStep from './WritingStep';
 import CritiqueModal from './CritiqueModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
@@ -27,7 +26,6 @@ export default function LibraryView() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [critiqueModalSessionId, setCritiqueModalSessionId] = useState<string | null>(null);
   const [totalBooks, setTotalBooks] = useState(0);  // Totale libri disponibili dal server
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -198,12 +196,7 @@ export default function LibraryView() {
       openMangaSession(book.session_id);
       return;
     }
-    setSelectedSessionId(book.session_id);
-  };
-
-  const handleBackFromWriting = () => {
-    setSelectedSessionId(null);
-    loadLibrary(filtersRef.current, true);
+    navigate(`/studio/${book.session_id}`);
   };
 
   const handleShowCritique = (book: LibraryEntry) => {
@@ -230,22 +223,6 @@ export default function LibraryView() {
     }
     navigate(`/book/${book.session_id}`);
   };
-
-  // Se abbiamo selezionato una sessione per continuare, mostra WritingStep
-  if (selectedSessionId) {
-    return (
-      <div className="page-shell library-view">
-        <button type="button" className="back-to-library-btn" onClick={handleBackFromWriting}>
-          Torna alle opere
-        </button>
-        <WritingStep
-          sessionId={selectedSessionId}
-          onComplete={handleBackFromWriting}
-          onNewBook={handleBackFromWriting}
-        />
-      </div>
-    );
-  }
 
   // Modalità disponibili (fisso, non più dalla configurazione)
   const availableModes = ['Standard', 'Ultra'];

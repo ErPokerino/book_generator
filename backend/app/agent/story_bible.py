@@ -79,6 +79,7 @@ def _build_creative_brief(form_data: SubmissionRequest, draft_title: Optional[st
     brief_fields = [
         ("Titolo", draft_title),
         ("Genere", form_data.genre),
+        ("Ampiezza", form_data.length),
         ("Sottogenere", form_data.subgenre),
         ("Target", form_data.target_audience),
         ("Tema", form_data.theme),

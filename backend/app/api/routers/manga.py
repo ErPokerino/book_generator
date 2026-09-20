@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.services.durable_worker import schedule_generation
+
 import asyncio
 import os
 from datetime import datetime
@@ -150,8 +152,8 @@ async def generate_manga_endpoint(
     session.manga_progress = progress
     await save_session_async(session_store, session)
 
-    background_tasks.add_task(
-        background_manga_generation,
+    schedule_generation(
+            background_tasks, session_store, background_manga_generation,
         session_id=session_id,
         request=request,
         api_key=os.getenv("GOOGLE_API_KEY") or None,
@@ -227,8 +229,8 @@ async def resume_manga_endpoint(
     session.manga_progress = progress
     await save_session_async(session_store, session)
 
-    background_tasks.add_task(
-        background_resume_manga_generation,
+    schedule_generation(
+            background_tasks, session_store, background_resume_manga_generation,
         session_id=session_id,
         api_key=os.getenv("GOOGLE_API_KEY") or None,
     )

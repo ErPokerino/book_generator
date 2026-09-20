@@ -51,21 +51,22 @@ async def persist_generated_draft_plan_async(
     outline_text: Optional[str] = None,
 ) -> SessionData:
     """Salva bozza e, se presente, l'indice prodotto nello stesso piano."""
-    session = await update_draft_async(
-        session_store,
-        session_id,
-        draft_text,
-        version,
-        title,
-        character_profiles,
-    )
+    session = session_store.get_session(session_id)
+    if not session:
+        raise ValueError("Sessione non trovata")
+    session.current_version = version if version is not None else session.current_version + 1
+    session.current_draft = draft_text
+    if title is not None:
+        session.current_title = title
+    if character_profiles is not None:
+        session.character_profiles = character_profiles
+    session.draft_history.append({"version": session.current_version, "text": draft_text,
+                                  "title": title, "timestamp": datetime.now().isoformat()})
     cleaned_outline = (outline_text or "").strip()
-    if not cleaned_outline:
-        return session
-    try:
-        return await update_outline_async(session_store, session_id, cleaned_outline)
-    except ValueError:
-        return session
+    if cleaned_outline and not session.writing_progress:
+        session.current_outline = cleaned_outline
+        session.outline_version += 1
+    return session_store.save_session(session)
 
 
 async def clear_outline_async(session_store: SessionStore, session_id: str) -> Optional[SessionData]:

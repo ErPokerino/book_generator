@@ -67,3 +67,6 @@ credentials/
 !package.json
 !package-lock.json
 !evals/representative_books.json
+# Transactional local archive and migration backup
+backend/*.sqlite3*
+backend/.sessions.json.pre-sqlite.bak

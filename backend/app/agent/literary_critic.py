@@ -1,4 +1,5 @@
 import os
+from app.services.usage_service import metered_generate_content
 import asyncio
 import sys
 from typing import Any, Optional, Dict
@@ -146,6 +147,7 @@ async def generate_literary_critique_from_pdf(
     api_key: Optional[str] = None,
     google_api_key: Optional[str] = None,
     model_name: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> tuple[Dict[str, Any], Dict[str, int]]:
     """
     Genera una valutazione critica usando come input il PDF finale del libro.
@@ -228,8 +230,8 @@ async def generate_literary_critique_from_pdf(
                 f"[LITERARY_CRITIC] Invio PDF diretto a Google GenAI ({backend.provider})...",
                 file=sys.stderr,
             )
-            response = await asyncio.to_thread(
-                client.models.generate_content,
+            response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="critique",
                 model=active_model,
                 contents=contents,
                 config=config_obj,

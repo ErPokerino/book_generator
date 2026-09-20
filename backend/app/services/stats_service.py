@@ -97,12 +97,6 @@ def mode_to_llm_models(mode: str) -> list[str]:
     return []
 
 
-def calculate_generation_cost(session, total_pages: Optional[int]) -> Optional[float]:
-    """Delega al cost_service allineato a story bible + ultimi N capitoli."""
-    from app.services.cost_service import calculate_generation_cost as _calculate
-    return _calculate(session, total_pages)
-
-
 async def calculate_estimated_time(session_id: str, current_step: int, total_steps: int) -> tuple[Optional[float], Optional[str]]:
     """Stima il tempo rimanente con il modello lineare t(i) = a*i + b."""
     from app.agent.session_store_helpers import get_session_async
@@ -225,7 +219,8 @@ def _build_book_library_entry(session, status: str) -> LibraryEntry:
         delta = session.writing_end_time - session.writing_start_time
         writing_time_minutes = delta.total_seconds() / 60
 
-    estimated_cost = getattr(session, "real_cost_eur", None)
+    from app.services.cost_service import calculate_real_generation_cost
+    estimated_cost = calculate_real_generation_cost(session)
     original_model = session.form_data.llm_model if session.form_data else None
     mode = llm_model_to_mode(
         original_model,
@@ -291,7 +286,8 @@ def _build_manga_library_entry(session, status: str) -> LibraryEntry:
         original_model,
         getattr(session.form_data, "generation_mode", None) if session.form_data else None,
     )
-    estimated_cost = getattr(session, "manga_cost_eur", None) or manga_progress.get("estimated_cost")
+    from app.services.cost_service import calculate_real_generation_cost
+    estimated_cost = calculate_real_generation_cost(session)
     cover_url = None
     if session.cover_image_path:
         cover_url = f"/api/library/cover/{session.session_id}"

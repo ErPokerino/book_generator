@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services.usage_service import metered_generate_content
 import asyncio
 import base64
 from datetime import datetime
@@ -325,19 +326,18 @@ def _build_back_cover_image_url(session) -> Optional[str]:
 
 
 def _manga_cost_snapshot(session) -> dict[str, Any]:
-    planning_phase = (getattr(session, "token_usage", None) or {}).get("manga_planning", {})
-    planning_text_cost_eur = _calculate_text_cost_eur(
-        planning_phase,
-        planning_phase.get("model", "gemini-3.8-flash"),
-    )
-    total_pages = get_resolved_manga_page_count(session) or get_runtime_manga_total_steps(session)
-    return _build_cost_breakdown(
-        planning_text_cost_eur=planning_text_cost_eur,
-        generated_pages_count=len(getattr(session, "manga_pages", []) or []),
-        has_cover=bool(getattr(session, "cover_image_path", None)),
-        has_back_cover=bool(getattr(session, "back_cover_image_path", None)),
-        total_pages=total_pages,
-    )
+    from app.services.usage_service import usage_summary, pricing_snapshot
+    report = usage_summary(session, getattr(session, "_usage_events", []))
+    pages = get_resolved_manga_page_count(session) or get_runtime_manga_total_steps(session)
+    def image_estimate(stage):
+        model = get_stage_model(stage, form_data=session.form_data, overrides=(session.manga_form_data or {}).get("model_overrides"))
+        rates = pricing_snapshot(model)["rates"]
+        tokens = 1120 if "lite" in model else 1680
+        return tokens*rates["image"]/1e6*get_exchange_rate_usd_to_eur()
+    return {"estimated_total_eur": pages*image_estimate("manga_pages") + image_estimate("manga_cover") + image_estimate("manga_back_cover"),
+            "current_cost_eur": report["converted_cost_eur"], "coverage_complete": report["coverage_complete"],
+            "generated_pages_count": len(session.manga_pages), "cover_generated": bool(session.cover_image_path),
+            "unquantified_calls": report["unquantified_calls"], "cost_basis": "API usage; Standard paid; EUR indicative"}
 
 
 def _build_cost_breakdown(
@@ -801,8 +801,8 @@ async def _generate_image_asset(
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            response = await asyncio.to_thread(
-                client.models.generate_content,
+            response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="manga_images",
                 model=resolved_model,
                 contents=contents,
                 config=config_obj,

@@ -63,6 +63,7 @@ def format_form_data_for_draft(form_data: SubmissionRequest) -> str:
     optional_fields = {
         "Nome Autore": form_data.user_name,
         "Genere": form_data.genre,
+        "Ampiezza richiesta (capitoli indicativi)": {"breve": "6", "media": "12", "lunga": "20"}.get(form_data.length),
         "Sottogenere": form_data.subgenre,
         "Pubblico di Riferimento": form_data.target_audience,
         "Tema": form_data.theme,

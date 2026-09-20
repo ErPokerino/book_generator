@@ -1,4 +1,6 @@
 import os
+import asyncio
+from contextlib import suppress
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,6 +23,7 @@ from app.api.routers import (
     questions,
     session,
     submission,
+    studio,
 )
 from app.agent.session_store import get_session_store
 from app.core.environment import allow_detailed_diagnostics, get_environment
@@ -49,10 +52,26 @@ async def lifespan(app: FastAPI):
             context={"count": recovered_jobs},
         )
 
-    yield
+    from app.persistence.sqlite_store import SQLiteSessionStore
+    from app.services.durable_worker import DurableWorker
+    worker_task = asyncio.create_task(DurableWorker(session_store).run()) if isinstance(session_store, SQLiteSessionStore) else None
+    try:
+        yield
+    finally:
+        if worker_task:
+            worker_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await worker_task
 
 
 app = FastAPI(title="NarrAI API", version="0.2.0", lifespan=lifespan)
+from app.persistence.sqlite_store import ConcurrentUpdateError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(ConcurrentUpdateError)
+async def concurrent_update_handler(request, exc):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
 app.state.environment = get_environment()
 app.state.allow_detailed_diagnostics = allow_detailed_diagnostics()
 
@@ -89,6 +108,7 @@ app.include_router(session.router)
 app.include_router(health.router)
 app.include_router(files.router)
 app.include_router(manga.router)
+app.include_router(studio.router)
 
 
 

@@ -23,8 +23,8 @@ export interface GenerationEstimate {
 }
 
 const FALLBACK_TEXT_PRICING: Record<string, { input: number; output: number }> = {
-  'gemini-3.8-flash': { input: 0.5, output: 3.0 },
-  'gemini-3.5-flash-lite': { input: 0.1, output: 0.4 },
+  'gemini-3.8-flash': { input: 0.75, output: 3.75 },
+  'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
 };
 
 const FALLBACK_CHAPTER_SECONDS: Record<string, number> = {
@@ -36,7 +36,7 @@ const DEFAULT_BOOK_CHAPTERS = 10;
 const DEFAULT_BOOK_PAGES = 100;
 const DEFAULT_MANGA_PAGES = 10;
 const DEFAULT_EXCHANGE = 0.92;
-const DEFAULT_IMAGE_USD = 0.02;
+const DEFAULT_IMAGE_USD = 0.1008;
 const TOKENS_PER_PAGE = 350;
 
 function stageModel(stageModels: Record<string, string>, stages: EstimateStage[], stageId: string): string {
@@ -60,10 +60,8 @@ function tokenCostUsd(modelId: string, inputTokens: number, outputTokens: number
   return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
 }
 
-function imageCostUsd(count: number, config?: AppConfig | null): number {
-  const unit = config?.cost_estimation?.image_generation_cost
-    ?? config?.cost_estimation?.manga_image_generation_cost
-    ?? DEFAULT_IMAGE_USD;
+function imageCostUsd(model: string, count: number, config?: AppConfig | null): number {
+  const unit = config?.cost_estimation?.image_costs?.[model] ?? (model.includes('lite') ? 0.0336 : DEFAULT_IMAGE_USD);
   return count * unit;
 }
 
@@ -106,7 +104,7 @@ export function estimateGeneration({
     const backCoverModel = stageModel(stageModels, stages, 'manga_back_cover');
 
     const planningUsd = tokenCostUsd(planningModel, 2500, 1800, config);
-    const imagesUsd = imageCostUsd(pages + 2, config);
+    const imagesUsd = imageCostUsd(pageModel, pages, config) + imageCostUsd(coverModel, 1, config) + imageCostUsd(backCoverModel, 1, config);
     const costEur = (planningUsd + imagesUsd) * exchange;
 
     const planningSeconds = preview?.manga_planning_seconds ?? 20;
@@ -122,7 +120,7 @@ export function estimateGeneration({
     return {
       minutes: Math.max(1, Math.round(seconds / 60)),
       costEur,
-      assumptions: `Stima per ${pages} pagine, più copertina e retro.`,
+      assumptions: `Stima per ${pages} pagine, copertina e retro; listino a pagamento, esclusi retry e consumi imprevisti.`,
     };
   }
 
@@ -149,7 +147,8 @@ export function estimateGeneration({
     + tokenCostUsd(outlineModel, 3000, 2000, config)
     + tokenCostUsd(chaptersModel, chaptersInput, chaptersOutput, config)
     + tokenCostUsd(critiqueModel, bookPages * tokensPerPage * 1.2, 1200, config)
-    + imageCostUsd(1, config);
+    + imageCostUsd(stageModel(stageModels, stages, 'cover'), 1, config)
+    + tokenCostUsd(chaptersModel, bookChapters * (avgChapterTokens + 5000), bookChapters * 2000, config);
 
   const questionsSeconds = preview?.questions_seconds ?? 8;
   const draftSeconds = preview?.draft_seconds ?? 20;
@@ -163,7 +162,7 @@ export function estimateGeneration({
   return {
     minutes: Math.max(1, Math.round(seconds / 60)),
     costEur: usd * exchange,
-    assumptions: `Stima per ~${bookChapters} capitoli / ${bookPages} pagine.`,
+    assumptions: `Stima per ~${bookChapters} capitoli / ${bookPages} pagine, inclusa memoria narrativa; esclusi audio, retry e ragionamento variabile.`,
   };
 }
 

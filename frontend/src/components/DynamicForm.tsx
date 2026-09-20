@@ -5,7 +5,7 @@ import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, st
 import { useToast } from '../hooks/useToast';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
-import WritingStep from './WritingStep';
+import { Navigate } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import CreateShell from './CreateShell';
 import Disclosure from './ui/Disclosure';
@@ -166,7 +166,7 @@ export default function DynamicForm() {
         // Ricostruisci formData da form_data
         const formDataObj: Record<string, string> = {};
         const formDataKeys: (keyof SubmissionRequest)[] = [
-          'llm_model', 'plot', 'genre', 'subgenre', 'target_audience', 'theme',
+          'llm_model', 'plot', 'length', 'genre', 'subgenre', 'target_audience', 'theme',
           'protagonist', 'protagonist_archetype', 'character_arc', 'point_of_view',
           'narrative_voice', 'style', 'temporal_structure', 'pace', 'realism',
           'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style', 'generation_mode'
@@ -333,45 +333,6 @@ export default function DynamicForm() {
     }
   };
 
-  const handleResetToForm = () => {
-    // Reset di tutti gli stati per tornare al form iniziale
-    setFormData({});
-    setModelSettings(defaultBookModelSettings());
-    // Rimuovi formData salvato da localStorage
-    try {
-      localStorage.removeItem(FORM_DATA_STORAGE_KEY);
-      localStorage.removeItem(MODEL_SETTINGS_STORAGE_KEY);
-    } catch (err) {
-      // Ignora errori
-    }
-    setValidationErrors({});
-    setSubmitted(null);
-    setIsSubmitting(false);
-    setQuestions(null);
-    setSessionId(null);
-    setFormPayload(null);
-    setIsGeneratingQuestions(false);
-    setAnswersSubmitted(false);
-    setQuestionAnswers([]);
-    setCurrentStep('form');
-    setRestoreStatus('idle');
-    setValidatedDraft(null);
-    setOutline(null);
-    setIsStartingWriting(false);
-    
-    // Rimuovi sessionId da localStorage
-    localStorage.removeItem(SESSION_STORAGE_KEY);
-    
-    // Reinizializza formData con valori vuoti se config è disponibile
-    if (config) {
-      const initialData: Record<string, string> = {};
-      config.fields.forEach(field => {
-        initialData[field.id] = '';
-      });
-      setFormData(applyDefaultAuthor(initialData));
-    }
-  };
-
   const handleChange = (fieldId: string, value: string) => {
     setFormData(prev => {
       const updated = { ...prev, [fieldId]: value };
@@ -451,7 +412,7 @@ export default function DynamicForm() {
 
       // Aggiunge solo i campi opzionali che sono stati compilati
       const optionalFields = [
-        'genre', 'subgenre', 'theme', 'protagonist', 'character_arc',
+        'length', 'genre', 'subgenre', 'theme', 'protagonist', 'character_arc',
         'point_of_view', 'narrative_voice', 'style', 'temporal_structure',
         'pace', 'realism', 'ambiguity', 'intentionality', 'author', 'user_name', 'cover_style'
       ];
@@ -578,7 +539,7 @@ export default function DynamicForm() {
   };
 
   // Lista campi Base (ordine desiderato)
-  const baseFieldIds = ['plot', 'genre', 'cover_style', 'user_name', 'author'];
+  const baseFieldIds = ['plot', 'target_audience', 'length', 'genre', 'style'];
   const baseFieldIdsSet = new Set(baseFieldIds);
 
   // Raggruppa campi in Base e Avanzate
@@ -1004,21 +965,7 @@ export default function DynamicForm() {
 
   // Mostra lo step di scrittura
   if (currentStep === 'writing' && sessionId) {
-    return (
-      <CreateShell medium="book">
-        <StepIndicator currentStep={currentStep} />
-        <WritingStep
-            sessionId={sessionId}
-            onComplete={(progress) => {
-              console.log('[DEBUG] Scrittura completata:', progress);
-              // Rimuovi sessionId da localStorage quando il libro è completato
-              localStorage.removeItem(SESSION_STORAGE_KEY);
-              // Opzionale: puoi navigare a una pagina di visualizzazione del libro completo
-            }}
-            onNewBook={handleResetToForm}
-          />
-      </CreateShell>
-    );
+    return <Navigate to={`/studio/${sessionId}`} replace />;
   }
 
 

@@ -1,4 +1,5 @@
 """Router per gli endpoint dei libri."""
+from app.services.durable_worker import schedule_generation
 import os
 import asyncio
 import sys
@@ -162,8 +163,8 @@ async def generate_book_endpoint(
             )
         
         # Avvia la generazione in background con callback per PDF
-        background_tasks.add_task(
-            background_book_generation,
+        schedule_generation(
+            background_tasks, session_store, background_book_generation,
             session_id=request.session_id,
             form_data=session.form_data,
             question_answers=session.question_answers,
@@ -260,8 +261,8 @@ async def resume_book_generation_endpoint(
             )
         
         # Avvia la ripresa in background con callback per PDF
-        background_tasks.add_task(
-            background_resume_book_generation,
+        schedule_generation(
+            background_tasks, session_store, background_resume_book_generation,
             session_id=session_id,
             api_key=api_key,
             generate_pdf_callback=lambda sid: generate_book_pdf(sid),
@@ -345,8 +346,6 @@ async def get_book_progress_endpoint(
         
         # Costo reale dai token già usati (anche a metà generazione)
         estimated_cost = calculate_real_generation_cost(session)
-        if estimated_cost is None:
-            estimated_cost = getattr(session, 'real_cost_eur', None)
         
         # Recupera la valutazione critica se disponibile
         critique = None
@@ -763,6 +762,7 @@ async def regenerate_book_critique_endpoint(
     api_key = None  # Passiamo None, la funzione leggerà GOOGLE_API_KEY da env
     try:
         critique, token_usage = await generate_literary_critique_from_pdf(
+            session_id=session_id,
             title=session.current_title or "Romanzo",
             author=session.form_data.user_name or "Autore",
             pdf_bytes=bytes(pdf_bytes),

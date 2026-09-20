@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from google import genai
+from google.genai import types
 
 from app.core.config import get_app_config
 
@@ -40,4 +41,4 @@ def get_google_structured_output_method() -> str:
 def build_google_genai_client(api_key: str | None = None) -> genai.Client:
     """Client google-genai configurato per la Gemini Developer API."""
     backend = get_google_backend_config(api_key=api_key)
-    return genai.Client(api_key=backend.api_key)
+    return genai.Client(api_key=backend.api_key, http_options=types.HttpOptions(timeout=300_000, retry_options=types.HttpRetryOptions(attempts=1)))

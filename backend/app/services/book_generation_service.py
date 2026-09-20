@@ -125,7 +125,7 @@ async def _generate_cover_artifact(
     """Genera e persiste la copertina del libro in modo uniforme per start/resume."""
     logger.info("Avvio generazione copertina", context={"session_id": session_id})
     session = await get_session_async(session_store, session_id)
-    if not session:
+    if not session or session.cover_image_path:
         return
 
     title, author, plot, cover_style = _resolve_book_artifact_context(
@@ -191,7 +191,7 @@ async def _generate_critique_artifact(
     """Genera la critica finale con selezione provider/API key coerente tra start e resume."""
     logger.info("Avvio valutazione critica", context={"session_id": session_id})
     session = await get_session_async(session_store, session_id)
-    if not session or not session.book_chapters:
+    if not session or not session.book_chapters or session.literary_critique:
         return
 
     await update_critique_status_async(session_store, session_id, "running", error=None)
@@ -203,6 +203,7 @@ async def _generate_critique_artifact(
             author_fallback=author_fallback,
         )
         critique, token_usage = await generate_literary_critique_from_pdf(
+            session_id=session_id,
             title=title,
             author=author,
             pdf_bytes=pdf_bytes,
@@ -268,7 +269,9 @@ async def _run_post_book_completion_pipeline(
     generate_pdf_callback=None,
 ) -> None:
     """Pipeline condivisa eseguita una sola volta quando i capitoli sono completi."""
-    await update_critique_status_async(session_store, session_id, "pending")
+    current = await get_session_async(session_store, session_id)
+    if current and not current.literary_critique:
+        await update_critique_status_async(session_store, session_id, "pending")
     await _persist_writing_completion(
         session_store,
         session_id,
@@ -438,7 +441,7 @@ async def background_resume_book_generation(
             raise ValueError(f"Sessione {session_id} non ha uno stato di scrittura")
         
         progress = session.writing_progress
-        if not progress.get("is_paused", False) and progress.get("status") != "pending":
+        if not progress.get("is_paused", False) and progress.get("status") not in {"pending", "running", "completed"}:
             raise ValueError(f"Sessione {session_id} non è in stato di pausa")
 
         await mark_process_running_async(
@@ -454,10 +457,8 @@ async def background_resume_book_generation(
         if not session.writing_start_time:
             await update_writing_times_async(session_store, session_id, start_time=start_time)
         
-        await resume_book_generation(
-            session_id=session_id,
-            api_key=api_key,
-        )
+        if not progress.get("is_complete"):
+            await resume_book_generation(session_id=session_id, api_key=api_key)
         
         # Verifica se la generazione è stata completata o rimessa in pausa
         session = await get_session_async(session_store, session_id)

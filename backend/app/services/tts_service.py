@@ -1,8 +1,10 @@
 """Service per la generazione di audio Text-to-Speech via Gemini."""
 from __future__ import annotations
 
+from app.services.usage_service import metered_generate_content
 import asyncio
 import io
+import hashlib
 import re
 import sys
 import wave
@@ -104,7 +106,7 @@ def _resolve_voice(voice_name: Optional[str]) -> str:
     return voice_name
 
 
-async def _synthesize_chunks(text: str, *, form_data=None, voice_name: Optional[str] = None) -> bytes:
+async def _synthesize_chunks(text: str, *, session_id=None, form_data=None, voice_name: Optional[str] = None) -> bytes:
     model_name = get_stage_model("tts", form_data=form_data) or DEFAULT_TTS_MODEL
     voice = _resolve_voice(voice_name)
     client = build_google_genai_client()
@@ -124,8 +126,8 @@ async def _synthesize_chunks(text: str, *, form_data=None, voice_name: Optional[
     pcm_parts: list[bytes] = []
     mime_type = "audio/pcm"
     for chunk in _chunk_text(text):
-        response = await asyncio.to_thread(
-            client.models.generate_content,
+        response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="tts",
             model=model_name,
             contents=chunk,
             config=config_obj,
@@ -173,7 +175,8 @@ async def generate_critique_audio(
         full_text = full_text[:4500] + "..."
 
     storage_service = get_storage_service()
-    cache_path = f"books/audio/{session_id}_critique.wav"
+    fingerprint = hashlib.sha256(f"{full_text}:{voice_name}:{get_stage_model('tts', form_data=session.form_data)}".encode()).hexdigest()[:16]
+    cache_path = f"books/audio/{session_id}_critique_{fingerprint}.wav"
     try:
         if storage_service.exists(cache_path):
             return storage_service.download_file(cache_path)
@@ -183,6 +186,7 @@ async def generate_critique_audio(
     try:
         audio_data = await _synthesize_chunks(
             full_text,
+            session_id=session_id,
             form_data=getattr(session, "form_data", None),
             voice_name=voice_name,
         )
@@ -223,7 +227,8 @@ async def generate_chapter_audio(
         raise HTTPException(status_code=400, detail="Contenuto del capitolo vuoto")
 
     storage_service = get_storage_service()
-    cache_path = f"books/audio/{session_id}_chapter_{chapter_index}.wav"
+    fingerprint = hashlib.sha256(f"{chapter_title}:{chapter_content}:{voice_name}:{get_stage_model('tts', form_data=session.form_data)}".encode()).hexdigest()[:16]
+    cache_path = f"books/audio/{session_id}_chapter_{chapter_index}_{fingerprint}.wav"
     try:
         if storage_service.exists(cache_path):
             return storage_service.download_file(cache_path)
@@ -237,6 +242,7 @@ async def generate_chapter_audio(
     try:
         audio_data = await _synthesize_chunks(
             full_text,
+            session_id=session_id,
             form_data=getattr(session, "form_data", None),
             voice_name=voice_name,
         )

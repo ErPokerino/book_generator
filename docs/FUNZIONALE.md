@@ -6,23 +6,27 @@ NarrAI è uno studio locale per creare libri e manga. Le opere vengono salvate s
 
 Il percorso visibile è **Idea → Domande → Bozza → Struttura → Scrittura**.
 
-- **Idea:** trama, genere, riferimenti e preferenze. Le opzioni avanzate raccolgono scelte narrative ulteriori; il pannello modelli consente di configurare i modelli per fase e consultare stime.
+- **Idea:** trama, pubblico, lunghezza, genere e stile. Le opzioni avanzate raccolgono scelte narrative ulteriori; il pannello modelli consente di configurare i modelli per fase e consultare stime.
 - **Domande:** chiarimenti generati a partire dal brief, con possibilità di proseguire secondo i comandi disponibili nel wizard.
 - **Bozza:** lettura e modifica del piano narrativo, anche con feedback in chat. La validazione approva il piano prima della scrittura.
 - **Struttura:** controllo e modifica dell'outline. I capitoli sono ricavati dai titoli Markdown; prologo ed epilogo autonomi vengono conservati. Le modifiche dell'indice sono soggette ai vincoli dello stato di scrittura.
-- **Scrittura:** produzione progressiva delle sezioni, salvataggio dei capitoli e visualizzazione dell'avanzamento. Dopo i capitoli seguono copertina e valutazione critica.
+- **Scrittura:** apre lo studio con indice, manoscritto e taccuino. Il testo è leggibile appena salvato; il taccuino raccoglie fatti con prove, revisioni e consumi. Dopo i capitoli seguono copertina e valutazione critica.
 
 Le modalità Standard e Ultra controllano il modo di generare i capitoli; Ultra usa due parti sequenziali. Questo non costituisce di per sé una revisione editoriale o una garanzia di qualità superiore. I valori precisi e i modelli per fase sono descritti dalla configurazione e da [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md).
 
 ## Interruzioni e ripresa
 
-La chiusura della pagina non cancella la sessione. Il lavoro in background dipende dal backend: se il processo viene fermato, il job viene segnalato come interrotto al riavvio.
+La chiusura della pagina non cancella la sessione. Il lavoro dipende dal backend: quando viene riavviato, recupera automaticamente i job interrotti. **Pausa dopo il capitolo** salva il testo e il controllo di continuità prima di fermarsi; **Riprendi scrittura** prosegue dal checkpoint.
 
 I libri sospesi possono essere ripresi. La ripresa usa i capitoli già salvati e ricomincia dal primo assente, evitando di spendere nuovamente per l'ultimo capitolo persistito prima di un crash. Gli errori inattesi mantengono il checkpoint e una possibilità di recupero. Un avvio ordinario non sostituisce i capitoli di un progetto già scritto.
 
 Un problema di rete è distinto da un archivio vuoto. Nella libreria, **Riprova** ricarica i dati; il polling tollera errori transitori con attese crescenti. Nessuna risposta API viene recuperata da una vecchia cache offline per simulare un avanzamento.
 
 ## Libreria e lettura
+
+**Apri studio** consente di leggere, modificare e confrontare versioni del manoscritto. Ogni salvataggio conserva una revisione; una versione precedente può essere portata nell'editor e salvata dopo la lettura. L'interfaccia protegge le modifiche non salvate durante la navigazione e conserva il testo se il server segnala un conflitto. Durante la generazione l'editor è in sola lettura. Su mobile indice, manoscritto e taccuino sono pannelli selezionabili.
+
+I fatti mostrano la citazione che li sostiene. **Aggiorna memoria** analizza i capitoli non ancora controllati dopo una modifica; una contraddizione residua viene mostrata con la prova e richiede revisione. L'analisi usa il modello e concorre ai consumi. Le revisioni manuali invalidano PDF e critica precedenti.
 
 La sezione **Opere** raccoglie libri e manga. Sono disponibili ricerca, filtri per stato/modalità/genere, ordinamento e caricamento progressivo. Le azioni dipendono dallo stato: continuare la preparazione, monitorare o riprendere la scrittura, leggere, valutare ed esportare.
 
@@ -48,6 +52,6 @@ Il manga beta usa un brief dedicato, pianificazione, tavole e copertine, con pro
 
 ## Dati e requisiti
 
-L'archivio principale è `backend/.sessions.json`, con immagini e documenti nelle directory indicate dalla [documentazione tecnica](TECNICA.md). Usare un solo backend alla volta. Se l'archivio non è leggibile, il sistema interrompe il caricamento e preserva il file per il recupero.
+L'archivio principale è `backend/narrai.sqlite3`, con immagini e documenti nelle directory indicate dalla [documentazione tecnica](TECNICA.md). Il JSON precedente viene importato una volta e conservato. Se l'archivio da importare non è leggibile, il sistema interrompe la migrazione senza perdere l'originale.
 
-I dati trasmessi alla generazione comprendono il brief e il contesto necessario al modello. Per eseguire il progetto e configurare le credenziali vedi il [README](../README.md). Le [cinque priorità di evoluzione](REVISIONE_2026-09-20.md) descrivono le funzionalità proposte, distinguendole da quelle già presenti.
+I dati trasmessi alla generazione comprendono il brief e il contesto necessario al modello. Per eseguire il progetto e configurare le credenziali vedi il [README](../README.md). Le prime tre [priorità di evoluzione](REVISIONE_2026-09-20.md) sono ora implementate: dettagli e limiti nelle [note delle evolutive](EVOLUTIVE_2026-09-20.md).

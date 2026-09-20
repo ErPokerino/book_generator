@@ -3,6 +3,7 @@ import base64
 from pathlib import Path
 from typing import Optional
 from io import BytesIO
+from app.services.usage_service import metered_generate_content
 import asyncio
 from google.genai import types
 from PIL import Image as PILImage
@@ -178,16 +179,16 @@ async def generate_book_cover(
                 # Prova con types.GenerateContentConfig se disponibile
                 if hasattr(types, 'GenerateContentConfig'):
                     config_obj = types.GenerateContentConfig(**config)
-                    response = await asyncio.to_thread(
-                        client.models.generate_content,
+                    response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="cover",
                         model=model_name,
                         contents=[image_prompt],
                         config=config_obj
                     )
                 else:
                     # Fallback: passa config come dizionario
-                    response = await asyncio.to_thread(
-                        client.models.generate_content,
+                    response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="cover",
                         model=model_name,
                         contents=[image_prompt],
                         config=config
@@ -195,8 +196,8 @@ async def generate_book_cover(
             except (TypeError, AttributeError) as e:
                 # Se la sintassi con config non funziona, prova senza config
                 print(f"[COVER GENERATOR] Config non supportata ({e}), provo senza config...")
-                response = await asyncio.to_thread(
-                    client.models.generate_content,
+                response = await metered_generate_content(
+                client.models.generate_content, session_id=session_id, phase="cover",
                     model=model_name,
                     contents=[image_prompt]
                 )

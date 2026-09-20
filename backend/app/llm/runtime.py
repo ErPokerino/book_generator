@@ -17,6 +17,7 @@ from app.llm.model_routing import get_structured_output_method
 from app.llm.structured_outputs import coerce_llm_content_to_text
 from app.llm.tracing import LLMTraceRecorder
 from app.utils.token_tracker import extract_token_usage
+from app.services.usage_service import metered_call
 
 DEFAULT_TIMEOUT_SECONDS = 300
 DEFAULT_RETRY_DELAY_SECONDS = 5
@@ -99,6 +100,7 @@ def build_google_chat_model(
         "model": model_name,
         "google_api_key": backend.api_key,
         "temperature": temperature,
+        "max_retries": 1,
         "timeout": timeout_seconds,
     }
     if max_output_tokens is not None:
@@ -210,7 +212,7 @@ async def _repair_structured_output(
             )
         ),
     ]
-    result = await structured_llm.ainvoke(repair_messages)
+    result = await metered_call(lambda: structured_llm.ainvoke(repair_messages), session_id=getattr(trace, "session_id", None), model=model_name, phase=stage + "-repair")
     raw_response = result.get("raw") if isinstance(result, dict) else None
     parsed = result.get("parsed") if isinstance(result, dict) else result
     parsing_error = result.get("parsing_error") if isinstance(result, dict) else None
@@ -277,7 +279,7 @@ async def invoke_chat_model(
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            response = await llm.ainvoke(messages)
+            response = await metered_call(lambda: llm.ainvoke(messages), session_id=session_id, model=model_name, phase=stage)
             response_text = coerce_llm_content_to_text(getattr(response, "content", response)).strip()
             if response_validator:
                 response_text = response_validator(response_text)
@@ -402,7 +404,7 @@ async def invoke_structured_chat_model(
     }
     for attempt in range(effective_max_retries):
         try:
-            result = await structured_llm.ainvoke(messages)
+            result = await metered_call(lambda: structured_llm.ainvoke(messages), session_id=session_id, model=model_name, phase=stage)
             raw_response = result.get("raw") if isinstance(result, dict) else None
             parsed = result.get("parsed") if isinstance(result, dict) else result
             parsing_error = result.get("parsing_error") if isinstance(result, dict) else None

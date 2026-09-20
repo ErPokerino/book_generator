@@ -315,39 +315,14 @@ def get_model_pricing(model_name: str) -> dict[str, float]:
     Returns:
         Dizionario con 'input_cost_per_million' e 'output_cost_per_million' in USD
     """
-    app_config = get_app_config()
-    cost_config = app_config.get("cost_estimation", {})
-    model_costs = cost_config.get("model_costs", {})
-    
-    # Normalizza il nome del modello per il lookup
-    model_normalized = model_name.lower().replace("_", "-")
-    catalog = app_config.get("llm_models", {}).get("catalog", {}) or {}
-    catalog_entry = catalog.get(model_normalized) if isinstance(catalog, dict) else None
-    catalog_api_id = ""
-    if isinstance(catalog_entry, dict):
-        catalog_api_id = str(catalog_entry.get("api_id") or "").lower()
-
-    if model_normalized in model_costs:
-        costs = model_costs[model_normalized]
-    elif catalog_api_id and catalog_api_id in model_costs:
-        costs = model_costs[catalog_api_id]
-    elif "gemini-2.5-flash" in model_normalized:
-        costs = model_costs.get("gemini-2.5-flash", {})
-    elif "gemini-2.5-pro" in model_normalized:
-        costs = model_costs.get("gemini-2.5-pro", {})
-    elif "gemini-3-flash" in model_normalized:
-        costs = model_costs.get("gemini-3-flash-preview", {})
-    elif "gemini-3-ultra" in model_normalized:
-        costs = model_costs.get("gemini-3-ultra", model_costs.get("gemini-3.1-pro-preview", {}))
-    elif "gemini-3-pro" in model_normalized or "gemini-3.1-pro" in model_normalized:
-        costs = model_costs.get("gemini-3.1-pro-preview", {})
-    else:
-        costs = model_costs.get("default", {})
-    
-    return {
-        "input_cost_per_million": float(costs.get("input_cost_per_million", 1.0)),
-        "output_cost_per_million": float(costs.get("output_cost_per_million", 3.0)),
-    }
+    from app.services.usage_service import pricing_snapshot
+    catalog = get_app_config().get("llm_models", {}).get("catalog", {})
+    model = str((catalog.get(model_name) or {}).get("api_id") or model_name)
+    price = pricing_snapshot(model)
+    if price is None:
+        raise ValueError(f"Tariffa non verificata per {model}")
+    return {"input_cost_per_million": price["rates"]["input"],
+            "output_cost_per_million": price["rates"]["output"]}
 
 
 def get_image_generation_cost() -> float:

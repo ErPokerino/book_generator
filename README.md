@@ -1,14 +1,15 @@
 # NarrAI — generazione locale di romanzi
 
 App single-user per creare romanzi (e manga in beta) con **Gemini Developer API**.
-Interfaccia, backend e archivio girano in locale: FastAPI + React, persistenza su file JSON e nessuna autenticazione. La generazione invia il contesto narrativo alle API di Google; richiede una connessione Internet.
+Interfaccia, backend e archivio girano in locale: FastAPI + React, persistenza transazionale SQLite e nessuna autenticazione. La generazione invia il contesto narrativo alle API di Google; richiede una connessione Internet.
 
 ## Documentazione
 
-- [Modelli e costi](docs/MODELLI_E_COSTI.md): mappa Gemini per attività e stime per un libro da 100 pagine.
+- [Modelli e costi](docs/MODELLI_E_COSTI.md): listino verificato, registro dei consumi e limiti delle stime.
 - [Documentazione tecnica](docs/TECNICA.md): architettura e stack (versione locale).
 - [Documentazione funzionale](docs/FUNZIONALE.md): flusso di generazione.
 - [Revisione e priorità](docs/REVISIONE_2026-09-20.md): difetti corretti, verifiche e cinque aree di miglioramento.
+- [Evolutive implementate](docs/EVOLUTIVE_2026-09-20.md): studio, processi durevoli, memoria, migrazione e backup.
 
 ## Prerequisiti
 
@@ -25,8 +26,8 @@ Copia `.env.example` in `.env` nella root del repo e inserisci la chiave:
 ```env
 GOOGLE_API_KEY=la_tua_chiave_gemini
 
-# Opzionale, solo per TTS:
-# GOOGLE_APPLICATION_CREDENTIALS=credentials/narrai-app-credentials.json
+# Opzionale: percorso alternativo dell'archivio SQLite
+# NARRAI_DB_PATH=C:/archivi/narrai.sqlite3
 ```
 
 Non committare `.env`. Senza `GOOGLE_API_KEY` l'app parte ma le generazioni falliscono.
@@ -54,16 +55,20 @@ Il proxy Vite inoltra `/api` a `http://127.0.0.1:8000`. Apri `http://localhost:5
 ## Funzionalità
 
 - Wizard libro: domande, bozza, outline, scrittura capitoli, copertina, critica
+- Studio del manoscritto: editor con revisioni, prove narrative, pausa/ripresa e costi per richiesta
+- Memoria dei fatti documentati, controllo della continuità e recupero dei processi al riavvio
 - Libreria locale con export PDF / EPUB / DOCX
 - Manga beta
 - Analytics e benchmark sui libri generati in locale
-- TTS opzionale (Google Cloud Text-to-Speech) se è presente un service account JSON
+- Audio opzionale tramite Gemini TTS, con la stessa chiave API
 
 Rimosso rispetto alla versione cloud: login, crediti, social, GDPR, MongoDB, GCS, Vertex AI, OpenAI.
 
 ## Persistenza
 
-Le sessioni sono in `backend/.sessions.json`; PDF e audio in `backend/books/`, copertine in `backend/sessions/`, tavole manga in `backend/manga/`. Niente database da avviare. Usa un solo processo backend: il file store non coordina più worker.
+L'archivio è `backend/narrai.sqlite3` (o `NARRAI_DB_PATH`); non serve avviare un database separato. Al primo avvio viene importato `.sessions.json` dalla stessa directory, preservando originale e copia `.pre-sqlite.bak`. PDF e audio restano in `backend/books/`, copertine in `backend/sessions/`, tavole manga in `backend/manga/`.
+
+I job vengono accodati nel database e recuperati al riavvio del backend. La pausa volontaria e gli errori richiedono una ripresa esplicita. Per backup consistenti e rollback vedi [evolutive](docs/EVOLUTIVE_2026-09-20.md).
 
 ## Test
 

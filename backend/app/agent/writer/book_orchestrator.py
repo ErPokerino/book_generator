@@ -18,6 +18,7 @@ from app.agent.session_store_helpers import (
     update_writing_progress_async,
 )
 from app.agent.writer.chapter_generator import generate_chapter
+from app.agent.narrative_memory import ensure_narrative_memory
 from app.agent.writer.common import refresh_story_bible_for_session, validate_generated_chapter_text
 from app.agent.writer.outline_ast import parse_outline_sections
 from app.core.config import get_app_config
@@ -152,6 +153,11 @@ async def _run_book_generation_loop(
     )
 
     for index in range(start_index, total_sections):
+        current = await get_session_async(session_store, session_id)
+        if (current.writing_progress or {}).get("pause_requested"):
+            await pause_writing_async(session_store, session_id, index, total_sections,
+                                      sections[index]["title"], "Scrittura in pausa su richiesta.")
+            return completed_chapters, False
         section = sections[index]
         trace.record("chapter_started", section_index=index, section_title=section["title"])
         await update_writing_progress_async(
@@ -267,7 +273,8 @@ async def _run_book_generation_loop(
                 chapter_content=chapter_content,
                 section_index=index,
             )
-            completed_chapters.append(chapter_dict)
+            session = await ensure_narrative_memory(session_store, session, api_key)
+            completed_chapters = list(session.book_chapters)
             story_bible = await refresh_story_bible_for_session(session_store, session, sections)
             trace.record(
                 "chapter_completed",
@@ -292,6 +299,7 @@ async def generate_full_book(
     sections = parse_outline_sections(outline_text)
     session_store = get_session_store()
     session = await _initialize_writing_progress(session_id=session_id, sections=sections)
+    session = await ensure_narrative_memory(session_store, session, api_key)
     story_bible = await refresh_story_bible_for_session(session_store, session, sections)
     completed_chapters, completed = await _run_book_generation_loop(
         session_id=session_id,
@@ -351,6 +359,8 @@ async def resume_book_generation(
         completed_chapters.append(chapter)
     failed_step = len(completed_chapters)
     await resume_writing_async(session_store, session_id)
+    session = await get_session_async(session_store, session_id)
+    session = await ensure_narrative_memory(session_store, session, api_key)
     story_bible = await refresh_story_bible_for_session(session_store, session, sections)
 
     completed_chapters, completed = await _run_book_generation_loop(
@@ -364,7 +374,7 @@ async def resume_book_generation(
         story_bible=story_bible,
         api_key=api_key,
         start_index=failed_step,
-        completed_chapters=completed_chapters,
+        completed_chapters=list(session.book_chapters),
     )
     if completed:
         await _finalize_completed_book(

@@ -8,10 +8,10 @@ from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import get_session_async
 from app.services.stats_service import (
     calculate_page_count,
-    calculate_generation_cost,
     calculate_estimated_time,
 )
 from app.core.config import get_app_config
+from app.services.cost_service import calculate_real_generation_cost
 from app.services.manga_generation_service import (
     build_manga_progress_response,
     build_manga_reader_response,
@@ -98,7 +98,7 @@ async def restore_session_endpoint(
                     delta = session.writing_end_time - session.writing_start_time
                     writing_time_minutes = delta.total_seconds() / 60.0
             
-            estimated_cost = calculate_generation_cost(session, total_pages)
+            estimated_cost = calculate_real_generation_cost(session)
             
             critique = None
             critique_status = session.critique_status

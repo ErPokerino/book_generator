@@ -1,4 +1,5 @@
 """Router per gli endpoint delle bozze."""
+from app.services.durable_worker import schedule_generation
 import os
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from app.models import (
@@ -14,6 +15,7 @@ from app.models import (
 from app.agent.draft_generator import generate_draft
 from app.agent.session_store import get_session_store
 from app.agent.session_store_helpers import (
+    save_session_async,
     get_session_async,
     create_session_async,
     update_draft_async,
@@ -152,6 +154,12 @@ async def start_draft_generation_endpoint(
                 question_answers=request.question_answers,
             )
 
+        # The queued job reads durable input, including the latest answers.
+        if (session.draft_progress or {}).get("status") not in {"pending", "running"}:
+            session.form_data = request.form_data
+            session.question_answers = request.question_answers
+            await save_session_async(session_store, session)
+
         started, job = await begin_process_job_async(
             session_store,
             request.session_id,
@@ -168,8 +176,8 @@ async def start_draft_generation_endpoint(
                 already_running=True,
             )
 
-        background_tasks.add_task(
-            background_generate_draft,
+        schedule_generation(
+            background_tasks, session_store, background_generate_draft,
             session_id=request.session_id,
             form_data=request.form_data,
             question_answers=request.question_answers,

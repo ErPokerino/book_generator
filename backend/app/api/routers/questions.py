@@ -1,4 +1,5 @@
 """Router per gli endpoint delle domande."""
+from app.services.durable_worker import schedule_generation
 import os
 import uuid
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -157,8 +158,8 @@ async def start_questions_generation_endpoint(
             )
 
         # Avvia il task in background
-        background_tasks.add_task(
-            background_generate_questions,
+        schedule_generation(
+            background_tasks, session_store, background_generate_questions,
             session_id=session_id,
             form_data=request.form_data,
             api_key=api_key,

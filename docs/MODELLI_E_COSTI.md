@@ -1,43 +1,48 @@
-# Modelli Gemini e stime di costo
+# Modelli e costi di generazione
 
-NarrAI usa solo **Gemini Developer API** (`GOOGLE_API_KEY`). I modelli si scelgono in UI: un modello testo, un modello immagini e, in Avanzate, override per fase. Gli id API e i default stanno in `config/app.yaml` → `llm_models`.
+NarrAI usa Gemini Developer API (`GOOGLE_API_KEY`). Modelli e override sono in `config/app.yaml`; la fonte unica delle tariffe applicate è `backend/app/services/usage_service.py`. I nomi legacy sono risolti al modello API effettivamente invocato prima della registrazione.
 
-## Catalogo
+## Listino applicato
 
-| Scopo | Modelli disponibili | Default |
-|---|---|---|
-| Testo (riassunti, domande, capitoli, storyboard) | `gemini-3.8-flash`, `gemini-3.5-flash-lite` | Flash 3.8, Lite sulle domande |
-| Immagini | `gemini-3.1-flash-lite-image`, `gemini-3.1-flash-image` | Lite Image sulle pagine manga, Flash Image sulle copertine |
-| TTS | `gemini-3.1-flash-tts-preview` | Fisso, senza picker |
+Verificato il **20 settembre 2026** sul [listino ufficiale Google](https://ai.google.dev/gemini-api/docs/pricing). Valori Standard a pagamento, USD per milione di token:
 
-## Modalità libro
+| Modello API | Input | Output testo/ragionamento | Input in cache | Output immagini/audio |
+| --- | ---: | ---: | ---: | ---: |
+| gemini-3.8-flash | 0,75 | 3,75 | 0,075 | — |
+| gemini-3.5-flash-lite | 0,30 | 2,50 | 0,03 | — |
+| gemini-3.1-flash-lite | 0,25 | 1,50 | 0,025 | — |
+| gemini-3.1-pro-preview | 2,00 | 12,00 | 0,20 | — |
+| gemini-3-flash-preview | 0,50 | 3,00 | 0,05 | — |
+| gemini-3.1-flash-image | 0,50 | 3,00 | — | 60,00 immagini |
+| gemini-3.1-flash-lite-image | 0,25 | 1,50 | — | 30,00 immagini |
+| gemini-3.1-flash-tts-preview | 1,00 | — | — | 20,00 audio |
 
-- **Standard**: 1 chiamata writer per capitolo
-- **Ultra**: 2 chiamate sequenziali per capitolo. Nessuna review/revisione extra.
+Flash 3.8 raddoppia le tariffe dal 1° gennaio 2027; il calcolo applica la data della richiesta. Per Pro 3.1, oltre 200.000 token di input, input/output/cache diventano 4,00 / 18,00 / 0,40. La soglia è per richiesta, non sulla somma del libro.
 
-Il contesto writer usa la story bible (personaggi, riassunti, continuity) più **solo l'ultimo capitolo integrale**.
+## Registro dei consumi
 
-## Mappa per attività (default, sovrascrivibili)
+Ogni tentativo associato a un progetto viene registrato **prima** dell'invio, quindi completato con i consumi della risposta, modello, fase, tariffa, cambio e identificativo risposta quando disponibile. Il registro include scrittura, memoria, correzioni, copertine, manga, critica e audio. Una risposta scartata dal validatore può aver consumato token: resta nel totale.
 
-| Attività | Default |
-|---|---|
-| Domande | `gemini-3.5-flash-lite` |
-| Bozza, outline, capitoli, critica | `gemini-3.8-flash` |
-| Copertina libro | `gemini-3.1-flash-image` |
-| Manga planning | `gemini-3.8-flash` |
-| Manga pagine interne | `gemini-3.1-flash-lite-image` |
-| Manga copertina / retro | `gemini-3.1-flash-image` |
-| TTS | `gemini-3.1-flash-tts-preview` |
+Per richiesta si calcola:
 
-Temperatura: `1.0` per qualsiasi modello `gemini-3*`.
+`((input − cache) × prezzo_input + cache × prezzo_cache + output_testuale × prezzo_output + output_immagine × prezzo_immagine) / 1.000.000`
 
-## Prezzi usati (USD / milione di token)
+Il ragionamento nativo Gemini viene aggiunto all'output; nei metadati LangChain è già incluso e non viene contato due volte. Per le immagini si usa la suddivisione delle modalità riportata dal provider. Se manca, il costo resta non quantificato: nessuna tariffa forfettaria viene presentata come consumo misurato.
 
-Da `config/app.yaml` `cost_estimation.model_costs`, cambio USD→EUR `0.92`. I listini dei modelli 3.8 / 3.5 Lite sono stime di configurazione, da riallineare se Google pubblica prezzi ufficiali.
+La cache esplicita del writer è stata rimossa, eliminando nuovi costi di conservazione associati a quella funzionalità. L'eventuale cache implicita viene conteggiata con la tariffa ridotta restituita dal listino. Il registro non ricostruisce eventuali cache create da versioni precedenti.
 
-| Modello | Input | Output |
-|---|---:|---:|
-| `gemini-3.8-flash` | $0.50 | $3.00 |
-| `gemini-3.5-flash-lite` | $0.10 | $0.40 |
+Timeout, interruzioni senza risposta e modelli privi di tariffa restano da verificare. Il taccuino mostra il subtotale noto e segnala la copertura incompleta. Libreria, ripristino e progressi usano lo stesso registro; i vecchi totali per fase non vengono rivalutati con l'ultimo modello scelto.
 
-Copertina/manga immagine in config: $0.02 / immagine.
+## Consumo misurato, stima e fattura
+
+- **Consumi API:** token effettivamente restituiti, valorizzati al listino Standard a pagamento. Il cambio USD→EUR configurato viene conservato per richiesta; EUR è indicativo.
+- **Stima prima di generare:** scenario dichiarato nel pannello modelli, con ipotesi su capitoli, pagine e chiamate. Include l'analisi della memoria; non predice audio, retry, correzioni e ragionamento variabile. Le ipotesi sulle immagini sono 1K Lite / 2K Flash, non prezzi reali per qualsiasi risoluzione.
+- **Fattura:** può differire per quota gratuita, crediti, sconti, imposte e cambio effettivo. L'app non accede alla fatturazione Google e non afferma di averla verificata.
+
+I progetti storici non hanno un registro per richiesta: vengono marcati come non ricostruibili. Anche dopo nuove generazioni il loro totale rimane parziale. Consultare il dettaglio in `/api/studio/{session_id}/costs` o nel taccuino del libro; la fattura Google resta il riferimento per l'addebito.
+
+## Pipeline e scelta dei modelli
+
+Il catalogo UI propone Flash 3.8 e Flash Lite 3.5 per il testo, Flash Image e Lite Image per le immagini. La scelta per fase prevale su quella generale; memoria e correzioni seguono rispettivamente il modello testo e quello capitoli, salvo override.
+
+Standard genera un capitolo in una chiamata writer; Ultra usa due parti sequenziali. Entrambi aggiungono estrazione dei fatti e controllo di continuità, con al massimo una revisione mirata per analisi. Il contesto combina piano, story bible, ultimo capitolo integrale e fatti pertinenti recuperati da tutta la storia.

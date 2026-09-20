@@ -211,10 +211,9 @@ def test_manga_progress_exposes_live_cost_and_started_at(session_store) -> None:
 
     assert progress.started_at is not None
     assert progress.started_at.isoformat().startswith("2026-09-19T12:00:00")
-    assert progress.current_cost_eur is not None
+    assert progress.current_cost_eur is None  # Legacy aggregates cannot prove actual image usage.
     assert progress.estimated_cost is not None
-    assert progress.current_cost_eur > 0
-    assert progress.estimated_cost > progress.current_cost_eur
+    assert progress.estimated_cost > 0
     assert progress.cost_breakdown is not None
     assert progress.cost_breakdown["generated_pages_count"] == 1
     assert progress.cost_breakdown["cover_generated"] is True
