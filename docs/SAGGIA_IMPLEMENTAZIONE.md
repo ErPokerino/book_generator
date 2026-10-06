@@ -29,14 +29,14 @@ I job sono persistenti, con lease e inserimento atomico. La ripresa conserva cap
 | Copertina e tre export | cover.py, exports.py |
 | Interfaccia e impostazioni | frontend/src/essay/ |
 | Avvio locale | avvia-saggia.cmd, scripts/avvia-saggia.ps1 |
-| Test e prova reale | backend/tests/test_essay_product.py, frontend/src/essay/essay.test.tsx, scripts/verifica-saggia.py |
+| Test e prova reale | backend/tests/test_essay_product.py, frontend/src/essay/essay.test.tsx, GenerationProgress.test.tsx, scripts/verifica-saggia.py |
 
 Sono riutilizzati il motore SQLite per transazioni/revisioni, il worker durevole, il registro dei consumi e il controllo di corrispondenza degli estratti. Il codice di dominio narrativo precedente non viene chiamato dal flusso SaggIA. Restano nel repository componenti storici e test per verificare la compatibilità dell'infrastruttura.
 
 ## Verifiche completate
 
 - 182 test backend: 131 dell'infrastruttura precedente e 51 SaggIA.
-- 48 test frontend: 31 precedenti e 17 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
+- 59 test frontend: 31 precedenti e 28 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
 - TypeScript senza errori; build Vite/PWA completata.
 - Prova reale con Gemini 3.8 Flash: creazione nel browser, domande, ricerca web, analisi, piano, approvazione, tre capitoli, revisione, copertina e tre export.
 - Prove reali con profilo divulgativo/ruolo esplorativo (Gemini 3.5 Flash Lite) e profilo accademico/ruolo di sostegno (Gemini 3.8 Flash): domande, upload di materiali dell'autore, evidenze e piano coerente.
@@ -60,3 +60,11 @@ Il rapporto valuta uso delle evidenze e struttura argomentativa; non certifica l
 La lunghezza è un obiettivo editoriale: nel piano viene allocata esattamente, mentre il testo effettivo può variare. Il writer conserva i checkpoint e rifiuta risposte troppo brevi.
 
 La libreria offre ricerca per titolo/tema e filtro per profilo. Dashboard statistiche per disciplina, stime predittive senza storico, OCR, connettori bibliografici avanzati, collaborazione e pubblicazione esterna restano evoluzioni successive. La copertina tipografica è stata verificata con il servizio reale; le varianti con sfondo AI usano l'integrazione immagini ereditata, senza una prova live di generazione in questo intervento.
+
+## Rifinitura dei titoli e dell'avanzamento
+
+I titoli dello studio hanno una dimensione più contenuta su desktop e mobile; prima che esista un titolo editoriale, il tema usa un carattere ancora più compatto, mantenendo il testo completo.
+
+Il pannello distingue il capitolo in lavorazione, i capitoli completati e il passaggio di scrittura interno al capitolo. I passaggi producono porzioni di testo mediante richieste AI, poi riunite. In modalità con revisione automatica, il capitolo diventa completo dopo i controlli; la revisione ha uno stato dedicato e può richiedere altre chiamate. Il contatore descrive i passaggi editoriali, non il numero totale di chiamate fatturate.
+
+Undici test di regressione coprono numerazione, revisione, ripresa in coda, recupero, transizioni tra capitoli, fine della scrittura, modalità senza revisione, pausa e altri processi. TypeScript, 59 test frontend e build sono passati. Verificati nel browser il titolo del progetto reale e una simulazione locale di scrittura/revisione/ripresa, anche a 390 px, senza generare nuovi testi o modificare il manoscritto dell'autore.

@@ -22,7 +22,7 @@ export interface Source { version:number; id:string; title:string; author:string
 export interface Claim {id:string;text:string;kind:string;reason:string;evidence_ids:string[];objection:string;response:string;gap:string}
 export interface Section {id:string;title:string;purpose:string;description:string;claim_ids:string[];word_target:number}
 export interface Plan { title:string; subtitle:string; direction:string; method:string; definitions:string[]; claims:Claim[]; sections:Section[]; limits:string[] }
-export interface Chapter { section_id:string;section_index:number;title:string;content:string;display_content:string;hash:string;unresolved:string[] }
+export interface Chapter { section_id:string;section_index:number;title:string;content:string;display_content:string;hash:string;unresolved:string[];review_stale?:boolean }
 export interface Issue {section_id:string;quote:string;category:string;severity:string;explanation:string;suggestion:string}
 export interface Progress {status:string;error?:string;current_step?:number;total_steps?:number;current_section_name?:string;current_part?:number;total_parts?:number;updated_at?:string}
 export interface Project {

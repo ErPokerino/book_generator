@@ -82,3 +82,17 @@
 @media(max-width:700px){.sg-navigation{height:68px;gap:16px;padding:0 18px;justify-content:space-between}.sg-brand{font-size:1.65rem;gap:8px}.sg-navigation nav{gap:14px}.sg-navigation nav a{font-size:.78rem}.sg-page{padding:32px 16px}.sg-page-header{display:block;margin-bottom:24px}.sg-page-header .sg-button-link{margin-top:24px}.sg-page-header h1{font-size:2.35rem}.sg-card{padding:20px}.sg-choices{grid-template-columns:1fr}.sg-choice{padding:16px}.sg-grid-two{grid-template-columns:1fr}.sg-empty{padding:40px 16px}.sg-empty h2{font-size:2rem}.sg-profile-note{gap:16px}.sg-library-grid{grid-template-columns:1fr}.sg-book-card{grid-template-columns:75px 1fr;gap:16px;padding:16px}.sg-book-spine{padding:12px}.sg-filters{flex-direction:column}.sg-studio-grid{grid-template-columns:1fr}.sg-index{position:static}.sg-journey{margin:22px 0}.sg-section-top{flex-wrap:wrap}.sg-footer{flex-direction:column;gap:12px;padding:20px 16px}.sg-prose{font-size:1.1rem}.sg-dialog-backdrop{padding:12px}.sg-dialog{padding:20px;max-height:94vh}.sg-app dl{grid-template-columns:1fr;gap:5px}.sg-app dd{margin-bottom:15px}.sg-version{flex-wrap:wrap}.sg-work-grid{grid-template-columns:minmax(0,1fr)}}
 
 .sg-app p,.sg-app small,.sg-source strong{overflow-wrap:anywhere}.sg-studio-grid>main{min-width:0}.sg-index>button{white-space:normal;overflow-wrap:anywhere;line-height:1.45}.sg-index>button span,.sg-index>button svg{flex-shrink:0}.sg-section-top>div{min-width:0}
+
+.sg-workspace .sg-page-header{align-items:flex-start;gap:24px}
+.sg-workspace .sg-page-header>div:first-child{flex:1;min-width:0}
+.sg-workspace .sg-page-header h1{font-size:clamp(1.65rem,2.2vw,2.2rem);line-height:1.2;letter-spacing:-.02em;max-width:100%;margin:12px 0 16px}
+.sg-workspace .sg-page-header h1.sg-topic-heading{font-size:clamp(1.4rem,1.8vw,1.75rem);line-height:1.3}
+.sg-workspace .sg-page-header .sg-actions{flex-shrink:0;margin-top:32px;font-size:.875rem}
+.sg-progress-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.sg-progress-header>div{min-width:0}
+.sg-progress-header strong{display:block;margin-top:7px;font-size:.95rem;line-height:1.5;overflow-wrap:anywhere}
+.sg-progress-count{flex-shrink:0;font-size:.82rem;line-height:1.5;margin-top:23px}
+.sg-progress-count b{font-weight:600;white-space:nowrap}
+.sg-progress-phase{font-size:.85rem;line-height:1.5;margin-top:8px;font-weight:500}
+.sg-progress .sg-help{max-width:90ch;margin:6px 0 0}
+@media(max-width:700px){.sg-workspace .sg-page-header .sg-actions{margin-top:16px}.sg-progress-header{flex-direction:column;gap:8px}.sg-progress-count{margin-top:0}.sg-progress{padding:16px}}

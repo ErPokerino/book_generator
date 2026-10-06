@@ -8,6 +8,7 @@ import {BriefForm} from './BriefForm';
 import {PlanEditor} from './PlanEditor';
 import {SourcePanel,SourceDialog} from './SourcePanel';
 import {ChapterEditor} from './ChapterEditor';
+import {GenerationProgress} from './GenerationProgress';
 import './essay.css';
 
 const profiles:Record<string,string>={argumentative:'Argomentativo',popular:'Divulgativo',academic:'Accademico'};
@@ -96,10 +97,10 @@ function Workspace({config,onUnsaved}:{config:Config;onUnsaved:(dirty:boolean)=>
  if(!project)return <div className="sg-page">{error?<div className="sg-card"><p role="alert">{error}</p><Link to="/">Torna alla biblioteca</Link></div>:<Loading/>}</div>;
  const disabled=project.active||busy;
  const progressItems=[project.questions_progress,project.draft_progress,project.memory_progress,project.writing_progress,project.review_progress,project.cover_progress].filter(Boolean) as Progress[];
- const activeProgress=progressItems.find(p=>['pending','running'].includes(p.status));
  const lastProgress=[...progressItems].sort((a,b)=>(b.updated_at||'').localeCompare(a.updated_at||''))[0];
  const chapters=project.book_chapters;
  const chapter=chapters[selected];
+ const hasTitle=Boolean(project.form_data.title||project.plan?.title);
  const title=project.form_data.title||project.plan?.title||project.form_data.topic;
  const claims=project.plan?.claims||[];
  async function download(format:string){
@@ -111,9 +112,9 @@ function Workspace({config,onUnsaved}:{config:Config;onUnsaved:(dirty:boolean)=>
   }catch(e){toast.error(message(e))}
  }
  return <div className="sg-page sg-workspace">
-  <header className="sg-page-header"><div><span className="sg-eyebrow">{profiles[project.form_data.profile]} · {config.roles[project.form_data.ai_role].label}</span><h1>{title}</h1><p>{project.form_data.target_words.toLocaleString('it-IT')} parole obiettivo · Lettori adulti · {project.validated?'Progetto approvato':'Progetto da approvare'}</p></div><div className="sg-actions"><Link to="/" onClick={e=>{if(dirty&&!window.confirm('Lasciare lo studio con modifiche non salvate?'))e.preventDefault()}}>Biblioteca</Link></div></header>
+  <header className="sg-page-header"><div><span className="sg-eyebrow">{profiles[project.form_data.profile]} · {config.roles[project.form_data.ai_role].label}</span><h1 className={hasTitle?undefined:"sg-topic-heading"}>{title}</h1><p>{project.form_data.target_words.toLocaleString('it-IT')} parole obiettivo · Lettori adulti · {project.validated?'Progetto approvato':'Progetto da approvare'}</p></div><div className="sg-actions"><Link to="/" onClick={e=>{if(dirty&&!window.confirm('Lasciare lo studio con modifiche non salvate?'))e.preventDefault()}}>Biblioteca</Link></div></header>
   {error&&<p className="sg-notice" role="alert">Connessione interrotta: {error}. Nuovo tentativo automatico in corso.</p>}
-  {(activeProgress||project.active)&&<section className="sg-progress" role="status"><div className="sg-section-top"><strong>{activeProgress?.current_section_name||'Preparazione in corso'}</strong><span>{activeProgress?.current_step||0} / {activeProgress?.total_steps||1}</span></div><progress value={activeProgress?.current_step||0} max={activeProgress?.total_steps||1}/>{activeProgress?.total_parts&&<small>Parte {activeProgress.current_part} di {activeProgress.total_parts}</small>}{project.writing_progress&&['pending','running'].includes(project.writing_progress.status)&&<button disabled={project.pause_requested} onClick={()=>void perform('pause',write({}),'Pausa richiesta')}>{project.pause_requested?'Pausa richiesta…':'Pausa dopo il capitolo'}</button>}</section>}
+  <GenerationProgress project={project} onPause={()=>void perform('pause',write({}),'Pausa richiesta')}/>
   {!project.active&&lastProgress?.error&&<div className="sg-notice" role="alert"><strong>Operazione da riprendere</strong><p>{lastProgress.error}</p></div>}
   <nav className="sg-journey" aria-label="Fasi del saggio">{tabs.map(([key,label],i)=><button className={tab===key?'current':''} key={key} onClick={()=>chooseTab(key)} aria-current={tab===key?'step':undefined}><span>{i+1}</span>{label}</button>)}</nav>
   {tab==='project'&&<section>{editingBrief?<BriefForm key={'brief-'+editingVersion} initial={project.form_data} config={config} saving={busy} submitLabel="Salva impostazioni" onSave={brief=>void perform('brief',{method:'PUT',body:JSON.stringify({brief,expected_version:editingVersion})},'Impostazioni salvate').then(ok=>{if(ok)setEditingBrief(false)})}/>:<div className="sg-card"><div className="sg-section-top"><h2>Il brief del libro</h2><button disabled={disabled} onClick={()=>{setEditingVersion(project.current_version);setEditingBrief(true)}}>Modifica impostazioni</button></div><dl className="sg-brief-summary"><dt>Tema</dt><dd>{project.form_data.topic}</dd><dt>Domanda</dt><dd>{project.form_data.question||'Da affinare con le domande'}</dd><dt>Tesi iniziale</dt><dd>{project.form_data.thesis||'Da definire nel progetto editoriale'}</dd><dt>Perimetro</dt><dd>{project.form_data.scope||'Da precisare'}</dd><dt>Metodo</dt><dd>{project.form_data.methodology||project.plan?.method||'Da definire'}</dd></dl><p className="sg-help">Cambiare profilo o direzione richiede una nuova approvazione del piano. I capitoli già scritti conservano le loro versioni.</p><button className="sg-text-button sg-danger" disabled={disabled} onClick={()=>{if(window.confirm('Eliminare questo saggio e i suoi materiali?')){void api('essays/'+id,{method:'DELETE'}).then(()=>navigate('/')).catch(e=>toast.error(e.message))}}}>Elimina progetto</button></div>}</section>}
