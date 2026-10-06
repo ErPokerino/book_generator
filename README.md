@@ -1,83 +1,70 @@
-# NarrAI — generazione locale di romanzi
+# SaggIA — studio locale per scrivere saggi
 
-App single-user per creare romanzi (e manga in beta) con **Gemini Developer API**.
-Interfaccia, backend e archivio girano in locale: FastAPI + React, persistenza transazionale SQLite e nessuna autenticazione. La generazione invia il contesto narrativo alle API di Google; richiede una connessione Internet.
+Prodotto derivato da NarrAI, dedicato a libri di saggistica per lettori adulti. Il nome SaggIA è provvisorio.
 
-## Documentazione
+Tre profili selezionabili (argomentativo, divulgativo, accademico) e tre ruoli AI indipendenti (sviluppare e mettere alla prova, sostenere la posizione, esplorare alternative). Il percorso comprende brief, domande, argomenti e fonti, indice, manoscritto e revisione.
 
-- [Modelli e costi](docs/MODELLI_E_COSTI.md): listino verificato, registro dei consumi e limiti delle stime.
-- [Documentazione tecnica](docs/TECNICA.md): architettura e stack (versione locale).
-- [Documentazione funzionale](docs/FUNZIONALE.md): flusso di generazione.
-- [Revisione e priorità](docs/REVISIONE_2026-09-20.md): difetti corretti, verifiche e cinque aree di miglioramento.
-- [Evolutive implementate](docs/EVOLUTIVE_2026-09-20.md): studio, processi durevoli, memoria, migrazione e backup.
+## Avvio locale
 
-## Prerequisiti
+Prerequisiti: Python 3.11+, uv, Node.js 18+ e npm. Copia .env.example in .env nella root e configura GOOGLE_API_KEY per le funzioni AI. L'editor e la biblioteca funzionano anche senza chiave.
 
-- Python 3.11+ e [uv](https://github.com/astral-sh/uv)
-- Node.js 18+ e npm
-- Una chiave [Gemini API](https://aistudio.google.com/apikey)
+Su Windows esegui **avvia-saggia.cmd**. Il launcher installa le dipendenze mancanti, verifica i servizi, evita duplicati e apre http://127.0.0.1:5174. Per avviare senza aprire un browser:
 
-## Quick start
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/avvia-saggia.ps1 -NoBrowser
 
-### 1. Chiave API
+Avvio manuale, in due terminali:
 
-Copia `.env.example` in `.env` nella root del repo e inserisci la chiave:
+    cd backend
+    uv sync --locked
+    uv run uvicorn app.essay.main:app --reload --reload-dir app/essay --host 127.0.0.1 --port 8001
 
-```env
-GOOGLE_API_KEY=la_tua_chiave_gemini
+    cd frontend
+    npm ci
+    npm run dev
 
-# Opzionale: percorso alternativo dell'archivio SQLite
-# NARRAI_DB_PATH=C:/archivi/narrai.sqlite3
-```
+Il proxy frontend usa la porta 8001. Le porte distinte permettono di usare SaggIA e NarrAI contemporaneamente. Per la build locale:
 
-Non committare `.env`. Senza `GOOGLE_API_KEY` l'app parte ma le generazioni falliscono.
+    cd frontend
+    npm run build
 
-### 2. Backend (porta 8000)
+Il backend SaggIA può anche servire la build su http://127.0.0.1:8001.
 
-```powershell
-cd backend
-uv sync
-uv run uvicorn app.main:app --reload --reload-dir app --host 127.0.0.1 --port 8000
-```
+## Scrittura e documentazione
 
-> Con `--reload` limita il watch a `app/`: PDF e copertine vengono scritti in `backend/books/` e `backend/sessions/` e possono innescare un restart.
+- Brief: domanda, tesi facoltativa, lettore adulto, ampiezza in parole, voce, registro, struttura, metodo, corpus e criteri delle fonti.
+- Piano: premesse, tipi di affermazione, ragioni, obiezioni, risposte, lacune, definizioni e indice. La direzione deve essere approvata prima della scrittura.
+- Fonti: ricerca Google attraverso Gemini, link pubblici, PDF testuali, DOCX, TXT, Markdown e appunti dell'autore. Le ricerche registrano query e riferimenti restituiti dal servizio. I materiali vengono acquisiti prima di diventare evidenze.
+- Evidenze: estratti letterali con localizzatore, relazione con la tesi e limiti. Sono disponibili inserimento manuale, dati bibliografici modificabili, esclusione e nuovo tentativo per un link non acquisito.
+- Manoscritto: capitoli leggibili mentre procede la generazione, pausa al termine del capitolo, ripresa dopo errori e riavvii, editor con conflitti protetti, bozze locali e storico delle revisioni.
+- Revisione: logica, uso delle evidenze, obiezioni, metodo e stile. La modalità con revisione può correggere una volta un problema bloccante e poi fermarsi per l'intervento dell'autore.
+- Citazioni: riferimenti numerici oppure autore/data, composti dallo stesso registro per anteprima, PDF, EPUB e DOCX. Nell'editor si usa il marcatore stabile [@E…].
+- Copertina: tipografica senza chiamata AI, oppure sfondo generato su richiesta e titolo/firmatario composti localmente.
 
-### 3. Frontend (porta 5173)
+La revisione valuta il materiale acquisito: non certifica la verità delle affermazioni. Una scansione senza testo richiede OCR esterno; una pagina non accessibile resta segnalata e può essere importata come documento. Il testo acquisito è limitato a 250.000 caratteri e i file a 12 MB.
 
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+## Archivio, privacy e consumi
 
-Il proxy Vite inoltra `/api` a `http://127.0.0.1:8000`. Apri `http://localhost:5173`.
+SQLite, originali, copertine e log sono in **backend/data/saggistica/**. La variabile SAGGIA_DATA_DIR permette di scegliere un'altra directory. Non vengono importati o convertiti gli archivi NarrAI.
 
-## Funzionalità
+I job usano transazioni, lease e checkpoint persistenti. Ogni parte di capitolo viene salvata prima della successiva. I risultati di una ricerca già registrati vengono riutilizzati dopo un'interruzione. Un errore recuperabile richiede una ripresa esplicita; un processo interrotto dal riavvio riparte quando scade il lease.
 
-- Wizard libro: domande, bozza, outline, scrittura capitoli, copertina, critica
-- Studio del manoscritto: editor con revisioni, prove narrative, pausa/ripresa e costi per richiesta
-- Memoria dei fatti documentati, controllo della continuità e recupero dei processi al riavvio
-- Libreria locale con export PDF / EPUB / DOCX
-- Manga beta
-- Analytics e benchmark sui libri generati in locale
-- Audio opzionale tramite Gemini TTS, con la stessa chiave API
+Il backend ascolta solo su localhost. Google riceve il contesto e gli estratti necessari alle operazioni AI; la ricerca richiede rete. La chiave resta nel file .env escluso da Git.
 
-Rimosso rispetto alla versione cloud: login, crediti, social, GDPR, MongoDB, GCS, Vertex AI, OpenAI.
+I consumi sono stimati dai token restituiti dall'API e dal listino configurato, con cambio EUR configurabile. Il limite di spesa viene controllato tra richieste. Le richieste già avviate possono superarlo. I costi specifici della ricerca Google dipendono dal piano e sono indicati come non inclusi nel totale misurato quando non determinabili. La fattura del provider resta il riferimento.
 
-## Persistenza
+## Verifica
 
-L'archivio è `backend/narrai.sqlite3` (o `NARRAI_DB_PATH`); non serve avviare un database separato. Al primo avvio viene importato `.sessions.json` dalla stessa directory, preservando originale e copia `.pre-sqlite.bak`. PDF e audio restano in `backend/books/`, copertine in `backend/sessions/`, tavole manga in `backend/manga/`.
+    cd backend
+    uv run pytest -q
 
-I job vengono accodati nel database e recuperati al riavvio del backend. La pausa volontaria e gli errori richiedono una ripresa esplicita. Per backup consistenti e rollback vedi [evolutive](docs/EVOLUTIVE_2026-09-20.md).
+    cd ../frontend
+    npm run typecheck
+    npm run test:run
+    npm run build
 
-## Test
+I test SaggIA coprono le nove combinazioni editoriali, isolamento dei dati, approvazione del piano, evidenze letterali, citazioni/export, concorrenza, revisioni e ripresa dei checkpoint. Sono mantenuti anche i test dell'infrastruttura ereditata da NarrAI.
 
-```powershell
-cd backend
-uv run pytest
+Piano del prodotto e scelte approvate: [docs/PIANO_PRODOTTO_SAGGISTICA.md](docs/PIANO_PRODOTTO_SAGGISTICA.md).
+Dettagli implementativi e risultati: [docs/SAGGIA_IMPLEMENTAZIONE.md](docs/SAGGIA_IMPLEMENTAZIONE.md).
 
-cd ..\frontend
-npm run typecheck
-npm run test:run
-npm run build
-```
+Il codice narrativo precedente resta nel repository per riutilizzo e compatibilità dei test. L'entry point di SaggIA è app.essay.main:app; il frontend di questo branch usa esclusivamente il dominio saggistico.

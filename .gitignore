@@ -70,3 +70,6 @@ credentials/
 # Transactional local archive and migration backup
 backend/*.sqlite3*
 backend/.sessions.json.pre-sqlite.bak
+
+# SaggIA isolated data
+backend/data/

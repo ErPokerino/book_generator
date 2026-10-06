@@ -12,12 +12,12 @@ export default defineConfig({
     retainedAssets.plugin,
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.png'],
+      includeAssets: ['saggia-mark.svg', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.png'],
       manifest: {
-        name: 'NarrAI',
-        short_name: 'NarrAI',
-        description: 'Studio privato per scrivere libri e manga.',
-        theme_color: '#F4F0EA',
+        name: 'SaggIA',
+        short_name: 'SaggIA',
+        description: 'Studio privato per scrivere saggi documentati.',
+        theme_color: '#163b39',
         background_color: '#F4F0EA',
         display: 'standalone',
         start_url: '/',
@@ -48,6 +48,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        cacheId: 'saggia',
         navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         manifestTransforms: [async entries => ({ manifest: entries.filter(entry => retainedAssets.isCurrentAsset(entry.url)), warnings: [] })],
@@ -56,7 +57,7 @@ export default defineConfig({
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts-cache',
+              cacheName: 'saggia-google-fonts-cache',
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
@@ -67,7 +68,7 @@ export default defineConfig({
             urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts-static-cache',
+              cacheName: 'saggia-google-fonts-static-cache',
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
@@ -83,9 +84,12 @@ export default defineConfig({
     }),
   ],
   server: {
+    host: '127.0.0.1',
+    port: 5174,
+    strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },
