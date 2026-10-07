@@ -36,7 +36,7 @@ export interface Project {
  bibliography:{id:string;label:string;text:string}[];reference_checks:{citations:number;evidence:number;issues:Issue[]};
  usage:{converted_cost_eur:number|null;cost_usd:number|null;coverage_complete:boolean;calls:number;tool_cost_unknown?:boolean;events:{id:string;phase:string;model:string;status:string;cost_usd:number|null;usage?:{input_tokens:number;output_tokens:number}}[]};
 }
-export interface LibraryItem {id:string;title:string;topic:string;profile:Profile;ai_role:AiRole;status:string;updated_at:string;words:number}
+export interface LibraryItem {id:string;title:string;topic:string;profile:Profile;ai_role:AiRole;status:string;updated_at:string;words:number;estimated_pages:number;pdf_pages:number|null;generation_cost_eur:number|null;cost_coverage_complete:boolean;generation_calls:number;active:boolean}
 
 export const defaultBrief = (): Brief => ({
  topic:'', profile:'argumentative',ai_role:'challenge',question:'',thesis:'',discipline:'',

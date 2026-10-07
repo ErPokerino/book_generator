@@ -1,6 +1,7 @@
 """Standalone local SaggIA API, with isolated data and the existing durable worker."""
 from __future__ import annotations
 import asyncio
+import math
 from contextlib import asynccontextmanager, suppress
 import os
 from pathlib import Path
@@ -83,6 +84,13 @@ def create_app(store=None, *, run_worker=True):
             raise HTTPException(404, "Saggio inesistente.")
         return session
 
+    def measured_usage(session):
+        summary = usage_summary(session, app.state.store.usage_events(session.session_id))
+        if any(e.get("tool_cost_unknown") for e in summary["events"]):
+            summary["coverage_complete"] = False
+            summary["tool_cost_unknown"] = True
+        return summary
+
     def visible(session):
         value = session.to_dict()
         value.pop("part_checkpoint", None)
@@ -98,13 +106,10 @@ def create_app(store=None, *, run_worker=True):
         value["bibliography"] = bibliography
         value["reference_checks"] = reference_checks(session)
         value["active"] = app.state.store.active(session.session_id)
-        summary = usage_summary(session, app.state.store.usage_events(session.session_id))
-        if any(e.get("tool_cost_unknown") for e in summary["events"]):
-            summary["coverage_complete"] = False
-            summary["tool_cost_unknown"] = True
+        summary = measured_usage(session)
         value["usage"] = summary
         value["words"] = sum(len(c["content"].split()) for c in session.book_chapters)
-        value["estimated_pages"] = round(value["words"] / 250)
+        value["estimated_pages"] = math.ceil(value["words"] / 250)
         return value
 
     @app.get("/api/health")
@@ -120,11 +125,27 @@ def create_app(store=None, *, run_worker=True):
     @app.get("/api/essays")
     def library():
         sessions = app.state.store.get_all_sessions().values()
-        return [{"id": s.session_id, "title": s.form_data.title or (s.plan or {}).get("title") or s.form_data.topic,
-                 "topic": s.form_data.topic, "profile": s.form_data.profile, "ai_role": s.form_data.ai_role,
-                 "status": s.get_status(), "updated_at": s.updated_at,
-                 "words": sum(len(c["content"].split()) for c in s.book_chapters)}
-                for s in sorted(sessions, key=lambda s: s.updated_at, reverse=True)]
+        items = []
+        for session in sorted(sessions, key=lambda s: s.updated_at, reverse=True):
+            words = sum(len(c["content"].split()) for c in session.book_chapters)
+            usage = measured_usage(session)
+            active = app.state.store.active(session.session_id)
+            pdf_pages = None
+            if session.book_chapters and session.plan and not active:
+                from app.essay.exports import pdf_page_count
+                try:
+                    pdf_pages = pdf_page_count(session)
+                except (ValueError, OSError):
+                    pass  # Keep incomplete references/materials accessible in the library.
+            items.append({"id": session.session_id,
+                "title": session.form_data.title or (session.plan or {}).get("title") or session.form_data.topic,
+                "topic": session.form_data.topic, "profile": session.form_data.profile, "ai_role": session.form_data.ai_role,
+                "status": session.get_status(), "updated_at": session.updated_at, "words": words,
+                "estimated_pages": math.ceil(words / 250), "pdf_pages": pdf_pages,
+                "generation_cost_eur": usage["converted_cost_eur"],
+                "cost_coverage_complete": usage["coverage_complete"], "generation_calls": usage["calls"],
+                "active": active})
+        return items
 
     @app.post("/api/essays", status_code=201)
     def create(brief: EssayBrief):

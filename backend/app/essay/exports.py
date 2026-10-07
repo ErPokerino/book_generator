@@ -30,56 +30,8 @@ def export_book(session, format):
     author = session.form_data.author_name
     work_note = "Versione di lavoro. Consulta il rapporto di revisione nello studio." if session.review is None or session.review.get("partial") or session.review.get("issues") else ""
     if format == "pdf":
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER
-        from reportlab.lib.colors import HexColor
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
-        font = Path("C:/Windows/Fonts/arial.ttf")
-        if font.exists() and "SaggiaBody" not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont("SaggiaBody", str(font)))
-        body_font = "SaggiaBody" if font.exists() else "Helvetica"
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name="Essay", fontName=body_font, fontSize=10.5, leading=16, spaceAfter=10))
-        styles.add(ParagraphStyle(name="EssayTitle", fontName=body_font, fontSize=27, leading=34,
-                                  alignment=TA_CENTER, textColor=HexColor("#163b39"), spaceAfter=18))
-        styles.add(ParagraphStyle(name="EssayHeading", fontName=body_font, fontSize=17, leading=22, spaceAfter=16, keepWithNext=True))
-        output = BytesIO()
-        doc = SimpleDocTemplate(output, pagesize=(420, 595), rightMargin=42, leftMargin=42,
-                                topMargin=42, bottomMargin=42, title=title, author=author)
-        flow = [Spacer(1, 80), Paragraph(escape(title), styles["EssayTitle"])]
-        if subtitle:
-            flow.append(Paragraph(escape(subtitle), styles["Essay"]))
-        if author:
-            flow.append(Paragraph(escape(author), styles["Essay"]))
-        if session.cover_image_path and Path(session.cover_image_path).exists():
-            flow = [Image(session.cover_image_path, width=324, height=486), PageBreak()] + flow
-        flow += [PageBreak(), Paragraph("Indice", styles["EssayHeading"])]
-        for chapter in chapters:
-            flow.append(Paragraph(escape(chapter["title"]), styles["Essay"]))
-        if bibliography:
-            flow.append(Paragraph("Bibliografia", styles["Essay"]))
-        for chapter in chapters:
-            flow += [PageBreak(), Paragraph(escape(chapter["title"]), styles["EssayHeading"])]
-            for block in text_blocks(chapter["display_content"]):
-                if block.startswith("#"):
-                    flow.append(Paragraph(escape(plain(block.lstrip("# "))), styles["EssayHeading"]))
-                else:
-                    text = escape(plain(block)).replace("\n", "<br/>")
-                    flow.append(Paragraph(text, styles["Essay"]))
-        if bibliography:
-            flow += [PageBreak(), Paragraph("Bibliografia", styles["EssayHeading"])]
-            for source in bibliography:
-                flow.append(Paragraph(escape("[" + source["label"] + "] " + source["text"]), styles["Essay"]))
-        if work_note:
-            flow += [Spacer(1, 18), Paragraph(work_note, styles["Essay"])]
-        def page_number(canvas, doc):
-            if doc.page > 1:
-                canvas.setFont(body_font, 8)
-                canvas.drawCentredString(210, 24, str(doc.page))
-        doc.build(flow, onLaterPages=page_number)
-        return output.getvalue(), "application/pdf"
+        from app.essay.pdf_layout import export_pdf
+        return export_pdf(session, chapters, bibliography, title, subtitle, author, work_note)
     if format == "docx":
         from docx import Document
         from docx.shared import Pt, Inches
@@ -159,3 +111,9 @@ def export_book(session, format):
             epub.write_epub(str(target), book)
             return target.read_bytes(), "application/epub+zip"
     raise ValueError("Formato non supportato.")
+
+
+def pdf_page_count(session):
+    from pypdf import PdfReader
+    data, _ = export_book(session, "pdf")
+    return len(PdfReader(BytesIO(data)).pages)

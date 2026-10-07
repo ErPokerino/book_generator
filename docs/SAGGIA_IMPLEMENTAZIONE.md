@@ -35,8 +35,8 @@ Sono riutilizzati il motore SQLite per transazioni/revisioni, il worker durevole
 
 ## Verifiche completate
 
-- 182 test backend: 131 dell'infrastruttura precedente e 51 SaggIA.
-- 59 test frontend: 31 precedenti e 28 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
+- 188 test backend: 131 dell'infrastruttura precedente e 57 SaggIA.
+- 68 test frontend: 31 precedenti e 37 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
 - TypeScript senza errori; build Vite/PWA completata.
 - Prova reale con Gemini 3.8 Flash: creazione nel browser, domande, ricerca web, analisi, piano, approvazione, tre capitoli, revisione, copertina e tre export.
 - Prove reali con profilo divulgativo/ruolo esplorativo (Gemini 3.5 Flash Lite) e profilo accademico/ruolo di sostegno (Gemini 3.8 Flash): domande, upload di materiali dell'autore, evidenze e piano coerente.
@@ -68,3 +68,16 @@ I titoli dello studio hanno una dimensione più contenuta su desktop e mobile; p
 Il pannello distingue il capitolo in lavorazione, i capitoli completati e il passaggio di scrittura interno al capitolo. I passaggi producono porzioni di testo mediante richieste AI, poi riunite. In modalità con revisione automatica, il capitolo diventa completo dopo i controlli; la revisione ha uno stato dedicato e può richiedere altre chiamate. Il contatore descrive i passaggi editoriali, non il numero totale di chiamate fatturate.
 
 Undici test di regressione coprono numerazione, revisione, ripresa in coda, recupero, transizioni tra capitoli, fine della scrittura, modalità senza revisione, pausa e altri processi. TypeScript, 59 test frontend e build sono passati. Verificati nel browser il titolo del progetto reale e una simulazione locale di scrittura/revisione/ripresa, anche a 390 px, senza generare nuovi testi o modificare il manoscritto dell'autore.
+
+
+## Gestione delle opere e nuova edizione PDF (7 ottobre 2026)
+
+Le schede di Opere mostrano pagine del PDF, costo di generazione in euro, parole e data di aggiornamento. Per un processo attivo resta la stima delle pagine; senza richieste AI non viene inventato un prezzo. La copertura dei consumi è condivisa con il registro dello studio e i totali incompleti sono esplicitamente parziali.
+
+L'eliminazione è disponibile direttamente sulla scheda, con dialogo di conferma, annullamento ed errore recuperabile. Durante i processi è disabilitata; l'API continua a proteggere la concorrenza. La conferma riuscita rimuove solo il libro selezionato e le sue bozze locali.
+
+Il PDF usa un'impaginazione A5 con font serif incorporati quando disponibili, frontespizio adattivo, aperture dei capitoli, testatine alternate, foliazione del testo e indice con numeri di pagina e collegamenti interni. Mantiene grassetti, corsivi, citazioni, elenchi annidati e tabelle anche su più pagine. I sottotitoli restano con le prime righe del paragrafo, evitando grandi vuoti. Fonti e riferimenti conservano il registro canonico degli altri export.
+
+Una cache limitata a otto edizioni evita di impaginare nuovamente ogni richiesta della biblioteca: testo, riferimenti, metadati e aggiornamento della copertina invalidano il risultato. Il numero delle pagine in Opere è quello dello stesso PDF scaricabile.
+
+Sono passati 188 test backend, 68 frontend, TypeScript e build. Verificati annullamento, errore concorrente, doppia richiesta, rimozione selettiva e gestione dei costi assenti/parziali; layout della biblioteca a 390 px e 1280 px. Il saggio esistente è stato esportato in 67 pagine, renderizzate e ispezionate; verificati separatamente titoli/sottotitoli/autori lunghi, elenchi, tabelle, simboli, citazioni e navigazione. Il download dall'API conferma 67 pagine e sette voci di indice.

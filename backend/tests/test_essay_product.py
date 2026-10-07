@@ -481,3 +481,102 @@ async def test_free_typographic_cover_still_works_after_ai_budget_reached(store,
     session=store.get_session("P1")
     assert session.cover_progress["status"]=="completed"
     assert Path(session.cover_image_path).exists()
+
+
+def test_library_metrics_use_the_same_ledger_as_the_studio(store, client, monkeypatch):
+    session=ready(store)
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"parola " * 501,"unresolved":[]}]
+    store.save_session(session)
+    monkeypatch.setattr("app.essay.main.usage_summary",lambda *args:{
+        "converted_cost_eur":.302,"coverage_complete":True,"calls":23,"events":[{"tool_cost_unknown":True}]})
+    row=client.get("/api/essays").json()[0]
+    assert row["estimated_pages"]==3
+    assert row["generation_cost_eur"]==.302
+    assert row["cost_coverage_complete"] is False
+    assert row["generation_calls"]==23
+    assert row["active"] is False
+    detail=client.get("/api/essays/P1").json()
+    assert detail["estimated_pages"]==row["estimated_pages"]
+    assert detail["usage"]["converted_cost_eur"]==row["generation_cost_eur"]
+
+
+def test_library_does_not_invent_a_price_or_pages_before_generation(client):
+    create(client)
+    row=client.get("/api/essays").json()[0]
+    assert row["estimated_pages"]==0
+    assert row["generation_cost_eur"] is None
+    assert row["generation_calls"]==0
+
+
+def test_library_delete_removes_only_the_selected_book(client):
+    first=create(client)
+    second=create(client,topic="Un altro libro da conservare")
+    assert client.delete("/api/essays/"+first["session_id"]).status_code==204
+    assert client.get("/api/essays/"+first["session_id"]).status_code==404
+    assert [s["id"] for s in client.get("/api/essays").json()]==[second["session_id"]]
+
+
+def test_pdf_has_navigable_contents_body_folios_and_semantic_markdown(store):
+    from pypdf import PdfReader
+    session=ready(store,author_name="Autore di prova")
+    session.book_chapters=[
+        {"section_id":"C1","section_index":0,"title":"Ragioni e obiezioni",
+         "content":"## Una distinzione necessaria\n\nUn termine **essenziale** e una prospettiva *prudente*.\n\n"
+          "- Prima ragione\n- Seconda ragione\n\n> Una citazione distinta dal testo.\n\n"
+          "| Idea | Riscontro |\n| --- | --- |\n| Premessa | Fonte attendibile |\n\n"
+          +("\n\n"+"Il confronto delle ragioni esplicita presupposti, obiezioni e limiti. "*35)*7,
+         "unresolved":[]},
+        {"section_id":"C2","section_index":1,"title":"Le conclusioni","content":"Un esito leggibile e verificabile.","unresolved":[]},
+    ]
+    data,_=export_book(session,"pdf")
+    reader=PdfReader(BytesIO(data))
+    assert abs(float(reader.pages[0].mediabox.width)-419.53)<1
+    pages=[p.extract_text() or "" for p in reader.pages]
+    assert "Indice" in pages[1]
+    assert "Ragioni e obiezioni" in pages[1] and "Le conclusioni" in pages[1]
+    assert len(reader.outline)==2
+    assert any(a.get_object().get("/Subtype")=="/Link" for a in reader.pages[1].get("/Annots",[]))
+    assert "CAPITOLO 01" in pages[2] and pages[2].rstrip().endswith("1")
+    text="\n".join(pages)
+    for phrase in ("essenziale","prudente","Prima ragione","Seconda ragione","Fonte attendibile","Una citazione distinta"):
+        assert phrase in text
+    assert "| ---" not in text and "**essenziale**" not in text
+    assert session.plan["title"] in pages[3]  # even continuation page carries the book title
+    assert "Ragioni e obiezioni" in pages[4]  # odd continuation page carries the chapter title
+
+
+def test_pdf_cache_is_invalidated_by_manuscript_edits(store,monkeypatch):
+    import app.essay.pdf_layout as layout
+    session=ready(store)
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"Testo originale.","unresolved":[]}]
+    layout._cached_pdf.cache_clear()
+    render=layout._render_pdf
+    calls=[]
+    def counted(*args,**kwargs):
+        calls.append(1)
+        return render(*args,**kwargs)
+    monkeypatch.setattr(layout,"_render_pdf",counted)
+    first,_=export_book(session,"pdf")
+    second,_=export_book(session,"pdf")
+    assert first==second and len(calls)==1
+    session.book_chapters[0]["content"]+="\n\nUn nuovo argomento."
+    third,_=export_book(session,"pdf")
+    assert third!=first and len(calls)==2
+
+
+def test_pdf_splits_long_tables_preserves_nested_lists_and_entities(store):
+    from pypdf import PdfReader
+    session=ready(store)
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Metodo",
+        "content":"Un simbolo &copy; e un nome&nbsp;composto.\n\n"
+         "- Ragione principale\n    - Una ragione subordinata\n\n"
+         "| Dato | Interpretazione |\n| --- | --- |\n| A | "+("Argomento verificabile. "*300)+" |\n\nTesto finale preservato.",
+        "unresolved":[]}]
+    data,_=export_book(session,"pdf")
+    text="\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(data)).pages)
+    assert "Testo finale preservato." in text
+    assert "Una ragione subordinata" in text
+    import re
+    assert len(re.findall(r"\bArgomento\b",text))==300
+    assert text.count("verificabile.")==300
+    assert "©" in text

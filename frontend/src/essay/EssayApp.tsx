@@ -2,38 +2,20 @@ import {useState,useEffect,useCallback,useRef} from 'react';
 import {BrowserRouter,Link,Routes,Route,useNavigate,useParams} from 'react-router-dom';
 import {Toaster} from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import {BookOpen,Plus,ArrowRight,Search,Feather,Check,Library as LibraryIcon} from 'lucide-react';
-import {api,write,Brief,Config,Project,Source,LibraryItem,Progress,defaultBrief} from './api';
+import {BookOpen,Plus,Check,Library as LibraryIcon} from 'lucide-react';
+import {api,write,Brief,Config,Project,Source,Progress,defaultBrief} from './api';
 import {BriefForm} from './BriefForm';
 import {PlanEditor} from './PlanEditor';
 import {SourcePanel,SourceDialog} from './SourcePanel';
 import {ChapterEditor} from './ChapterEditor';
 import {GenerationProgress} from './GenerationProgress';
+import {EssayLibrary} from './EssayLibrary';
 import './essay.css';
 
 const profiles:Record<string,string>={argumentative:'Argomentativo',popular:'Divulgativo',academic:'Accademico'};
-const statuses:Record<string,string>={draft:'In preparazione',planned:'Piano pronto',pending:'In coda',running:'Scrittura in corso',paused:'In pausa',completed:'Manoscritto completo',failed:'Da riprendere'};
 const tabs=[['project','Progetto'],['questions','Domande'],['plan','Argomenti e fonti'],['outline','Indice'],['manuscript','Manoscritto'],['review','Revisione']];
 function message(error:unknown){return (error as Error).message || 'La richiesta non è riuscita.'}
 function Loading(){return <div className="sg-loading" role="status">Caricamento dello studio…</div>}
-
-function Library({config}:{config:Config}){
- const [items,setItems]=useState<LibraryItem[]|null>(null);
- const [error,setError]=useState('');
- const [search,setSearch]=useState('');
- const [filter,setFilter]=useState('');
- const load=()=>{setError('');void api<LibraryItem[]>('essays').then(setItems).catch(e=>setError(e.message))};
- useEffect(load,[]);
- const shown=(items||[]).filter(item=>(!filter||item.profile===filter)&&[item.title,item.topic].join(' ').toLowerCase().includes(search.toLowerCase()));
- return <div className="sg-page">
-  <header className="sg-page-header"><div><span className="sg-eyebrow">La tua biblioteca</span><h1>Le idee prendono forma.</h1><p>Un luogo per costruire ragioni, confrontare fonti e scrivere libri.</p></div><Link className="sg-primary sg-button-link" to="/new"><Plus size={18}/>Nuovo saggio</Link></header>
-  {!config.api_key_ready&&<p className="sg-notice">Puoi preparare i progetti. Per generare testi e ricercare fonti, configura la chiave Gemini nel file .env.</p>}
-  {error?<div className="sg-card"><p role="alert">{error}</p><button onClick={load}>Riprova</button></div>:items===null?<Loading/>:items.length===0?<section className="sg-empty"><div className="sg-empty-mark"><Feather size={38}/></div><span className="sg-eyebrow">Il primo libro comincia da una domanda</span><h2>Quale idea vuoi approfondire?</h2><p>Scegli il tipo di saggio e il modo di lavorare con l’AI.<br/>La posizione e il percorso restano nelle tue mani.</p><Link className="sg-primary sg-button-link" to="/new">Crea il tuo primo saggio <ArrowRight size={18}/></Link><div className="sg-profile-note"><span>Argomentativo</span><span>Divulgativo</span><span>Accademico</span></div></section>:<>
-   <div className="sg-filters"><label><Search size={17}/><input aria-label="Cerca nei saggi" placeholder="Cerca titolo o tema" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filtra per tipo" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">Tutti i saggi</option>{Object.entries(profiles).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
-   <div className="sg-library-grid">{shown.map(item=><Link key={item.id} className="sg-book-card" to={'/essay/'+item.id}><div className="sg-book-spine"><BookOpen size={26}/><span>{profiles[item.profile]}</span></div><div><span className="sg-badge">{statuses[item.status]||item.status}</span><h2>{item.title}</h2><p>{item.topic}</p><small>{item.words.toLocaleString('it-IT')} parole · {new Date(item.updated_at).toLocaleDateString('it-IT')}</small><span className="sg-open">Apri studio <ArrowRight size={16}/></span></div></Link>)}</div>{shown.length===0&&<p>Nessun saggio corrisponde ai filtri.</p>}
-  </>}
- </div>;
-}
 
 function NewEssay({config}:{config:Config}){
  const navigate=useNavigate();
@@ -156,5 +138,5 @@ export default function EssayApp(){
  const [unsaved,setUnsaved]=useState(false);
  useEffect(()=>{void api<Config>('essay-config').then(setConfig).catch(e=>setError(e.message))},[]);
  const guardLink=(event:React.MouseEvent)=>{if(unsaved&&!window.confirm('Hai modifiche non salvate. Vuoi cambiare pagina?'))event.preventDefault()};
- return <BrowserRouter><div className="sg-app"><Toaster position="top-right" toastOptions={{style:{background:'#fbf8f3',color:'#163b39',border:'1px solid #d6d0c6'}}}/><header className="sg-navigation"><Link to="/" className="sg-brand" onClick={guardLink}><img src="/saggia-mark.svg" alt="" width={33} height={33}/><span>SaggIA</span></Link><nav aria-label="Navigazione principale"><Link to="/" onClick={guardLink}><LibraryIcon size={17}/>Opere</Link><Link to="/new" onClick={guardLink}><Plus size={17}/>Nuovo saggio</Link></nav><span className="sg-nav-note">Idee. Ragioni. Libri.</span></header><main className="sg-main">{config?<Routes><Route path="/" element={<Library config={config}/>}/><Route path="/new" element={<NewEssay config={config}/>}/><Route path="/essay/:id" element={<Workspace config={config} onUnsaved={setUnsaved}/>}/><Route path="*" element={<div className="sg-page"><h1>Pagina non trovata</h1><Link to="/">Apri biblioteca</Link></div>}/></Routes>:error?<div className="sg-page"><h1>Lo studio non è raggiungibile</h1><p role="alert">{error}</p><button onClick={()=>window.location.reload()}>Riprova</button></div>:<Loading/>}</main><footer className="sg-footer"><span>SaggIA · Studio di saggistica per adulti</span><span>Archivio locale · Generazione e ricerca online</span></footer></div></BrowserRouter>;
+ return <BrowserRouter><div className="sg-app"><Toaster position="top-right" toastOptions={{style:{background:'#fbf8f3',color:'#163b39',border:'1px solid #d6d0c6'}}}/><header className="sg-navigation"><Link to="/" className="sg-brand" onClick={guardLink}><img src="/saggia-mark.svg" alt="" width={33} height={33}/><span>SaggIA</span></Link><nav aria-label="Navigazione principale"><Link to="/" onClick={guardLink}><LibraryIcon size={17}/>Opere</Link><Link to="/new" onClick={guardLink}><Plus size={17}/>Nuovo saggio</Link></nav><span className="sg-nav-note">Idee. Ragioni. Libri.</span></header><main className="sg-main">{config?<Routes><Route path="/" element={<EssayLibrary config={config}/>}/><Route path="/new" element={<NewEssay config={config}/>}/><Route path="/essay/:id" element={<Workspace config={config} onUnsaved={setUnsaved}/>}/><Route path="*" element={<div className="sg-page"><h1>Pagina non trovata</h1><Link to="/">Apri biblioteca</Link></div>}/></Routes>:error?<div className="sg-page"><h1>Lo studio non è raggiungibile</h1><p role="alert">{error}</p><button onClick={()=>window.location.reload()}>Riprova</button></div>:<Loading/>}</main><footer className="sg-footer"><span>SaggIA · Studio di saggistica per adulti</span><span>Archivio locale · Generazione e ricerca online</span></footer></div></BrowserRouter>;
 }

@@ -96,3 +96,22 @@
 .sg-progress-phase{font-size:.85rem;line-height:1.5;margin-top:8px;font-weight:500}
 .sg-progress .sg-help{max-width:90ch;margin:6px 0 0}
 @media(max-width:700px){.sg-workspace .sg-page-header .sg-actions{margin-top:16px}.sg-progress-header{flex-direction:column;gap:8px}.sg-progress-count{margin-top:0}.sg-progress{padding:16px}}
+
+.sg-book-card{height:100%;align-items:stretch}
+.sg-book-info{display:flex;flex-direction:column;min-width:0;align-items:flex-start}
+.sg-book-card h2 a{text-decoration:none}
+.sg-book-card h2 a:hover{text-decoration:underline;text-underline-offset:4px}
+.sg-book-card .sg-book-metrics{display:flex;flex-wrap:wrap;gap:14px 24px;width:100%;margin:6px 0 14px}
+.sg-book-metrics>div{flex:1;min-width:105px}
+.sg-book-metrics dt{font-size:.69rem;letter-spacing:.025em;color:#777b6e}
+.sg-book-metrics dd{font-size:1.1rem;line-height:1.5;color:#163b39;margin-top:4px;font-weight:500}
+.sg-cost-partial{font-size:.65rem;font-weight:400;margin-left:6px;color:#7b5c28}
+.sg-book-card .sg-book-cost-note{font-size:.72rem;line-height:1.5;margin:0 0 12px;color:#7b6d52;display:block;overflow:visible}
+.sg-book-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;width:100%;padding-top:18px;margin-top:auto}
+.sg-book-actions .sg-open{margin-top:0;text-decoration:none}
+.sg-book-actions button{font-size:.77rem;padding-right:0}
+.sg-delete-dialog{max-width:520px}
+.sg-delete-book-name{color:#163b39!important;font-family:var(--font-display);font-size:1.25rem}
+.sg-app .sg-delete-confirm{background:#95452d;color:#fff;border-color:#95452d}
+.sg-app .sg-delete-confirm:hover:not(:disabled){background:#7d3823}
+@media(max-width:700px){.sg-book-card .sg-book-metrics{gap:12px}.sg-book-metrics dd{margin-bottom:0}.sg-book-spine{min-height:160px}.sg-book-card small{line-height:1.6}}
