@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.essay.models import (EssayBrief, BriefEdit, PublicationEdit, PlanEdit, SourceInput, SourceEdit, EvidenceInput, SearchInput,
-    AnswersInput, ApprovalInput, ChapterEdit, EvidenceExcerpt, identifier, now)
+    AnswersInput, ApprovalInput, RevisionInput, ChapterEdit, EvidenceExcerpt, identifier, now)
 from app.essay.store import EssayStore
 from app.essay.settings import settings
 from app.essay.citations import content_hash, rendered_manuscript, reference_checks, evidence_index
@@ -29,6 +29,8 @@ load_dotenv(os.getenv("SAGGIA_ENV_FILE") or root / ".env")
 def invalidate(session, *, plan=False):
     session.review = None
     session.review_progress = None
+    session.revision_request = None
+    session.revision_progress = None
     if plan:
         session.validated = False
         if session.part_checkpoint:
@@ -95,6 +97,11 @@ def create_app(store=None, *, run_worker=True):
         value = session.to_dict()
         value.pop("part_checkpoint", None)
         value.pop("research_request", None)
+        checkpoint = value.pop("revision_request", None)
+        hashes = {c["section_id"]: content_hash(c["content"]) for c in session.book_chapters}
+        value["can_resume_revision"] = bool(checkpoint and checkpoint.get("stage") != "done"
+            and checkpoint.get("source_version") == session.current_version
+            and checkpoint.get("hashes") == hashes)
         value.pop("checkpoint_history", None)
         value["sources"] = [{k: v for k, v in s.items() if k != "text"} | {"text_length": len(s.get("text", ""))}
                             for s in session.sources]
@@ -160,10 +167,16 @@ def create_app(store=None, *, run_worker=True):
         def mutate(session):
             if change.expected_version != session.current_version:
                 raise ConcurrentUpdateError("Il progetto è cambiato. Ricarica prima di salvare.")
+            resources = {"budget_eur", "llm_model", "model_overrides"}
+            same_direction = session.form_data.model_dump(exclude=resources) == change.brief.model_dump(exclude=resources)
             session.form_data = change.brief
             session.current_version += 1
-            invalidate(session, plan=True)
-            session.cover_image_path = None
+            if same_direction:
+                if session.revision_request:
+                    session.revision_request["source_version"] = session.current_version
+            else:
+                invalidate(session, plan=True)
+                session.cover_image_path = None
         return visible(app.state.store.mutate(sid, mutate))
 
     @app.put("/api/essays/{sid}/publication")
@@ -174,6 +187,8 @@ def create_app(store=None, *, run_worker=True):
             for field in ("author_name", "title", "subtitle", "back_cover_text"):
                 setattr(session.form_data, field, getattr(change, field).strip())
             session.current_version += 1
+            if session.revision_request:
+                session.revision_request["source_version"] = session.current_version
             if session.plan:
                 from app.essay.cover import compose_cover
                 target = compose_cover(app.state.store, session)
@@ -242,8 +257,39 @@ def create_app(store=None, *, run_worker=True):
                 session.pause_requested = False
             if kind == "draft":
                 session.validated = False
+            if kind == "review":
+                session.revision_request = None
+                session.revision_progress = None
             # memory resumes a persisted search if it was interrupted.
         app.state.store.enqueue(sid, kind, prepare)
+        return visible(current(sid))
+
+    @app.post("/api/essays/{sid}/revision")
+    def delegate_revision(sid: str, payload: RevisionInput):
+        def prepare(session):
+            hashes = {c["section_id"]: content_hash(c["content"]) for c in session.book_chapters}
+            if session.current_version != payload.expected_version or hashes != payload.expected_hashes:
+                raise ConcurrentUpdateError("Il manoscritto è cambiato. Ricarica prima di delegare le correzioni.")
+            if not session.plan or not session.book_chapters:
+                raise ValueError("Prepara il piano e scrivi almeno un capitolo.")
+            if payload.resume:
+                checkpoint = session.revision_request
+                if not checkpoint or checkpoint["stage"] == "done" or checkpoint["hashes"] != hashes or checkpoint["source_version"] != session.current_version:
+                    raise ValueError("Il lavoro non è più riprendibile. Aggiorna la revisione e avvia nuove correzioni.")
+                return
+            review = session.review
+            if not review or review.get("stale") or not review.get("issues"):
+                raise ValueError("Genera una revisione aggiornata con interventi proposti prima di delegare.")
+            if review.get("at") != payload.expected_review_at or (review.get("manuscript_hashes") and review["manuscript_hashes"] != hashes):
+                raise ConcurrentUpdateError("Il rapporto di revisione è cambiato. Leggi quello aggiornato.")
+            if any(i.get("section_id") and i["section_id"] not in hashes for i in review["issues"]):
+                raise ValueError("Il rapporto richiama un capitolo inesistente. Aggiorna la revisione.")
+            session.revision_request = {
+                "source_version": session.current_version, "hashes": hashes, "original_review": review,
+                "report": review, "pass": 1, "stage": "writing", "completed_ids": [],
+                "updated_ids": [], "review_groups": [], "started_at": now(),
+            }
+        app.state.store.enqueue(sid, "revision", prepare)
         return visible(current(sid))
 
     @app.post("/api/essays/{sid}/pause")

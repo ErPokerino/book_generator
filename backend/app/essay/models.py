@@ -235,6 +235,13 @@ class ChapterPayload(CompactModel):
     summary: str
 
 
+class RevisionInput(CompactModel):
+    expected_version: int
+    expected_hashes: dict[str, str]
+    expected_review_at: str = ""
+    resume: bool = False
+
+
 class ChapterEdit(CompactModel):
     content: str = Field(min_length=1, max_length=500000)
     expected_hash: str
@@ -307,6 +314,8 @@ class EssaySession:
         self.outline_progress = None
         self.writing_progress = None
         self.review_progress = None
+        self.revision_progress = None
+        self.revision_request = None
         self.cover_image_path = None
         self.cover_progress = None
         self.part_checkpoint = None

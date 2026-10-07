@@ -5,6 +5,7 @@ const stages:Record<string,string>={
  draft:'Preparazione del progetto editoriale',
  memory:'Ricerca e analisi delle fonti',
  review:'Revisione del manoscritto',
+ revision:'Applicazione delle correzioni AI',
  cover:'Preparazione della copertina',
 };
 
@@ -12,7 +13,7 @@ export function GenerationProgress({project,onPause}:{project:Project;onPause:()
  const entries=[
   ['questions',project.questions_progress],['draft',project.draft_progress],
   ['memory',project.memory_progress],['book',project.writing_progress],
-  ['review',project.review_progress],['cover',project.cover_progress],
+  ['revision',project.revision_progress],['review',project.review_progress],['cover',project.cover_progress],
  ] as const;
  const active=entries.find(([,progress])=>progress&&['pending','running'].includes(progress.status));
  if(!active&&!project.active)return null;

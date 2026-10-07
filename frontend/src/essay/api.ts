@@ -24,7 +24,7 @@ export interface Section {id:string;title:string;purpose:string;description:stri
 export interface Plan { title:string; subtitle:string; back_cover_text?:string; direction:string; method:string; definitions:string[]; claims:Claim[]; sections:Section[]; limits:string[] }
 export interface Chapter { section_id:string;section_index:number;title:string;content:string;display_content:string;hash:string;unresolved:string[];review_stale?:boolean }
 export interface Issue {section_id:string;quote:string;category:string;severity:string;explanation:string;suggestion:string}
-export interface Progress {status:string;error?:string;current_step?:number;total_steps?:number;current_section_name?:string;current_part?:number;total_parts?:number;updated_at?:string}
+export interface Progress {status:string;error?:string;current_step?:number;total_steps?:number;current_section_name?:string;current_part?:number;total_parts?:number;updated_at?:string;phase?:string;pass_number?:number;updated_sections?:number;remaining_issues?:number}
 export interface Project {
  session_id:string;form_data:Brief;current_version:number;plan:Plan|null;validated:boolean;
  generated_questions:{id:string;text:string}[];answers:Record<string,string>;sources:Source[];
@@ -32,6 +32,7 @@ export interface Project {
  book_chapters:Chapter[];active:boolean;words:number;estimated_pages:number;pause_requested:boolean;
  review:{summary:string;strengths:string[];issues:Issue[];partial:boolean;at:string}|null;
  questions_progress:Progress|null;draft_progress:Progress|null;memory_progress:Progress|null;
+ revision_progress?:Progress|null;can_resume_revision?:boolean;
  writing_progress:Progress|null;review_progress:Progress|null;cover_progress:Progress|null;cover_image_path:string|null;
  bibliography:{id:string;label:string;text:string}[];reference_checks:{citations:number;evidence:number;issues:Issue[]};
  usage:{converted_cost_eur:number|null;cost_usd:number|null;coverage_complete:boolean;calls:number;tool_cost_unknown?:boolean;events:{id:string;phase:string;model:string;status:string;cost_usd:number|null;usage?:{input_tokens:number;output_tokens:number}}[]};

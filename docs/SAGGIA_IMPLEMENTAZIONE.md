@@ -35,8 +35,8 @@ Sono riutilizzati il motore SQLite per transazioni/revisioni, il worker durevole
 
 ## Verifiche completate
 
-- 198 test backend: 131 dell'infrastruttura precedente e 67 SaggIA.
-- 71 test frontend: 31 precedenti e 40 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
+- 218 test backend: 131 dell'infrastruttura precedente e 87 SaggIA.
+- 78 test frontend: 31 precedenti e 47 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
 - TypeScript senza errori; build Vite/PWA completata.
 - Prova reale con Gemini 3.8 Flash: creazione nel browser, domande, ricerca web, analisi, piano, approvazione, tre capitoli, revisione, copertina e tre export.
 - Prove reali con profilo divulgativo/ruolo esplorativo (Gemini 3.5 Flash Lite) e profilo accademico/ruolo di sostegno (Gemini 3.8 Flash): domande, upload di materiali dell'autore, evidenze e piano coerente.
@@ -94,3 +94,16 @@ Le nuove proposte AI preferiscono titoli di 2-6 parole, con massimo 8 parole/64 
 Il progetto editoriale propone anche una presentazione di 80-140 parole per il retro, modificabile fino a 1500 caratteri. Il PDF termina con una quarta di copertina A5 coordinata nei colori e nei font, senza testatina o numero di pagina. EPUB e DOCX includono lo stesso testo alla fine. I libri precedenti usano la direzione editoriale come testo iniziale, senza chiamate AI aggiuntive. Il retro partecipa alla cache del PDF e al conteggio delle pagine in Opere.
 
 Verificati 198 test backend e 71 frontend, TypeScript e build; prove dedicate a conflitti, blocco durante i job, conservazione della revisione, riuso degli sfondi, export finali, cache e correzione dei titoli. Ispezionate visivamente copertina con firma, retro e una prova con testi ai limiti di lunghezza. Pannello controllato a 390 px e 1280 px; nessuna modifica al nome o al titolo del manoscritto esistente.
+
+
+## Delega completa degli interventi di revisione (7 ottobre 2026)
+
+In Revisione, “Applica tutte le correzioni con l’AI” avvia un job durevole dedicato. Applica tutti i livelli di intervento ai capitoli interessati; quelli generali raggiungono tutti i capitoli. Conserva la direzione approvata e i riferimenti registrati. Il controllo locale rifiuta citazioni inesistenti e riduzioni sotto il 70% del testo, prima di sovrascrivere un capitolo.
+
+Dopo le correzioni viene generata una nuova revisione del manoscritto. Se sono rimasti interventi e il testo è stato modificato, segue un secondo passaggio automatico. Il ciclo si ferma dopo due passaggi, oppure quando non ci sono cambiamenti; il risultato distingue i capitoli aggiornati dagli interventi ancora aperti. Le lacune che richiedono altre fonti non diventano prove inventate.
+
+Rapporto letto, versione e hash dei capitoli vengono verificati nell'accodamento atomico. Un doppio clic non crea un secondo job, e durante il lavoro le modifiche manuali sono bloccate. Ogni capitolo corretto e la ricevuta di avanzamento vengono salvati nella stessa transazione, preservando le versioni originali nell'editor. La nuova revisione salva anche i gruppi già verificati: “Riprendi le correzioni AI” evita di ricomprare capitoli e verifiche salvati dopo un guasto o un riavvio.
+
+Il limite di spesa vale anche per correzioni e controlli. Modificare soltanto budget o modelli conserva l'approvazione e il checkpoint; lo stesso vale per i dati di pubblicazione. Modifiche editoriali, fonti e revisioni manuali invalidano il piano di correzioni precedente.
+
+Verificati 218 test backend e 78 frontend, TypeScript e build. Venti regressioni backend coprono concorrenza, idempotenza, interventi generali, riferimenti, versioni, limite di due passaggi, testi invariati, ripresa dopo rete/annullamento, verifica a gruppi e budget. Sette test frontend coprono delega, stato, blocchi, ripresa ed esito. Verifica nel browser su un archivio QA isolato e risposte di modello simulate: accodamento, correzione reale del testo salvato, nuovo rapporto senza interventi e storico recuperabile. Nessuna correzione è stata avviata sul manoscritto dell'autore durante il collaudo.

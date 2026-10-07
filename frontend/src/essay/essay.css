@@ -70,6 +70,7 @@
 .sg-app .sg-citation{display:inline;font:inherit;padding:0 2px;min-height:0;border:0;background:transparent;text-decoration:underline;color:#577961}
 .sg-manuscript-editor{min-height:550px;font-family:var(--font-display)!important;font-size:1.1rem!important;line-height:1.8!important}
 .sg-version{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid #d6d0c6;font-size:.8rem}
+.sg-revision-actions h3{margin-top:0}.sg-revision-actions p{font-size:.88rem}
 .sg-cover-preview{max-width:240px;width:100%;display:block;margin:16px auto}
 .sg-progress{background:#e7ebdf;border:1px solid #c3ceb9;padding:20px;border-radius:4px;margin-bottom:22px}.sg-progress progress{height:7px;width:100%;accent-color:#163b39;margin-top:14px}.sg-progress small{display:block}.sg-progress button{margin-top:14px}
 .sg-ledger{margin-top:30px}.sg-table-wrap{overflow:auto}.sg-app table{border-collapse:collapse;width:100%;font-size:.8rem}.sg-app th,.sg-app td{text-align:left;border-bottom:1px solid #d6d0c6;padding:12px 8px}

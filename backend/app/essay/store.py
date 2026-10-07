@@ -11,6 +11,7 @@ from app.persistence.sqlite_store import SQLiteSessionStore, ConcurrentUpdateErr
 
 PROGRESS_FIELDS["review"] = "review_progress"
 PROGRESS_FIELDS["cover"] = "cover_progress"
+PROGRESS_FIELDS["revision"] = "revision_progress"
 
 
 class EssayStore(SQLiteSessionStore):
@@ -98,6 +99,8 @@ class EssayStore(SQLiteSessionStore):
             chapter["review_stale"] = True
             session.review = None
             session.review_progress = None
+            session.revision_request = None
+            session.revision_progress = None
         return self.mutate(session_id, change)
 
     def enqueue(self, session_id, kind, prepare=None, *, idempotent=True):
