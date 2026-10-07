@@ -7,7 +7,7 @@ export interface Brief {
   approach: string; voice: string; tone: string; language_register: string; structure: string;
   density: string; example_policy: string; methodology: string; corpus: string;
   source_criteria: string; source_period: string; editorial_references: string;
-  author_name: string; title: string; subtitle: string; citation_style: string;
+  author_name: string; title: string; subtitle: string; back_cover_text: string; citation_style: string;
   revision_mode: string; cover_style: string; llm_model: string; model_overrides: Record<string,string>;
   budget_eur: number | null;
 }
@@ -21,7 +21,7 @@ export interface Evidence { id:string; source_id:string; quote:string; locator:s
 export interface Source { version:number; id:string; title:string; author:string; published:string; url:string; kind:string; status:string; error:string; text?:string; text_length:number; evidence:Evidence[]; selection_reason:string }
 export interface Claim {id:string;text:string;kind:string;reason:string;evidence_ids:string[];objection:string;response:string;gap:string}
 export interface Section {id:string;title:string;purpose:string;description:string;claim_ids:string[];word_target:number}
-export interface Plan { title:string; subtitle:string; direction:string; method:string; definitions:string[]; claims:Claim[]; sections:Section[]; limits:string[] }
+export interface Plan { title:string; subtitle:string; back_cover_text?:string; direction:string; method:string; definitions:string[]; claims:Claim[]; sections:Section[]; limits:string[] }
 export interface Chapter { section_id:string;section_index:number;title:string;content:string;display_content:string;hash:string;unresolved:string[];review_stale?:boolean }
 export interface Issue {section_id:string;quote:string;category:string;severity:string;explanation:string;suggestion:string}
 export interface Progress {status:string;error?:string;current_step?:number;total_steps?:number;current_section_name?:string;current_part?:number;total_parts?:number;updated_at?:string}
@@ -43,7 +43,7 @@ export const defaultBrief = (): Brief => ({
  reader_level:'general',reader_needs:'',target_words:35000,concepts:'',premises:'',scope:'',exclusions:'',
  purpose:'argomentare',approach:'analytical',voice:'impersonal',tone:'analytical',language_register:'clear',
  structure:'thesis',density:'balanced',example_policy:'mixed',methodology:'',corpus:'',source_criteria:'',
- source_period:'',editorial_references:'',author_name:'',title:'',subtitle:'',citation_style:'numeric',
+ source_period:'',editorial_references:'',author_name:'',title:'',subtitle:'',back_cover_text:'',citation_style:'numeric',
  revision_mode:'reviewed',cover_style:'typographic',llm_model:'gemini-3.8-flash',model_overrides:{},budget_eur:null,
 });
 export async function api<T>(path:string, options:RequestInit = {}):Promise<T> {

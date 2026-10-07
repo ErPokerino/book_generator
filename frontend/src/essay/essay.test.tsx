@@ -93,3 +93,38 @@ it('non aggiorna silenziosamente il riferimento di versione mentre si modificano
  expect(JSON.parse(fetch.mock.calls[0][1].body).expected_version).toBe(1);
  expect(screen.getByLabelText('Titolo della fonte')).toHaveValue('La mia modifica');
 });
+
+describe('autore e quarta di copertina',()=>{
+ it('mostra il nome autore nel brief senza aprire impostazioni avanzate',()=>{
+  const save=vi.fn();render(<BriefForm initial={{...defaultBrief(),topic:'Un tema valido'}} config={config} onSave={save}/>);
+  const author=screen.getByLabelText('Nome autore');
+  expect(author.closest('details')).toBeNull();
+  fireEvent.change(author,{target:{value:'Ada Rossi'}});
+  fireEvent.click(screen.getByRole('button',{name:'Crea progetto'}));
+  expect(save).toHaveBeenCalledWith(expect.objectContaining({author_name:'Ada Rossi'}));
+ });
+ it('conserva autore, bozza e versione durante polling e conflitti',async()=>{
+  const save=vi.fn().mockResolvedValue(false);const dirty=vi.fn();
+  const p={...project(),current_version:7,plan:{title:'Titolo breve',subtitle:'Dettagli',direction:'Una presentazione automatica.'}} as Project;
+  const {PublicationForm}=await import('./PublicationForm');
+  const view=render(<PublicationForm project={p} disabled={false} onSave={save} onDirty={dirty}/>);
+  fireEvent.change(screen.getByLabelText(/Nome autore/),{target:{value:'Ada Rossi'}});
+  view.rerender(<PublicationForm project={{...p,current_version:8,form_data:{...p.form_data,author_name:'Altra scheda'}}} disabled={false} onSave={save} onDirty={dirty}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Salva autore e copertina'}));
+  await waitFor(()=>expect(save).toHaveBeenCalledWith(expect.objectContaining({author_name:'Ada Rossi',expected_version:7,back_cover_text:'Una presentazione automatica.'})));
+  expect(screen.getByLabelText(/Nome autore/)).toHaveValue('Ada Rossi');
+  expect(screen.getByRole('button',{name:'Salva autore e copertina'})).toBeEnabled();
+ });
+ it('disabilita il salvataggio durante i processi e segnala solo le modifiche non salvate',async()=>{
+  const save=vi.fn().mockResolvedValue(true);const dirty=vi.fn();
+  const {PublicationForm}=await import('./PublicationForm');
+  const p={...project(),current_version:3};
+  const view=render(<PublicationForm project={p} disabled={true} onSave={save} onDirty={dirty}/>);
+  fireEvent.change(screen.getByLabelText(/Nome autore/),{target:{value:'Ada Rossi'}});
+  expect(screen.getByRole('button',{name:'Salva autore e copertina'})).toBeDisabled();
+  view.rerender(<PublicationForm project={p} disabled={false} onSave={save} onDirty={dirty}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Salva autore e copertina'}));
+  await waitFor(()=>expect(dirty).toHaveBeenLastCalledWith(false));
+  expect(screen.getByRole('button',{name:'Salva autore e copertina'})).toBeDisabled();
+ });
+});

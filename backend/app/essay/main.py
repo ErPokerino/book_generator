@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.essay.models import (EssayBrief, BriefEdit, PlanEdit, SourceInput, SourceEdit, EvidenceInput, SearchInput,
+from app.essay.models import (EssayBrief, BriefEdit, PublicationEdit, PlanEdit, SourceInput, SourceEdit, EvidenceInput, SearchInput,
     AnswersInput, ApprovalInput, ChapterEdit, EvidenceExcerpt, identifier, now)
 from app.essay.store import EssayStore
 from app.essay.settings import settings
@@ -164,6 +164,21 @@ def create_app(store=None, *, run_worker=True):
             session.current_version += 1
             invalidate(session, plan=True)
             session.cover_image_path = None
+        return visible(app.state.store.mutate(sid, mutate))
+
+    @app.put("/api/essays/{sid}/publication")
+    def update_publication(sid: str, change: PublicationEdit):
+        def mutate(session):
+            if change.expected_version != session.current_version:
+                raise ConcurrentUpdateError("I dati del libro sono cambiati. Ricarica prima di salvare.")
+            for field in ("author_name", "title", "subtitle", "back_cover_text"):
+                setattr(session.form_data, field, getattr(change, field).strip())
+            session.current_version += 1
+            if session.plan:
+                from app.essay.cover import compose_cover
+                target = compose_cover(app.state.store, session)
+                session.cover_image_path = str(target) if target else None
+            # Publication metadata does not change the argument or review.
         return visible(app.state.store.mutate(sid, mutate))
 
     @app.post("/api/essays/{sid}/answers")
@@ -388,6 +403,7 @@ def create_app(store=None, *, run_worker=True):
                     file.unlink()
             source_dir.rmdir()
         (app.state.store.data_dir / "covers" / (sid + ".png")).unlink(missing_ok=True)
+        (app.state.store.data_dir / "covers" / (sid + "-background.png")).unlink(missing_ok=True)
         return Response(status_code=204)
 
     static_root = root / "backend" / "static"

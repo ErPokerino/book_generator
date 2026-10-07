@@ -295,6 +295,58 @@ class CoverLeaf(Flowable):
             width=width, height=height, mask="auto")
 
 
+class BackCoverLeaf(Flowable):
+    def __init__(self, title, text, author):
+        super().__init__()
+        self.title, self.text, self.author = title, text, author
+
+    def wrap(self, width, height):
+        self.width, self.height = width, height - 1
+        return self.width, self.height
+
+    def draw(self):
+        canvas = self.canv
+        serif, italic, sans = fonts()
+        canvas.setFillColor(INK)
+        canvas.rect(0, 0, self.width, self.height + 1, stroke=0, fill=1)
+        left, width = 24 * mm, self.width - 48 * mm
+        top = self.height - 31 * mm
+        canvas.setFillColor(GOLD)
+        canvas.setFont(sans, 8)
+        canvas.drawString(left, top, "S A G G I A")
+        canvas.setStrokeColor(GOLD)
+        canvas.setLineWidth(.8)
+        canvas.line(left, top - 12, left + 35, top - 12)
+        y = top - 48
+        blocks = [block.strip() for block in re.split(r"\n\s*\n", self.text) if block.strip()]
+        # Preserve up to three paragraphs; excess manual line breaks must not overflow a single back page.
+        if len(blocks) > 3:
+            blocks = [*blocks[:2], " ".join(blocks[2:])]
+        size = 11.5
+        while True:
+            heading = Paragraph(escape(self.title), ParagraphStyle("BackTitle", fontName=serif,
+                fontSize=min(19, size * 1.65), leading=min(24, size * 2.1), textColor=PAPER))
+            paragraphs = [Paragraph(" ".join(escape(block).split()), ParagraphStyle("BackText",
+                fontName=serif, fontSize=size, leading=size * 1.5, textColor=PAPER)) for block in blocks]
+            author = Paragraph(escape(self.author), ParagraphStyle("BackAuthor", fontName=italic,
+                fontSize=size, leading=size * 1.4, textColor=GOLD)) if self.author else None
+            items = [heading, *paragraphs, *([author] if author else [])]
+            heights = [item.wrap(width, self.height)[1] for item in items]
+            if sum(heights) + 18 * len(items) <= y - 38 * mm:
+                break
+            if size <= 6.5:
+                raise ValueError("La quarta di copertina è troppo lunga per una pagina leggibile. Riduci il testo o il titolo.")
+            size -= .25
+        for item, height in zip(items, heights):
+            item.drawOn(canvas, left, y - height)
+            y -= height + 18
+        canvas.setStrokeColor(GOLD)
+        canvas.line(left, 26 * mm, self.width - left, 26 * mm)
+        canvas.setFont(sans, 7)
+        canvas.setFillColor(GOLD)
+        canvas.drawString(left, 18 * mm, "SAGGISTICA")
+
+
 class BookDocument(BaseDocTemplate):
     def __init__(self, output, title, author):
         super().__init__(output, pagesize=A5, leftMargin=21 * mm, rightMargin=19 * mm,
@@ -305,6 +357,7 @@ class BookDocument(BaseDocTemplate):
             PageTemplate("cover", [Frame(0, 0, A5[0], A5[1], leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)]),
             PageTemplate("front", [self.text_frame("front")]),
             PageTemplate("body", [self.text_frame("body")], onPageEnd=self.furniture),
+            PageTemplate("back", [Frame(0, 0, A5[0], A5[1], leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)]),
         ])
 
     def text_frame(self, name):
@@ -360,7 +413,7 @@ def section_heading(title, key, kicker, style_set):
     ]
 
 
-def _render_pdf(session, chapters, bibliography, title, subtitle, author, work_note):
+def _render_pdf(session, chapters, bibliography, title, subtitle, author, work_note, back_text):
     style_set = styles()
     output = BytesIO()
     doc = BookDocument(output, title, author)
@@ -371,7 +424,7 @@ def _render_pdf(session, chapters, bibliography, title, subtitle, author, work_n
     else:
         story.append(NextPageTemplate("front"))
         # Select the front template for the first page when there is no cover.
-        doc.pageTemplates = [doc.pageTemplates[1], doc.pageTemplates[0], doc.pageTemplates[2]]
+        doc.pageTemplates = [doc.pageTemplates[1], doc.pageTemplates[0], *doc.pageTemplates[2:]]
     story += [TitleLeaf(title, subtitle, author, work_note), PageBreak()]
     toc = TableOfContents()
     toc.levelStyles = [style_set["contents"]]
@@ -387,6 +440,7 @@ def _render_pdf(session, chapters, bibliography, title, subtitle, author, work_n
         story += section_heading("Bibliografia", "bibliography", "FONTI E RIFERIMENTI", style_set)
         for source in bibliography:
             story.append(Paragraph(escape("[" + source["label"] + "] " + source["text"]), style_set["reference"]))
+    story += [NextPageTemplate("back"), PageBreak(), BackCoverLeaf(title, back_text, author)]
     doc.multiBuild(story, maxPasses=8)
     return output.getvalue(), "application/pdf"
 
@@ -399,13 +453,13 @@ def _cached_pdf(payload, cover_signature):
     return _render_pdf(SimpleNamespace(cover_image_path=values.pop("cover")), **values)
 
 
-def export_pdf(session, chapters, bibliography, title, subtitle, author, work_note):
+def export_pdf(session, chapters, bibliography, title, subtitle, author, work_note, back_text):
     cover = session.cover_image_path
     signature = None
     if cover and Path(cover).is_file():
         stat = Path(cover).stat()
         signature = (stat.st_mtime_ns, stat.st_size)
     payload = json.dumps({"cover": cover, "chapters": chapters, "bibliography": bibliography,
-        "title": title, "subtitle": subtitle, "author": author, "work_note": work_note},
+        "title": title, "subtitle": subtitle, "author": author, "work_note": work_note, "back_text": back_text},
         ensure_ascii=False, sort_keys=True)
     return _cached_pdf(payload, signature)

@@ -580,3 +580,197 @@ def test_pdf_splits_long_tables_preserves_nested_lists_and_entities(store):
     assert len(re.findall(r"\bArgomento\b",text))==300
     assert text.count("verificabile.")==300
     assert "©" in text
+
+
+def test_publication_edit_preserves_manuscript_approval_review_and_updates_author(client,store):
+    session=ready(store)
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"Un testo conservato.","unresolved":[]}]
+    session.review={"summary":"Revisione valida","issues":[],"partial":False}
+    session.part_checkpoint={"part":1}
+    store.save_session(session)
+    from app.essay.cover import compose_cover
+    session=store.get_session("P1")
+    session.cover_image_path=str(compose_cover(store,session))
+    store.save_session(session)
+    original=Path(session.cover_image_path).read_bytes()
+    response=client.put("/api/essays/P1/publication",json={
+        "author_name":"  Ada Rossi  ","title":"Ragioni aperte","subtitle":"Un confronto adulto",
+        "back_cover_text":"Una presentazione scelta dall’autrice.","expected_version":1})
+    assert response.status_code==200,response.text
+    changed=response.json()
+    assert changed["validated"] is True
+    assert changed["review"]==session.review
+    assert changed["book_chapters"][0]["content"]=="Un testo conservato."
+    assert store.get_session("P1").part_checkpoint=={"part":1}
+    assert changed["form_data"]["author_name"]=="Ada Rossi"
+    assert Path(changed["cover_image_path"]).read_bytes()!=original
+    assert changed["usage"]["calls"]==0
+    assert client.put("/api/essays/P1/publication",json={
+        "author_name":"Un altro autore","expected_version":1}).status_code==409
+    assert store.get_session("P1").form_data.author_name=="Ada Rossi"
+
+
+def test_publication_edit_blocked_during_jobs_and_rejects_oversized_blurb(client,store):
+    ready(store)
+    oversized={"back_cover_text":"x"*1501,"expected_version":1}
+    assert client.put("/api/essays/P1/publication",json=oversized).status_code==422
+    store.enqueue("P1","questions")
+    assert client.put("/api/essays/P1/publication",json={"author_name":"Ada Rossi","expected_version":1}).status_code==409
+
+
+@pytest.mark.asyncio
+async def test_illustrated_background_survives_author_edits_without_ai(store,client,monkeypatch):
+    from app.essay.cover import compose_cover
+    from PIL import Image
+    session=ready(store,cover_style="illustrated")
+    directory=store.data_dir/"covers";directory.mkdir(exist_ok=True)
+    saved=directory/"P1-background.png"
+    Image.new("RGB",(1000,1500),"#245753").save(saved)
+    signature=saved.read_bytes()
+    session.cover_image_path=str(compose_cover(store,session));store.save_session(session)
+    def paid_call(*a,**k):
+        raise AssertionError("Updating a name must not purchase another background")
+    monkeypatch.setattr("app.essay.cover.metered_call",paid_call)
+    response=client.put("/api/essays/P1/publication",json={"author_name":"Ada Rossi","expected_version":1})
+    assert response.status_code==200,response.text
+    assert saved.read_bytes()==signature
+    assert Image.open(response.json()["cover_image_path"]).getpixel((0,0))==(36,87,83)
+    assert client.delete("/api/essays/P1").status_code==204
+    assert not saved.exists()
+
+
+def test_back_cover_is_last_in_each_export_and_metadata_invalidates_pdf_cache(store):
+    from pypdf import PdfReader
+    session=ready(store,author_name="Ada Rossi",back_cover_text="UNA PRESENTAZIONE ESCLUSIVA DEL RETRO.")
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"Un testo con fonte [@E1].","unresolved":[]}]
+    add_evidence(session)
+    first,_=export_book(session,"pdf")
+    reader=PdfReader(BytesIO(first))
+    assert "Ada Rossi" in reader.pages[0].extract_text()
+    last=reader.pages[-1].extract_text()
+    assert "UNA PRESENTAZIONE ESCLUSIVA DEL RETRO." in last
+    assert "Ada Rossi" in last
+    assert "Bibliografia" not in last
+    assert "Bibliografia" in reader.pages[-2].extract_text()
+    assert not last.strip().splitlines()[-1].isdigit()
+    docx,_=export_book(session,"docx")
+    from docx import Document
+    assert "UNA PRESENTAZIONE ESCLUSIVA DEL RETRO." in [p.text for p in Document(BytesIO(docx)).paragraphs][-2]
+    epub,_=export_book(session,"epub")
+    with ZipFile(BytesIO(epub)) as archive:
+        text=archive.read("EPUB/back-cover.xhtml").decode()
+        assert "UNA PRESENTAZIONE ESCLUSIVA DEL RETRO." in text and "Ada Rossi" in text
+        import xml.etree.ElementTree as ET
+        package=ET.fromstring(archive.read("EPUB/content.opf"))
+        ns={"o":"http://www.idpf.org/2007/opf"}
+        last_id=package.findall("o:spine/o:itemref",ns)[-1].get("idref")
+        manifest={item.get("id"):item.get("href") for item in package.findall("o:manifest/o:item",ns)}
+        assert manifest[last_id]=="back-cover.xhtml"
+    session.form_data.back_cover_text="UNA NUOVA PRESENTAZIONE."
+    second,_=export_book(session,"pdf")
+    assert second!=first
+    assert "UNA NUOVA PRESENTAZIONE." in PdfReader(BytesIO(second)).pages[-1].extract_text()
+
+
+def test_legacy_projects_receive_back_cover_without_new_generation(store):
+    from pypdf import PdfReader
+    session=ready(store)
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"Una premessa.","unresolved":[]}]
+    pdf,_=export_book(session,"pdf")
+    assert session.plan["direction"] in PdfReader(BytesIO(pdf)).pages[-1].extract_text()
+
+
+def test_generated_titles_are_bounded_but_manual_choices_are_respected():
+    from app.essay.models import GeneratedEssayPlan
+    data=plan_data()|{"back_cover_text":"Una presentazione del libro."}
+    GeneratedEssayPlan.model_validate(data)
+    long_title="Una lunga descrizione esplicita di tutte le ragioni e le obiezioni discusse in questo libro"
+    with pytest.raises(ValueError,match="titolo generato"):
+        GeneratedEssayPlan.model_validate(data|{"title":long_title})
+    explicit=EssayBrief(topic="Le ragioni del confronto",title=long_title)
+    assert GeneratedEssayPlan.model_validate(data|{"title":long_title},context={"brief":explicit}).title==long_title
+    assert EssayPlan.model_validate(data|{"title":long_title}).title==long_title
+    data["sections"][0]["title"]=" ".join(["Capitolo"]*11)
+    with pytest.raises(ValueError,match="titoli dei capitoli"):
+        GeneratedEssayPlan.model_validate(data)
+
+
+@pytest.mark.asyncio
+async def test_plan_generation_requests_concise_titles_back_cover_and_keeps_author_choices(store,monkeypatch):
+    from app.essay.generation import generate_plan
+    session=ready(store,title="Il mio titolo",subtitle="Il mio sottotitolo",back_cover_text="Il retro scelto.")
+    session.plan=None;store.save_session(session)
+    captured=[]
+    async def fake_request(s,phase,prompt,schema):
+        captured.append(prompt)
+        return schema.model_validate(plan_data()|{"back_cover_text":"Una proposta."},context={"brief":s.form_data})
+    monkeypatch.setattr("app.essay.generation.request",fake_request)
+    await generate_plan(store,store.get_session("P1"))
+    loaded=store.get_session("P1")
+    assert loaded.plan["title"]=="Il mio titolo"
+    assert loaded.plan["subtitle"]=="Il mio sottotitolo"
+    assert loaded.plan["back_cover_text"]=="Il retro scelto."
+    assert "massimo 8 parole e 64 caratteri" in captured[0]
+    assert "titoli dei capitoli" in captured[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("repair_succeeds",[True,False])
+async def test_ai_retries_overlong_title_once_and_never_truncates(store,monkeypatch,repair_succeeds):
+    from app.essay import generation
+    from app.essay.models import GeneratedEssayPlan
+    session=ready(store)
+    long_title=" ".join(["descrizione"]*12)
+    outputs=[plan_data()|{"title":long_title,"back_cover_text":"Una presentazione."},
+             plan_data()|{"title":"Ragioni aperte" if repair_succeeds else long_title,"back_cover_text":"Una presentazione."}]
+    calls=[]
+    async def invoke(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(parsed=EssayPlan(**outputs[len(calls)-1]))
+    async def close():
+        pass
+    fake_client=SimpleNamespace(aio=SimpleNamespace(models=SimpleNamespace(generate_content=invoke),aclose=close),close=lambda:None)
+    async def metered(operation,**kwargs):
+        return await operation()
+    monkeypatch.setenv("GOOGLE_API_KEY","isolated-test-key")
+    monkeypatch.setattr(generation.genai,"Client",lambda **kwargs:fake_client)
+    monkeypatch.setattr(generation,"metered_call",metered)
+    monkeypatch.setattr("app.agent.session_store.get_session_store",lambda:store)
+    monkeypatch.setattr(generation.asyncio,"sleep",lambda _:close())
+    if repair_succeeds:
+        result=await generation.request(session,"plan","Titolo sintetico.",GeneratedEssayPlan)
+        assert result.title=="Ragioni aperte"
+    else:
+        with pytest.raises(ValueError,match="titolo generato"):
+            await generation.request(session,"plan","Titolo sintetico.",GeneratedEssayPlan)
+    assert len(calls)==2
+    assert store.get_session("P1").plan==plan_data()
+
+
+def test_maximum_back_cover_text_fits_on_one_final_page(store,monkeypatch):
+    from pypdf import PdfReader
+    session=ready(store,title=("Un titolo deliberatamente lungo e articolato "*8)[:300],author_name=("Autrice e nome completo "*10)[:200],
+                  back_cover_text=("Una presentazione editoriale con domande aperte e ragioni da confrontare. "*22)[:1500])
+    session.book_chapters=[{"section_id":"C1","section_index":0,"title":"Premesse","content":"Una premessa.","unresolved":[]}]
+    from app.essay import pdf_layout as layout
+    from reportlab.platypus import Paragraph
+    layout._cached_pdf.cache_clear()
+    in_back=[False];positions=[]
+    draw=layout.BackCoverLeaf.draw;draw_paragraph=Paragraph.drawOn
+    def back_draw(leaf):
+        in_back[0]=True
+        try:
+            return draw(leaf)
+        finally:
+            in_back[0]=False
+    def paragraph_draw(para,canvas,x,y,*args,**kwargs):
+        if in_back[0]:
+            positions.append(y)
+        return draw_paragraph(para,canvas,x,y,*args,**kwargs)
+    monkeypatch.setattr(layout.BackCoverLeaf,"draw",back_draw)
+    monkeypatch.setattr(Paragraph,"drawOn",paragraph_draw)
+    data,_=export_book(session,"pdf")
+    reader=PdfReader(BytesIO(data))
+    text=reader.pages[-1].extract_text()
+    assert session.form_data.back_cover_text.replace("\n"," ") in " ".join(text.split())
+    assert positions and min(positions)>=38*72/25.4

@@ -35,8 +35,8 @@ Sono riutilizzati il motore SQLite per transazioni/revisioni, il worker durevole
 
 ## Verifiche completate
 
-- 188 test backend: 131 dell'infrastruttura precedente e 57 SaggIA.
-- 68 test frontend: 31 precedenti e 37 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
+- 198 test backend: 131 dell'infrastruttura precedente e 67 SaggIA.
+- 71 test frontend: 31 precedenti e 40 SaggIA. Verificate le nove combinazioni di profilo/ruolo, i default, le bozze, i conflitti, i riferimenti e i dati bibliografici.
 - TypeScript senza errori; build Vite/PWA completata.
 - Prova reale con Gemini 3.8 Flash: creazione nel browser, domande, ricerca web, analisi, piano, approvazione, tre capitoli, revisione, copertina e tre export.
 - Prove reali con profilo divulgativo/ruolo esplorativo (Gemini 3.5 Flash Lite) e profilo accademico/ruolo di sostegno (Gemini 3.8 Flash): domande, upload di materiali dell'autore, evidenze e piano coerente.
@@ -45,7 +45,7 @@ Sono riutilizzati il motore SQLite per transazioni/revisioni, il worker durevole
 - Rendering e ispezione visiva del PDF; verifica testuale dei riferimenti e apertura strutturale di EPUB/DOCX. Verificati anche titoli lunghi e copertine nei tre formati.
 - Avvio/riuso dei servizi con il launcher, health check dedicato e navigazione diretta alla build.
 
-Il libro dimostrativo rimane nella biblioteca come “Esempio verificato · Biblioteche e confronto”: tre capitoli, circa mille parole, sei fonti individuate, venti estratti disponibili e ventidue citazioni. I progetti temporanei degli altri due profili sono stati rimossi dopo averne salvato gli esiti tecnici nella directory QA esclusa da Git.
+La prova iniziale ha usato un libro dimostrativo chiamato “Esempio verificato · Biblioteche e confronto”: tre capitoli, circa mille parole, sei fonti individuate, venti estratti disponibili e ventidue citazioni. I progetti temporanei degli altri due profili sono stati rimossi dopo averne salvato gli esiti tecnici nella directory QA esclusa da Git.
 
 ## Difetti trovati e corretti
 
@@ -81,3 +81,16 @@ Il PDF usa un'impaginazione A5 con font serif incorporati quando disponibili, fr
 Una cache limitata a otto edizioni evita di impaginare nuovamente ogni richiesta della biblioteca: testo, riferimenti, metadati e aggiornamento della copertina invalidano il risultato. Il numero delle pagine in Opere è quello dello stesso PDF scaricabile.
 
 Sono passati 188 test backend, 68 frontend, TypeScript e build. Verificati annullamento, errore concorrente, doppia richiesta, rimozione selettiva e gestione dei costi assenti/parziali; layout della biblioteca a 390 px e 1280 px. Il saggio esistente è stato esportato in 67 pagine, renderizzate e ispezionate; verificati separatamente titoli/sottotitoli/autori lunghi, elenchi, tabelle, simboli, citazioni e navigazione. Il download dall'API conferma 67 pagine e sette voci di indice.
+
+
+## Autore, quarta di copertina e titoli sintetici (7 ottobre 2026)
+
+Il nome autore è visibile nel brief iniziale. In Progetto e Revisione, il pannello “Autore, titolo e retro” modifica firma, titolo, sottotitolo e presentazione anche dopo la scrittura. Un endpoint dedicato con controllo di versione conserva approvazione, revisione, manoscritto e checkpoint. Il polling non sovrascrive le modifiche in corso; i salvataggi concorrenti lasciano recuperabile la bozza.
+
+La copertina tipografica viene composta nuovamente al salvataggio senza costi AI. Gli sfondi illustrati delle nuove copertine sono conservati separatamente, così cambiare il nome non acquista un'altra immagine. Le vecchie copertine illustrate prive dello sfondo originale richiedono una rigenerazione esplicita. La pulizia del progetto comprende lo sfondo conservato.
+
+Le nuove proposte AI preferiscono titoli di 2-6 parole, con massimo 8 parole/64 caratteri per il libro e 10 parole/85 caratteri per i capitoli. I dettagli vanno nel sottotitolo e nelle descrizioni dell'indice. La validazione locale rifiuta le proposte troppo lunghe e ammette un solo nuovo tentativo, senza troncare i titoli. I titoli scelti esplicitamente dall'autore e le modifiche manuali restano liberi.
+
+Il progetto editoriale propone anche una presentazione di 80-140 parole per il retro, modificabile fino a 1500 caratteri. Il PDF termina con una quarta di copertina A5 coordinata nei colori e nei font, senza testatina o numero di pagina. EPUB e DOCX includono lo stesso testo alla fine. I libri precedenti usano la direzione editoriale come testo iniziale, senza chiamate AI aggiuntive. Il retro partecipa alla cache del PDF e al conteggio delle pagine in Opere.
+
+Verificati 198 test backend e 71 frontend, TypeScript e build; prove dedicate a conflitti, blocco durante i job, conservazione della revisione, riuso degli sfondi, export finali, cache e correzione dei titoli. Ispezionate visivamente copertina con firma, retro e una prova con testi ai limiti di lunghezza. Pannello controllato a 390 px e 1280 px; nessuna modifica al nome o al titolo del manoscritto esistente.

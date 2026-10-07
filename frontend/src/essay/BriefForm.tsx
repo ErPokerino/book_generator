@@ -18,8 +18,8 @@ export function BriefForm({initial,config,onSave,saving=false,submitLabel='Crea 
    return next;
   });
  }
- const text = (key:keyof Brief,label:string,placeholder='',rows=2) => <label className="sg-field">{label}<textarea value={String(value[key] ?? '')} rows={rows} placeholder={placeholder} onChange={e=>update(key,e.target.value as never)}/></label>;
- const input = (key:keyof Brief,label:string,placeholder='') => <label className="sg-field">{label}<input value={String(value[key] ?? '')} placeholder={placeholder} onChange={e=>update(key,e.target.value as never)}/></label>;
+ const text = (key:keyof Brief,label:string,placeholder='',rows=2) => <label className="sg-field">{label}<textarea maxLength={key==='back_cover_text'?1500:undefined} value={String(value[key] ?? '')} rows={rows} placeholder={placeholder} onChange={e=>update(key,e.target.value as never)}/></label>;
+ const input = (key:keyof Brief,label:string,placeholder='') => <label className="sg-field">{label}<input maxLength={key==='author_name'?200:key==='title'?300:key==='subtitle'?500:undefined} value={String(value[key] ?? '')} placeholder={placeholder} onChange={e=>update(key,e.target.value as never)}/></label>;
  const select = (key:keyof Brief,label:string,options:[string,string][]) => <label className="sg-field">{label}<select value={String(value[key])} onChange={e=>update(key,e.target.value as never)}>{options.map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>;
  return <form onSubmit={e=>{e.preventDefault();onSave(value)}} className="sg-brief">
   <section className="sg-card">
@@ -66,13 +66,14 @@ export function BriefForm({initial,config,onSave,saving=false,submitLabel='Crea 
    {select('example_policy','Esempi',[['documented','Casi documentati'],['hypothetical','Esempi ipotetici dichiarati'],['mixed','Casi ed esempi dichiarati']])}
    {text('editorial_references','Riferimenti editoriali','Caratteristiche di esposizione che ti interessano, distinte dalle fonti da citare')}
   </div><p className="sg-help">Limiti e incertezze vengono sempre dichiarati. Gli esempi ipotetici sono riconoscibili nel testo.</p></details>
-  <details className="sg-card"><summary>Firma, citazioni e copertina</summary><div className="sg-grid-two">
+  <section className="sg-card"><h2>Autore e copertina</h2><div className="sg-grid-two">
    {input('author_name','Nome autore')}
    {input('title','Titolo, se già scelto')}
    {input('subtitle','Sottotitolo')}
+   {text('back_cover_text','Testo del retro, facoltativo','Se lasci vuoto, viene proposto con il progetto editoriale.')}
    {select('citation_style','Citazioni',[['numeric','Riferimenti numerici'],['author_date','Autore e data']])}
    {select('cover_style','Stile copertina',[['typographic','Tipografica'],['conceptual','Concettuale'],['photographic','Fotografica'],['illustrated','Illustrata']])}
-  </div><p className="sg-help">La copertina è facoltativa e si crea dallo studio. Quella tipografica non richiede una generazione AI.</p></details>
+  </div><p className="sg-help">Il nome autore compare sulla copertina e nel libro. Se non scegli un titolo, l’AI propone un titolo breve e sposta i dettagli nel sottotitolo. Il retro diventa l’ultima pagina del PDF. La copertina tipografica non richiede una generazione AI.</p></section>
   <details className="sg-card"><summary>Scrittura, modelli e consumi</summary><div className="sg-grid-two">
    {select('revision_mode','Percorso di scrittura',[['reviewed','Scrittura con revisione dei capitoli'],['writing','Scrittura, poi revisione separata']])}
    {select('llm_model','Modello predefinito',config.models.map(m=>[m.id,m.label]))}

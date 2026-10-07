@@ -62,6 +62,7 @@ class EssayBrief(CompactModel):
     author_name: str = Field(default="", max_length=200)
     title: str = Field(default="", max_length=300)
     subtitle: str = Field(default="", max_length=500)
+    back_cover_text: str = Field(default="", max_length=1500)
     citation_style: Literal["numeric", "author_date"] = "numeric"
     revision_mode: Literal["writing", "reviewed"] = "reviewed"
     cover_style: Literal["typographic", "conceptual", "photographic", "illustrated"] = "typographic"
@@ -170,6 +171,7 @@ class EssaySectionPlan(CompactModel):
 class EssayPlan(CompactModel):
     title: str = Field(min_length=1)
     subtitle: str = ""
+    back_cover_text: str = Field(default="", max_length=1500)
     direction: str = Field(min_length=1)
     method: str = ""
     definitions: list[str] = Field(default_factory=list)
@@ -187,6 +189,29 @@ class EssayPlan(CompactModel):
         if any(c not in claims for s in self.sections for c in s.claim_ids):
             raise ValueError("L'indice richiama un argomento inesistente.")
         return self
+
+
+class GeneratedEssayPlan(EssayPlan):
+    """Editorial bounds apply to AI proposals, never to manual edits."""
+    @model_validator(mode="after")
+    def concise_titles(self, info):
+        brief = (info.context or {}).get("brief")
+        if not (brief and brief.title.strip()):
+            if len(self.title.split()) > 8 or len(self.title) > 64:
+                raise ValueError("Il titolo generato deve avere al massimo 8 parole e 64 caratteri.")
+        if any(len(section.title.split()) > 10 or len(section.title) > 85 for section in self.sections):
+            raise ValueError("I titoli dei capitoli devono avere al massimo 10 parole e 85 caratteri.")
+        if not self.back_cover_text.strip():
+            raise ValueError("Scrivi anche la presentazione per la quarta di copertina.")
+        return self
+
+
+class PublicationEdit(CompactModel):
+    author_name: str = Field(default="", max_length=200)
+    title: str = Field(default="", max_length=300)
+    subtitle: str = Field(default="", max_length=500)
+    back_cover_text: str = Field(default="", max_length=1500)
+    expected_version: int
 
 
 class ReviewIssue(CompactModel):

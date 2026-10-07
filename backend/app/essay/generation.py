@@ -8,7 +8,7 @@ import re
 from google import genai
 from google.genai import types
 
-from app.essay.models import (QuestionSet, EssayPlan, EvidenceSet, ChapterPayload, EssayReview,
+from app.essay.models import (QuestionSet, EssayPlan, GeneratedEssayPlan, EvidenceSet, ChapterPayload, EssayReview,
                                EvidenceExcerpt, identifier, now)
 from app.essay.settings import stage_model
 from app.essay.prompts import instructions, context, source_context, as_json
@@ -27,7 +27,7 @@ async def request(session, phase, prompt, schema=None, *, search=False):
     output_limit = {"questions": 3072, "research": 4096, "evidence": 8192}.get(phase, 32768)
     config = {"system_instruction": instructions(session.form_data), "max_output_tokens": output_limit}
     if schema is not None:
-        config.update(response_mime_type="application/json", response_schema=schema)
+        config.update(response_mime_type="application/json", response_schema=EssayPlan if schema is GeneratedEssayPlan else schema)
     if search:
         config["tools"] = [types.Tool(google_search=types.GoogleSearch())]
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=180000))
@@ -43,7 +43,9 @@ async def request(session, phase, prompt, schema=None, *, search=False):
                 if schema is None:
                     return result
                 parsed = getattr(result, "parsed", None)
-                return schema.model_validate(parsed) if parsed is not None else schema.model_validate_json(result.text)
+                if hasattr(parsed, "model_dump"):
+                    parsed = parsed.model_dump()
+                return schema.model_validate(parsed, context={"brief": session.form_data}) if parsed is not None else schema.model_validate_json(result.text, context={"brief": session.form_data})
             except Exception as exc:
                 last = exc
                 # Retry a transient server/transport failure or malformed model output once.
@@ -117,7 +119,17 @@ async def generate_plan(store, session):
         return  # A result committed before a restart must not be purchased again.
     prompt = as_json(context(session)) + """
 Produci un progetto editoriale completo per un libro italiano. Non scrivere ancora i capitoli.
-Titolo e sottotitolo possono usare le preferenze del brief. La direction deve essere una tesi,
+Rispetta titolo e sottotitolo se l'autore li ha già scelti. Altrimenti crea un titolo editoriale
+sintetico: preferibilmente 2-6 parole, massimo 8 parole e 64 caratteri. Non trasformare il titolo
+in una descrizione della tesi, un elenco o una frase esplicativa. Sposta nomi, contesto e dettagli
+nel sottotitolo (preferibilmente entro 140 caratteri); evita di ripetere il titolo.
+Anche i titoli dei capitoli devono essere brevi: preferibilmente 2-6 parole, massimo 10 parole
+e 85 caratteri. Scopo e descrizione contengono i dettagli.
+Scrivi back_cover_text: una presentazione editoriale di 80-140 parole per il retro del libro,
+massimo 1500 caratteri, con domanda centrale, percorso e interesse per il lettore adulto. Nessuna recensione inventata,
+promessa infondata o riferimento a risultati non presenti nel piano. Rispetta il testo del retro
+se già fornito nel brief. Non inventare il nome dell'autore.
+La direction deve essere una tesi,
 domanda interpretativa o domanda/ipotesi, coerente con il profilo e il ruolo AI.
 In modalità support non proporre una tesi alternativa; in explore confronta posizioni nel piano.
 Claims: identifica premesse e ragioni, tipo di affermazione, obiezione, risposta e lacuna.
@@ -128,7 +140,16 @@ e abbastanza capitoli per la lunghezza richiesta. Se target_words è 1000, usa 2
 Accademico: metodo e corpus veri, stato della questione, analisi, discussione, limiti;
 non fingere raccolte di dati svolte. Divulgativo: spiega i concetti e non forzare una polemica.
 Fornisci definitions e limits. Segnala le proposte all'autore, che approverà il piano."""
-    plan = validate_plan(await request(session, "plan", prompt, EssayPlan), session)
+    proposal = GeneratedEssayPlan.model_validate(
+        (await request(session, "plan", prompt, GeneratedEssayPlan)).model_dump(), context={"brief": session.form_data})
+    # Explicit author choices remain authoritative, even if deliberately long.
+    if session.form_data.title.strip():
+        proposal.title = session.form_data.title.strip()
+    if session.form_data.subtitle.strip():
+        proposal.subtitle = session.form_data.subtitle.strip()
+    if session.form_data.back_cover_text.strip():
+        proposal.back_cover_text = session.form_data.back_cover_text.strip()
+    plan = validate_plan(proposal, session)
     session = store.get_session(session.session_id)
     session.plan = plan.model_dump()
     session.current_version += 1

@@ -33,6 +33,27 @@ async def make_cover(store, session):
         finally:
             await client.aio.aclose()
             client.close()
+    background.save(root / (session.session_id + "-background.png"))
+    target = compose_cover(store, session, background)
+    session = store.get_session(session.session_id)
+    session.cover_image_path = str(target)
+    store.save_session(session)
+
+
+def compose_cover(store, session, background=None):
+    root = store.data_dir / "covers"
+    root.mkdir(parents=True, exist_ok=True)
+    if background is None:
+        saved = root / (session.session_id + "-background.png")
+        if session.form_data.cover_style == "typographic":
+            background = Image.new("RGB", (1000, 1500), "#163b39")
+        elif saved.is_file():
+            background = Image.open(saved).convert("RGB")
+        else:
+            # Legacy illustrated covers did not retain their text-free background.
+            return None
+    else:
+        background = background.copy()
     draw = ImageDraw.Draw(background)
     def font(size):
         path = Path("C:/Windows/Fonts/georgia.ttf")
@@ -87,6 +108,4 @@ async def make_cover(store, session):
         draw.text((90, 1290+i*author_size*1.3), line, font=font(author_size), fill="#fbf8f3")
     target = root / (session.session_id + ".png")
     background.save(target)
-    session = store.get_session(session.session_id)
-    session.cover_image_path = str(target)
-    store.save_session(session)
+    return target

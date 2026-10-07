@@ -23,15 +23,24 @@ def text_blocks(text):
 def plain(text):
     return re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", re.sub(r"[*_\x60]", "", text))
 
+def back_cover_text(session):
+    """Old projects also receive a usable back cover without a paid AI call."""
+    plan = session.plan or {}
+    return (session.form_data.back_cover_text.strip() or plan.get("back_cover_text", "").strip()
+            or plan.get("direction", "").strip() or session.form_data.thesis.strip()
+            or session.form_data.topic.strip())
+
+
 def export_book(session, format):
     chapters, bibliography = rendered_manuscript(session)
     title = session.form_data.title or session.plan["title"]
     subtitle = session.form_data.subtitle or session.plan.get("subtitle", "")
     author = session.form_data.author_name
+    back_text = back_cover_text(session)
     work_note = "Versione di lavoro. Consulta il rapporto di revisione nello studio." if session.review is None or session.review.get("partial") or session.review.get("issues") else ""
     if format == "pdf":
         from app.essay.pdf_layout import export_pdf
-        return export_pdf(session, chapters, bibliography, title, subtitle, author, work_note)
+        return export_pdf(session, chapters, bibliography, title, subtitle, author, work_note, back_text)
     if format == "docx":
         from docx import Document
         from docx.shared import Pt, Inches
@@ -68,6 +77,12 @@ def export_book(session, format):
                 doc.add_paragraph("[" + source["label"] + "] " + source["text"])
         if work_note:
             doc.add_paragraph(work_note)
+        doc.add_page_break()
+        doc.add_heading(title, 0)
+        for block in text_blocks(back_text):
+            doc.add_paragraph(block)
+        if author:
+            doc.add_paragraph(author)
         doc.styles["Normal"].font.name = "Georgia"
         doc.styles["Normal"].font.size = Pt(11)
         buffer = BytesIO()
@@ -102,6 +117,12 @@ def export_book(session, format):
             item.content = "<p>" + escape(work_note) + "</p>"
             book.add_item(item)
             sections.append(item)
+        back = epub.EpubHtml(title="Quarta di copertina", file_name="back-cover.xhtml", lang="it")
+        back.content = "<h1>" + escape(title) + "</h1>" + "".join("<p>" + escape(block) + "</p>" for block in text_blocks(back_text))
+        if author:
+            back.content += "<p>" + escape(author) + "</p>"
+        book.add_item(back)
+        sections.append(back)
         book.toc = sections
         book.spine = ["nav", *sections]
         book.add_item(epub.EpubNcx())
