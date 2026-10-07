@@ -107,3 +107,16 @@ Rapporto letto, versione e hash dei capitoli vengono verificati nell'accodamento
 Il limite di spesa vale anche per correzioni e controlli. Modificare soltanto budget o modelli conserva l'approvazione e il checkpoint; lo stesso vale per i dati di pubblicazione. Modifiche editoriali, fonti e revisioni manuali invalidano il piano di correzioni precedente.
 
 Verificati 218 test backend e 78 frontend, TypeScript e build. Venti regressioni backend coprono concorrenza, idempotenza, interventi generali, riferimenti, versioni, limite di due passaggi, testi invariati, ripresa dopo rete/annullamento, verifica a gruppi e budget. Sette test frontend coprono delega, stato, blocchi, ripresa ed esito. Verifica nel browser su un archivio QA isolato e risposte di modello simulate: accodamento, correzione reale del testo salvato, nuovo rapporto senza interventi e storico recuperabile. Nessuna correzione è stata avviata sul manoscritto dell'autore durante il collaudo.
+
+
+## Riferimenti ai capitoli nella revisione (7 ottobre 2026)
+
+Il controllo finale del manoscritto viene suddiviso in gruppi di massimo 90.000 caratteri. Il modello riceveva l'indice completo ma poteva indicare qualsiasi section_id: il controllo locale rifiutava anche un riferimento a un capitolo reale esterno al gruppo, con il messaggio fuorviante “capitolo inesistente”. La validazione semantica era inoltre esterna ai tentativi di riparazione.
+
+Ogni richiesta di revisione ora espone gli identificativi effettivamente esaminabili e li vincola nello schema inviato a Gemini. L'indice resta contesto editoriale; il prompt chiarisce che i capitoli non forniti non sono mancanti. I problemi generali usano un identificativo dedicato, non vuoto e senza collisioni con i capitoli, convertito nel section_id vuoto del contratto salvato. Gemini rifiuta valori vuoti negli enum, come verificato nella prova reale.
+
+Un riferimento non valido o una citazione non presente produce un solo tentativo di riparazione, con errore e rapporto precedente. Le osservazioni valide devono essere conservate; non vengono scartati automaticamente interventi, né spostati su altri capitoli. Se la riparazione resta invalida, il checkpoint conserva i risultati già salvati e l'errore identifica il gruppo ammesso.
+
+La ripresa del controllo ricostruisce anche il numero del passaggio e i capitoli aggiornati dal checkpoint, evitando contatori azzerati. Dieci test aggiuntivi coprono schema SDK, identificativi fuori gruppo/inventati/titoli, citazioni nel capitolo sbagliato, tentativo limitato, problemi generali, collisioni e ripresa del secondo passaggio senza riscritture. Suite backend: 228 test superati; frontend non modificato.
+
+Prova reale sul progetto “Le nuove destre radicali”: ripreso esclusivamente il controllo finale del secondo passaggio; entrambi i gruppi verificati e ciclo completato. Tutti i cinque hash dei capitoli coincidono con quelli precedenti alla ripresa. Il nuovo rapporto conserva sei interventi editoriali (tutti riferiti a capitoli esistenti o al manoscritto nel suo insieme); nessun testo è stato riscritto durante il recupero.

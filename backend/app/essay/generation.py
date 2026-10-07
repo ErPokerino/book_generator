@@ -266,7 +266,9 @@ def validate_review(review, chapters):
     by_id = {c.get("section_id"): c for c in chapters}
     for issue in review.issues:
         if issue.section_id and issue.section_id not in by_id:
-            raise ValueError("La revisione richiama un capitolo inesistente.")
+            raise ValueError(
+                f"La revisione indica il capitolo {issue.section_id[:100]!r}, "
+                f"assente dal gruppo in esame. Capitoli ammessi: {', '.join(by_id)}.")
         if issue.quote:
             targets = [by_id[issue.section_id]] if issue.section_id else chapters
             matched = next((source_evidence(issue.quote, c["content"]) for c in targets
@@ -277,17 +279,66 @@ def validate_review(review, chapters):
     return review
 
 
+def global_review_id(section_ids):
+    # Gemini disallows empty enum values. Keep the stored global ID empty,
+    # using a collision-free nonempty sentinel only in the provider exchange.
+    value = "WHOLE_MANUSCRIPT"
+    while value in section_ids:
+        value = "_" + value
+    return value
+
+
+def scoped_review_schema(section_ids):
+    """Constrain the provider grammar without changing the stored review contract."""
+    class ScopedEssayReview(EssayReview):
+        @classmethod
+        def model_json_schema(cls, *args, **kwargs):
+            schema = super().model_json_schema(*args, **kwargs)
+            field = schema["$defs"]["ReviewIssue"]["properties"]["section_id"]
+            field["enum"] = [global_review_id(section_ids), *section_ids]
+            return schema
+    return ScopedEssayReview
+
+
 async def review_chapters(session, chapters):
-    return validate_review(await request(session, "review", as_json({
+    section_ids = [c["section_id"] for c in chapters]
+    schema = scoped_review_schema(section_ids)
+    global_id = global_review_id(section_ids)
+    original = as_json({
         "brief": session.form_data.model_dump(), "plan": session.plan,
-        "evidence": source_context(session, priority_ids=list(re.findall(r"\[@([^\]]+)\]", " ".join(c["content"] for c in chapters)))), "chapters": chapters}) + """
-Valuta soltanto il materiale fornito secondo il profilo. Nessun voto di verità.
+        "reviewable_section_ids": section_ids, "global_issue_section_id": global_id,
+        "evidence": source_context(session, priority_ids=list(re.findall(r"\[@([^\]]+)\]", " ".join(c["content"] for c in chapters)))),
+        "chapters": chapters}) + """
+Valuta soltanto i testi in chapters secondo il profilo. Nessun voto di verità.
+L'indice completo in plan serve da contesto: i capitoli esterni a chapters non sono stati forniti,
+non sono mancanti dal libro e non puoi proporre interventi sul loro testo.
 Riporta problemi di logica, evidenza, obiezioni, metodo o stile.
-Ogni issue indica section_id esistente e quote esatta quando riguarda un passaggio.
+Ogni issue deve copiare un section_id da reviewable_section_ids, mai un titolo, un numero
+di posizione o un identificativo del solo indice. Usa global_issue_section_id soltanto per problemi
+generali documentati dai testi forniti. Non attribuire un problema a un altro capitolo per farlo accettare.
+Quando riguarda un passaggio, quote deve essere una citazione letterale del capitolo indicato.
 Per mancanze strutturali puoi lasciare quote vuota. Un'opinione dichiarata non è un fatto senza prova.
 Non inventare difetti o fonti mancanti. In support migliora le ragioni senza suggerire una tesi alternativa.
 Distingui blocking, important e suggestion. Un risultato accademico inconclusivo può essere corretto.
-Non certificare l'accuratezza del mondo: esamina l'uso degli estratti acquisiti.""", EssayReview), chapters)
+Non certificare l'accuratezza del mondo: esamina l'uso degli estratti acquisiti."""
+    prompt = original
+    for attempt in range(2):
+        review = await request(session, "review", prompt, schema)
+        for issue in review.issues:
+            if issue.section_id == global_id:
+                issue.section_id = ""
+        try:
+            return validate_review(review, chapters)
+        except ValueError as error:
+            if attempt:
+                raise
+            prompt = original + "\nLa risposta precedente non supera i controlli: " + str(error) + \
+                "\nRiesamina i testi e restituisci il rapporto corretto completo. " + \
+                "Usa soltanto i section_id ammessi o global_issue_section_id per problemi generali, " + \
+                "e citazioni presenti nel capitolo corrispondente. " + \
+                "Non inventare citazioni, spostare difetti ad altri capitoli o nascondere problemi reali. " + \
+                "Mantieni le osservazioni valide; correggi quelle non documentate alla luce del testo fornito." + \
+                "\nRisposta precedente:\n" + as_json(review.model_dump())
 
 
 async def checked_chapter(session, phase, prompt, *, target_words=0, minimum_ratio=.4):
@@ -519,6 +570,8 @@ summary descrive il contenuto effettivamente corretto."""
         session = store.get_session(sid)
         if session.revision_request["stage"] == "checking":
             progress(store, sid, "revision", phase="checking",
+                pass_number=session.revision_request["pass"],
+                updated_sections=len(session.revision_request["updated_ids"]),
                 current_section_name="Nuova revisione dopo le correzioni")
             await full_review(store, store.get_session(sid), kind="revision")
         session = store.get_session(sid)
