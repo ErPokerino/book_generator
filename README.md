@@ -20,7 +20,7 @@ Interfaccia, backend e archivi girano in locale: FastAPI + React, persistenza tr
 
 ## Quick start
 
-Su Windows puoi eseguire **avvia.cmd**. Anche **avvia-saggia.cmd** apre ora lo stesso studio NarrAI. Il lancio manuale è descritto sotto.
+Su Windows l’unico avvio è **avvia.cmd**, che apre NarrAI con tutte e tre le modalità. Il lancio manuale è descritto sotto.
 
 ### 1. Chiave API
 

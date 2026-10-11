@@ -6,7 +6,7 @@ Aggiornamento: 11 ottobre 2026. Eseguire i comandi dalla root del repository, sa
 
 Requisiti: Python 3.11+, uv, Node.js 22.13+ e npm. Copiare `.env.example` in `.env` e impostare `GOOGLE_API_KEY`. La chiave serve anche per Gemini TTS; non serve un service account GCP per il percorso attuale.
 
-Su Windows `avvia.cmd` controlla uv/npm, installa le dipendenze se le directory mancano e apre backend e frontend. `avvia-saggia.cmd` è un alias. Se la porta 8000 ospita NarrAI viene riutilizzata; se ospita un altro servizio si cerca una porta tra 8001 e 8020. Il proxy frontend riceve `NARRAI_API_TARGET`. Il launcher non sincronizza automaticamente dipendenze già installate dopo un aggiornamento: eseguire i comandi sotto.
+Su Windows l’unico launcher `avvia.cmd` controlla uv/npm, installa le dipendenze se le directory mancano e apre backend e frontend. Se la porta 8000 ospita NarrAI viene riutilizzata; se ospita un altro servizio si cerca una porta tra 8001 e 8020. Il proxy frontend riceve `NARRAI_API_TARGET`. Il launcher non sincronizza automaticamente dipendenze già installate dopo un aggiornamento: eseguire i comandi sotto.
 
 ```powershell
 cd backend

@@ -156,7 +156,8 @@ async def export_chapter_timings():
                 })
     
     # Salva CSV
-    csv_path = backend_dir.parent / "chapter_timings_export.csv"
+    csv_path = backend_dir.parent / "evals" / "data" / "chapter_timings_export.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     
     # Colonne CSV
     fieldnames = [

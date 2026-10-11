@@ -11,4 +11,4 @@ backend/test_images/
 frontend/node_modules/
 frontend/dist/
 .env
-chapter_timings_export.csv
+evals/data/chapter_timings_export.csv
