@@ -12,23 +12,22 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md, 0.5rem);
+  background: var(--sheet);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 4px 8px 5px 3px;
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease;
   font-family: inherit;
   min-width: 120px;
   justify-content: center;
 }
 
 .export-dropdown-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5568d3 0%, #6a4190 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: var(--sheet-hover);
+  box-shadow: none;
 }
 
 .export-dropdown-button:active:not(:disabled) {
@@ -51,8 +50,8 @@
   right: 0;
   background: var(--surface, #ffffff);
   border: 1px solid var(--border-light, #e5e7eb);
-  border-radius: var(--radius-md, 0.5rem);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px 8px 5px 3px;
+  box-shadow: 2px 3px 0 #22221f0a;
   z-index: 9999;
   min-width: 140px;
   overflow: hidden;
@@ -96,7 +95,7 @@
 }
 
 .export-option:hover {
-  background: var(--background-secondary, #f9fafb);
+  background: var(--sheet-hover);
 }
 
 .export-option:active {

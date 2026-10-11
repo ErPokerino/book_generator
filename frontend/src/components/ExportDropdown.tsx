@@ -2,11 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { downloadMangaPdf, exportBook } from '../api/client';
+import { ESSAY_API } from '../essay/api';
+import { Download, ChevronDown, FileText, BookOpen, Pencil } from 'lucide-react';
+import { downloadFilename } from '../utils/downloadFilename';
 import './ExportDropdown.css';
 
 interface ExportDropdownProps {
   sessionId: string;
-  contentType?: 'book' | 'manga';
+  contentType?: 'book' | 'essay' | 'manga';
   disabled?: boolean;
   className?: string;
 }
@@ -102,9 +105,16 @@ export default function ExportDropdown({
 
     try {
       console.log(`[ExportDropdown] Inizio export ${format} per sessione ${sessionId}`);
-      const { blob, filename } = isManga
-        ? await downloadMangaPdf(sessionId)
-        : await exportBook(sessionId, format);
+      let result;
+      if (contentType === 'essay') {
+        const response = await fetch(`${ESSAY_API}essays/${sessionId}/export/${format}`);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Esportazione non disponibile');
+        }
+        result = {blob: await response.blob(), filename:downloadFilename(response.headers.get('Content-Disposition'), `Saggio_${sessionId.substring(0,8)}.${format}`)};
+      } else result = isManga ? await downloadMangaPdf(sessionId) : await exportBook(sessionId, format);
+      const { blob, filename } = result;
       
       if (!blob || blob.size === 0) {
         throw new Error('Il file ricevuto è vuoto');
@@ -171,7 +181,7 @@ export default function ExportDropdown({
             handleExport('pdf');
           }}
         >
-          <span className="format-icon">📄</span>
+          <FileText size={18} aria-hidden="true"/>
           <span>PDF</span>
         </button>
         <button
@@ -181,7 +191,7 @@ export default function ExportDropdown({
             handleExport('epub');
           }}
         >
-          <span className="format-icon">📚</span>
+          <BookOpen size={18} aria-hidden="true"/>
           <span>EPUB</span>
         </button>
         <button
@@ -191,7 +201,7 @@ export default function ExportDropdown({
             handleExport('docx');
           }}
         >
-          <span className="format-icon">📝</span>
+          <Pencil size={18} aria-hidden="true"/>
           <span>DOCX</span>
         </button>
       </div>,
@@ -203,7 +213,9 @@ export default function ExportDropdown({
     <div className={`export-dropdown ${className}`}>
       <button
         ref={buttonRef}
+        type="button"
         className="export-dropdown-button"
+        aria-expanded={isManga ? undefined : isOpen}
         onClick={() => {
           if (disabled || isExporting) return;
           if (isManga) {
@@ -216,12 +228,12 @@ export default function ExportDropdown({
       >
         {isExporting ? (
           <>
-            <span>⏳ Esportazione {exportingFormat ? getFormatLabel(exportingFormat) : ''}...</span>
+            <span>Esportazione {exportingFormat ? getFormatLabel(exportingFormat) : ''}…</span>
           </>
         ) : (
           <>
-            <span>{isManga ? '📥 Scarica PDF' : '📥 Esporta'}</span>
-            {!isManga && <span className="dropdown-arrow">▼</span>}
+            <Download size={16} aria-hidden="true"/><span>{isManga ? 'Scarica PDF' : 'Esporta'}</span>
+            {!isManga && <ChevronDown className="dropdown-arrow" size={15} aria-hidden="true"/>}
           </>
         )}
       </button>

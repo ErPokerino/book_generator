@@ -24,11 +24,15 @@ from app.api.routers import (
     session,
     submission,
     studio,
+    works,
 )
 from app.agent.session_store import get_session_store
 from app.core.environment import allow_detailed_diagnostics, get_environment
 from app.core.logging import configure_logging, get_logger
 from app.services.process_job_service import recover_interrupted_processes_async
+from app.essay.main import create_app as create_essay_app
+
+essay_api = create_essay_app(api_prefix="")
 
 env_path = Path(__file__).parent.parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
@@ -56,7 +60,8 @@ async def lifespan(app: FastAPI):
     from app.services.durable_worker import DurableWorker
     worker_task = asyncio.create_task(DurableWorker(session_store).run()) if isinstance(session_store, SQLiteSessionStore) else None
     try:
-        yield
+        async with essay_api.router.lifespan_context(essay_api):
+            yield
     finally:
         if worker_task:
             worker_task.cancel()
@@ -74,6 +79,7 @@ async def concurrent_update_handler(request, exc):
 
 app.state.environment = get_environment()
 app.state.allow_detailed_diagnostics = allow_detailed_diagnostics()
+app.state.essay_api = essay_api
 
 frontend_url = os.getenv("FRONTEND_URL", "")
 cors_origins = [
@@ -109,6 +115,8 @@ app.include_router(health.router)
 app.include_router(files.router)
 app.include_router(manga.router)
 app.include_router(studio.router)
+app.include_router(works.router)
+app.mount("/api/saggistica", essay_api, name="saggistica")
 
 
 

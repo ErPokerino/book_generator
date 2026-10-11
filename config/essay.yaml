@@ -1,0 +1,50 @@
+product_id: saggia
+name: SaggIA
+default_model: gemini-3.8-flash
+estimation:
+  words_per_section: 3000
+  words_per_part: 1300
+  tokens_per_word: 1.4
+  context_tokens: 6000
+models:
+  - id: gemini-3.8-flash
+    label: Gemini 3.8 Flash
+  - id: gemini-3.5-flash-lite
+    label: Gemini 3.5 Flash Lite
+stages:
+  questions: Domande
+  plan: Progetto editoriale
+  research: Ricerca web
+  evidence: Analisi delle fonti
+  chapters: Scrittura
+  revision: Revisione dei capitoli
+  review: Revisione del saggio
+profiles:
+  argumentative:
+    label: Argomentativo
+    description: Una posizione riconoscibile, sostenuta da ragioni e confronto con le obiezioni.
+    defaults: {language_register: clear, purpose: argomentare, structure: thesis, citation_style: numeric}
+    instruction: "Sviluppa una tesi esplicita, premesse e ragioni. Presenta le obiezioni più forti con correttezza e chiarisci limiti e implicazioni."
+  popular:
+    label: Divulgativo
+    description: Spiegare un tema, rendere comprensibili i concetti e confrontare le interpretazioni.
+    defaults: {language_register: clear, purpose: divulgare, structure: thematic, citation_style: numeric}
+    instruction: "Organizza il libro attorno alla domanda guida. Definisci i termini, usa esempi e confronta interpretazioni. Non imporre una tesi polemica."
+  academic:
+    label: Accademico
+    description: Domanda di ricerca, metodo dichiarato e apparato documentale.
+    defaults: {language_register: academic, purpose: analizzare, structure: problem, citation_style: author_date}
+    instruction: "Includi stato della questione, domanda o ipotesi, metodo, corpus, analisi, discussione e limiti. Non inventare studi svolti, campioni, interviste o risultati. Un esito inconclusivo è lecito."
+roles:
+  challenge:
+    label: Sviluppa e metti alla prova
+    description: Rafforza le ragioni e propone precisazioni o alternative quando servono.
+    instruction: "Sviluppa la posizione e mettila alla prova. Proponi precisazioni e alternative nel piano; dopo l'approvazione rispetta la direzione scelta."
+  support:
+    label: Sostieni la mia posizione
+    description: Lavora sulla tesi scelta, rendendo visibili le debolezze.
+    instruction: "Sostieni la tesi dell'autore senza proporre posizioni alternative. Segnala comunque lacune, prove contrarie e limiti; non nascondere elementi scomodi."
+  explore:
+    label: Esplora con me
+    description: Confronta più posizioni e aiuta a scegliere una direzione.
+    instruction: "Esplora posizioni concorrenti nel piano. Una volta approvata la direzione, anche comparativa o aperta, non cambiarla durante la scrittura."

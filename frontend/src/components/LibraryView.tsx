@@ -9,6 +9,7 @@ import {
 } from '../api/client';
 import FilterBar from './FilterBar';
 import BookCard from './BookCard';
+import NotebookWelcome from './NotebookWelcome';
 import CritiqueModal from './CritiqueModal';
 import { SkeletonCard } from './Skeleton';
 import { useToast } from '../hooks/useToast';
@@ -16,6 +17,7 @@ import PageHeader from './ui/PageHeader';
 import EmptyState from './ui/EmptyState';
 import Button from './ui/Button';
 import './LibraryView.css';
+import { COMIC_GENRES } from '../utils/comics';
 
 export default function LibraryView() {
   const navigate = useNavigate();
@@ -181,17 +183,21 @@ export default function LibraryView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadLibrary]);
 
-  const handleDelete = (sessionId: string) => {
-    setBooks(prev => prev.filter(book => book.session_id !== sessionId));
+  const handleDelete = (sessionId: string, contentType: LibraryEntry['content_type']) => {
+    setBooks(prev => prev.filter(book => book.session_id !== sessionId || book.content_type !== contentType));
     setTotalBooks(total => Math.max(0, total - 1));
   };
 
   const openMangaSession = (sessionId: string) => {
     localStorage.setItem('current_manga_session_id', sessionId);
-    navigate(`/manga?session=${sessionId}`);
+    navigate(`/comics?session=${sessionId}`);
   };
 
   const handleContinue = (book: LibraryEntry) => {
+    if (book.content_type === 'essay') {
+      navigate(`/essay/${book.session_id}`);
+      return;
+    }
     if (book.content_type === 'manga') {
       openMangaSession(book.session_id);
       return;
@@ -213,23 +219,20 @@ export default function LibraryView() {
       return;
     }
     localStorage.setItem('current_book_session_id', book.session_id);
-    navigate('/new');
+    navigate(`/new?session=${book.session_id}`);
   };
   
   const handleReadBook = (book: LibraryEntry) => {
-    if (book.content_type === 'manga') {
-      openMangaSession(book.session_id);
-      return;
-    }
-    navigate(`/book/${book.session_id}`);
+    navigate(book.content_type === 'essay' || book.content_type === 'manga' ? `/read/${book.content_type}/${book.session_id}` : `/book/${book.session_id}`);
   };
 
   // Modalità disponibili (fisso, non più dalla configurazione)
   const availableModes = ['Standard', 'Ultra'];
-  const availableGenres = config?.fields
+  const availableGenres = [...new Set([...(config?.fields
     .find(f => f.id === 'genre')
-    ?.options?.map(opt => opt.value) || [];
-  const hasActiveFilters = ['search', 'status', 'mode', 'genre'].some(key => {
+    ?.options?.map(opt => opt.value) || []), 'Argomentativo', 'Divulgativo', 'Accademico',
+    ...Object.values(COMIC_GENRES).flatMap(genres => Object.values(genres))])];
+  const hasActiveFilters = ['search', 'status', 'mode', 'genre', 'content_type'].some(key => {
     const value = filtersRef.current[key as keyof LibraryFilters];
     return value && value !== 'all';
   });
@@ -237,7 +240,8 @@ export default function LibraryView() {
   if (loading) {
     return (
       <div className="page-shell library-view">
-        <PageHeader title="Opere" description="I libri e i manga generati in questo studio." />
+        <NotebookWelcome />
+        <PageHeader title="Sul tuo tavolo" description="Le tue opere di narrativa, saggistica e fumetto." />
         <div className="books-grid">
           {Array.from({ length: 6 }).map((_, index) => (
             <SkeletonCard key={index} />
@@ -249,9 +253,10 @@ export default function LibraryView() {
 
   return (
     <div className="page-shell library-view">
+      <NotebookWelcome />
       <PageHeader
-        title="Opere"
-        description={totalBooks > 0 ? `${totalBooks} in archivio.` : undefined}
+        title="Sul tuo tavolo"
+        description={totalBooks > 0 ? `${totalBooks} opere, tutte le tue idee.` : 'Le tue opere trovano posto qui.'}
         actions={
           <Button type="button" variant="ghost" className="library-create-action" onClick={() => navigate('/new')}>
             Crea
@@ -278,7 +283,7 @@ export default function LibraryView() {
           description={
             hasActiveFilters
               ? 'Prova a cambiare i filtri di ricerca.'
-              : 'Crea un libro o un manga. Le opere sono salvate su questo dispositivo; la generazione usa servizi AI online.'
+              : 'Scegli Narrativa, Saggio o Fumetto qui sopra. Ritroverai qui ogni progetto, dalla prima idea all’ultima pagina.'
           }
           action={
             !hasActiveFilters ? (
@@ -292,12 +297,12 @@ export default function LibraryView() {
         <div className="books-grid">
           {books.map((book) => (
             <BookCard
-              key={book.session_id}
+              key={`${book.content_type}-${book.session_id}`}
               book={book}
-              onDelete={handleDelete}
+              onDelete={id => handleDelete(id, book.content_type)}
               onContinue={handleContinue}
               onResume={handleResume}
-              onRead={book.status === 'complete' ? handleReadBook : undefined}
+              onRead={handleReadBook}
               onShowCritique={handleShowCritique}
             />
           ))}

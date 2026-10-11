@@ -36,18 +36,19 @@
   line-height: var(--leading-normal);
   font-weight: var(--font-weight-regular);
 
-  --ink: #1c1917;
-  --ink-soft: #44403c;
-  --paper: #f4f0ea;
-  --sheet: #fbf8f3;
-  --sheet-hover: #f0ebe3;
-  --rule: #d6d0c6;
-  --rule-strong: #c4bdb3;
+  --ink: #22221f;
+  --ink-soft: #454540;
+  --paper: #fafaf7;
+  --sheet: #ffffff;
+  --sheet-hover: #f0f0eb;
+  --rule: #d9d9d1;
+  --rule-strong: #aaa99f;
+  --font-hand: 'Caveat', 'Segoe Print', cursive;
 
-  --accent: #b42318;
-  --accent-hover: #911b13;
-  --accent-light: rgba(180, 35, 24, 0.08);
-  --accent-glow: rgba(180, 35, 24, 0.18);
+  --accent: var(--ink);
+  --accent-hover: #44443e;
+  --accent-light: rgba(34, 34, 31, 0.06);
+  --accent-glow: rgba(34, 34, 31, 0.12);
 
   --success: #3f6212;
   --success-light: rgba(63, 98, 18, 0.1);
@@ -108,10 +109,10 @@
   --glass-blur: none;
   --glass-blur-light: none;
 
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 10px;
+  --radius-sm: 3px 5px 4px 6px;
+  --radius-md: 5px 8px 6px 4px;
+  --radius-lg: 8px 5px 10px 6px;
+  --radius-xl: 8px 5px 10px 6px;
   --radius-full: 9999px;
 
   --spacing-xs: 0.5rem;

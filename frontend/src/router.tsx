@@ -7,10 +7,13 @@ import { useOnboarding } from './hooks/useOnboarding';
 
 const DynamicForm = lazy(() => import('./components/DynamicForm'));
 const MangaBetaView = lazy(() => import('./components/MangaBetaView'));
+const EssayApp = lazy(() => import('./essay/EssayApp'));
 const LibraryView = lazy(() => import('./components/LibraryView'));
 const ManuscriptStudio = lazy(() => import('./components/ManuscriptStudio'));
 const BookReader = lazy(() => import('./components/BookReader'));
 const BenchmarkView = lazy(() => import('./components/BenchmarkView'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const WorkReader = lazy(() => import('./components/WorkReader'));
 const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
 const OnboardingCarousel = lazy(() => import('./components/Onboarding/OnboardingCarousel'));
 
@@ -28,7 +31,12 @@ function LazyPage({ children }: { children: ReactNode }) {
 
 function LegacyMangaRedirect() {
   const location = useLocation();
-  return <Navigate to={`/manga${location.search}`} replace />;
+  return <Navigate to={`/comics${location.search}`} replace />;
+}
+
+function NarrativeCreation() {
+  const location = useLocation();
+  return <DynamicForm key={location.key} />;
 }
 
 function AppLayout({ children }: { children: ReactNode }) {
@@ -73,13 +81,13 @@ export const router = createBrowserRouter([
     element: (
       <AppLayout>
         <LazyPage>
-          <DynamicForm />
+          <NarrativeCreation />
         </LazyPage>
       </AppLayout>
     ),
   },
   {
-    path: '/manga',
+    path: '/comics',
     element: (
       <AppLayout>
         <LazyPage>
@@ -88,6 +96,11 @@ export const router = createBrowserRouter([
       </AppLayout>
     ),
   },
+  { path: '/manga', element: <LegacyMangaRedirect /> },
+  { path: '/read/:kind/:id', element: <ErrorBoundary><LazyPage><WorkReader /></LazyPage></ErrorBoundary> },
+  { path: '/settings', element: <AppLayout><LazyPage><SettingsView /></LazyPage></AppLayout> },
+  { path: '/new/essay', element: <AppLayout><LazyPage><EssayApp /></LazyPage></AppLayout> },
+  { path: '/essay/:id', element: <AppLayout><LazyPage><EssayApp view="workspace" /></LazyPage></AppLayout> },
   {
     path: '/beta/manga',
     element: <LegacyMangaRedirect />,

@@ -91,7 +91,12 @@ class DurableWorker:
         if not job:
             return False
         token = job_lease.set((job["id"], self.owner))
-        task = asyncio.create_task(self.handler(job, self.store))
+        async def handle():
+            from app.agent.session_store import session_store_context
+            with session_store_context(self.store):
+                await self.handler(job, self.store)
+
+        task = asyncio.create_task(handle())
         heartbeat = asyncio.create_task(self._heartbeat(job, task))
         try:
             await task

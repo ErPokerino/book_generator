@@ -7,6 +7,7 @@ import { getStudio, getRevisions, pauseWriting, saveChapter, rebuildMemory, type
 import { resumeBookGeneration, startBookGeneration } from '../api/client';
 import ExportDropdown from './ExportDropdown';
 import './ManuscriptStudio.css';
+import './StudioNotebook.css';
 
 const money = (value: number | null, currency: string) => value == null ? 'Da verificare' : new Intl.NumberFormat('it-IT', { style: 'currency', currency, minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(value);
 const labels: Record<string, string> = { complete: 'Manoscritto completo', writing: 'Scrittura in corso', paused: 'In pausa', outline: 'Pronto per la scrittura', draft: 'Progetto in preparazione' };
@@ -134,7 +135,7 @@ export default function ManuscriptStudio() {
       <Link className="studio-back" to="/library" aria-label="Torna alle opere"><ArrowLeft size={20} /></Link>
       <div className="studio-project"><span className="studio-eyebrow">NARRAI / STUDIO DI SCRITTURA</span><h1>{data.title}</h1></div>
       <span className="studio-saved" role="status">{!dirty && <Check size={14} />}{dirty ? 'Modifiche da salvare' : 'Salvato'}</span>
-      {data.status === 'complete' && <Link className="studio-reading" to={`/book/${sessionId}`}><BookOpen size={17} /> Lettura</Link>}
+      <Link className="studio-reading" to={`/book/${sessionId}`}><BookOpen size={17} /> Leggi</Link>
       <ExportDropdown sessionId={sessionId} disabled={data.status !== 'complete' || dirty || active} />
     </header>
     <nav className="studio-mobile-tabs" aria-label="Pannelli dello studio">{([
@@ -162,7 +163,7 @@ export default function ManuscriptStudio() {
             catch (e) { setError((e as Error).message); } finally { setBusy(false); }
           }}><Pause size={15} />{data.progress?.pause_requested ? 'Pausa richiesta' : 'Pausa dopo il capitolo'}</button>
             : !active && (data.status === 'paused' || (data.status === 'outline' && data.validated)) && <button className="studio-primary" disabled={busy || dirty} onClick={generate}><Play size={15} />{data.status === 'paused' ? 'Riprendi scrittura' : 'Inizia scrittura'}</button>}
-          {data.status === 'draft' && <Link to="/new" onClick={() => localStorage.setItem('current_book_session_id', sessionId)}>Completa la preparazione</Link>}
+          {data.status === 'draft' && <Link to={`/new?session=${sessionId}`}>Completa la preparazione</Link>}
         </div>
       </aside>
       <section className={`studio-manuscript ${pane === 'manuscript' ? 'mobile-visible' : ''}`} aria-label="Manoscritto">

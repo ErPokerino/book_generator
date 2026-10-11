@@ -219,6 +219,7 @@ async def resume_manga_endpoint(
         {
             "status": "pending",
             "is_paused": False,
+            "pause_requested": False,
             "error": None,
             "requested_min_pages": int(progress.get("requested_min_pages", requested_min_pages) or requested_min_pages),
             "requested_max_pages": int(progress.get("requested_max_pages", requested_max_pages) or requested_max_pages),
@@ -254,31 +255,27 @@ async def get_manga_progress_endpoint(
     return build_manga_progress_response(session)
 
 
+@router.post("/{session_id}/pause")
+async def pause_comic(session_id: str):
+    store = get_session_store()
+    session = await get_session_async(store, session_id)
+    if not session or session.content_type != "manga":
+        raise HTTPException(404, "Fumetto non trovato.")
+    progress = session.manga_progress or {}
+    if progress.get("status") not in {"pending", "running"}:
+        raise HTTPException(409, "La generazione non è in corso.")
+    progress["pause_requested"] = True
+    session.manga_progress = progress
+    await save_session_async(store, session)
+    return {"message": "Pausa richiesta: il lavoro in corso viene salvato prima di fermarsi."}
+
+
 @router.get("/{session_id}", response_model=MangaReaderResponse)
 async def get_manga_reader_endpoint(
     session_id: str,
-    background_tasks: BackgroundTasks,
 ):
-    """Restituisce il payload del reader beta, anche durante la generazione."""
+    """Read saved pages without starting paid artwork generation."""
     session = await _get_manga_session_or_404(session_id)
-    progress = getattr(session, "manga_progress", None) or {}
-    should_regenerate_back_cover = is_manga_back_cover_outdated(session)
-    should_backfill_cover = (
-        (
-            not getattr(session, "cover_image_path", None)
-            or not getattr(session, "back_cover_image_path", None)
-            or should_regenerate_back_cover
-        )
-        and (progress.get("is_complete") or progress.get("status") in {"paused", "completed"})
-        and (getattr(session, "manga_plan", None) or getattr(session, "manga_pages", None))
-    )
-    if should_backfill_cover:
-        background_tasks.add_task(
-            backfill_manga_artwork_if_missing,
-            session_id=session_id,
-            force_back_cover_regeneration=should_regenerate_back_cover,
-            api_key=os.getenv("GOOGLE_API_KEY") or None,
-        )
     return build_manga_reader_response(session)
 
 

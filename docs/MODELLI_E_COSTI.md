@@ -1,10 +1,10 @@
 # Modelli e costi di generazione
 
-NarrAI usa Gemini Developer API (`GOOGLE_API_KEY`). Modelli e override sono in `config/app.yaml`; la fonte unica delle tariffe applicate è `backend/app/services/usage_service.py`. I nomi legacy sono risolti al modello API effettivamente invocato prima della registrazione.
+Stato del codice: **11 ottobre 2026**. NarrAI usa Gemini Developer API (`GOOGLE_API_KEY`). Modelli e override narrativi/visivi sono in `config/app.yaml`; modelli, profili e fasi dei saggi sono in `config/essay.yaml`. La fonte unica delle tariffe applicate è `backend/app/services/usage_service.py`. I nomi legacy sono risolti al modello API effettivamente invocato prima della registrazione.
 
 ## Listino applicato
 
-Verificato il **20 settembre 2026** sul [listino ufficiale Google](https://ai.google.dev/gemini-api/docs/pricing). Valori Standard a pagamento, USD per milione di token:
+La fotografia del catalogo nel repository riporta `verified_at=2026-09-20` e il [listino ufficiale Google](https://ai.google.dev/gemini-api/docs/pricing) come fonte. Questo aggiornamento documentale non costituisce una nuova verifica del listino o della disponibilità sull’account. Valori configurati Standard a pagamento, USD per milione di token:
 
 | Modello API | Input | Output testo/ragionamento | Input in cache | Output immagini/audio |
 | --- | ---: | ---: | ---: | ---: |
@@ -17,7 +17,7 @@ Verificato il **20 settembre 2026** sul [listino ufficiale Google](https://ai.go
 | gemini-3.1-flash-lite-image | 0,25 | 1,50 | — | 30,00 immagini |
 | gemini-3.1-flash-tts-preview | 1,00 | — | — | 20,00 audio |
 
-Flash 3.8 raddoppia le tariffe dal 1° gennaio 2027; il calcolo applica la data della richiesta. Per Pro 3.1, oltre 200.000 token di input, input/output/cache diventano 4,00 / 18,00 / 0,40. La soglia è per richiesta, non sulla somma del libro.
+Il catalogo applica un raddoppio delle tariffe Flash 3.8 dal 1° gennaio 2027 in base alla data della richiesta. Per Pro 3.1 applica, oltre 200.000 token di input, input/output/cache pari a 4,00 / 18,00 / 0,40. Sono regole dell’attuale implementazione; la soglia è per richiesta, non sulla somma dell’opera.
 
 ## Registro dei consumi
 
@@ -43,7 +43,21 @@ I progetti storici non hanno un registro per richiesta: vengono marcati come non
 
 Anche il percorso sincrono delle domande crea ora la sessione prima di chiamare il modello, registrando il primo consumo e i tentativi falliti. Nelle versioni precedenti quei token potevano comparire solo nei contatori aggregati: se mancano gli eventi delle domande, il progetto viene segnalato come storicamente incompleto e il subtotale non viene presentato come completo.
 
-## Pipeline e scelta dei modelli
+## Saggi e fumetti
+
+La previsione dei saggi usa `/api/saggistica/essay-estimates`, senza chiamate AI. Le pagine sono l’obiettivo scelto (60/140/240 o 4–480 personalizzate), a 250 parole/pagina. Il budget interno `target_words` conserva la compatibilità con SaggIA.
+
+Il costo usa il listino comune e ipotesi configurate: capitoli da circa 3.000 parole, parti da circa 1.300, 1,4 token/parola, contesto base da 6.000 token e reinvio delle parti precedenti della stessa sezione. Include domande, piano e scrittura; nel percorso con revisione include un controllo per capitolo. La fascia 65–160% del valore centrale è una variabilità indicativa, non un intervallo statistico misurato né un limite di spesa. Modelli generali e override delle fasi aggiornano la previsione.
+
+Il tempo iniziale usa fallback per modello dalla configurazione; con almeno tre scritture completate e ininterrotte, dello stesso percorso e modelli di scrittura/controllo, usa la mediana dei secondi per parola. Esclude pause e tempi di lavoro dell’autore. Una tariffa mancante resta non disponibile, senza diventare zero.
+
+Ricerca web, analisi dei materiali, correzioni, revisione complessiva separata e copertina AI sono aggiuntive. La copertina tipografica è locale e non richiede generazione. Nel registro saggi le fasi hanno prefisso `essay-`; eventuali costi del servizio di ricerca non quantificabili rendono incompleta la copertura. Il limite `budget_eur` si verifica tra richieste: una già avviata può superarlo.
+
+Manga e Graphic Novel condividono la formula della previsione fumetti: storyboard, numero di tavole e due copertine. Le ipotesi di token/risoluzione sono configurate; la fattura e i consumi reali non vengono ricavati dal numero di immagini. La scelta del formato cambia i prompt editoriali e visivi, non la tariffa per token del modello selezionato.
+
+Valuta registra le chiamate su opere interne nel loro archivio; le valutazioni PDF esterne restano fuori dai totali delle opere. Analisi somma i costi noti e dichiara la copertura incompleta. Audio AI e suoni Web Audio dell’interfaccia sono distinti: i secondi non chiamano il provider e non hanno consumi API.
+
+## Pipeline e scelta dei modelli narrativi
 
 ### Previsione dell'estensione
 

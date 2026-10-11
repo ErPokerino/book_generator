@@ -1,5 +1,7 @@
 # Proposte Nome Applicazione
 
+> Documento storico di esplorazione del nome. All’11 ottobre 2026 il nome adottato è **NarrAI**, studio unico per Narrativa, Saggio e Fumetto. Le alternative seguenti non rappresentano altri prodotti attivi; per la descrizione corrente vedere [documentazione](../docs/README.md).
+
 Ecco alcune proposte di nomi originali per l'applicazione:
 
 ## Opzioni Principali

@@ -70,3 +70,11 @@ credentials/
 # Transactional local archive and migration backup
 backend/*.sqlite3*
 backend/.sessions.json.pre-sqlite.bak
+backend/data/
+
+# Local previews, QA archives and desktop shortcuts
+output/
+*.lnk
+# Icons for an existing local desktop shortcut (not used by the app)
+/scripts/assets/saggia.ico
+/scripts/assets/saggia.png

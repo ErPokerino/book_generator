@@ -16,6 +16,8 @@ async def analyze_pdf_from_bytes(
     pdf_bytes: bytes,
     title: Optional[str] = None,
     author: Optional[str] = None,
+    work_type: str = "book",
+    session_id: Optional[str] = None,
 ) -> tuple[dict, dict]:
     """
     Analizza un PDF esterno e genera una critica letteraria.
@@ -33,6 +35,8 @@ async def analyze_pdf_from_bytes(
         author=author or "Autore",
         pdf_bytes=pdf_bytes,
         api_key=None,  # Auto-detect da env
+        work_type=work_type,
+        session_id=session_id,
     )
     
     return critique, token_usage

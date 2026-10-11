@@ -96,7 +96,7 @@ def price_usage(usage, pricing):
 
 def _meter_store(session_id):
     from app.agent import session_store
-    store = session_store._session_store
+    store = session_store._context_store.get() or session_store._session_store
     if session_id and store is not None and hasattr(store, "record_usage") and store.get_session(session_id):
         return store
     return None

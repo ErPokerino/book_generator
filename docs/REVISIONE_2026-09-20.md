@@ -1,5 +1,7 @@
 # Revisione del progetto — 20 settembre 2026
 
+> Documento storico. Aggiornamento di stato dell’11 ottobre 2026: persistenza SQLite, worker durevoli, memoria narrativa, studio e registro dei consumi sono implementati; ora NarrAI comprende anche saggi e fumetti Manga/Graphic Novel. Le priorità e i limiti seguenti descrivono l’audit originale, non lo stato attuale. Guide correnti: [tecnica](TECNICA.md), [funzionale](FUNZIONALE.md), [operazioni](OPERAZIONI.md).
+
 L'analisi ha individuato difetti concreti nei percorsi di recupero, nella persistenza, negli export e nella sincronizzazione del frontend. Le correzioni descritte sotto sono applicate al codice. Le cinque aree finali sono proposte di evoluzione, non funzionalità già implementate.
 
 ## Metodo e perimetro

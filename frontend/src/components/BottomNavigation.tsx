@@ -6,8 +6,8 @@ import './BottomNavigation.css';
 export default function BottomNavigation() {
   const location = useLocation();
   const [toolsOpen, setToolsOpen] = useState(false);
-  const toolsActive = location.pathname === '/benchmark' || location.pathname === '/analytics';
-  const createActive = location.pathname === '/new' || location.pathname === '/manga';
+  const toolsActive = location.pathname === '/benchmark' || location.pathname === '/analytics' || location.pathname === '/settings';
+  const createActive = location.pathname.startsWith('/new') || location.pathname === '/comics' || location.pathname === '/manga';
 
   return (
     <nav className="bottom-navigation" aria-label="Mobile">
@@ -40,6 +40,7 @@ export default function BottomNavigation() {
             <NavLink to="/analytics" role="menuitem" onClick={() => setToolsOpen(false)}>
               Analisi
             </NavLink>
+            <NavLink to="/settings" role="menuitem" onClick={() => setToolsOpen(false)}>Impostazioni</NavLink>
           </div>
         ) : null}
       </div>

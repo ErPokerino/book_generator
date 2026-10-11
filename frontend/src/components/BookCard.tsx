@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LibraryEntry, deleteBook, regenerateCover } from '../api/client';
+import { api as essayApi } from '../essay/api';
+import { Link } from 'react-router-dom';
 import ConfirmModal from './ConfirmModal';
 import ExportDropdown from './ExportDropdown';
 import './BookCard.css';
+import NotebookIllustration from './NotebookIllustration';
 
 const API_BASE = '/api';
 
@@ -27,6 +30,8 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const toggleRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isEssay = book.content_type === 'essay';
+  const readUrl = isEssay ? `/read/essay/${book.session_id}` : book.content_type === 'manga' ? `/read/manga/${book.session_id}` : `/book/${book.session_id}`;
   const isManga = book.content_type === 'manga';
 
   const formatMangaType = (type?: string) => {
@@ -41,7 +46,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   };
 
   const handleRegenerateCover = async () => {
-    if (isManga) return;
+    if (isManga || isEssay) return;
     setShowRegenerateConfirm(true);
   };
 
@@ -67,8 +72,13 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
   const confirmDelete = async () => {
     setShowDeleteConfirm(false);
     try {
-      await deleteBook(book.session_id);
-      toast.success(isManga ? 'Manga eliminato con successo' : 'Libro eliminato con successo');
+      if (isEssay) await essayApi(`essays/${book.session_id}`, {method:'DELETE'});
+      else await deleteBook(book.session_id);
+      for (const key of ['current_book_session_id', 'current_manga_session_id']) { if (localStorage.getItem(key) === book.session_id) localStorage.removeItem(key); }
+      localStorage.removeItem(`saggia.tab.${book.session_id}`);
+      if (isEssay) Object.keys(localStorage).filter(key => key.startsWith(`saggia.chapter.${book.session_id}.`)).forEach(key => localStorage.removeItem(key));
+      localStorage.removeItem(`narrai.read.${book.content_type || 'book'}.${book.session_id}`);
+      toast.success('Opera eliminata');
       onDelete(book.session_id);
     } catch (error) {
       toast.error(`Errore nell'eliminazione: ${error instanceof Error ? error.message : 'Errore sconosciuto'}`);
@@ -184,21 +194,21 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
 
   return (
     <div className="book-card">
-      <div className="book-card-cover">
+      <Link to={readUrl} className="book-card-cover" aria-label={`Leggi ${book.title}`}>
         {coverImageUrl ? (
           <img src={coverImageUrl} alt={book.title} />
         ) : (
-          <div className="book-card-placeholder">{isManga ? '🎴' : '📖'}</div>
+          <div className="book-card-placeholder"><NotebookIllustration medium={isManga ? 'manga' : isEssay ? 'essay' : 'book'} /></div>
         )}
-      </div>
+      </Link>
       
       <div className="book-card-content">
         <div className="book-card-header">
           <div className="book-title-block">
-            <h3 className="book-title work-title">{stripMarkdownFormatting(book.title)}</h3>
+            <h3 className="book-title work-title"><Link to={readUrl}>{stripMarkdownFormatting(book.title)}</Link></h3>
             <p className="book-card-meta-line">
-              {isManga ? 'Manga' : 'Libro'}
-              {book.total_pages ? ` · ${book.total_pages} pagine` : ''}
+              {isManga ? (book.comic_format === 'graphic_novel' ? 'Graphic Novel' : 'Manga') : isEssay ? 'Saggio' : 'Narrativa'}
+              {isEssay ? ` · ${book.word_count?.toLocaleString('it-IT') || 0} parole` : book.total_pages ? ` · ${book.total_pages} pagine` : ''}
               {` · ${getStatusLabel(book.status)}`}
             </p>
           </div>
@@ -218,14 +228,14 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
           <div className="book-card-info-essential">
             <p className="book-model">Modalità: {book.llm_model}</p>
             {isManga ? (
-              book.manga_type && <p className="book-genre">Tipo: {formatMangaType(book.manga_type)}</p>
+              <>{book.comic_format !== 'graphic_novel' && book.manga_type && <p className="book-genre">Pubblico: {formatMangaType(book.manga_type)}</p>}{book.genre && <p className="book-genre">Genere: {book.genre}</p>}</>
             ) : (
               book.genre && <p className="book-genre">Genere: {book.genre}</p>
             )}
             {book.total_pages && (
-              <p className="book-pages">Pagine: {book.total_pages}</p>
+              <p className="book-pages">{isEssay ? book.essay_pdf_pages != null ? `Pagine PDF: ${book.essay_pdf_pages}` : `Pagine stimate: circa ${book.total_pages}` : `Pagine: ${book.total_pages}`}</p>
             )}
-            {!isManga && book.critique_score != null && (
+            {!isManga && !isEssay && book.critique_score != null && (
               <p className="book-score">
                 Voto: <span 
                   className="score-value" 
@@ -270,28 +280,30 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             )}
             {book.estimated_cost != null && (
               <p className="book-cost">
-                Consumi API: ≈ €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
+                Consumi API{book.cost_coverage_complete ? '' : ' parziali'}: ≈ €{book.estimated_cost >= 0.01 ? book.estimated_cost.toFixed(2) : book.estimated_cost.toFixed(4)}
               </p>
             )}
+            {book.estimated_cost == null && <p className="book-cost">Consumi API: dati non disponibili</p>}
           </div>
         </div>
 
         <div className="book-card-actions">
-          {book.status === 'complete' && onRead ? (
+          {onRead ? (
             <button type="button" className="action-btn read-btn" onClick={() => onRead(book)}>
               Leggi
             </button>
           ) : null}
-          {(book.status === 'writing' || book.status === 'paused' || (!isManga && book.status === 'complete')) && onContinue ? (
+          {onContinue && (isEssay || isManga || ['writing','paused','complete'].includes(book.status)) ? (
             <button type="button" className="action-btn continue-btn" onClick={() => onContinue(book)}>
-              {isManga ? 'Continua' : 'Apri studio'}
+              Apri studio
             </button>
           ) : null}
-          {(book.status === 'draft' || book.status === 'outline') && onResume ? (
+          {!isEssay && !isManga && (book.status === 'draft' || book.status === 'outline') && onResume ? (
             <button type="button" className="action-btn resume-btn" onClick={() => onResume(book)}>
               Continua
             </button>
           ) : null}
+          <button type="button" className="ui-icon-button work-delete" disabled={book.active} aria-label={`Elimina ${book.title}`} title={book.active ? 'Metti in pausa la generazione prima di eliminare' : 'Elimina opera'} onClick={handleDelete}><Trash2 size={17}/></button>
         </div>
 
         <div className="book-card-meta">
@@ -336,6 +348,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
         >
           {/* Sezione Dettagli */}
           <div className="book-card-menu-section">
+            <Link className="book-card-menu-item" to={`/benchmark?type=${book.content_type || 'book'}&session=${book.session_id}`}>Valuta l’opera</Link>
             <button
               className="book-card-menu-item"
               onClick={() => handleMenuAction(() => setIsExpanded(!isExpanded))}
@@ -347,7 +360,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
           {/* Sezione Azioni (solo se complete) */}
           {book.status === 'complete' && (
             <div className="book-card-menu-section">
-              {!isManga && book.status === 'complete' && (
+              {!isManga && !isEssay && book.status === 'complete' && (
                 <button
                   className="book-card-menu-item book-card-menu-item-regenerate"
                   onClick={() => handleMenuAction(handleRegenerateCover)}
@@ -358,13 +371,13 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
               )}
               {book.status === 'complete' && (
                 <div className="book-card-menu-export">
-                  <ExportDropdown sessionId={book.session_id} contentType={book.content_type} />
+                  <ExportDropdown sessionId={book.session_id} contentType={isManga ? "manga" : isEssay ? "essay" : "book"} />
                 </div>
               )}
             </div>
           )}
           <div className="book-card-menu-section">
-            {!isManga && onShowCritique && book.critique_score != null ? (
+            {!isManga && !isEssay && onShowCritique && book.critique_score != null ? (
               <button
                 className="book-card-menu-item"
                 onClick={() => handleMenuAction(() => onShowCritique(book))}
@@ -374,6 +387,7 @@ export default function BookCard({ book, onDelete, onContinue, onResume, onRead,
             ) : null}
             <button
               className="book-card-menu-item"
+              disabled={book.active}
               onClick={() => handleMenuAction(handleDelete)}
             >
               Elimina

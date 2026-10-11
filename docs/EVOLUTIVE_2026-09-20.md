@@ -1,5 +1,7 @@
 # Evolutive implementate — 20 settembre 2026
 
+> Note storiche della consegna di settembre. All’11 ottobre 2026 queste evolutive sono consolidate nello studio unificato di NarrAI, insieme a SaggIA e ai nuovi formati fumetto. I conteggi di test e i branch riportati sotto sono storici. Avvio, backup dei due archivi e ripristino correnti: [operazioni](OPERAZIONI.md); stato del prodotto: [studio unificato](NARRAI_UNIFICATO.md).
+
 ## Stato consegnato
 
 - Persistenza SQLite con transazioni, migrazione dal JSON, revisioni dei capitoli e letture consistenti.
@@ -28,9 +30,9 @@ Per leggere i contenuti con la precedente versione a file:
 uv run python -m app.persistence.archive export-json --output sessions-export.json
 ```
 
-Questo export conserva sessioni e capitoli correnti; non è un backup completo di revisioni, coda e registro dei consumi. Per tornare temporaneamente a `main`, fermare il backend e usare la copia JSON esportata come `.sessions.json`, preservando entrambi gli archivi. La precedente versione non conosce le evolutive SQLite.
+Questo export conserva sessioni e capitoli correnti; non è un backup completo di revisioni, coda e registro dei consumi. Solo le revisioni precedenti all’introduzione di SQLite possono richiedere il JSON come `.sessions.json`; verificarne i contratti prima di un rollback, fermando il backend e preservando entrambi gli archivi. Il `main` corrente usa SQLite.
 
-## Branch
+## Branch al momento della consegna di settembre
 
 `main` contiene la versione locale consolidata, inclusi i fix dell'audit (`b3a7c03`). `codex/evolutive-studio` contiene queste evolutive e parte da quel commit. I branch precedenti `local-only` e `feature/improve-narrative-quality` sono stati eliminati solo dopo aver verificato che tutti i loro commit fossero conservati in `main`. Entrambi i branch mantenuti sono pubblicati su origin; non sono stati usati force push.
 

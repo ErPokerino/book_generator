@@ -186,12 +186,19 @@ class Chapter(BaseModel):
     page_count: int = 0  # Numero di pagine calcolato (parole/250 arrotondato per eccesso)
 
 
+class EvaluationCriterion(BaseModel):
+    name: str
+    score: float = Field(ge=0, le=10)
+    explanation: str
+
+
 class LiteraryCritique(BaseModel):
     """Valutazione critica del libro."""
     score: float = Field(ge=0.0, le=10.0, description="Valutazione da 0 a 10")
     pros: list[str] = Field(default_factory=list, description="Punti di forza del libro")
     cons: list[str] = Field(default_factory=list, description="Punti di debolezza del libro")
     summary: str = Field(description="Sintesi della valutazione (max 500 caratteri)")
+    criteria: list[EvaluationCriterion] = Field(default_factory=list)
 
     @field_validator("pros", "cons", mode="before")
     @classmethod
@@ -269,10 +276,12 @@ class MangaCharacterInput(BaseModel):
 
 
 class MangaCreateRequest(BaseModel):
-    """Richiesta per avviare la generazione del manga beta."""
-    title: Optional[str] = Field(None, min_length=1, description="Titolo opzionale del manga")
-    plot: str = Field(..., min_length=1, description="Trama di partenza del mini manga")
-    manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"]
+    """Richiesta per creare un fumetto Manga o Graphic Novel."""
+    title: Optional[str] = Field(None, min_length=1, description="Titolo opzionale del fumetto")
+    plot: str = Field(..., min_length=1, description="Trama di partenza del fumetto")
+    comic_format: Literal["manga", "graphic_novel"] = "manga"
+    comic_genre: Optional[str] = None
+    manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"] = "shonen"
     model_overrides: Optional[Dict[str, str]] = Field(
         None,
         description="Override modelli per fase: text, image, manga_planning, manga_pages, manga_cover, manga_back_cover",
@@ -283,7 +292,7 @@ class MangaCreateRequest(BaseModel):
     )
     page_color_mode: Literal["black_and_white", "color"] = Field(
         "black_and_white",
-        description="Modalita cromatica delle pagine interne del manga",
+        description="Modalita cromatica delle pagine interne del fumetto",
     )
     page_count: Optional[int] = Field(
         None,
@@ -296,6 +305,11 @@ class MangaCreateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_page_range(self) -> "MangaCreateRequest":
+        from app.core.comics import COMIC_GENRES
+        if self.comic_genre is None:
+            self.comic_genre = "action" if self.comic_format == "manga" else "literary"
+        if self.comic_genre not in COMIC_GENRES[self.comic_format]:
+            raise ValueError("Sottogenere non valido per il formato di fumetto scelto")
         if self.page_count is not None:
             self.min_pages = self.page_count
             self.max_pages = self.page_count
@@ -310,7 +324,7 @@ class MangaCreateRequest(BaseModel):
 
 
 class MangaCharacterProfile(BaseModel):
-    """Scheda personaggio generata nella fase di planning del manga."""
+    """Scheda personaggio generata nello storyboard del fumetto."""
     name: str
     role: Optional[str] = None
     appearance: str
@@ -319,7 +333,7 @@ class MangaCharacterProfile(BaseModel):
 
 
 class MangaPagePlan(BaseModel):
-    """Piano testuale di una singola pagina manga."""
+    """Piano testuale di una singola tavola del fumetto."""
     page_number: int = Field(ge=1, description="Numero pagina 1-indexed")
     title: str
     narrative_goal: str
@@ -331,7 +345,7 @@ class MangaPagePlan(BaseModel):
 
 
 class MangaPlan(BaseModel):
-    """Storyboard completo del mini manga generato dal modello testuale."""
+    """Storyboard completo del fumetto nel formato editoriale richiesto."""
     title: str
     synopsis: str
     tone: str
@@ -399,6 +413,8 @@ class MangaReaderResponse(BaseModel):
     session_id: str
     title: str
     manga_type: Literal["shonen", "shojo", "seinen", "josei", "kodomo"]
+    comic_format: Literal["manga", "graphic_novel"] = "manga"
+    comic_genre: Optional[str] = None
     page_color_mode: Literal["black_and_white", "color"] = "black_and_white"
     requested_min_pages: Optional[int] = None
     requested_max_pages: Optional[int] = None
@@ -473,6 +489,7 @@ class BookResponse(BaseModel):
     title: str
     author: str
     chapters: list[Chapter]
+    is_complete: bool = True
     total_pages: Optional[int] = None  # Numero totale di pagine
     writing_time_minutes: Optional[float] = None  # Tempo di scrittura in minuti (solo generazione capitoli)
     critique: Optional["LiteraryCritique"] = None  # Valutazione critica del libro

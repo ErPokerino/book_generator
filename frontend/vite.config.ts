@@ -4,6 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { retainAssets } from './scripts/retainAssets'
 
 const retainedAssets = retainAssets()
+const apiTarget = process.env.NARRAI_API_TARGET || 'http://127.0.0.1:8000'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -12,13 +13,13 @@ export default defineConfig({
     retainedAssets.plugin,
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.png'],
+      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon.png', 'favicon-16.png', 'logo-mark.svg'],
       manifest: {
         name: 'NarrAI',
         short_name: 'NarrAI',
-        description: 'Studio privato per scrivere libri e manga.',
-        theme_color: '#F4F0EA',
-        background_color: '#F4F0EA',
+        description: 'Il tuo studio per scrivere narrativa, saggi e fumetti.',
+        theme_color: '#FAFAF7',
+        background_color: '#FAFAF7',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -85,7 +86,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

@@ -19,6 +19,12 @@ function mount() {
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(getStudio).mockResolvedValue(structuredClone(project)); });
 describe('Manuscript studio', () => {
+  it('resumes a draft explicitly and offers reading for saved partial chapters', async () => {
+    vi.mocked(getStudio).mockResolvedValue({...structuredClone(project),status:'draft'});
+    mount();
+    expect(await screen.findByRole('link',{name:'Completa la preparazione'})).toHaveAttribute('href','/new?session=one');
+    expect(screen.getByRole('link',{name:'Leggi'})).toHaveAttribute('href','/book/one');
+  });
   it('keeps the edited text when a save fails and blocks chapter changes', async () => {
     vi.mocked(saveChapter).mockRejectedValue(new Error('Modifica concorrente'));
     mount();

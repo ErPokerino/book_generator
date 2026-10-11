@@ -2,10 +2,13 @@ import { RouterProvider } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { router } from './router'
 import './App.css'
+import './Notebook.css'
+import './components/AnalyticsNotebook.css'
+import { NotebookSoundProvider } from './hooks/useNotebookSound'
 
 function App() {
   return (
-    <>
+    <NotebookSoundProvider>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -46,7 +49,7 @@ function App() {
         }}
       />
       <RouterProvider router={router} />
-    </>
+    </NotebookSoundProvider>
   )
 }
 

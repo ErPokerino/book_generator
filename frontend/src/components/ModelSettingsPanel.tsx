@@ -181,7 +181,7 @@ export default function ModelSettingsPanel({
 
     <aside className="generation-forecast" aria-label="Previsione del progetto" aria-live="polite">
       <span className="forecast-eyebrow">IL TUO PROGETTO</span>
-      <h3>{kind === 'book' ? 'Quanto potrebbe diventare lungo' : 'La previsione del manga'}</h3>
+              <h3>{kind === 'book' ? 'Quanto potrebbe diventare lungo' : 'La previsione del fumetto'}</h3>
       {kind === 'book' && !size?.available ? <div className="forecast-empty">
         <p>{historyError || (!sizes ? 'Lettura dello storico…' : `Nessun libro ${mode === 'ultra' ? 'Ultra' : 'Standard'} completato, per ora.`)}</p>
         {historyError ? <button type="button" onClick={() => setRetry(n => n + 1)}>Riprova</button>

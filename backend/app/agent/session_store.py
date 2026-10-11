@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
+from contextvars import ContextVar
+from contextlib import contextmanager
 from app.models import SubmissionRequest, QuestionAnswer
 
 
@@ -824,10 +826,25 @@ class FileSessionStore(SessionStore):
 # Istanza globale del session store
 _session_store: Optional[SessionStore] = None
 
+# Each worker keeps its own archive even when several writing modes run together.
+_context_store = ContextVar("writing_session_store", default=None)
+
+
+@contextmanager
+def session_store_context(store):
+    token = _context_store.set(store)
+    try:
+        yield
+    finally:
+        _context_store.reset(token)
+
 
 def get_session_store() -> SessionStore:
     """Restituisce l'istanza globale del session store (SQLite transazionale, uso locale)."""
     global _session_store
+    contextual = _context_store.get()
+    if contextual is not None:
+        return contextual
     if _session_store is None:
         from app.persistence.sqlite_store import SQLiteSessionStore
         _session_store = SQLiteSessionStore()

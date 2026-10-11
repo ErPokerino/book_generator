@@ -1,9 +1,12 @@
 [project]
 name = "scrittura-libro-backend"
 version = "0.1.0"
-description = "Backend per agente di scrittura romanzi"
+description = "NarrAI: studio locale per narrativa, saggi e fumetti"
 requires-python = ">=3.11"
 dependencies = [
+    "httpx>=0.28.1",
+    "pypdf>=5.0.0",
+    "pillow>=11.0.0",
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.5.0",

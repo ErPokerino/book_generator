@@ -486,6 +486,7 @@ async def get_book_progress_endpoint(
 @router.get("/{session_id}", response_model=BookResponse)
 async def get_complete_book_endpoint(
     session_id: str,
+    allow_partial: bool = False,
 ):
     """Restituisce il libro completo con tutti i capitoli."""
     try:
@@ -503,14 +504,14 @@ async def get_complete_book_endpoint(
         
         print(f"[GET BOOK] Sessione trovata. Progresso: {session.writing_progress}, Capitoli: {len(session.book_chapters) if session.book_chapters else 0}")
         
-        if not session.writing_progress or not session.writing_progress.get('is_complete'):
+        if not allow_partial and (not session.writing_progress or not session.writing_progress.get('is_complete')):
             print(f"[GET BOOK] Libro non ancora completo. Progresso: {session.writing_progress}")
             raise HTTPException(
                 status_code=400,
                 detail="Il libro non è ancora completo. Attendi il completamento della scrittura."
             )
         
-        if not session.book_chapters or len(session.book_chapters) == 0:
+        if not allow_partial and not session.book_chapters:
             print(f"[GET BOOK] Nessun capitolo trovato nella sessione")
             raise HTTPException(
                 status_code=400,
@@ -535,7 +536,7 @@ async def get_complete_book_endpoint(
                 print(f"[GET BOOK] Errore nel processare capitolo {idx}: {e}")
                 continue
         
-        if len(chapters) == 0:
+        if not allow_partial and len(chapters) == 0:
             raise HTTPException(
                 status_code=400,
                 detail="Nessun capitolo valido trovato nel libro."
@@ -576,8 +577,9 @@ async def get_complete_book_endpoint(
         
         book_response = BookResponse(
             title=session.current_title or "Romanzo",
-            author=session.form_data.user_name or "Autore",
+            author=session.form_data.author or session.form_data.user_name or "Autore",
             chapters=chapters,
+            is_complete=bool((session.writing_progress or {}).get("is_complete")),
             total_pages=total_pages,
             writing_time_minutes=writing_time_minutes,
             critique=critique,

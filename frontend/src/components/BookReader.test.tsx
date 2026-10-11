@@ -19,11 +19,10 @@ it('renders Markdown without inserting model-generated HTML', async () => {
   const { container } = render(<MemoryRouter initialEntries={['/book/test']}>
     <Routes><Route path="/book/:sessionId" element={<BookReader />} /></Routes>
   </MemoryRouter>);
-  const next = await screen.findByRole('button', { name: 'Primo capitolo →' });
-  const content = container.querySelector('.reader-content')!;
-  Object.defineProperty(content, 'scrollTo', { value: vi.fn() });
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  const next = await screen.findByRole('button', { name: 'Pagina successiva' });
   fireEvent.click(next);
   expect(screen.getByText('in evidenza').tagName).toBe('STRONG');
-  expect(container.querySelector('.chapter-text script')).toBeNull();
-  expect(container.querySelector('.chapter-text img')).toBeNull();
+  expect(container.querySelector('.reader-prose script')).toBeNull();
+  expect(container.querySelector('.reader-prose img')).toBeNull();
 });

@@ -567,6 +567,7 @@ export interface Chapter {
 }
 
 export interface LiteraryCritique {
+  criteria?: {name:string;score:number;explanation:string}[];
   score: number;
   pros: string[];
   cons: string[];
@@ -676,6 +677,7 @@ export async function getBookProgress(sessionId: string): Promise<BookProgress> 
 }
 
 export interface BookResponse {
+  is_complete?: boolean;
   title: string;
   author: string;
   chapters: Chapter[];
@@ -686,6 +688,7 @@ export interface BookResponse {
   critique_error?: string;
 }
 
+export type ComicFormat = 'manga' | 'graphic_novel';
 export type MangaType = 'shonen' | 'shojo' | 'seinen' | 'josei' | 'kodomo';
 
 export interface MangaCharacterInput {
@@ -696,6 +699,8 @@ export interface MangaCharacterInput {
 export interface MangaCreateRequest {
   title?: string;
   plot: string;
+  comic_format?: ComicFormat;
+  comic_genre?: string;
   manga_type: MangaType;
   main_characters: MangaCharacterInput[];
   page_color_mode: 'black_and_white' | 'color';
@@ -765,6 +770,8 @@ export interface MangaGenerationResponse {
 export interface MangaReaderResponse {
   session_id: string;
   title: string;
+  comic_format?: ComicFormat;
+  comic_genre?: string;
   manga_type: MangaType;
   page_color_mode: 'black_and_white' | 'color';
   requested_min_pages?: number | null;
@@ -794,8 +801,8 @@ export async function regenerateBookCritique(sessionId: string): Promise<Literar
   return response.json();
 }
 
-export async function getCompleteBook(sessionId: string): Promise<BookResponse> {
-  const response = await fetch(`${API_BASE}/book/${sessionId}`);
+export async function getCompleteBook(sessionId: string, allowPartial = false): Promise<BookResponse> {
+  const response = await fetch(`${API_BASE}/book/${sessionId}${allowPartial ? "?allow_partial=true" : ""}`);
   
   if (!response.ok) {
     const error = await response.json();
@@ -1135,12 +1142,20 @@ export async function getAppConfig(): Promise<AppConfig> {
 // Library interfaces and API functions
 export interface LibraryEntry {
   session_id: string;
-  content_type: 'book' | 'manga';
+  content_type: 'book' | 'essay' | 'manga';
+  essay_profile?: string;
+  essay_topic?: string;
+  essay_pdf_pages?: number | null;
+  word_count?: number;
+  cost_coverage_complete?: boolean;
+  active?: boolean;
   title: string;
   author: string;
   llm_model: string;  // Modalità Standard / Ultra
   genre?: string;
   manga_type?: MangaType;
+  comic_format?: ComicFormat;
+  comic_genre?: string;
   created_at: string;
   updated_at: string;
   status: 'draft' | 'outline' | 'writing' | 'paused' | 'complete';
@@ -1202,6 +1217,7 @@ export interface LibraryResponse {
 }
 
 export interface LibraryFilters {
+  content_type?: 'book' | 'essay' | 'manga';
   status?: string;
   mode?: string;  // Modalità (Standard, Ultra)
   llm_model?: string;  // Retrocompatibilità, deprecato
@@ -1226,6 +1242,7 @@ export async function getLibrary(filters?: LibraryFilters, signal?: AbortSignal)
   const params = new URLSearchParams();
   
   if (filters) {
+    if (filters.content_type) params.append('content_type', filters.content_type);
     if (filters.status) params.append('status', filters.status);
     // Usa mode se disponibile, altrimenti llm_model per retrocompatibilità
     if (filters.mode) {
@@ -1241,7 +1258,7 @@ export async function getLibrary(filters?: LibraryFilters, signal?: AbortSignal)
     if (filters.limit !== undefined) params.append('limit', filters.limit.toString());
   }
   
-  const url = `${API_BASE}/library${params.toString() ? '?' + params.toString() : ''}`;
+  const url = `${API_BASE}/works${params.toString() ? '?' + params.toString() : ''}`;
   const response = await fetch(url, { signal });
   
   if (!response.ok) {
@@ -1325,9 +1342,11 @@ export async function downloadPdfByFilename(filename: string): Promise<Blob> {
 export async function analyzeExternalPdf(
   file: File,
   title?: string,
-  author?: string
+  author?: string,
+  workType: 'book'|'essay'|'manga' = 'book'
 ): Promise<LiteraryCritique> {
   const formData = new FormData();
+  formData.append('work_type', workType);
   formData.append('file', file);
   
   if (title) {

@@ -1,59 +1,99 @@
 # Funzionalità di NarrAI
 
-NarrAI è uno studio locale per creare libri e manga. Le opere vengono salvate sul dispositivo; la generazione e la valutazione usano servizi AI online. Non sono richiesti login o crediti interni all'app.
+Aggiornamento: 11 ottobre 2026. NarrAI è uno studio locale per **Narrativa, Saggio e Fumetto**. Le opere restano sul dispositivo; generazione, ricerca e valutazione usano servizi AI online. Non sono richiesti login o crediti interni.
 
-## Creare un libro
+## Un solo spazio di lavoro
 
-Il percorso visibile è **Idea → Domande → Bozza → Struttura → Scrittura**.
+La biblioteca si apre su `/library`. Le tre modalità compaiono nell’ordine Narrativa → Saggio → Fumetto, anche nel selettore di creazione. **Crea adesso** e **Narrativa** iniziano un progetto nuovo. Si riprende un progetto dalla sua scheda: una vecchia sessione non viene aperta implicitamente.
 
-- **Idea:** trama obbligatoria, genere, stile, pubblico e ampiezza facoltativi. La pagina mostra sempre modalità di scrittura e previsione. Personaggi e conflitto, voce e struttura, firma e copertina sono pannelli espandibili coerenti con Modelli AI. I modelli si scelgono con menu compatti e la personalizzazione per fase è facoltativa. **Continua con le domande** rende esplicito il passaggio successivo.
-- **Domande:** chiarimenti generati a partire dal brief, con possibilità di proseguire secondo i comandi disponibili nel wizard.
-- **Bozza:** lettura e modifica del piano narrativo, anche con feedback in chat. La validazione approva il piano prima della scrittura.
-- **Struttura:** controllo e modifica dell'outline. I capitoli sono ricavati dai titoli Markdown; prologo ed epilogo autonomi vengono conservati. Le modifiche dell'indice sono soggette ai vincoli dello stato di scrittura.
-- **Scrittura:** apre lo studio con indice, manoscritto e taccuino. Il testo è leggibile appena salvato; il taccuino raccoglie fatti con prove, revisioni e consumi. Dopo i capitoli seguono copertina e valutazione critica.
+L’interfaccia usa carta chiara, inchiostro nero, illustrazioni a tratto e piccoli dettagli manoscritti. Navigazione, moduli, biblioteca e strumenti di analisi condividono lo stile. Logo, favicon e icone di installazione usano la stessa penna.
 
-Le modalità Standard e Ultra controllano il modo di generare i capitoli; Ultra usa due parti sequenziali. Questo non costituisce di per sé una revisione editoriale o una garanzia di qualità superiore. I valori precisi e i modelli per fase sono descritti dalla configurazione e da [MODELLI_E_COSTI.md](MODELLI_E_COSTI.md).
+## Narrativa
 
-La previsione di pagine e costo parte dai libri completati della modalità scelta, con numero di campioni e fascia di variabilità. Non usa più 100 pagine per entrambe le modalità. Senza storico compare uno stato esplicito; il primo libro può essere creato normalmente. L'ampiezza scelta aggiorna la previsione; l'importo resta distinto dai consumi effettivi riportati nello studio.
+Il percorso è **Idea → Domande → Bozza → Struttura → Scrittura**.
 
-## Interruzioni e ripresa
+- **Idea:** trama obbligatoria; genere, pubblico, voce, ampiezza, personaggi e firma personalizzabili. Le opzioni avanzate si espandono quando servono.
+- **Domande:** chiarimenti generati dal brief e risposte dell’autore.
+- **Bozza:** piano narrativo leggibile e modificabile, anche tramite feedback. La validazione approva la direzione.
+- **Struttura:** indice e capitoli; prologo ed epilogo autonomi sono conservati. Gli interventi rispettano i vincoli dei capitoli già scritti.
+- **Scrittura:** studio con indice, manoscritto e taccuino; i capitoli sono leggibili appena salvati. Seguono copertina ed eventuale critica.
 
-La chiusura della pagina non cancella la sessione. Il lavoro dipende dal backend: quando viene riavviato, recupera automaticamente i job interrotti. **Pausa dopo il capitolo** salva il testo e il controllo di continuità prima di fermarsi; **Riprendi scrittura** prosegue dal checkpoint.
+Standard scrive ogni capitolo in una parte; Ultra usa due parti consecutive. Entrambi usano memoria narrativa e controlli di continuità. La modalità non garantisce, da sola, qualità superiore.
 
-I libri sospesi possono essere ripresi. La ripresa usa i capitoli già salvati e ricomincia dal primo assente, evitando di spendere nuovamente per l'ultimo capitolo persistito prima di un crash. Gli errori inattesi mantengono il checkpoint e una possibilità di recupero. Un avvio ordinario non sostituisce i capitoli di un progetto già scritto.
+La previsione di pagine usa i libri completati della stessa modalità, con numero di campioni e fascia di variabilità. Modello e ampiezza restringono lo storico quando sufficiente. Senza storico pagine, costo e tempo restano indisponibili, ma si può iniziare il primo libro.
 
-Un problema di rete è distinto da un archivio vuoto. Nella libreria, **Riprova** ricarica i dati; il polling tollera errori transitori con attese crescenti. Nessuna risposta API viene recuperata da una vecchia cache offline per simulare un avanzamento.
+Lo studio consente di modificare il testo e consultarne le revisioni. Una versione precedente può essere riportata nell’editor e salvata. I fatti della memoria riportano prove testuali; **Aggiorna memoria** usa l’AI e contribuisce ai consumi. Una contraddizione persistente ferma la scrittura. Le modifiche invalidano gli export e la critica dipendenti.
 
-## Libreria e lettura
+## Saggio
 
-**Apri studio** consente di leggere, modificare e confrontare versioni del manoscritto. Ogni salvataggio conserva una revisione; una versione precedente può essere portata nell'editor e salvata dopo la lettura. L'interfaccia protegge le modifiche non salvate durante la navigazione e conserva il testo se il server segnala un conflitto. Durante la generazione l'editor è in sola lettura. Su mobile indice, manoscritto e taccuino sono pannelli selezionabili.
+Il percorso comprende **Brief → Domande → Argomenti e fonti → Piano e indice → Manoscritto → Revisione**. Tipo di saggio e ruolo dell’AI sono indipendenti:
 
-I fatti mostrano la citazione che li sostiene. **Aggiorna memoria** analizza i capitoli non ancora controllati dopo una modifica; una contraddizione residua viene mostrata con la prova e richiede revisione. L'analisi usa il modello e concorre ai consumi. Le revisioni manuali invalidano PDF e critica precedenti.
+| Tipo | Obiettivo |
+| --- | --- |
+| Argomentativo | Sostenere una posizione, affrontando ragioni, obiezioni e limiti |
+| Divulgativo | Spiegare concetti e confrontare interpretazioni |
+| Accademico | Domanda di ricerca, metodo, corpus e apparato documentale |
 
-La sezione **Opere** raccoglie libri e manga. Sono disponibili ricerca, filtri per stato/modalità/genere, ordinamento e caricamento progressivo. Le azioni dipendono dallo stato: continuare la preparazione, monitorare o riprendere la scrittura, leggere, valutare ed esportare.
+L’AI può **sviluppare e mettere alla prova**, **sostenere la posizione** oppure **esplorare con l’autore**. Dopo l’approvazione del piano rispetta la direzione scelta. Il pubblico è adulto. Il profilo accademico non autorizza a inventare studi, interviste o risultati.
 
-Il lettore presenta copertina, indice, capitoli, regolazione della dimensione del testo e navigazione. Il contenuto narrativo è reso come Markdown, senza interpretare HTML eseguibile. Il lettore audio opzionale viene reimpostato al cambio del capitolo.
+La lunghezza si sceglie in **pagine**: breve 60, medio 140, ampio 240; personalizzata da 4 a 480. Sono pagine di testo equivalenti, a circa 250 parole per pagina. L’impaginazione PDF e il testo effettivo possono variare. I budget dei progetti esistenti rimangono compatibili.
 
-L'eliminazione rimuove il progetto e i file esplicitamente associati, se accessibili e non condivisi. Non è disponibile mentre è rilevata una generazione attiva. I file legacy senza un'associazione verificabile non vengono eliminati per somiglianza del titolo. È stato rimosso il vecchio cleanup automatico che considerava obsoleta qualsiasi opera priva di voto: poteva includere progetti validi e bozze.
+Il riquadro di previsione mostra pagine, costo e tempo indicativi e si aggiorna con ampiezza, modelli e percorso. È disponibile anche per il primo saggio, usando ipotesi esplicite sui token e sulle chiamate. Con almeno tre scritture comparabili e ininterrotte il tempo usa la durata mediana per parola dello storico. Include domande, progetto e scrittura, con controllo dei capitoli se scelto; ricerca, fonti, correzioni, revisione separata e copertina AI sono aggiuntive. La copertina tipografica è locale. La fascia di costo è indicativa e non è un tetto di spesa.
 
-## Export
+Le fonti possono provenire dalla ricerca web, da URL pubblici, documenti PDF/DOCX/TXT/Markdown o appunti dell’autore. La ricerca individua materiali: un riassunto del motore di ricerca non diventa una prova. Gli estratti citabili devono corrispondere al testo acquisito. Dati bibliografici ed evidenze sono modificabili; un materiale può essere escluso o acquisito nuovamente.
 
-I libri completi possono essere scaricati in **PDF, EPUB e DOCX**. Tutte le route PDF del libro usano lo stesso generatore. I PDF nuovi hanno nomi distinti per sessione e vengono associati al progetto; i download supportano titoli Unicode.
+Il piano alloca il budget, definisce argomenti, obiezioni, evidenze, sezioni e limiti. Serve l’approvazione della versione corrente prima di scrivere. Una modifica di direzione invalida l’approvazione; i soli cambi di risorse non alterano la direzione. Dopo la scrittura si conservano ordine e identificativi dei capitoli.
 
-Il conteggio di pagine mostrato durante la scrittura è una stima basata sulle parole. Non coincide necessariamente con il numero di pagine dell'export. Il controllo editoriale e tipografico finale resta necessario per una pubblicazione.
+La scrittura può includere il controllo dei capitoli oppure lasciare la revisione a una fase separata. La revisione del saggio produce rilievi localizzati; le correzioni possono essere delegate all’AI, con cronologia e checkpoint. Non è una certificazione di verità. Editor e dati bibliografici proteggono dalle sovrascritture concorrenti e conservano le bozze locali quando il salvataggio fallisce.
 
-## Valutazione e analisi
+Autore, titolo, sottotitolo e retro sono modificabili senza cambiare l’argomentazione. Il titolo automatico è breve; i dettagli appartengono al sottotitolo. Citazioni numeriche o autore/data e bibliografia sono condivise da lettura ed export, senza promettere conformità a uno specifico manuale bibliografico.
 
-La critica AI riporta un voto, punti di forza, limiti e una sintesi. Il fallimento della critica è distinto dal completamento dei capitoli e può essere ritentato. La sezione **Valuta** permette anche l'analisi di un PDF esterno.
+## Fumetto: Manga e Graphic Novel
 
-La sezione **Analisi** raccoglie statistiche locali su opere, tempi, pagine, costi stimati e voti. Un confronto fra medie di libri diversi non è un esperimento controllato sui modelli. Il voto del critico non misura da solo coerenza, originalità o soddisfazione del lettore.
+`/comics` offre due formati, entrambi in beta, con sottogeneri distinti:
 
-## Manga e audio
+| Manga | Graphic Novel |
+| --- | --- |
+| Azione/avventura, fantasy, romance, slice of life, mistero/thriller, fantascienza, horror, sport | Letterario, autobiografico, storico, noir/thriller, sociale/reportage, fantasy, fantascienza, avventura |
 
-Il manga beta usa un brief dedicato, pianificazione, tavole e copertine, con progressi e ripresa propri. La gestione dei file e degli export è separata da quella dei capitoli testuali. La disponibilità dell'audio dipende dalla configurazione del servizio TTS.
+Il pubblico editoriale giapponese è una scelta aggiuntiva solo per Manga. Formato e sottogenere guidano storyboard, tavole, copertina e retro; una Graphic Novel non riceve istruzioni obbligatorie da manga. Le tavole sono da sinistra a destra per l’edizione italiana. I vecchi progetti conservano il formato Manga.
 
-## Dati e requisiti
+Si scelgono da 10 a 100 tavole. La previsione considera pianificazione, immagini e copertine con ipotesi dichiarate. Il processo salva il piano e ogni tavola; la pausa conclude la chiamata in corso e si ferma prima della successiva. Si riprende conservando il materiale pronto. L’export principale è il PDF.
 
-L'archivio principale è `backend/narrai.sqlite3`, con immagini e documenti nelle directory indicate dalla [documentazione tecnica](TECNICA.md). Il JSON precedente viene importato una volta e conservato. Se l'archivio da importare non è leggibile, il sistema interrompe la migrazione senza perdere l'originale.
+## Biblioteca e lettore
 
-I dati trasmessi alla generazione comprendono il brief e il contesto necessario al modello. Per eseguire il progetto e configurare le credenziali vedi il [README](../README.md). Le prime tre [priorità di evoluzione](REVISIONE_2026-09-20.md) sono ora implementate: dettagli e limiti nelle [note delle evolutive](EVOLUTIVE_2026-09-20.md).
+**Sul tuo tavolo** combina le tre modalità prima di ricerca, filtri, ordinamento e paginazione. Si cerca per titolo, autore, genere/profilo e tema; i filtri distinguono formato e stato. Standard/Ultra sono modalità narrative, non profili di saggio.
+
+Ogni scheda offre azioni coerenti: **Leggi**, **Apri studio**, export disponibili ed eliminazione. Clic su copertina o titolo apre la lettura. Le opere incomplete sono leggibili e segnalano la lavorazione in corso. Una bozza priva di testo permette di tornare alla preparazione.
+
+Il lettore comune ha indice, dimensione del testo, navigazione da tastiera e segnalibro locale per opera. I saggi includono la bibliografia; i fumetti mostrano le tavole pronte in ordine. Il testo Markdown non esegue HTML grezzo. Aprire il lettore non genera immagini né avvia chiamate AI.
+
+L’eliminazione richiede conferma per tutti i formati. Con un processo attivo occorre prima fermarlo. Si rimuovono i file associati in modo verificabile, preservando quelli condivisi; i file storici senza associazione non vengono riconosciuti per somiglianza del titolo. L’eliminazione dell’opera non è un cestino recuperabile.
+
+## Pausa, recupero e salvataggio
+
+Chiudere una pagina non elimina il progetto e non equivale a interrompere il backend. Narrativa si ferma dopo il capitolo e i suoi controlli; saggi e fumetti rispettano i rispettivi checkpoint e chiamate in corso. Le pause volontarie e gli errori richiedono ripresa esplicita. I job interrotti da un arresto del server vengono recuperati al riavvio.
+
+L’editor avvisa prima di lasciare modifiche non salvate. Durante i processi attivi le modifiche incompatibili sono bloccate. Errori di rete si distinguono dall’archivio vuoto e offrono **Riprova**; una risposta vecchia non sostituisce le nuove scelte.
+
+## Export e audio
+
+Narrativa e saggi supportano **PDF, EPUB e DOCX**; per i saggi sono disponibili anche versioni di lavoro. Il PDF del saggio comprende frontespizio, indice, riferimenti, bibliografia e retro. I fumetti hanno PDF con tavole e copertine. Le pagine di testo previste e le pagine fisiche del PDF sono misure diverse.
+
+L’audio narrativo opzionale usa Gemini TTS con la stessa chiave API; è un servizio distinto dai suoni dell’interfaccia e contribuisce ai consumi. Non è un audiolibro universale per tutte le modalità.
+
+## Valuta e Analisi
+
+**Valuta** accetta un PDF esterno, per cui si sceglie il tipo, oppure un’opera della biblioteca. La rubrica cambia: costruzione narrativa; tesi, evidenze e limiti; sequenza, leggibilità e continuità visiva del fumetto. Il critico legge anche le immagini del PDF. Un’opera attiva va prima fermata.
+
+I risultati della valutazione trasversale restano nella pagina. Le chiamate su opere interne entrano nel loro registro dei consumi; i PDF esterni non entrano nell’archivio o nelle metriche delle opere. Il voto non misura automaticamente verità, originalità o soddisfazione del lettore.
+
+**Analisi** offre filtri per formato e mostra opere completate/attive/in pausa/in preparazione, parole e capitoli testuali, tavole completate dei fumetti, creazioni per mese, consumi per fase e modello e opere recenti. Le copertine non contano come tavole. Non presenta medie di voti o tempi come confronti scientifici fra modelli.
+
+I costi sono il subtotale quantificabile del registro, al cambio conservato per richiesta. La copertura incompleta è dichiarata: un dato sconosciuto non è zero. Le cifre non sono la fattura dell’account Google.
+
+## Impostazioni e dati
+
+**Impostazioni → Suoni di scrittura** abilita carta e matita sintetizzate localmente. Sono spenti per default; la preferenza resta sul dispositivo. Dopo una prima interazione, il mouse può produrre un fruscio lieve sulle tre scelte di creazione, con limitazione delle ripetizioni. Il touch e il passaggio tra elementi della stessa scheda non lo attivano. Gli effetti visivi rispettano il movimento ridotto del sistema.
+
+Narrativa e fumetti usano l’archivio principale SQLite; i saggi mantengono un archivio compatibile con SaggIA. Nessuno dei due database è incluso in Git. Per avvio, importazione, backup e limiti consultare [README](../README.md), [tecnica](TECNICA.md) e [operazioni](OPERAZIONI.md).

@@ -17,6 +17,8 @@ from app.llm import (
 )
 from app.models import MangaCreateRequest, MangaPagePlan, MangaPlan
 
+logger = get_logger("comic-planner")
+
 MANGA_LANGUAGE_RULE = (
     "Tutto il contenuto narrativo e il testo visibile devono essere in italiano. "
     "Se la fonte e in inglese, traducila senza residui."
@@ -36,7 +38,7 @@ MANGA_TYPE_DESCRIPTIONS = {
 
 MANGA_COLOR_MODE_DESCRIPTIONS = {
     "black_and_white": "Pagine interne in bianco e nero o scala di grigi, con retini/contrasti coerenti e nessun elemento a colori.",
-    "color": "Pagine interne interamente a colori, con palette coerente e resa cromatica stabile da inizio a fine manga.",
+    "color": "Pagine interne interamente a colori, con palette coerente e resa cromatica stabile da inizio a fine fumetto.",
 }
 
 
@@ -102,14 +104,14 @@ def _build_page_count_policy(request: MangaCreateRequest) -> str:
             "Non scegliere una lunghezza diversa."
         )
     return (
-        "Scegli tu la lunghezza finale del manga in base al materiale narrativo disponibile, "
+        "Scegli tu la lunghezza finale del fumetto in base al materiale narrativo disponibile, "
         "ma resta sempre dentro il range richiesto."
     )
 
 
 def _build_page_count_requirement(request: MangaCreateRequest) -> str:
     if request.min_pages == request.max_pages:
-        return f"- Il manga deve avere esattamente {request.min_pages} pagine.\n"
+        return f"- Il fumetto deve avere esattamente {request.min_pages} pagine.\n"
     return (
         f"- Scegli una lunghezza finale compresa tra {request.min_pages} e {request.max_pages} pagine.\n"
         "- Se il range contiene piu opzioni, seleziona il numero di pagine che meglio bilancia completezza narrativa, ritmo e chiarezza.\n"
@@ -167,8 +169,10 @@ async def generate_manga_plan(
         request_id="storyboard-plan",
     )
 
+    from app.core.comics import comic_direction
     system_prompt = (
-        "Sei un planner narrativo per mini manga. Produci un piano compatto, coerente, "
+        "Sei un autore e sceneggiatore di fumetti. Produci un piano compatto, coerente, "
+        f"{comic_direction(request)} "
         "pronto a diventare pagine con vignette e balloon gia integrati. "
         f"{_build_page_count_policy(request)} "
         "Dialoghi brevissimi; non sovraccaricare una pagina. "
@@ -177,9 +181,9 @@ async def generate_manga_plan(
         "Restituisci solo dati compatibili con lo schema richiesto."
     )
     human_prompt = (
-        f"Crea un piano per un mini manga lungo {_describe_requested_page_range(request)} pagine.\n\n"
+        f"Crea un piano per un fumetto lungo {_describe_requested_page_range(request)} pagine.\n\n"
         f"Titolo richiesto: {request.title or 'Scegli automaticamente il titolo migliore'}\n"
-        f"Tipo di manga: {request.manga_type} - {MANGA_TYPE_DESCRIPTIONS.get(request.manga_type, '')}\n"
+        f"{comic_direction(request)}\n"
         f"Modalita cromatica pagine interne: {MANGA_COLOR_MODE_DESCRIPTIONS.get(request.page_color_mode, '')}\n"
         f"Trama iniziale:\n{request.plot.strip()}\n\n"
         f"Personaggi principali:\n{_format_characters(request)}\n\n"

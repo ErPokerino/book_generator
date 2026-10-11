@@ -1,19 +1,19 @@
 /**
  * PWA Icon Generator for NarrAI
- * Source: public/logo-mark.png (cream quill on cinnabar)
+ * Source: public/logo-mark.svg (ink on paper)
  */
 
 import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const PUBLIC_DIR = join(__dirname, '..', 'public');
-const LOGO_PATH = join(PUBLIC_DIR, 'logo-mark.png');
-const BACKGROUND_COLOR = '#B42318';
+const LOGO_PATH = join(PUBLIC_DIR, 'logo-mark.svg');
+const BACKGROUND_COLOR = '#FAFAF7';
 
 async function squareIcon(size, paddingRatio = 0, fit = 'cover') {
   const canvas = sharp({
@@ -44,10 +44,7 @@ async function writeIcon(filename, size, paddingRatio = 0, fit = 'cover') {
 }
 
 async function generateSvgFavicon() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="${BACKGROUND_COLOR}"/>
-  <path fill="#F4F0EA" d="M20.6 5.2c-2.2 2-7.4 9.1-11.6 16.4-.7 1.2-1.2 2.2-1.5 3l2.6.9c.4-.9 1.1-2.2 2.1-3.8 3.8-6.4 8.4-12.2 10.8-14.4-1-.9-1.7-1.6-2.4-2.1zM8.4 25.2l-2.8 2.2 3.4-1.1c-.2-.4-.4-.7-.6-1.1z"/>
-</svg>`;
+  const svg = readFileSync(LOGO_PATH, 'utf8');
   writeFileSync(join(PUBLIC_DIR, 'favicon.svg'), svg);
   console.log('  ✓ favicon.svg');
 }

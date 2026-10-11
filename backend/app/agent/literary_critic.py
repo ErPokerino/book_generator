@@ -148,6 +148,7 @@ async def generate_literary_critique_from_pdf(
     google_api_key: Optional[str] = None,
     model_name: Optional[str] = None,
     session_id: Optional[str] = None,
+    work_type: str = "book",
 ) -> tuple[Dict[str, Any], Dict[str, int]]:
     """
     Genera una valutazione critica usando come input il PDF finale del libro.
@@ -165,6 +166,8 @@ async def generate_literary_critique_from_pdf(
         raise ValueError("Config critico mancante: system_prompt")
     if not user_prompt:
         raise ValueError("Config critico mancante: user_prompt")
+    from app.agent.evaluation_prompts import evaluation_prompts
+    system_prompt, user_prompt = evaluation_prompts(cfg, work_type)
     
     use_fallback = False
     max_retries = int(cfg.get("max_retries", 2))

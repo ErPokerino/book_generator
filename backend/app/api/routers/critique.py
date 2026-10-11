@@ -1,7 +1,8 @@
 """Router per gli endpoint delle critiche letterarie."""
 import sys
-from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+import asyncio
+from typing import Optional, Literal
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import Response
 
 from app.models import LiteraryCritique
@@ -59,6 +60,7 @@ async def analyze_external_pdf(
     file: UploadFile = File(...),
     title: Optional[str] = Form(None),
     author: Optional[str] = Form(None),
+    work_type: Literal["book", "essay", "manga"] = Form("book"),
 ):
     """
     Analizza un PDF esterno con l'agente critico letterario.
@@ -106,6 +108,7 @@ async def analyze_external_pdf(
                 pdf_bytes=pdf_bytes,
                 title=book_title,
                 author=book_author,
+                work_type=work_type,
             )
             print(f"[EXTERNAL PDF CRITIQUE] Analisi modello completata")
             print(f"[EXTERNAL PDF CRITIQUE] Token usage: {token_usage.get('input_tokens', 0)} input, {token_usage.get('output_tokens', 0)} output")
@@ -125,6 +128,7 @@ async def analyze_external_pdf(
                 pros=critique_dict.get("pros", []) if isinstance(critique_dict, dict) else critique_dict.pros,
                 cons=critique_dict.get("cons", []) if isinstance(critique_dict, dict) else critique_dict.cons,
                 summary=critique_dict.get("summary", "") if isinstance(critique_dict, dict) else critique_dict.summary,
+                criteria=critique_dict.get("criteria", []) if isinstance(critique_dict, dict) else critique_dict.criteria,
             )
             print(f"[EXTERNAL PDF CRITIQUE] Analisi completata: score={critique.score}")
         except Exception as validation_error:
@@ -146,3 +150,38 @@ async def analyze_external_pdf(
             status_code=500,
             detail=f"Errore nell'analisi del PDF: {str(e)}"
         )
+
+
+@router.post("/analyze-work/{work_type}/{session_id}", response_model=LiteraryCritique)
+async def analyze_existing_work(request: Request, work_type: Literal["book", "essay", "manga"], session_id: str):
+    from app.agent.session_store import session_store_context
+    if work_type == "essay":
+        store = request.app.state.essay_api.state.store
+    else:
+        store = get_session_store()
+    session = await get_session_async(store, session_id)
+    if session is None:
+        raise HTTPException(404, "Opera non trovata.")
+    if work_type != "essay" and getattr(session, "content_type", "book") != work_type:
+        raise HTTPException(409, "Il formato scelto non corrisponde all'opera.")
+    jobs = await asyncio.to_thread(store.list_jobs, session_id)
+    if any(j["status"] in {"pending", "running"} for j in jobs):
+        raise HTTPException(409, "Metti in pausa la lavorazione prima di valutare l'opera.")
+    if not (session.manga_pages if work_type == "manga" else session.book_chapters):
+        raise HTTPException(422, "Scrivi almeno un capitolo o genera una tavola prima della valutazione.")
+    try:
+        if work_type == "essay":
+            from app.essay.exports import export_book
+            pdf, _ = await asyncio.to_thread(export_book, session, "pdf")
+            title = session.form_data.title or session.plan["title"]
+            author = session.form_data.author_name
+        else:
+            from app.services.pdf_service import generate_manga_pdf, generate_complete_book_pdf
+            pdf, _ = await asyncio.to_thread(generate_manga_pdf if work_type == "manga" else generate_complete_book_pdf, session)
+            title = session.current_title or "Opera senza titolo"
+            author = session.form_data.author or session.form_data.user_name or "Autore"
+        with session_store_context(store):
+            result, _ = await analyze_pdf_from_bytes(pdf, title=title, author=author, work_type=work_type, session_id=session_id)
+        return LiteraryCritique(**result)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(422, str(exc)) from exc

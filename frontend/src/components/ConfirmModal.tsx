@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import './ConfirmModal.css';
 
 interface ConfirmModalProps {
@@ -22,6 +22,7 @@ export default function ConfirmModal({
   onCancel,
   variant = 'info',
 }: ConfirmModalProps) {
+  const titleId = useId();
   // Gestione ESC per chiudere
   useEffect(() => {
     if (!isOpen) return;
@@ -40,9 +41,9 @@ export default function ConfirmModal({
 
   return (
     <div className="confirm-modal-overlay" onClick={onCancel}>
-      <div className="confirm-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="confirm-modal-content" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
         <div className="confirm-modal-header">
-          <h3>{title}</h3>
+          <h3 id={titleId}>{title}</h3>
         </div>
         
         <div className="confirm-modal-body">

@@ -5,7 +5,7 @@ import { fetchConfig, submitForm, generateQuestions, downloadPdf, getOutline, st
 import { useToast } from '../hooks/useToast';
 import QuestionsStep from './QuestionsStep';
 import DraftStep from './DraftStep';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import ErrorBoundary from './ErrorBoundary';
 import CreateShell from './CreateShell';
 import Disclosure from './ui/Disclosure';
@@ -88,6 +88,8 @@ function applyDefaultAuthor(data: Record<string, string>): Record<string, string
 }
 
 export default function DynamicForm() {
+  const [searchParams] = useSearchParams();
+  const resumeSessionId = searchParams.get('session');
   const toast = useToast();
   const [config, setConfig] = useState<{ llm_models: string[]; fields: FieldConfig[] } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,12 @@ export default function DynamicForm() {
     
     try {
       // Ripristina formData da localStorage (solo se non c'è una sessione attiva)
-      const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
+      const savedFormData = !localStorage.getItem(SESSION_STORAGE_KEY) ? localStorage.getItem(FORM_DATA_STORAGE_KEY) : null;
+      if (!resumeSessionId && localStorage.getItem(SESSION_STORAGE_KEY)) {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+        localStorage.removeItem('newBook.plot');
+      }
       if (savedFormData) {
         try {
           const parsed = JSON.parse(savedFormData);
@@ -144,7 +151,7 @@ export default function DynamicForm() {
   // Hook per ripristinare lo stato della sessione al mount
   useEffect(() => {
     const restoreSessionState = async () => {
-      const savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+      const savedSessionId = resumeSessionId;
       if (!savedSessionId) {
         return; // Nessuna sessione salvata
       }

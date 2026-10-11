@@ -1,0 +1,27 @@
+/* The manuscript editor shares the paper and ink palette of the three paths. */
+.manuscript-studio{--studio-paper:var(--sheet);--studio-ink:var(--ink);--studio-muted:var(--text-secondary);--studio-line:var(--rule);background:var(--paper);font-family:var(--font-body)}
+.manuscript-studio button{border-radius:4px 8px 5px 3px}
+.manuscript-studio button:hover:not(:disabled){background:var(--sheet-hover)}
+.manuscript-studio :focus-visible{outline-color:var(--ink)}
+.manuscript-studio .studio-primary{background:var(--ink);border-color:var(--ink);color:var(--sheet)}
+.manuscript-studio .studio-primary:hover:not(:disabled){background:var(--ink-soft)}
+.manuscript-studio .studio-topbar,.manuscript-studio .studio-mobile-tabs{background:var(--paper)}
+.manuscript-studio .studio-project h1,.manuscript-studio .studio-paper h2,.manuscript-studio .studio-note-body h3,.manuscript-studio .studio-cost-total{font-family:var(--font-display)}
+.manuscript-studio .studio-prose,.manuscript-studio .studio-paper textarea,.manuscript-studio .studio-unwritten{font-family:var(--font-display)}
+.manuscript-studio .studio-eyebrow{font-family:var(--font-body)}
+.manuscript-studio .studio-saved,.manuscript-studio .studio-fact summary>small{color:var(--ink-soft)}
+.manuscript-studio .studio-outline li button[aria-current=true],.manuscript-studio .studio-mobile-tabs button[aria-pressed=true]{background:var(--sheet-hover);color:var(--ink)}
+.manuscript-studio .studio-chapter-number{font-family:var(--font-hand);font-size:1rem;line-height:1.2}
+.manuscript-studio .studio-progress progress{accent-color:var(--ink)}
+.manuscript-studio .studio-status-dot{background:var(--rule-strong)}
+.manuscript-studio .studio-status-dot.active{background:var(--ink)}
+.manuscript-studio .studio-progress p{color:var(--ink-soft)}
+.manuscript-studio .studio-paper{border-color:var(--rule);border-radius:3px 7px 4px 2px;box-shadow:3px 4px 0 #22221f08}
+.manuscript-studio .studio-paper-rule{background:var(--ink);height:2px;border-radius:50%;transform:rotate(-2deg)}
+.manuscript-studio .studio-note-tabs button[aria-pressed=true]{border-bottom-color:var(--ink);color:var(--ink)}
+.manuscript-studio .studio-fact blockquote,.manuscript-studio .studio-conflict blockquote{border-left-color:var(--rule-strong)}
+.manuscript-studio .studio-fact summary>p{color:var(--text-secondary)}
+.manuscript-studio .studio-conflict{background:var(--sheet-hover);border-left-color:var(--ink)}
+.manuscript-studio .studio-message{background:var(--sheet-hover)}
+.manuscript-studio .studio-message.is-error{background:var(--sheet);border-left:3px solid var(--danger)}
+.studio-loading{background:var(--paper)}

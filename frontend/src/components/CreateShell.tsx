@@ -4,7 +4,7 @@ import SegmentedControl from './ui/SegmentedControl';
 import './CreateShell.css';
 
 interface CreateShellProps {
-  medium: 'book' | 'manga';
+  medium: 'book' | 'essay' | 'manga';
   children: ReactNode;
 }
 
@@ -14,16 +14,17 @@ export default function CreateShell({ medium, children }: CreateShellProps) {
   return (
     <div className="page-shell create-shell">
       <header className="create-shell-header">
-        <div><h1>{medium === 'book' ? 'Crea un libro' : 'Crea un manga'}</h1><p className="create-shell-subtitle">Un’idea, un piano, la tua prossima opera.</p></div>
+        <div><span className="notebook-eyebrow">Il tuo prossimo progetto</span><h1>{medium === 'book' ? 'Crea narrativa' : medium === 'essay' ? 'Crea un saggio' : 'Crea un fumetto'}</h1><p className="create-shell-subtitle">{medium === 'essay' ? 'Una domanda, le tue ragioni, un nuovo punto di vista.' : medium === 'manga' ? 'Dai una storia alle tue immagini.' : 'C’è una storia che solo tu puoi raccontare.'}</p></div>
         <SegmentedControl
           name="medium"
           ariaLabel="Tipo di opera"
           value={medium}
           options={[
-            { value: 'book', label: 'Libro' },
-            { value: 'manga', label: 'Manga' },
+            { value: 'book', label: 'Narrativa' },
+            { value: 'essay', label: 'Saggio' },
+            { value: 'manga', label: 'Fumetto' },
           ]}
-          onChange={(next) => navigate(next === 'manga' ? '/manga' : '/new')}
+          onChange={(next) => navigate(next === 'manga' ? '/comics' : next === 'essay' ? '/new/essay' : '/new')}
         />
       </header>
       {children}

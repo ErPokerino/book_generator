@@ -25,6 +25,7 @@ from app.llm import (
     is_retryable_llm_error,
     image_size_for_model,
 )
+from app.core.comics import comic_direction
 from app.models import (
     MangaCharacterProfile,
     MangaCreateRequest,
@@ -449,6 +450,8 @@ def build_manga_reader_response(session) -> MangaReaderResponse:
         session_id=session.session_id,
         title=title,
         manga_type=manga_form_data.get("manga_type", "shonen"),
+        comic_format=manga_form_data.get("comic_format", "manga"),
+        comic_genre=manga_form_data.get("comic_genre"),
         page_color_mode=page_color_mode,  # type: ignore[arg-type]
         requested_min_pages=requested_min_pages,
         requested_max_pages=requested_max_pages,
@@ -523,9 +526,9 @@ def _build_page_prompt(
     total_pages = len(plan.page_plans)
     page_color_mode = get_requested_manga_page_color_mode(request=request)
     style_guide_fallback = (
-        "- Stile manga pulito a colori, con palette coerente, balloon leggibili e ritmo visivo chiaro."
+        "- Stile del formato scelto, pulito a colori, con palette coerente, balloon leggibili e ritmo visivo chiaro."
         if page_color_mode == "color"
-        else "- Stile manga pulito in bianco e nero, con balloon leggibili e ritmo visivo chiaro."
+        else "- Stile del formato scelto, pulito in bianco e nero, con balloon leggibili e ritmo visivo chiaro."
     )
     previous_summaries = [
         f"Pagina {page.get('page_number')}: {page.get('summary', '')}"
@@ -541,9 +544,9 @@ def _build_page_prompt(
     previous_pages_block = "\n".join(previous_summaries) or "- Questa e la pagina di apertura."
 
     return (
-        "Genera una singola pagina completa di manga.\n\n"
+        "Genera una singola tavola completa del fumetto richiesto.\n\n"
         f"Titolo del progetto: {plan.title}\n"
-        f"Tipo di manga: {MANGA_TYPE_LABELS.get(request.manga_type, request.manga_type)}\n"
+        f"{comic_direction(request)}\n"
         f"Modalita cromatica interna: {_describe_page_color_mode(page_color_mode)}\n"
         f"Sinossi completa: {plan.synopsis}\n"
         f"Tono della serie: {plan.tone}\n\n"
@@ -566,7 +569,7 @@ def _build_page_prompt(
         "Contesto delle pagine recenti:\n"
         f"{previous_pages_block}\n\n"
         "Vincoli rigidi:\n"
-        "- Restituisci solo l'immagine della pagina manga, senza spiegazioni.\n"
+        "- Restituisci solo l'immagine della tavola, senza spiegazioni.\n"
         f"- {_build_page_color_instruction(page_color_mode)}\n"
         "- Stile, tratto, personaggi e proporzioni identici alla prima pagina e alle recenti.\n"
         "- Balloon e testo diegetico nell'illustrazione; onomatopee come suono, senza prefissi.\n"
@@ -587,14 +590,14 @@ def _build_cover_prompt(
     )
 
     return (
-        "Genera la copertina illustrata di un mini manga.\n\n"
+        "Genera la copertina illustrata del fumetto richiesto.\n\n"
         f"Titolo da inserire in copertina: {plan.title}\n"
-        f"Tipo di manga: {MANGA_TYPE_LABELS.get(request.manga_type, request.manga_type)}\n"
+        f"{comic_direction(request)}\n"
         f"Sinossi: {plan.synopsis}\n"
         f"Tono: {plan.tone}\n\n"
         f"{MANGA_LANGUAGE_RULE}\n\n"
         "Guida stilistica:\n"
-        f"{style_guide or '- Copertina editoriale in stile manga, forte impatto visivo, composizione pulita.'}\n\n"
+        f"{style_guide or '- Copertina editoriale nello stile del formato scelto, forte impatto visivo, composizione pulita.'}\n\n"
         "Personaggi principali da rappresentare, se coerente:\n"
         f"{characters or '- Nessun personaggio da mostrare in primo piano.'}\n\n"
         "Vincoli rigidi:\n"
@@ -603,7 +606,7 @@ def _build_cover_prompt(
         "- La copertina deve essere sempre a colori, anche se le pagine interne sono in bianco e nero.\n"
         "- Inserisci il titolo in modo leggibile e professionale.\n"
         "- Non inserire il nome dell'autore.\n"
-        "- Look editoriale coerente con il manga e con i protagonisti.\n"
+        "- Look editoriale coerente con il formato scelto e con i protagonisti.\n"
         f"- {MANGA_NO_META_RULE}\n"
         "- Evita watermark, elementi UI, testo casuale o margini bianchi esterni."
     )
@@ -626,9 +629,9 @@ def _build_back_cover_prompt(
     ) or "- Conclusione non disponibile."
 
     return (
-        "Genera la retro-copertina illustrata di un mini manga.\n\n"
-        f"Titolo del manga: {plan.title}\n"
-        f"Tipo di manga: {MANGA_TYPE_LABELS.get(request.manga_type, request.manga_type)}\n"
+        "Genera la retro-copertina illustrata del fumetto richiesto.\n\n"
+        f"Titolo del fumetto: {plan.title}\n"
+        f"{comic_direction(request)}\n"
         f"Tono: {plan.tone}\n"
         f"Sinossi generale: {plan.synopsis}\n\n"
         "Contesto finale della storia:\n"
@@ -645,7 +648,7 @@ def _build_back_cover_prompt(
         "- La retro-copertina deve mostrare un momento o un'atmosfera diversa dalla copertina frontale, legata al finale o al dopo-finale.\n"
         "- Se compaiono gli stessi personaggi, mostrali con espressione, distanza camera, assetto del corpo o ambientazione chiaramente differenti dalla copertina frontale.\n"
         f"- {MANGA_NO_META_RULE} Niente titolo, barcode, prezzo o testo promozionale.\n"
-        "- Coerenza di protagonisti, abiti, palette e stile con il manga.\n"
+        "- Coerenza di protagonisti, abiti, palette e stile con il formato di fumetto scelto.\n"
         "- Evita watermark, elementi UI, testo casuale o margini bianchi esterni."
     )
 
@@ -1101,6 +1104,16 @@ async def backfill_manga_artwork_if_missing(
     )
 
 
+async def _pause_comic_at_checkpoint(session_id: str) -> bool:
+    store = get_session_store()
+    session = await get_session_async(store, session_id)
+    if not session or not (session.manga_progress or {}).get("pause_requested"):
+        return False
+    await mark_process_paused_async(store, session_id, "manga", "Pausa richiesta dall'autore.",
+                                    is_paused=True, is_complete=False, recoverable=True)
+    return True
+
+
 async def _run_generation_loop(
     *,
     session_id: str,
@@ -1108,6 +1121,8 @@ async def _run_generation_loop(
     session,
     api_key: Optional[str],
 ) -> None:
+    if await _pause_comic_at_checkpoint(session_id):
+        return
     requested_min_pages, requested_max_pages = get_requested_manga_page_range(request=request, session=session)
     plan_dict = session.manga_plan
     plan: MangaPlan
@@ -1170,6 +1185,8 @@ async def _run_generation_loop(
         session.manga_progress = progress
         await _save_session(get_session_store(), session)
 
+    if await _pause_comic_at_checkpoint(session_id):
+        return
     if not getattr(session, "cover_image_path", None):
         cover_prompt = _build_cover_prompt(request=request, plan=plan)
         await _update_progress(
@@ -1247,10 +1264,14 @@ async def _run_generation_loop(
         session.manga_progress = progress
         await _save_session(get_session_store(), session)
 
+    if await _pause_comic_at_checkpoint(session_id):
+        return
     completed_pages = list(session.manga_pages)
     start_index = len(completed_pages)
 
     for page_plan in plan.page_plans[start_index:]:
+        if await _pause_comic_at_checkpoint(session_id):
+            return
         prompt = _build_page_prompt(
             request=request,
             plan=plan,
@@ -1341,6 +1362,8 @@ async def _run_generation_loop(
         session.manga_progress = progress
         await _save_session(get_session_store(), session)
 
+    if await _pause_comic_at_checkpoint(session_id):
+        return
     back_cover_prompt = _build_back_cover_prompt(
         request=request,
         plan=plan,
@@ -1455,6 +1478,8 @@ async def background_manga_generation(
             api_key=api_key,
         )
         session = await get_session_async(session_store, session_id)
+        if session and (session.manga_progress or {}).get("is_paused"):
+            return
         total_pages = get_runtime_manga_total_steps(session) if session else request.max_pages
         await mark_process_completed_async(
             session_store,

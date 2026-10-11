@@ -18,19 +18,19 @@ const screens: OnboardingScreen[] = [
   {
     id: 'library',
     title: 'Le tue opere',
-    description: 'Qui trovi i libri e i manga. Continua una bozza o leggi un’opera pronta.',
+    description: 'Libri, saggi e manga nello stesso studio. Ogni idea trova la sua forma, ogni progetto resta a portata di mano.',
     icon: <LibraryIcon className="onboarding-icon-svg" size={72} />,
   },
   {
     id: 'create',
-    title: 'Crea una storia',
-    description: 'Parti dalla trama. Libro o manga, nello stesso foglio. I modelli restano in secondo piano.',
+    title: 'Parti da un foglio',
+    description: 'Inventa una storia, approfondisci una domanda o disegna un mondo. Scegli Narrativa, Saggio o Fumetto.',
     icon: <CustomizeIcon className="onboarding-icon-svg" size={72} />,
   },
   {
     id: 'read',
-    title: 'Leggi senza rumore',
-    description: 'Il lettore è una pagina: titolo, capitolo, testo. Niente pannelli, solo la storia.',
+    title: 'Il ritmo lo scegli tu',
+    description: 'Scrivi, rivedi e ritrova il tuo lavoro. Se ti va, attiva i piccoli suoni di scrittura dal pulsante Suoni.',
     icon: <EditIcon className="onboarding-icon-svg" size={72} />,
   },
 ]

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { LibraryFilters } from '../api/client';
 import './FilterBar.css';
+import SegmentedControl from './ui/SegmentedControl';
 
 interface FilterBarProps {
   onFiltersChange: (filters: LibraryFilters) => void;
@@ -56,6 +57,7 @@ export default function FilterBar({ onFiltersChange, availableModes, availableGe
 
   return (
     <div className="filter-bar">
+      <SegmentedControl name="work-type" ariaLabel="Tipo di opera in biblioteca" value={filters.content_type || 'all'} options={[{value:'all',label:'Tutte'},{value:'book',label:'Narrativa'},{value:'essay',label:'Saggi'},{value:'manga',label:'Fumetti'}]} onChange={value=>handleFilterChange('content_type',value)} />
       {/* Sezione principale: Cerca + Toggle filtri avanzati (su mobile) */}
       <div className="filter-bar-main">
         <div className="filter-group search-group">

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   downloadMangaPdf,
   getAppConfig,
@@ -11,7 +11,6 @@ import {
   MangaProgress,
   MangaReaderResponse,
   MangaType,
-  restoreSession,
   resumeMangaGeneration,
   startMangaGeneration,
   type AppConfig,
@@ -27,6 +26,7 @@ import ModelSettingsPanel, {
 } from './ModelSettingsPanel';
 import { elapsedMinutesBetween, formatElapsed, formatEstimateCost } from '../utils/estimateGeneration';
 import './MangaBetaView.css';
+import { COMIC_GENRES } from '../utils/comics';
 
 const STORAGE_KEY = 'current_manga_session_id';
 const DEFAULT_MANGA_PAGE_COUNT = 10;
@@ -54,6 +54,8 @@ const PAGE_COLOR_MODE_OPTIONS: Array<{
 interface MangaBetaFormState {
   title: string;
   plot: string;
+  comic_format: 'manga' | 'graphic_novel';
+  comic_genre: string;
   manga_type: MangaType;
   page_color_mode: MangaCreateRequest['page_color_mode'];
   main_characters: MangaCharacterInput[];
@@ -71,6 +73,8 @@ const createEmptyCharacter = (): MangaCharacterInput => ({ name: '', description
 const createDefaultFormState = (): MangaBetaFormState => ({
   title: '',
   plot: '',
+  comic_format: 'manga',
+  comic_genre: 'action',
   manga_type: 'shonen',
   page_color_mode: DEFAULT_PAGE_COLOR_MODE,
   main_characters: [createEmptyCharacter()],
@@ -167,7 +171,7 @@ function ReaderPages({
         {imageUrl ? (
           <img
             src={imageUrl}
-            alt={`Pagina ${activePage.page_number}: ${activePage.title || 'manga'}`}
+            alt={`Tavola ${activePage.page_number}: ${activePage.title || 'fumetto'}`}
           />
         ) : (
           <div className="manga-page-placeholder">Immagine in preparazione...</div>
@@ -242,7 +246,7 @@ function MangaSessionPanel({
           toast.error(`Connessione instabile (tentativo ${nextFailures}/10). Riprovo...`);
         }
         if (nextFailures >= 10) {
-          setFatalError(error instanceof Error ? error.message : 'Errore nel recupero del manga');
+          setFatalError(error instanceof Error ? error.message : 'Errore nel recupero del fumetto');
           setIsPolling(false);
           return;
         }
@@ -326,7 +330,7 @@ function MangaSessionPanel({
     return (
       <div className="manga-beta-shell">
         <div className="manga-status-card error">
-          <h2>Errore nel lettore manga</h2>
+          <h2>Errore nel lettore fumetto</h2>
           <p>{fatalError}</p>
           <button type="button" className="manga-secondary-button" onClick={onStartOver}>
             Torna al form
@@ -340,7 +344,7 @@ function MangaSessionPanel({
     return (
       <div className="manga-beta-shell">
         <div className="manga-status-card">
-          <h2>Sto recuperando la sessione manga...</h2>
+          <h2>Sto recuperando la sessione fumetto...</h2>
           <p>Attendi qualche istante.</p>
         </div>
       </div>
@@ -357,7 +361,7 @@ function MangaSessionPanel({
         : progress.current_phase === 'generating_back_cover'
           ? 'Retro-copertina in corso'
           : progress.is_complete
-            ? 'Manga completato'
+            ? 'Fumetto completato'
             : progress.current_page_title
               ? `Pagina corrente: ${progress.current_page_title}`
               : 'Generazione pagina per pagina';
@@ -365,7 +369,7 @@ function MangaSessionPanel({
   return (
     <div className="page-shell manga-session">
       <GenerationStage
-        title={reader?.title || 'Manga in generazione'}
+        title={reader?.title || 'Fumetto in generazione'}
         phase={phaseLabel}
         elapsed={elapsedMinutes != null ? formatElapsed(elapsedMinutes) : null}
         cost={currentCostEur != null ? formatEstimateCost(currentCostEur) : null}
@@ -373,7 +377,16 @@ function MangaSessionPanel({
         progress={showPageProgress ? progressPercentage : null}
         actions={
           <>
-            <Button variant="ghost" onClick={onStartOver}>Nuovo manga</Button>
+            <Button variant="ghost" onClick={onStartOver}>Nuovo fumetto</Button>
+            <Link to={`/read/manga/${sessionId}`}>Leggi</Link>
+            {generationActive && <Button variant="ghost" onClick={async () => {
+              try {
+                const response = await fetch(`/api/manga/${sessionId}/pause`, {method:'POST'});
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || 'Pausa non disponibile');
+                toast.success(result.message);
+              } catch(e) { toast.error(e instanceof Error ? e.message : 'Pausa non disponibile'); }
+            }}>Metti in pausa</Button>}
             {progress.is_paused ? (
               <Button
                 disabled={isResuming}
@@ -381,10 +394,10 @@ function MangaSessionPanel({
                   try {
                     setIsResuming(true);
                     await resumeMangaGeneration(sessionId);
-                    toast.success('Generazione manga ripresa');
+                    toast.success('Generazione fumetto ripresa');
                     setIsPolling(true);
                   } catch (error) {
-                    toast.error(error instanceof Error ? error.message : 'Errore nella ripresa del manga');
+                    toast.error(error instanceof Error ? error.message : 'Errore nella ripresa del fumetto');
                   } finally {
                     setIsResuming(false);
                   }
@@ -411,9 +424,9 @@ function MangaSessionPanel({
                       window.URL.revokeObjectURL(url);
                       document.body.removeChild(anchor);
                     }, 100);
-                    toast.success('PDF del manga scaricato');
+                    toast.success('PDF del fumetto scaricato');
                   } catch (error) {
-                    toast.error(error instanceof Error ? error.message : 'Errore nel download del PDF manga');
+                    toast.error(error instanceof Error ? error.message : 'Errore nel download del PDF del fumetto');
                   } finally {
                     setIsDownloadingPdf(false);
                   }
@@ -481,6 +494,7 @@ export default function MangaBetaView() {
   const [initialReader, setInitialReader] = useState<MangaReaderResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
+  const genreOptions = COMIC_GENRES[formState.comic_format];
   const sessionFromQuery = searchParams.get('session');
   const minPageLimit = appConfig?.manga_generation?.min_page_count ?? MIN_MANGA_PAGES;
   const maxPageLimit = appConfig?.manga_generation?.max_page_count ?? MAX_MANGA_PAGES;
@@ -518,54 +532,14 @@ export default function MangaBetaView() {
         return;
       }
 
-      const storedSessionId = window.localStorage.getItem(STORAGE_KEY);
-      if (!storedSessionId) {
-        setIsRestoring(false);
-        return;
-      }
+      setSessionId(null);
+      setInitialProgress(null);
+      setInitialReader(null);
+      setIsRestoring(false);
 
-      try {
-        const restored = await restoreSession(storedSessionId);
-        if (restored.content_type !== 'manga') {
-          window.localStorage.removeItem(STORAGE_KEY);
-          setIsRestoring(false);
-          return;
-        }
-
-        if (restored.manga_form_data) {
-          const restoredPageCount =
-            restored.manga_form_data.page_count
-            ?? restored.manga?.planned_total_pages
-            ?? restored.manga_progress?.planned_total_pages
-            ?? restored.manga_form_data.min_pages
-            ?? restored.manga_form_data.max_pages
-            ?? defaultPageCount;
-          setFormState({
-            title: restored.manga_form_data.title || '',
-            plot: restored.manga_form_data.plot,
-            manga_type: restored.manga_form_data.manga_type,
-            page_color_mode: restored.manga_form_data.page_color_mode,
-            page_count: restoredPageCount,
-            main_characters:
-              restored.manga_form_data.main_characters.length > 0
-                ? restored.manga_form_data.main_characters
-                : [createEmptyCharacter()],
-          });
-        }
-
-        setSessionId(restored.session_id);
-        setInitialProgress(restored.manga_progress ?? null);
-        setInitialReader(restored.manga ?? null);
-      } catch (error) {
-        console.warn('[MangaBetaView] Ripristino sessione manga fallito:', error);
-        window.localStorage.removeItem(STORAGE_KEY);
-      } finally {
-        setIsRestoring(false);
-      }
     };
-
-    restoreStoredSession();
-  }, [defaultPageCount, sessionFromQuery]);
+    void restoreStoredSession();
+  }, [sessionFromQuery]);
 
   const cleanedCharacters = useMemo(
     () => normalizeCharacters(formState.main_characters),
@@ -579,7 +553,7 @@ export default function MangaBetaView() {
     setInitialReader(null);
     setFormState(createDefaultFormState());
     setModelSettings(defaultMangaModelSettings());
-    navigate('/manga', { replace: true });
+    navigate('/comics', { replace: true });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -603,6 +577,8 @@ export default function MangaBetaView() {
     const payload: MangaCreateRequest = {
       title: formState.title.trim() || undefined,
       plot: formState.plot.trim(),
+      comic_format: formState.comic_format,
+      comic_genre: formState.comic_genre,
       manga_type: formState.manga_type,
       page_color_mode: formState.page_color_mode,
       main_characters: cleanedCharacters,
@@ -616,13 +592,13 @@ export default function MangaBetaView() {
       setIsSubmitting(true);
       const response = await startMangaGeneration(payload);
       window.localStorage.setItem(STORAGE_KEY, response.session_id);
-      navigate(`/manga?session=${response.session_id}`, { replace: true });
+      navigate(`/comics?session=${response.session_id}`, { replace: true });
       setSessionId(response.session_id);
       setInitialProgress(null);
       setInitialReader(null);
-      toast.success('Generazione manga avviata');
+      toast.success('Generazione fumetto avviata');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Errore nell\'avvio del manga');
+      toast.error(error instanceof Error ? error.message : 'Errore nell\'avvio del fumetto');
     } finally {
       setIsSubmitting(false);
     }
@@ -632,7 +608,7 @@ export default function MangaBetaView() {
     return (
       <div className="manga-beta-shell">
         <div className="manga-status-card">
-          <h2>Sto controllando se esiste una sessione manga da riprendere...</h2>
+          <h2>Sto controllando se esiste una sessione fumetto da riprendere...</h2>
           <p>Attendi qualche istante.</p>
         </div>
       </div>
@@ -653,6 +629,7 @@ export default function MangaBetaView() {
   return (
     <CreateShell medium="manga">
       <form className="manga-form-card" onSubmit={handleSubmit}>
+        <fieldset className="comic-format-choice"><legend>Che fumetto vuoi creare?</legend><div className="comic-format-options">{(["manga", "graphic_novel"] as const).map(format => <label key={format}><input type="radio" name="comic-format" value={format} checked={formState.comic_format === format} onChange={() => setFormState(current => ({...current, comic_format: format, comic_genre: format === "manga" ? "action" : "literary"}))} /><strong>{format === "manga" ? "Manga" : "Graphic Novel"}</strong><span>{format === "manga" ? "Ritmo, espressività e linguaggio manga." : "Un romanzo a fumetti, con una regia autoriale."}</span></label>)}</div></fieldset>
         <label className={`manga-field${fieldErrors.plot ? ' has-error' : ''}`}>
           <span>
             Trama di partenza
@@ -679,12 +656,12 @@ export default function MangaBetaView() {
               type="text"
               value={formState.title}
               onChange={(event) => setFormState((current) => ({ ...current, title: event.target.value }))}
-              placeholder="Lascia vuoto per farlo scegliere al planner"
+              placeholder="Lascia vuoto per scegliere il titolo insieme alla storia"
             />
           </label>
 
-          <label className="manga-field">
-            <span>Tipo di manga</span>
+          {formState.comic_format === "manga" && <label className="manga-field">
+            <span>Pubblico manga</span>
             <select
               value={formState.manga_type}
               onChange={(event) =>
@@ -697,7 +674,9 @@ export default function MangaBetaView() {
                 </option>
               ))}
             </select>
-          </label>
+          </label>}
+
+          <label className="manga-field"><span>Sottogenere</span><select value={formState.comic_genre} onChange={event => setFormState(current => ({...current, comic_genre: event.target.value}))}>{Object.entries(genreOptions).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
 
           <label className="manga-field">
             <span>Stile colore pagine interne</span>
@@ -758,7 +737,7 @@ export default function MangaBetaView() {
                 Personaggi principali
                 <RequiredMark />
               </h3>
-              <p>Almeno un personaggio con nome e descrizione è obbligatorio, così il planner resta coerente tra le pagine.</p>
+              <p>Descrivi almeno un personaggio con nome e aspetto, per mantenerlo riconoscibile in ogni tavola.</p>
             </div>
             <button
               type="button"
@@ -796,7 +775,7 @@ export default function MangaBetaView() {
                         ),
                       }));
                     }}
-                    placeholder="Es. Akira"
+                    placeholder="Il nome del personaggio"
                   />
                 </label>
                 <label className="manga-field">
@@ -843,9 +822,9 @@ export default function MangaBetaView() {
 
         <div className="manga-submit-row">
           <div className="manga-submit-copy">
-            <strong>Generazione semplificata</strong>
+            <strong>La tua storia, una tavola alla volta</strong>
             <span>
-              Planning invisibile, copertine automatiche sempre a colori, generazione autoregressiva e lettore dedicato con ripresa sessione. Le pagine interne saranno in {formatPageColorMode(formState.page_color_mode).toLowerCase()} e il manga avra {formatPageCount(formState.page_count)}. Un numero di pagine piu alto puo aumentare tempo di attesa e costo stimato.
+              Il fumetto avrà {formatPageCount(formState.page_count)}, in {formatPageColorMode(formState.page_color_mode).toLowerCase()}, con copertina a colori. Potrai seguire il lavoro, mettere in pausa e leggere le tavole già pronte. Più pagine richiedono più tempo e maggiori consumi.
             </span>
           </div>
           <button type="submit" className="manga-primary-button" disabled={isSubmitting}>
